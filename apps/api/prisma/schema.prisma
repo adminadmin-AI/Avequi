@@ -37,7 +37,7 @@ model User {
   name          String
   email         String   @unique
   passwordHash  String
-  role          UserRole @default(OPERATOR)
+  role          UserRole @default(READER)
   isActive      Boolean  @default(true)
   companyId     String
   company       Company  @relation(fields: [companyId], references: [id])
