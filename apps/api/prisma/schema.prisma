@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Empresa / Tenant ─────────────────────────────────────────────────────────
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  cnpj      String   @unique
+  type      CompanyType @default(MATRIZ)
+  parentId  String?
+  parent    Company?  @relation("branches", fields: [parentId], references: [id])
+  branches  Company[] @relation("branches")
+  users     User[]
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("companies")
+}
+
+enum CompanyType {
+  MATRIZ
+  FILIAL
+}
+
+// ─── Usuário ──────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          UserRole @default(OPERATOR)
+  isActive      Boolean  @default(true)
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  DIRECTOR
+  MANAGER
+  COMMERCIAL
+  PRODUCTION
+  QUALITY
+  WAREHOUSE
+  FINANCIAL
+  STORE
+  READER
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ─── Auditoria ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  entity    String
+  action    String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
