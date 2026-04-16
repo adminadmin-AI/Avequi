@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, BomVersion } from '@prisma/client';
+import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -113,6 +113,44 @@ async function main() {
     for (const step of steps) {
       const ex = await prisma.routingStep.findFirst({ where: { productId: step.productId, stepOrder: step.stepOrder } });
       if (!ex) await prisma.routingStep.create({ data: step });
+    }
+  }
+
+  // Warehouses
+  const almoxarifado = await prisma.warehouse.upsert({
+    where: { companyId_code: { companyId: matriz.id, code: 'ALM-01' } },
+    update: {},
+    create: { companyId: matriz.id, name: 'Almoxarifado Principal', code: 'ALM-01' },
+  });
+
+  await prisma.warehouse.upsert({
+    where: { companyId_code: { companyId: matriz.id, code: 'EXP-01' } },
+    update: {},
+    create: { companyId: matriz.id, name: 'Expedição', code: 'EXP-01' },
+  });
+
+  // Initial stock balances
+  const adminUser = await prisma.user.findUnique({ where: { email: 'admin@gdr.com.br' } });
+
+  if (couro && solado && adminUser) {
+    await prisma.stockBalance.upsert({
+      where: { warehouseId_productId: { warehouseId: almoxarifado.id, productId: couro.id } },
+      update: {},
+      create: { companyId: matriz.id, warehouseId: almoxarifado.id, productId: couro.id, available: 50, reserved: 0 },
+    });
+    await prisma.stockBalance.upsert({
+      where: { warehouseId_productId: { warehouseId: almoxarifado.id, productId: solado.id } },
+      update: {},
+      create: { companyId: matriz.id, warehouseId: almoxarifado.id, productId: solado.id, available: 200, reserved: 0 },
+    });
+    const hasMovement = await prisma.stockMovement.findFirst({ where: { companyId: matriz.id } });
+    if (!hasMovement) {
+      await prisma.stockMovement.createMany({
+        data: [
+          { companyId: matriz.id, warehouseId: almoxarifado.id, productId: couro.id, type: 'ENTRY', quantity: 50, reason: 'Saldo inicial de abertura', userId: adminUser.id },
+          { companyId: matriz.id, warehouseId: almoxarifado.id, productId: solado.id, type: 'ENTRY', quantity: 200, reason: 'Saldo inicial de abertura', userId: adminUser.id },
+        ],
+      });
     }
   }
 

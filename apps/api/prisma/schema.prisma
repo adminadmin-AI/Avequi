@@ -24,6 +24,9 @@ model Company {
   customers Customer[]
   bomVersions   BomVersion[]
   routingSteps  RoutingStep[]
+  warehouses    Warehouse[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -48,6 +51,7 @@ model User {
   company       Company  @relation(fields: [companyId], references: [id])
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  stockMovements StockMovement[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -136,6 +140,8 @@ model Product {
   boms          BomVersion[]  @relation("ProductBoms")
   usedInBoms    BomItem[]     @relation("ComponentOf")
   routingSteps  RoutingStep[] @relation("ProductRouting")
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -239,4 +245,68 @@ model RoutingStep {
 
   @@unique([productId, stepOrder])
   @@map("routing_steps")
+}
+
+// ─── Estoque ──────────────────────────────────────────────────────────────────
+
+enum MovementType {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+  REVERSAL
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
+model Warehouse {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  name        String
+  code        String
+  description String?
+  isActive    Boolean         @default(true)
+  balances    StockBalance[]
+  movements   StockMovement[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([companyId, code])
+  @@map("warehouses")
+}
+
+model StockBalance {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  available   Decimal   @default(0) @db.Decimal(14, 4)
+  reserved    Decimal   @default(0) @db.Decimal(14, 4)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([warehouseId, productId])
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  productId    String
+  product      Product      @relation(fields: [productId], references: [id])
+  type         MovementType
+  quantity     Decimal      @db.Decimal(14, 4)
+  reason       String
+  reference    String?
+  reversedById String?
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@map("stock_movements")
 }
