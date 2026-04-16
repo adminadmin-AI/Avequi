@@ -19,6 +19,9 @@ model Company {
   branches  Company[] @relation("branches")
   users     User[]
   auditLogs AuditLog[]
+  products  Product[]
+  suppliers Supplier[]
+  customers Customer[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -90,4 +93,93 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+// ─── Produto ──────────────────────────────────────────────────────────────────
+
+enum ProductType {
+  RAW_MATERIAL
+  SEMI_FINISHED
+  FINISHED_GOOD
+  CONSUMABLE
+  SERVICE
+}
+
+enum UnitOfMeasure {
+  UN
+  KG
+  G
+  M
+  M2
+  M3
+  L
+  PC
+  CX
+  PR
+}
+
+model Product {
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  sku         String
+  name        String
+  description String?
+  type        ProductType
+  unit        UnitOfMeasure  @default(UN)
+  ncm         String?
+  costPrice   Decimal?       @db.Decimal(14, 4)
+  salePrice   Decimal?       @db.Decimal(14, 4)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([companyId, sku])
+  @@map("products")
+}
+
+// ─── Fornecedor ───────────────────────────────────────────────────────────────
+
+model Supplier {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  cnpj         String?
+  email        String?
+  phone        String?
+  leadTimeDays Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, cnpj])
+  @@map("suppliers")
+}
+
+// ─── Cliente ──────────────────────────────────────────────────────────────────
+
+enum CustomerType {
+  INDIVIDUAL
+  COMPANY
+}
+
+model Customer {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  type         CustomerType @default(COMPANY)
+  name         String
+  document     String?
+  email        String?
+  phone        String?
+  address      String?
+  city         String?
+  state        String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([companyId, document])
+  @@map("customers")
 }
