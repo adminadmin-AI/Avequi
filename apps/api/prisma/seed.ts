@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType } from '@prisma/client';
+import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, BomVersion } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -76,6 +76,44 @@ async function main() {
       update: {},
       create: c,
     });
+  }
+
+  // BOM for CAL-001
+  const cal001 = await prisma.product.findUnique({ where: { companyId_sku: { companyId: matriz.id, sku: 'CAL-001' } } });
+  const couro = await prisma.product.findUnique({ where: { companyId_sku: { companyId: matriz.id, sku: 'MP-COURO-001' } } });
+  const solado = await prisma.product.findUnique({ where: { companyId_sku: { companyId: matriz.id, sku: 'MP-SOLADO-001' } } });
+
+  if (cal001 && couro && solado) {
+    const existing = await prisma.bomVersion.findFirst({ where: { productId: cal001.id, version: 1 } });
+    if (!existing) {
+      await prisma.bomVersion.create({
+        data: {
+          companyId: matriz.id,
+          productId: cal001.id,
+          version: 1,
+          isActive: true,
+          notes: 'Versão inicial',
+          items: {
+            create: [
+              { componentId: couro.id, quantity: 0.5, scrapPct: 5, unit: 'M2' },
+              { componentId: solado.id, quantity: 1, scrapPct: 2, unit: 'UN' },
+            ],
+          },
+        },
+      });
+    }
+
+    // RoutingStep for CAL-001
+    const steps = [
+      { productId: cal001.id, companyId: matriz.id, stepOrder: 1, name: 'Corte', workCenter: 'Corte', runTimeMin: 20 },
+      { productId: cal001.id, companyId: matriz.id, stepOrder: 2, name: 'Costura', workCenter: 'Costura', runTimeMin: 45 },
+      { productId: cal001.id, companyId: matriz.id, stepOrder: 3, name: 'Montagem', workCenter: 'Montagem', runTimeMin: 30 },
+      { productId: cal001.id, companyId: matriz.id, stepOrder: 4, name: 'Acabamento', workCenter: 'Acabamento', runTimeMin: 15 },
+    ];
+    for (const step of steps) {
+      const ex = await prisma.routingStep.findFirst({ where: { productId: step.productId, stepOrder: step.stepOrder } });
+      if (!ex) await prisma.routingStep.create({ data: step });
+    }
   }
 
   console.log('✅ Seed concluído');

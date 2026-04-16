@@ -22,6 +22,8 @@ model Company {
   products  Product[]
   suppliers Supplier[]
   customers Customer[]
+  bomVersions   BomVersion[]
+  routingSteps  RoutingStep[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -131,6 +133,9 @@ model Product {
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
+  boms          BomVersion[]  @relation("ProductBoms")
+  usedInBoms    BomItem[]     @relation("ComponentOf")
+  routingSteps  RoutingStep[] @relation("ProductRouting")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -182,4 +187,56 @@ model Customer {
 
   @@unique([companyId, document])
   @@map("customers")
+}
+
+// ─── BOM — Bill of Materials ──────────────────────────────────────────────────
+
+model BomVersion {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product   @relation("ProductBoms", fields: [productId], references: [id])
+  version     Int
+  isActive    Boolean   @default(false)
+  notes       String?
+  items       BomItem[]
+  createdAt   DateTime  @default(now())
+
+  @@unique([productId, version])
+  @@map("bom_versions")
+}
+
+model BomItem {
+  id           String     @id @default(cuid())
+  bomVersionId String
+  bomVersion   BomVersion @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
+  componentId  String
+  component    Product    @relation("ComponentOf", fields: [componentId], references: [id])
+  quantity     Decimal    @db.Decimal(14, 4)
+  scrapPct     Decimal    @default(0) @db.Decimal(5, 2)
+  unit         UnitOfMeasure @default(UN)
+
+  @@map("bom_items")
+}
+
+// ─── Roteiro de Produção ─────────────────────────────────────────────────────
+
+model RoutingStep {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  productId       String
+  product         Product  @relation("ProductRouting", fields: [productId], references: [id])
+  stepOrder       Int
+  name            String
+  workCenter      String?
+  setupTimeMin    Int      @default(0)
+  runTimeMin      Int      @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId, stepOrder])
+  @@map("routing_steps")
 }
