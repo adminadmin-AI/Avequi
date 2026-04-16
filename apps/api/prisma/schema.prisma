@@ -22,11 +22,13 @@ model Company {
   products  Product[]
   suppliers Supplier[]
   customers Customer[]
-  bomVersions   BomVersion[]
-  routingSteps  RoutingStep[]
-  warehouses    Warehouse[]
-  stockBalances StockBalance[]
+  bomVersions    BomVersion[]
+  routingSteps   RoutingStep[]
+  warehouses     Warehouse[]
+  stockBalances  StockBalance[]
   stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -51,7 +53,10 @@ model User {
   company       Company  @relation(fields: [companyId], references: [id])
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
-  stockMovements StockMovement[]
+  stockMovements         StockMovement[]
+  createdPurchaseOrders  PurchaseOrder[] @relation("POCreatedBy")
+  approvedPurchaseOrders PurchaseOrder[] @relation("POApprovedBy")
+  goodsReceipts          GoodsReceipt[]  @relation("GRReceivedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -137,11 +142,13 @@ model Product {
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
-  boms          BomVersion[]  @relation("ProductBoms")
-  usedInBoms    BomItem[]     @relation("ComponentOf")
-  routingSteps  RoutingStep[] @relation("ProductRouting")
-  stockBalances StockBalance[]
+  boms           BomVersion[]  @relation("ProductBoms")
+  usedInBoms     BomItem[]     @relation("ComponentOf")
+  routingSteps   RoutingStep[] @relation("ProductRouting")
+  stockBalances  StockBalance[]
   stockMovements StockMovement[]
+  poItems        POItem[]
+  grItems        GRItem[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -152,17 +159,18 @@ model Product {
 // ─── Fornecedor ───────────────────────────────────────────────────────────────
 
 model Supplier {
-  id           String   @id @default(cuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  name         String
-  cnpj         String?
-  email        String?
-  phone        String?
-  leadTimeDays Int      @default(0)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  name           String
+  cnpj           String?
+  email          String?
+  phone          String?
+  leadTimeDays   Int             @default(0)
+  isActive       Boolean         @default(true)
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([companyId, cnpj])
   @@map("suppliers")
@@ -266,9 +274,10 @@ model Warehouse {
   code        String
   description String?
   isActive    Boolean         @default(true)
-  balances    StockBalance[]
-  movements   StockMovement[]
-  createdAt   DateTime        @default(now())
+  balances      StockBalance[]
+  movements     StockMovement[]
+  goodsReceipts GoodsReceipt[]
+  createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   @@unique([companyId, code])
@@ -309,4 +318,81 @@ model StockMovement {
   createdAt    DateTime     @default(now())
 
   @@map("stock_movements")
+}
+
+// ─── Compras ──────────────────────────────────────────────────────────────────
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id           String              @id @default(cuid())
+  companyId    String
+  company      Company             @relation(fields: [companyId], references: [id])
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  status       PurchaseOrderStatus @default(DRAFT)
+  expectedAt   DateTime?
+  notes        String?
+  createdById  String?
+  createdBy    User?               @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  items        POItem[]
+  receipts     GoodsReceipt[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@map("purchase_orders")
+}
+
+model POItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Decimal       @db.Decimal(14, 4)
+  unitCost        Decimal       @db.Decimal(14, 4)
+  unit            UnitOfMeasure @default(UN)
+  grItems         GRItem[]
+
+  @@map("po_items")
+}
+
+model GoodsReceipt {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id])
+  receivedById    String?
+  receivedBy      User?         @relation("GRReceivedBy", fields: [receivedById], references: [id])
+  notes           String?
+  items           GRItem[]
+  createdAt       DateTime      @default(now())
+
+  @@map("goods_receipts")
+}
+
+model GRItem {
+  id               String       @id @default(cuid())
+  goodsReceiptId   String
+  goodsReceipt     GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poItemId         String
+  poItem           POItem       @relation(fields: [poItemId], references: [id])
+  productId        String
+  product          Product      @relation(fields: [productId], references: [id])
+  qtyOrdered       Decimal      @db.Decimal(14, 4)
+  qtyReceived      Decimal      @db.Decimal(14, 4)
+  divergenceReason String?
+
+  @@map("gr_items")
 }

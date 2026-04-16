@@ -11,6 +11,7 @@ import { BomModule } from './modules/bom/bom.module';
 import { RoutingModule } from './modules/routing/routing.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { StockModule } from './modules/stock/stock.module';
+import { PurchaseModule } from './modules/purchase/purchase.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { StockModule } from './modules/stock/stock.module';
     RoutingModule,
     WarehouseModule,
     StockModule,
+    PurchaseModule,
   ],
 })
 export class AppModule {}
