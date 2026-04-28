@@ -29,7 +29,8 @@ model Company {
   stockMovements StockMovement[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
-  salesOrders    SalesOrder[]
+  salesOrders     SalesOrder[]
+  fiscalDocuments FiscalDocument[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -426,7 +427,8 @@ model SalesOrder {
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
   cancelledAt DateTime?
-  items       SaleItem[]
+  items          SaleItem[]
+  fiscalDocument FiscalDocument?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -444,4 +446,41 @@ model SaleItem {
   unit         UnitOfMeasure @default(UN)
 
   @@map("sale_items")
+}
+
+// ─── Fiscal ───────────────────────────────────────────────────────────────────
+
+enum FiscalDocumentType {
+  NFE
+  NFCE
+}
+
+enum FiscalStatus {
+  PENDING
+  PROCESSING
+  AUTHORIZED
+  REJECTED
+  CANCELLED
+  ERROR
+}
+
+model FiscalDocument {
+  id              String             @id @default(cuid())
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id])
+  salesOrderId    String             @unique
+  salesOrder      SalesOrder         @relation(fields: [salesOrderId], references: [id])
+  type            FiscalDocumentType @default(NFCE)
+  status          FiscalStatus       @default(PENDING)
+  focusRef        String?
+  chave           String?
+  xml             String?
+  rejectionCode   String?
+  rejectionReason String?
+  retryCount      Int                @default(0)
+  lastError       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("fiscal_documents")
 }
