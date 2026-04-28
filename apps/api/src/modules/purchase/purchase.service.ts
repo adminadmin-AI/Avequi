@@ -4,17 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computeAvgCost } from '../stock/avg-cost';
+import { GOODS_RECEIVED_EVENT, GoodsReceivedEvent } from '../stock/events/goods-received.event';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
-import { CreateGoodsReceiptDto, CreateGRItemDto } from './dto/create-goods-receipt.dto';
+import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 
 const APPROVER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
 @Injectable()
 export class PurchaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ─── Pedido de Compra ────────────────────────────────────────────────────
 
@@ -193,10 +199,10 @@ export class PurchaseService {
     return cancelled;
   }
 
-  // ─── Recebimento (S05.04 + S05.05) ──────────────────────────────────────
+  // ─── Recebimento (S05.04 + S05.05 + S06) ────────────────────────────────
 
   async createReceipt(dto: CreateGoodsReceiptDto, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const receipt = await this.prisma.$transaction(async (tx) => {
       const po = await tx.purchaseOrder.findUnique({
         where: { id: dto.purchaseOrderId },
         include: { items: true },
@@ -204,7 +210,7 @@ export class PurchaseService {
 
       if (!po) throw new NotFoundException(`Pedido de compra ${dto.purchaseOrderId} não encontrado`);
 
-      // S05.04 regra: PO deve estar APPROVED
+      // PO deve estar APPROVED para receber
       if (po.status !== PurchaseOrderStatus.APPROVED) {
         throw new BadRequestException(
           `Recebimento não permitido. Pedido está com status "${po.status}". Apenas pedidos APROVADOS podem ser recebidos.`,
@@ -219,6 +225,7 @@ export class PurchaseService {
         productId: string;
         qtyOrdered: number;
         qtyReceived: number;
+        unitCost: number;
         divergenceReason: string | undefined;
       }[] = [];
 
@@ -240,6 +247,7 @@ export class PurchaseService {
           productId: poItem.productId,
           qtyOrdered: Number(poItem.quantity),
           qtyReceived: grItem.qtyReceived,
+          unitCost: Number(poItem.unitCost),
           divergenceReason: hasDivergence ? grItem.divergenceReason : undefined,
         });
       }
@@ -265,43 +273,68 @@ export class PurchaseService {
         include: { items: { include: { product: true } }, warehouse: true },
       });
 
-      // Dar entrada no estoque para cada item recebido
+      // S06.02 + S06.03 + S06.04: movimentação e custo médio na mesma transação
       for (const item of grItemsData) {
-        if (item.qtyReceived > 0) {
-          let balance = await tx.stockBalance.findUnique({
-            where: { warehouseId_productId: { warehouseId: dto.warehouseId, productId: item.productId } },
-          });
+        if (item.qtyReceived <= 0) continue;
 
-          if (!balance) {
-            balance = await tx.stockBalance.create({
-              data: {
-                companyId,
-                warehouseId: dto.warehouseId,
-                productId: item.productId,
-                available: 0,
-                reserved: 0,
-              },
-            });
-          }
+        // ── Saldo no depósito ──────────────────────────────────────────────
+        let balance = await tx.stockBalance.findUnique({
+          where: { warehouseId_productId: { warehouseId: dto.warehouseId, productId: item.productId } },
+        });
 
-          await tx.stockBalance.update({
-            where: { warehouseId_productId: { warehouseId: dto.warehouseId, productId: item.productId } },
-            data: { available: { increment: item.qtyReceived } },
-          });
-
-          await tx.stockMovement.create({
+        if (!balance) {
+          balance = await tx.stockBalance.create({
             data: {
               companyId,
               warehouseId: dto.warehouseId,
               productId: item.productId,
-              type: 'ENTRY',
-              quantity: item.qtyReceived,
-              reason: `Recebimento PO #${dto.purchaseOrderId}`,
-              reference: `GR:${receipt.id}`,
-              userId,
+              available: 0,
+              reserved: 0,
             },
           });
         }
+
+        // ── S06.03: custo médio ponderado ──────────────────────────────────
+        // Calcula sobre saldo global do produto (todos os depósitos) ANTES do incremento
+        const { _sum } = await tx.stockBalance.aggregate({
+          where: { productId: item.productId, companyId },
+          _sum: { available: true },
+        });
+        const prevTotalQty = Number(_sum.available ?? 0);
+
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { avgCost: true, costPrice: true },
+        });
+        const prevAvgCost = Number(product?.avgCost ?? product?.costPrice ?? 0);
+
+        const newAvgCost = computeAvgCost(prevTotalQty, prevAvgCost, item.qtyReceived, item.unitCost);
+
+        // ── Atualizar saldo (S06.02) ───────────────────────────────────────
+        await tx.stockBalance.update({
+          where: { warehouseId_productId: { warehouseId: dto.warehouseId, productId: item.productId } },
+          data: { available: { increment: item.qtyReceived } },
+        });
+
+        // ── Persistir novo custo médio no produto (S06.03) ─────────────────
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { avgCost: newAvgCost },
+        });
+
+        // ── Registro de movimento (append-only) ────────────────────────────
+        await tx.stockMovement.create({
+          data: {
+            companyId,
+            warehouseId: dto.warehouseId,
+            productId: item.productId,
+            type: 'ENTRY',
+            quantity: item.qtyReceived,
+            reason: `Recebimento PO #${dto.purchaseOrderId}`,
+            reference: `GR:${receipt.id}`,
+            userId,
+          },
+        });
       }
 
       // Marcar PO como RECEIVED
@@ -328,6 +361,25 @@ export class PurchaseService {
 
       return receipt;
     });
+
+    // S06.01: emitir evento APÓS commit da transação (pós-commit, não atômico)
+    this.eventEmitter.emit(
+      GOODS_RECEIVED_EVENT,
+      new GoodsReceivedEvent(
+        receipt.companyId,
+        userId,
+        receipt.purchaseOrderId,
+        receipt.id,
+        receipt.warehouseId,
+        (receipt.items as any[]).map((i) => ({
+          productId: i.productId,
+          qtyReceived: Number(i.qtyReceived),
+          unitCost: Number(i.poItem?.unitCost ?? 0),
+        })),
+      ),
+    );
+
+    return receipt;
   }
 
   async findReceipts(companyId: string, purchaseOrderId?: string) {

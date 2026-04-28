@@ -141,6 +141,7 @@ model Product {
   ncm         String?
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
+  avgCost     Decimal?       @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
   boms           BomVersion[]  @relation("ProductBoms")
   usedInBoms     BomItem[]     @relation("ComponentOf")

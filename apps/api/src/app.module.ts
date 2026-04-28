@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
@@ -19,6 +20,7 @@ import { PurchaseModule } from './modules/purchase/purchase.module';
       isGlobal: true,
       envFilePath: '../../.env',
     }),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     AuthModule,
     CompanyModule,

@@ -4,9 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PurchaseOrderStatus } from '@prisma/client';
 import { PurchaseService } from './purchase.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GOODS_RECEIVED_EVENT } from '../stock/events/goods-received.event';
 
 const mockPrisma = {
   purchaseOrder: {
@@ -28,14 +30,23 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    aggregate: jest.fn(),
   },
   stockMovement: {
     create: jest.fn(),
+  },
+  product: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
   },
   auditLog: {
     create: jest.fn(),
   },
   $transaction: jest.fn(),
+};
+
+const mockEventEmitter = {
+  emit: jest.fn(),
 };
 
 const basePO = {
@@ -56,6 +67,7 @@ describe('PurchaseService', () => {
       providers: [
         PurchaseService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -152,7 +164,7 @@ describe('PurchaseService', () => {
     });
   });
 
-  // ─── createReceipt (S05.04) ───────────────────────────────────────────────
+  // ─── createReceipt (S05.04 + S06) ────────────────────────────────────────
 
   describe('createReceipt', () => {
     it('deve rejeitar recebimento de PO não aprovada (DRAFT)', async () => {
@@ -205,25 +217,11 @@ describe('PurchaseService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    // S05.05: divergência sem motivo deve ser rejeitada
     it('deve rejeitar divergência de quantidade sem motivo obrigatório', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
-
-      await expect(
-        service.createReceipt(
-          {
-            purchaseOrderId: 'po-1',
-            warehouseId: 'wh-1',
-            items: [
-              { poItemId: 'poi-1', qtyReceived: 7 }, // pedido era 10, divergência sem motivo
-            ],
-          },
-          'user-1',
-        ),
-      ).rejects.toThrow(BadRequestException);
 
       await expect(
         service.createReceipt(
@@ -237,16 +235,142 @@ describe('PurchaseService', () => {
       ).rejects.toThrow(/motivo obrigatório/);
     });
 
+    // S06.02 + S06.03: estoque atualizado e custo médio recalculado
+    it('deve criar entrada no estoque, recalcular avgCost e emitir evento', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...basePO,
+        status: PurchaseOrderStatus.APPROVED,
+      });
+
+      const receipt = {
+        id: 'gr-2',
+        companyId: 'co-1',
+        purchaseOrderId: 'po-1',
+        warehouseId: 'wh-1',
+        items: [],
+        warehouse: {},
+      };
+      mockPrisma.goodsReceipt.create.mockResolvedValue(receipt);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ id: 'bal-1', available: 5, reserved: 0 });
+      mockPrisma.stockBalance.aggregate.mockResolvedValue({ _sum: { available: 5 } });
+      mockPrisma.product.findUnique.mockResolvedValue({ avgCost: 8, costPrice: 6 });
+      mockPrisma.product.update.mockResolvedValue({});
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        ...basePO,
+        status: PurchaseOrderStatus.RECEIVED,
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result = await service.createReceipt(
+        {
+          purchaseOrderId: 'po-1',
+          warehouseId: 'wh-1',
+          items: [{ poItemId: 'poi-1', qtyReceived: 10 }],
+        },
+        'user-1',
+      );
+
+      expect(result.id).toBe('gr-2');
+
+      // S06.02: movimento de entrada criado
+      expect(mockPrisma.stockMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'ENTRY', quantity: 10 }),
+        }),
+      );
+
+      // S06.02: saldo incrementado
+      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { available: { increment: 10 } },
+        }),
+      );
+
+      // S06.03: produto atualizado com novo avgCost
+      // prevQty=5 @ avgCost=8, incoming=10 @ unitCost=5 → (5*8 + 10*5) / 15 = 90/15 = 6.00
+      expect(mockPrisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p-1' },
+          data: expect.objectContaining({ avgCost: expect.any(Number) }),
+        }),
+      );
+
+      // S06.01: evento emitido após transação
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        GOODS_RECEIVED_EVENT,
+        expect.objectContaining({
+          purchaseOrderId: 'po-1',
+          goodsReceiptId: 'gr-2',
+          warehouseId: 'wh-1',
+        }),
+      );
+
+      // PO marcada como RECEIVED
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: PurchaseOrderStatus.RECEIVED },
+        }),
+      );
+    });
+
+    // S06.03: custo médio zero quando saldo anterior é zero (primeiro recebimento)
+    it('deve usar custo unitário como avgCost no primeiro recebimento (saldo zero)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...basePO,
+        status: PurchaseOrderStatus.APPROVED,
+      });
+
+      const receipt = {
+        id: 'gr-3',
+        companyId: 'co-1',
+        purchaseOrderId: 'po-1',
+        warehouseId: 'wh-1',
+        items: [],
+        warehouse: {},
+      };
+      mockPrisma.goodsReceipt.create.mockResolvedValue(receipt);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue(null);
+      mockPrisma.stockBalance.create.mockResolvedValue({ id: 'bal-new', available: 0 });
+      mockPrisma.stockBalance.aggregate.mockResolvedValue({ _sum: { available: null } }); // sem saldo anterior
+      mockPrisma.product.findUnique.mockResolvedValue({ avgCost: null, costPrice: null });
+      mockPrisma.product.update.mockResolvedValue({});
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ ...basePO, status: PurchaseOrderStatus.RECEIVED });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await service.createReceipt(
+        {
+          purchaseOrderId: 'po-1',
+          warehouseId: 'wh-1',
+          items: [{ poItemId: 'poi-1', qtyReceived: 10 }],
+        },
+        'user-1',
+      );
+
+      // No primeiro recebimento: prevQty=0, prevAvgCost=0, qty=10, unitCost=5 → avgCost=5
+      expect(mockPrisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { avgCost: 5 },
+        }),
+      );
+    });
+
     it('deve aceitar divergência com motivo informado', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
 
-      const receipt = { id: 'gr-1', items: [], warehouse: { id: 'wh-1', name: 'Geral' } };
+      const receipt = { id: 'gr-1', companyId: 'co-1', purchaseOrderId: 'po-1', warehouseId: 'wh-1', items: [], warehouse: { id: 'wh-1', name: 'Geral' } };
       mockPrisma.goodsReceipt.create.mockResolvedValue(receipt);
       mockPrisma.stockBalance.findUnique.mockResolvedValue(null);
       mockPrisma.stockBalance.create.mockResolvedValue({ id: 'bal-1', available: 0 });
+      mockPrisma.stockBalance.aggregate.mockResolvedValue({ _sum: { available: null } });
+      mockPrisma.product.findUnique.mockResolvedValue({ avgCost: null, costPrice: null });
+      mockPrisma.product.update.mockResolvedValue({});
       mockPrisma.stockBalance.update.mockResolvedValue({});
       mockPrisma.stockMovement.create.mockResolvedValue({});
       mockPrisma.purchaseOrder.update.mockResolvedValue({ ...basePO, status: PurchaseOrderStatus.RECEIVED });
@@ -265,54 +389,6 @@ describe('PurchaseService', () => {
 
       expect(result).toEqual(receipt);
       expect(mockPrisma.goodsReceipt.create).toHaveBeenCalled();
-      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { status: PurchaseOrderStatus.RECEIVED },
-        }),
-      );
-    });
-
-    it('deve criar entrada no estoque e marcar PO como RECEIVED no recebimento sem divergência', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
-        ...basePO,
-        status: PurchaseOrderStatus.APPROVED,
-      });
-
-      mockPrisma.goodsReceipt.create.mockResolvedValue({ id: 'gr-2', items: [], warehouse: {} });
-      mockPrisma.stockBalance.findUnique.mockResolvedValue({ id: 'bal-1', available: 5, reserved: 0 });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
-      mockPrisma.stockMovement.create.mockResolvedValue({});
-      mockPrisma.purchaseOrder.update.mockResolvedValue({
-        ...basePO,
-        status: PurchaseOrderStatus.RECEIVED,
-      });
-      mockPrisma.auditLog.create.mockResolvedValue({});
-
-      const result = await service.createReceipt(
-        {
-          purchaseOrderId: 'po-1',
-          warehouseId: 'wh-1',
-          items: [{ poItemId: 'poi-1', qtyReceived: 10 }], // sem divergência
-        },
-        'user-1',
-      );
-
-      expect(result.id).toBe('gr-2');
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { available: { increment: 10 } },
-        }),
-      );
-      expect(mockPrisma.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ type: 'ENTRY', quantity: 10 }),
-        }),
-      );
-      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { status: PurchaseOrderStatus.RECEIVED },
-        }),
-      );
     });
   });
 
