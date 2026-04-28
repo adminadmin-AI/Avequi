@@ -33,6 +33,7 @@ model Company {
   fiscalDocuments  FiscalDocument[]
   financialEntries FinancialEntry[]
   storeTransfers   StoreTransfer[]
+  demandForecasts  DemandForecast[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -65,6 +66,7 @@ model User {
   requestedTransfers        StoreTransfer[] @relation("TransferRequestedBy")
   dispatchedTransfers       StoreTransfer[] @relation("TransferDispatchedBy")
   receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
+  demandForecasts           DemandForecast[] @relation("DemandCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -156,10 +158,11 @@ model Product {
   routingSteps   RoutingStep[] @relation("ProductRouting")
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
-  poItems        POItem[]
-  grItems        GRItem[]
-  saleItems      SaleItem[]
-  transferItems  StoreTransferItem[]
+  poItems          POItem[]
+  grItems          GRItem[]
+  saleItems        SaleItem[]
+  transferItems    StoreTransferItem[]
+  demandForecasts  DemandForecast[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -590,4 +593,27 @@ model StoreTransferItem {
   unit            UnitOfMeasure @default(UN)
 
   @@map("store_transfer_items")
+}
+
+// ─── Demanda (MRP) ────────────────────────────────────────────────────────────
+
+model DemandForecast {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  period      String   // YYYY-MM (ex: "2026-05")
+  quantity    Decimal  @db.Decimal(14, 4)
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("DemandCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, productId, period])
+  @@index([companyId])
+  @@index([period])
+  @@index([productId])
+  @@map("demand_forecasts")
 }

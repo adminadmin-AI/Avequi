@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   DollarSign,
   Truck,
+  BarChart2,
 } from 'lucide-react';
 
 const NAV = [
@@ -20,6 +21,7 @@ const NAV = [
   { href: '/dashboard/depositos', label: 'Depósitos', icon: Warehouse },
   { href: '/dashboard/transferencias', label: 'Transferências', icon: Truck },
   { href: '/dashboard/financeiro', label: 'Financeiro', icon: DollarSign },
+  { href: '/dashboard/demanda', label: 'Demanda (PCP)', icon: BarChart2 },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
