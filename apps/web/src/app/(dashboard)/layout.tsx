@@ -9,6 +9,7 @@ import {
   Warehouse,
   LogOut,
   LayoutDashboard,
+  DollarSign,
 } from 'lucide-react';
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
   { href: '/dashboard/vendas', label: 'Vendas', icon: ShoppingCart },
   { href: '/dashboard/estoque', label: 'Estoque', icon: Package },
   { href: '/dashboard/depositos', label: 'Depósitos', icon: Warehouse },
+  { href: '/dashboard/financeiro', label: 'Financeiro', icon: DollarSign },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

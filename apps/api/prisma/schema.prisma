@@ -29,8 +29,9 @@ model Company {
   stockMovements StockMovement[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
-  salesOrders     SalesOrder[]
-  fiscalDocuments FiscalDocument[]
+  salesOrders      SalesOrder[]
+  fiscalDocuments  FiscalDocument[]
+  financialEntries FinancialEntry[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -350,8 +351,9 @@ model PurchaseOrder {
   approvedById String?
   approvedBy   User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?
-  items        POItem[]
-  receipts     GoodsReceipt[]
+  items            POItem[]
+  receipts         GoodsReceipt[]
+  financialEntries FinancialEntry[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -382,9 +384,10 @@ model GoodsReceipt {
   warehouse       Warehouse     @relation(fields: [warehouseId], references: [id])
   receivedById    String?
   receivedBy      User?         @relation("GRReceivedBy", fields: [receivedById], references: [id])
-  notes           String?
-  items           GRItem[]
-  createdAt       DateTime      @default(now())
+  notes            String?
+  items            GRItem[]
+  financialEntry   FinancialEntry?
+  createdAt        DateTime      @default(now())
 
   @@map("goods_receipts")
 }
@@ -427,8 +430,9 @@ model SalesOrder {
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
   cancelledAt DateTime?
-  items          SaleItem[]
-  fiscalDocument FiscalDocument?
+  items            SaleItem[]
+  fiscalDocument   FiscalDocument?
+  financialEntry   FinancialEntry?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -479,8 +483,51 @@ model FiscalDocument {
   rejectionReason String?
   retryCount      Int                @default(0)
   lastError       String?
+  financialEntry  FinancialEntry?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
   @@map("fiscal_documents")
+}
+
+// ─── Financeiro ───────────────────────────────────────────────────────────────
+
+enum FinancialEntryType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum FinancialEntryStatus {
+  OPEN
+  PAID
+  CANCELLED
+}
+
+model FinancialEntry {
+  id               String               @id @default(cuid())
+  companyId        String
+  company          Company              @relation(fields: [companyId], references: [id])
+  type             FinancialEntryType
+  status           FinancialEntryStatus @default(OPEN)
+  amount           Decimal              @db.Decimal(14, 4)
+  dueDate          DateTime
+  description      String?
+  salesOrderId     String?              @unique
+  salesOrder       SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  purchaseOrderId  String?
+  purchaseOrder    PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId   String?              @unique
+  goodsReceipt     GoodsReceipt?        @relation(fields: [goodsReceiptId], references: [id])
+  fiscalDocumentId String?              @unique
+  fiscalDocument   FiscalDocument?      @relation(fields: [fiscalDocumentId], references: [id])
+  paidAt           DateTime?
+  paidAmount       Decimal?             @db.Decimal(14, 4)
+  paymentNote      String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([companyId])
+  @@index([type, status])
+  @@index([dueDate])
+  @@map("financial_entries")
 }
