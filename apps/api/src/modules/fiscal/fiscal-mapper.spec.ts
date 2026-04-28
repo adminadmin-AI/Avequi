@@ -1,4 +1,4 @@
-import { buildNFCePayload, buildNFePayload, calcTotalValue, FiscalPayloadInput } from './fiscal-mapper';
+import { buildNFCePayload, buildNFePayload, buildTransferNFePayload, calcTotalValue, FiscalPayloadInput } from './fiscal-mapper';
 
 const baseInput: FiscalPayloadInput = {
   ref: 'GDR-SO-001',
@@ -89,6 +89,29 @@ describe('fiscal-mapper', () => {
       };
       const payload = buildNFePayload(inputSemNcm) as any;
       expect(payload.items[0].codigo_ncm).toBe('00000000');
+    });
+  });
+
+  describe('buildTransferNFePayload', () => {
+    it('usa CFOP 5152 para transferência dentro do estado', () => {
+      const payload = buildTransferNFePayload({
+        ...baseInput,
+        recipient: { name: 'Loja Centro', state: 'PR' },
+      }) as any;
+      expect(payload.items[0].cfop).toBe('5152');
+    });
+
+    it('usa CFOP 6152 para transferência interestadual', () => {
+      const payload = buildTransferNFePayload({
+        ...baseInput,
+        recipient: { name: 'Loja SP', state: 'SP' },
+      }) as any;
+      expect(payload.items[0].cfop).toBe('6152');
+    });
+
+    it('usa natureza_operacao TRANSFERÊNCIA DE MERCADORIA', () => {
+      const payload = buildTransferNFePayload(baseInput) as any;
+      expect(payload.natureza_operacao).toBe('TRANSFERÊNCIA DE MERCADORIA');
     });
   });
 });

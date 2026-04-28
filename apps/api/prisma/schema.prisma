@@ -24,14 +24,15 @@ model Company {
   customers Customer[]
   bomVersions    BomVersion[]
   routingSteps   RoutingStep[]
-  warehouses     Warehouse[]
-  stockBalances  StockBalance[]
-  stockMovements StockMovement[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceipts  GoodsReceipt[]
+  warehouses       Warehouse[]
+  stockBalances    StockBalance[]
+  stockMovements   StockMovement[]
+  purchaseOrders   PurchaseOrder[]
+  goodsReceipts    GoodsReceipt[]
   salesOrders      SalesOrder[]
   fiscalDocuments  FiscalDocument[]
   financialEntries FinancialEntry[]
+  storeTransfers   StoreTransfer[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -56,11 +57,14 @@ model User {
   company       Company  @relation(fields: [companyId], references: [id])
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
-  stockMovements         StockMovement[]
-  createdPurchaseOrders  PurchaseOrder[] @relation("POCreatedBy")
-  approvedPurchaseOrders PurchaseOrder[] @relation("POApprovedBy")
-  goodsReceipts          GoodsReceipt[]  @relation("GRReceivedBy")
-  createdSalesOrders     SalesOrder[]    @relation("SOCreatedBy")
+  stockMovements            StockMovement[]
+  createdPurchaseOrders     PurchaseOrder[] @relation("POCreatedBy")
+  approvedPurchaseOrders    PurchaseOrder[] @relation("POApprovedBy")
+  goodsReceipts             GoodsReceipt[]  @relation("GRReceivedBy")
+  createdSalesOrders        SalesOrder[]    @relation("SOCreatedBy")
+  requestedTransfers        StoreTransfer[] @relation("TransferRequestedBy")
+  dispatchedTransfers       StoreTransfer[] @relation("TransferDispatchedBy")
+  receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -155,6 +159,7 @@ model Product {
   poItems        POItem[]
   grItems        GRItem[]
   saleItems      SaleItem[]
+  transferItems  StoreTransferItem[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -281,10 +286,12 @@ model Warehouse {
   code        String
   description String?
   isActive    Boolean         @default(true)
-  balances      StockBalance[]
-  movements     StockMovement[]
-  goodsReceipts GoodsReceipt[]
-  salesOrders   SalesOrder[]
+  balances         StockBalance[]
+  movements        StockMovement[]
+  goodsReceipts    GoodsReceipt[]
+  salesOrders      SalesOrder[]
+  transfersFrom    StoreTransfer[] @relation("TransferFrom")
+  transfersTo      StoreTransfer[] @relation("TransferTo")
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -302,6 +309,7 @@ model StockBalance {
   product     Product   @relation(fields: [productId], references: [id])
   available   Decimal   @default(0) @db.Decimal(14, 4)
   reserved    Decimal   @default(0) @db.Decimal(14, 4)
+  inTransit   Decimal   @default(0) @db.Decimal(14, 4)
   updatedAt   DateTime  @updatedAt
 
   @@unique([warehouseId, productId])
@@ -469,23 +477,25 @@ enum FiscalStatus {
 }
 
 model FiscalDocument {
-  id              String             @id @default(cuid())
-  companyId       String
-  company         Company            @relation(fields: [companyId], references: [id])
-  salesOrderId    String             @unique
-  salesOrder      SalesOrder         @relation(fields: [salesOrderId], references: [id])
-  type            FiscalDocumentType @default(NFCE)
-  status          FiscalStatus       @default(PENDING)
-  focusRef        String?
-  chave           String?
-  xml             String?
-  rejectionCode   String?
-  rejectionReason String?
-  retryCount      Int                @default(0)
-  lastError       String?
-  financialEntry  FinancialEntry?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id               String             @id @default(cuid())
+  companyId        String
+  company          Company            @relation(fields: [companyId], references: [id])
+  salesOrderId     String?            @unique
+  salesOrder       SalesOrder?        @relation(fields: [salesOrderId], references: [id])
+  storeTransferId  String?            @unique
+  storeTransfer    StoreTransfer?     @relation(fields: [storeTransferId], references: [id])
+  type             FiscalDocumentType @default(NFCE)
+  status           FiscalStatus       @default(PENDING)
+  focusRef         String?
+  chave            String?
+  xml              String?
+  rejectionCode    String?
+  rejectionReason  String?
+  retryCount       Int                @default(0)
+  lastError        String?
+  financialEntry   FinancialEntry?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@map("fiscal_documents")
 }
@@ -530,4 +540,54 @@ model FinancialEntry {
   @@index([type, status])
   @@index([dueDate])
   @@map("financial_entries")
+}
+
+// ─── Transferências fábrica → loja ───────────────────────────────────────────
+
+enum TransferStatus {
+  DRAFT
+  DISPATCHED
+  RECEIVED
+  CANCELLED
+}
+
+model StoreTransfer {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  status          TransferStatus @default(DRAFT)
+  notes           String?
+  requestedById   String?
+  requestedBy     User?          @relation("TransferRequestedBy", fields: [requestedById], references: [id])
+  dispatchedById  String?
+  dispatchedBy    User?          @relation("TransferDispatchedBy", fields: [dispatchedById], references: [id])
+  dispatchedAt    DateTime?
+  receivedById    String?
+  receivedBy      User?          @relation("TransferReceivedBy", fields: [receivedById], references: [id])
+  receivedAt      DateTime?
+  cancelledAt     DateTime?
+  items           StoreTransferItem[]
+  fiscalDocument  FiscalDocument?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@map("store_transfers")
+}
+
+model StoreTransferItem {
+  id              String        @id @default(cuid())
+  storeTransferId String
+  storeTransfer   StoreTransfer @relation(fields: [storeTransferId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Decimal       @db.Decimal(14, 4)
+  unit            UnitOfMeasure @default(UN)
+
+  @@map("store_transfer_items")
 }

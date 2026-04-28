@@ -4,6 +4,8 @@
  * Regras de CFOP utilizadas (PRD GDR):
  *   5102 — Venda de mercadoria adquirida ou recebida de terceiros — operação dentro do estado
  *   6102 — Venda de mercadoria adquirida ou recebida de terceiros — operação interestadual
+ *   5152 — Transferência de produção própria — operação dentro do estado
+ *   6152 — Transferência de produção própria — operação interestadual
  *
  * A escolha de NF-e vs NFC-e segue o tipo do documento solicitado.
  * Esta função é pura (sem efeitos colaterais) para facilitar testes unitários.
@@ -130,4 +132,43 @@ export function calcTotalValue(items: FiscalItem[]): number {
   return Number(
     items.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0).toFixed(2),
   );
+}
+
+/** Payload NF-e de transferência entre estabelecimentos (CFOP 5152/6152) */
+export function buildTransferNFePayload(input: FiscalPayloadInput): Record<string, unknown> {
+  const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
+  const cfop = isInterstate ? '6152' : '5152';
+
+  return {
+    natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
+    forma_pagamento: 0,
+    emitente: {
+      cnpj: input.emitter.cnpj.replace(/\D/g, ''),
+      nome: input.emitter.name,
+      logradouro: input.emitter.address,
+      municipio: input.emitter.city,
+      uf: input.emitter.state,
+    },
+    destinatario: {
+      nome: input.recipient?.name ?? 'ESTABELECIMENTO DESTINATÁRIO',
+      ...(input.recipient?.document && {
+        cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
+      }),
+      ...(input.recipient?.state && { uf: input.recipient.state }),
+    },
+    items: input.items.map((item, idx) => ({
+      numero_item: idx + 1,
+      codigo_produto: item.sku,
+      descricao: item.name,
+      cfop,
+      unidade_comercial: item.unit,
+      quantidade_comercial: item.quantity,
+      valor_unitario_comercial: item.unitPrice,
+      valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
+      codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
+      icms_origem: 0,
+      icms_situacao_tributaria: '102',
+    })),
+    formas_pagamento: [{ forma_pagamento: '99', valor: input.totalValue }],
+  };
 }

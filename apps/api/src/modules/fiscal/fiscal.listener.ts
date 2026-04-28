@@ -2,11 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { FiscalDocumentType } from '@prisma/client';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
+import { TRANSFER_DISPATCHED_EVENT, TransferDispatchedEvent } from '../transfer/events/transfer-dispatched.event';
 import { FiscalService } from './fiscal.service';
 
 /**
- * Ouve o evento sales.order.confirmed e dispara a emissão fiscal.
- * Falha na emissão não afeta a venda — é registrada no FiscalDocument.
+ * Ouve eventos de negócio e dispara emissão fiscal.
+ * Falha na emissão não afeta o fluxo de origem — é registrada no FiscalDocument.
  */
 @Injectable()
 export class FiscalListener {
@@ -22,6 +23,16 @@ export class FiscalListener {
     } catch (err: any) {
       // Falha fiscal nunca desfaz a venda — apenas loga
       this.logger.error(`Erro ao emitir NF para OV=${event.salesOrderId}: ${err.message}`);
+    }
+  }
+
+  @OnEvent(TRANSFER_DISPATCHED_EVENT, { async: true })
+  async handleTransferDispatched(event: TransferDispatchedEvent): Promise<void> {
+    this.logger.log(`Iniciando emissão de NF-e de transferência para TR=${event.storeTransferId}`);
+    try {
+      await this.fiscalService.emitForTransfer(event.storeTransferId);
+    } catch (err: any) {
+      this.logger.error(`Erro ao emitir NF-e de transferência TR=${event.storeTransferId}: ${err.message}`);
     }
   }
 }

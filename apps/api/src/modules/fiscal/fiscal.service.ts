@@ -5,6 +5,7 @@ import { FiscalClientService } from './fiscal-client.service';
 import {
   buildNFCePayload,
   buildNFePayload,
+  buildTransferNFePayload,
   calcTotalValue,
   FiscalItem,
   FiscalPayloadInput,
@@ -178,6 +179,92 @@ export class FiscalService {
     }
 
     await this.emitForSale(doc.salesOrderId, doc.type);
+  }
+
+  // ─── S10: Emitir NF-e de transferência ───────────────────────────────────
+
+  async emitForTransfer(storeTransferId: string): Promise<void> {
+    // Idempotência
+    const existing = await this.prisma.fiscalDocument.findUnique({
+      where: { storeTransferId },
+    });
+    if (existing && existing.status !== FiscalStatus.REJECTED && existing.status !== FiscalStatus.ERROR) {
+      this.logger.warn(`NF-e de transferência já existe para ${storeTransferId}: status=${existing.status}`);
+      return;
+    }
+
+    const transfer = await this.prisma.storeTransfer.findUnique({
+      where: { id: storeTransferId },
+      include: {
+        company: true,
+        fromWarehouse: true,
+        toWarehouse: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    if (!transfer) {
+      this.logger.error(`Transferência ${storeTransferId} não encontrada para emissão fiscal`);
+      return;
+    }
+
+    const ref = `GDR-TR-${storeTransferId}`;
+
+    const fiscalDoc = existing
+      ? await this.prisma.fiscalDocument.update({
+          where: { storeTransferId },
+          data: { status: FiscalStatus.PENDING, retryCount: { increment: 1 }, lastError: null },
+        })
+      : await this.prisma.fiscalDocument.create({
+          data: {
+            companyId: transfer.companyId,
+            storeTransferId,
+            type: FiscalDocumentType.NFE,
+            status: FiscalStatus.PENDING,
+            focusRef: ref,
+          },
+        });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId: transfer.companyId,
+        entity: 'FiscalDocument',
+        action: 'EMIT_TRANSFER',
+        payload: { fiscalDocumentId: fiscalDoc.id, storeTransferId, ref },
+      },
+    });
+
+    const items: FiscalItem[] = transfer.items.map((i) => ({
+      sku: i.product.sku,
+      name: i.product.name,
+      ncm: i.product.ncm ?? '00000000',
+      quantity: Number(i.quantity),
+      unitPrice: Number(i.product.avgCost ?? i.product.costPrice ?? 0),
+      unit: String(i.unit),
+    }));
+
+    const totalValue = calcTotalValue(items);
+
+    const input: FiscalPayloadInput = {
+      ref,
+      emitter: {
+        cnpj: transfer.company.cnpj,
+        name: transfer.company.name,
+        address: 'Endereço não cadastrado',
+        city: 'Cidade',
+        state: 'SP',
+      },
+      recipient: {
+        name: transfer.toWarehouse.name,
+        state: 'SP',
+      },
+      items,
+      totalValue,
+    };
+
+    const payload = buildTransferNFePayload(input);
+    const response = await this.client.emitNFe(ref, payload);
+    await this.applyFocusResponse(fiscalDoc.id, response);
   }
 
   // ─── Consultas ────────────────────────────────────────────────────────────
