@@ -29,6 +29,7 @@ model Company {
   stockMovements StockMovement[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
+  salesOrders    SalesOrder[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -57,6 +58,7 @@ model User {
   createdPurchaseOrders  PurchaseOrder[] @relation("POCreatedBy")
   approvedPurchaseOrders PurchaseOrder[] @relation("POApprovedBy")
   goodsReceipts          GoodsReceipt[]  @relation("GRReceivedBy")
+  createdSalesOrders     SalesOrder[]    @relation("SOCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -150,6 +152,7 @@ model Product {
   stockMovements StockMovement[]
   poItems        POItem[]
   grItems        GRItem[]
+  saleItems      SaleItem[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -197,6 +200,7 @@ model Customer {
   city         String?
   state        String?
   isActive     Boolean      @default(true)
+  salesOrders  SalesOrder[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -278,6 +282,7 @@ model Warehouse {
   balances      StockBalance[]
   movements     StockMovement[]
   goodsReceipts GoodsReceipt[]
+  salesOrders   SalesOrder[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -396,4 +401,47 @@ model GRItem {
   divergenceReason String?
 
   @@map("gr_items")
+}
+
+// ─── Vendas ───────────────────────────────────────────────────────────────────
+
+enum SalesOrderStatus {
+  DRAFT
+  RESERVED
+  CONFIRMED
+  CANCELLED
+}
+
+model SalesOrder {
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  customerId  String?
+  customer    Customer?        @relation(fields: [customerId], references: [id])
+  warehouseId String
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
+  status      SalesOrderStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  items       SaleItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("sales_orders")
+}
+
+model SaleItem {
+  id           String        @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  quantity     Decimal       @db.Decimal(14, 4)
+  unitPrice    Decimal       @db.Decimal(14, 4)
+  unit         UnitOfMeasure @default(UN)
+
+  @@map("sale_items")
 }
