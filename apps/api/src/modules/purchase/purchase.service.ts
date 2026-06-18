@@ -5,13 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PurchaseOrderStatus } from '@prisma/client';
+import { PurchaseOrderStatus, PurchaseRequestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeAvgCost } from '../stock/avg-cost';
 import { GOODS_RECEIVED_EVENT, GoodsReceivedEvent } from '../stock/events/goods-received.event';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
+import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 
 const APPROVER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
@@ -322,6 +323,17 @@ export class PurchaseService {
           data: { avgCost: newAvgCost },
         });
 
+        // ── S06.05: SupplierPriceHistory ───────────────────────────────────
+        await tx.supplierPriceHistory.create({
+          data: {
+            companyId,
+            supplierId: po.supplierId,
+            productId: item.productId,
+            unitCost: item.unitCost,
+            goodsReceiptId: receipt.id,
+          },
+        });
+
         // ── Registro de movimento (append-only) ────────────────────────────
         await tx.stockMovement.create({
           data: {
@@ -380,6 +392,95 @@ export class PurchaseService {
     );
 
     return receipt;
+  }
+
+  // ─── S05.07: PurchaseRequest CRUD ────────────────────────────────────────
+
+  async createRequest(dto: CreatePurchaseRequestDto, userId?: string) {
+    return this.prisma.purchaseRequest.create({
+      data: {
+        companyId: dto.companyId,
+        productId: dto.productId,
+        quantity: dto.quantity,
+        neededBy: dto.neededBy ? new Date(dto.neededBy) : undefined,
+        justification: dto.justification,
+        requestedById: userId,
+        status: PurchaseRequestStatus.OPEN,
+      },
+      include: { product: { select: { id: true, name: true, sku: true } }, requestedBy: { select: { id: true, name: true } } },
+    });
+  }
+
+  async findRequests(companyId: string, status?: PurchaseRequestStatus) {
+    return this.prisma.purchaseRequest.findMany({
+      where: { companyId, ...(status ? { status } : {}) },
+      include: {
+        product: { select: { id: true, name: true, sku: true, unit: true } },
+        requestedBy: { select: { id: true, name: true } },
+        convertedTo: { select: { id: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async cancelRequest(id: string, companyId: string) {
+    const req = await this.prisma.purchaseRequest.findFirst({ where: { id, companyId } });
+    if (!req) throw new NotFoundException(`Solicitação ${id} não encontrada`);
+    if (req.status === PurchaseRequestStatus.CONVERTED) {
+      throw new BadRequestException('Solicitação já convertida em PO não pode ser cancelada');
+    }
+    return this.prisma.purchaseRequest.update({
+      where: { id },
+      data: { status: PurchaseRequestStatus.CANCELLED },
+    });
+  }
+
+  async convertRequestToPO(id: string, companyId: string, supplierId: string, unitCost: number, userId?: string) {
+    const req = await this.prisma.purchaseRequest.findFirst({ where: { id, companyId }, include: { product: true } });
+    if (!req) throw new NotFoundException(`Solicitação ${id} não encontrada`);
+    if (req.status !== PurchaseRequestStatus.OPEN && req.status !== PurchaseRequestStatus.APPROVED) {
+      throw new BadRequestException(`Solicitação com status ${req.status} não pode ser convertida em PO`);
+    }
+
+    const po = await this.prisma.purchaseOrder.create({
+      data: {
+        companyId,
+        supplierId,
+        notes: req.justification ?? undefined,
+        expectedAt: req.neededBy ?? undefined,
+        createdById: userId,
+        status: PurchaseOrderStatus.DRAFT,
+        items: {
+          create: [{ productId: req.productId, quantity: Number(req.quantity), unitCost, unit: req.unit }],
+        },
+      },
+      include: { items: true, supplier: true },
+    });
+
+    await this.prisma.purchaseRequest.update({
+      where: { id },
+      data: { status: PurchaseRequestStatus.CONVERTED, convertedToId: po.id },
+    });
+
+    return po;
+  }
+
+  // ─── S06.05: SupplierPriceHistory ────────────────────────────────────────
+
+  async findSupplierPriceHistory(companyId: string, supplierId?: string, productId?: string) {
+    return this.prisma.supplierPriceHistory.findMany({
+      where: {
+        companyId,
+        ...(supplierId ? { supplierId } : {}),
+        ...(productId ? { productId } : {}),
+      },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        product: { select: { id: true, name: true, sku: true } },
+      },
+      orderBy: { recordedAt: 'desc' },
+      take: 100,
+    });
   }
 
   async findReceipts(companyId: string, purchaseOrderId?: string) {

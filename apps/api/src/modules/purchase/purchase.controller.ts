@@ -14,10 +14,12 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { PurchaseRequestStatus } from '@prisma/client';
 import { PurchaseService } from './purchase.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
+import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -107,5 +109,60 @@ export class PurchaseController {
     @Query('purchaseOrderId') purchaseOrderId?: string,
   ) {
     return this.purchaseService.findReceipts(companyId, purchaseOrderId);
+  }
+
+  // ─── Solicitações de Compra (S05.07) ─────────────────────────────────────
+
+  @Post('requests')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'STORE')
+  @ApiOperation({ summary: 'Criar solicitação de compra' })
+  createRequest(@Body() dto: CreatePurchaseRequestDto, @CurrentUser() user: any) {
+    return this.purchaseService.createRequest(dto, user?.id);
+  }
+
+  @Get('requests')
+  @ApiOperation({ summary: 'Listar solicitações de compra' })
+  @ApiQuery({ name: 'companyId', required: true })
+  @ApiQuery({ name: 'status', required: false, enum: PurchaseRequestStatus })
+  findRequests(
+    @Query('companyId') companyId: string,
+    @Query('status') status?: PurchaseRequestStatus,
+  ) {
+    return this.purchaseService.findRequests(companyId, status);
+  }
+
+  @Post('requests/:id/cancel')
+  @ApiOperation({ summary: 'Cancelar solicitação de compra' })
+  @ApiQuery({ name: 'companyId', required: true })
+  cancelRequest(@Param('id') id: string, @Query('companyId') companyId: string) {
+    return this.purchaseService.cancelRequest(id, companyId);
+  }
+
+  @Post('requests/:id/convert')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Converter solicitação em pedido de compra' })
+  @ApiQuery({ name: 'companyId', required: true })
+  convertRequest(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { supplierId: string; unitCost: number },
+    @CurrentUser() user: any,
+  ) {
+    return this.purchaseService.convertRequestToPO(id, companyId, body.supplierId, body.unitCost, user?.id);
+  }
+
+  // ─── Histórico de Preços (S06.05) ─────────────────────────────────────────
+
+  @Get('supplier-prices')
+  @ApiOperation({ summary: 'Histórico de preços por fornecedor/produto' })
+  @ApiQuery({ name: 'companyId', required: true })
+  @ApiQuery({ name: 'supplierId', required: false })
+  @ApiQuery({ name: 'productId', required: false })
+  findSupplierPrices(
+    @Query('companyId') companyId: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('productId') productId?: string,
+  ) {
+    return this.purchaseService.findSupplierPriceHistory(companyId, supplierId, productId);
   }
 }

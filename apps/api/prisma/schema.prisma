@@ -32,10 +32,12 @@ model Company {
   goodsReceipts    GoodsReceipt[]
   salesOrders      SalesOrder[]
   fiscalDocuments  FiscalDocument[]
-  financialEntries FinancialEntry[]
-  bankAccounts     BankAccount[]
-  storeTransfers   StoreTransfer[]
-  demandForecasts  DemandForecast[]
+  financialEntries     FinancialEntry[]
+  bankAccounts         BankAccount[]
+  storeTransfers       StoreTransfer[]
+  demandForecasts      DemandForecast[]
+  purchaseRequests     PurchaseRequest[]
+  supplierPriceHistory SupplierPriceHistory[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -68,7 +70,8 @@ model User {
   requestedTransfers        StoreTransfer[] @relation("TransferRequestedBy")
   dispatchedTransfers       StoreTransfer[] @relation("TransferDispatchedBy")
   receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
-  demandForecasts           DemandForecast[] @relation("DemandCreatedBy")
+  demandForecasts           DemandForecast[]    @relation("DemandCreatedBy")
+  purchaseRequests          PurchaseRequest[]   @relation("PRRequestedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -161,11 +164,13 @@ model Product {
   routingSteps   RoutingStep[] @relation("ProductRouting")
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
-  poItems          POItem[]
-  grItems          GRItem[]
-  saleItems        SaleItem[]
-  transferItems    StoreTransferItem[]
-  demandForecasts  DemandForecast[]
+  poItems              POItem[]
+  grItems              GRItem[]
+  saleItems            SaleItem[]
+  transferItems        StoreTransferItem[]
+  demandForecasts      DemandForecast[]
+  purchaseRequests     PurchaseRequest[]
+  supplierPriceHistory SupplierPriceHistory[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -185,8 +190,9 @@ model Supplier {
   phone          String?
   leadTimeDays   Int             @default(0)
   isActive       Boolean         @default(true)
-  purchaseOrders PurchaseOrder[]
-  createdAt      DateTime        @default(now())
+  purchaseOrders       PurchaseOrder[]
+  supplierPriceHistory SupplierPriceHistory[]
+  createdAt            DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@unique([companyId, cnpj])
@@ -344,6 +350,52 @@ model StockMovement {
 
 // ─── Compras ──────────────────────────────────────────────────────────────────
 
+enum PurchaseRequestStatus {
+  OPEN
+  APPROVED
+  CONVERTED
+  CANCELLED
+}
+
+model PurchaseRequest {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+  productId       String
+  product         Product               @relation(fields: [productId], references: [id])
+  quantity        Decimal               @db.Decimal(14, 4)
+  unit            UnitOfMeasure         @default(UN)
+  neededBy        DateTime?
+  justification   String?
+  status          PurchaseRequestStatus @default(OPEN)
+  requestedById   String?
+  requestedBy     User?                 @relation("PRRequestedBy", fields: [requestedById], references: [id])
+  convertedToId   String?
+  convertedTo     PurchaseOrder?        @relation("PRConvertedTo", fields: [convertedToId], references: [id])
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_purchase_requests")
+}
+
+model SupplierPriceHistory {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  unitCost    Decimal  @db.Decimal(14, 4)
+  goodsReceiptId String?
+  recordedAt  DateTime @default(now())
+
+  @@index([supplierId, productId])
+  @@index([companyId])
+  @@map("gdr_supplier_price_history")
+}
+
 enum PurchaseOrderStatus {
   DRAFT
   APPROVED
@@ -365,11 +417,12 @@ model PurchaseOrder {
   approvedById String?
   approvedBy   User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?
-  items            POItem[]
-  receipts         GoodsReceipt[]
-  financialEntries FinancialEntry[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  items                POItem[]
+  receipts             GoodsReceipt[]
+  financialEntries     FinancialEntry[]
+  convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@map("gdr_purchase_orders")
 }

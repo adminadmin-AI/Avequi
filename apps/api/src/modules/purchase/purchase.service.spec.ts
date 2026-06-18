@@ -39,6 +39,16 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  supplierPriceHistory: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+  },
+  purchaseRequest: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
   auditLog: {
     create: jest.fn(),
   },
