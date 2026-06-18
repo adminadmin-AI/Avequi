@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { FiscalDocumentType } from '@prisma/client';
-import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
+import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { TRANSFER_DISPATCHED_EVENT, TransferDispatchedEvent } from '../transfer/events/transfer-dispatched.event';
 import { FiscalService } from './fiscal.service';
 
@@ -15,8 +15,8 @@ export class FiscalListener {
 
   constructor(private readonly fiscalService: FiscalService) {}
 
-  @OnEvent(SALE_CONFIRMED_EVENT, { async: true })
-  async handleSaleConfirmed(event: SaleConfirmedEvent): Promise<void> {
+  @OnEvent(SALE_INVOICED_EVENT, { async: true })
+  async handleSaleInvoiced(event: SaleInvoicedEvent): Promise<void> {
     this.logger.log(`Iniciando emissão fiscal para OV=${event.salesOrderId}`);
     try {
       await this.fiscalService.emitForSale(event.salesOrderId, FiscalDocumentType.NFCE);

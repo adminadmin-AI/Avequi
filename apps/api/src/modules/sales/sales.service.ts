@@ -7,7 +7,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
-import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
+import { ReturnOrderDto } from './dto/return-order.dto';
+import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
 
 @Injectable()
 export class SalesService {
@@ -52,7 +53,7 @@ export class SalesService {
     return order;
   }
 
-  // ─── S07.03: Reservar estoque ─────────────────────────────────────────────
+  // ─── S07.03: Reservar estoque (DRAFT → RESERVED) ─────────────────────────
 
   async reserveOrder(id: string, companyId: string, userId?: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -71,7 +72,6 @@ export class SalesService {
         throw new BadRequestException('Venda sem itens não pode ser reservada');
       }
 
-      // Verificar e reservar estoque para cada item
       for (const item of order.items) {
         const balance = await tx.stockBalance.findUnique({
           where: {
@@ -92,7 +92,6 @@ export class SalesService {
           );
         }
 
-        // Mover de disponível para reservado (sem gerar StockMovement — movimento lógico)
         await tx.stockBalance.update({
           where: {
             warehouseId_productId: {
@@ -127,24 +126,59 @@ export class SalesService {
     });
   }
 
-  // ─── S07.04: Confirmar venda ──────────────────────────────────────────────
+  // ─── S07.04a: Confirmar venda (RESERVED → CONFIRMED) — sem movimento ──────
+  //   Confirmação é aprovação comercial. A saída física só ocorre no faturamento.
 
   async confirmOrder(id: string, companyId: string, userId?: string) {
-    const confirmed = await this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+    if (order.status !== SalesOrderStatus.RESERVED) {
+      throw new BadRequestException(
+        `Venda não pode ser confirmada. Status atual: ${order.status}. ` +
+          `Apenas vendas RESERVADAS podem ser confirmadas.`,
+      );
+    }
+
+    const confirmed = await this.prisma.salesOrder.update({
+      where: { id },
+      data: { status: SalesOrderStatus.CONFIRMED, confirmedAt: new Date() },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'CONFIRM',
+        payload: { salesOrderId: id },
+      },
+    });
+
+    return confirmed;
+  }
+
+  // ─── S07.04b: Faturar venda (CONFIRMED → INVOICED) — baixa estoque ────────
+  //   Gera StockMovement EXIT e emite evento para fiscal e financeiro.
+
+  async invoiceOrder(id: string, companyId: string, userId?: string) {
+    const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
         include: { items: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
-      if (order.status !== SalesOrderStatus.RESERVED) {
+      if (order.status !== SalesOrderStatus.CONFIRMED) {
         throw new BadRequestException(
-          `Venda não pode ser confirmada. Status atual: ${order.status}. ` +
-            `Apenas vendas RESERVADAS podem ser confirmadas.`,
+          `Venda não pode ser faturada. Status atual: ${order.status}. ` +
+            `Apenas vendas CONFIRMADAS podem ser faturadas.`,
         );
       }
 
-      // Baixar o estoque reservado e criar movimento EXIT para cada item
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
@@ -165,7 +199,7 @@ export class SalesService {
             productId: item.productId,
             type: 'EXIT',
             quantity: qty,
-            reason: `Venda confirmada OV #${id}`,
+            reason: `Faturamento OV #${id}`,
             reference: `SO:${id}`,
             userId,
           },
@@ -174,7 +208,7 @@ export class SalesService {
 
       const updated = await tx.salesOrder.update({
         where: { id },
-        data: { status: SalesOrderStatus.CONFIRMED, confirmedAt: new Date() },
+        data: { status: SalesOrderStatus.INVOICED, invoicedAt: new Date() },
         include: { items: { include: { product: true } }, customer: true, warehouse: true },
       });
 
@@ -183,7 +217,7 @@ export class SalesService {
           userId,
           companyId,
           entity: 'SalesOrder',
-          action: 'CONFIRM',
+          action: 'INVOICE',
           payload: { salesOrderId: id, warehouseId: order.warehouseId },
         },
       });
@@ -191,15 +225,15 @@ export class SalesService {
       return updated;
     });
 
-    // S07.04: emitir evento após commit
+    // Emitir após commit — fiscal e financeiro ouvem este evento
     this.eventEmitter.emit(
-      SALE_CONFIRMED_EVENT,
-      new SaleConfirmedEvent(
-        confirmed.companyId,
+      SALE_INVOICED_EVENT,
+      new SaleInvoicedEvent(
+        invoiced.companyId,
         userId,
-        confirmed.id,
-        confirmed.warehouseId,
-        (confirmed.items as any[]).map((i) => ({
+        invoiced.id,
+        invoiced.warehouseId,
+        (invoiced.items as any[]).map((i) => ({
           productId: i.productId,
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),
@@ -207,10 +241,76 @@ export class SalesService {
       ),
     );
 
-    return confirmed;
+    return invoiced;
   }
 
-  // ─── S07.05: Cancelar reserva/venda ──────────────────────────────────────
+  // ─── S07.06: Devolução (INVOICED → RETURNED) — entrada de estoque ─────────
+
+  async returnOrder(id: string, companyId: string, dto: ReturnOrderDto, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.salesOrder.findFirst({
+        where: { id, companyId },
+        include: { items: true },
+      });
+
+      if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+      if (order.status !== SalesOrderStatus.INVOICED) {
+        throw new BadRequestException(
+          `Devolução só é permitida para vendas faturadas. Status atual: ${order.status}`,
+        );
+      }
+
+      for (const item of order.items) {
+        const qty = Number(item.quantity);
+
+        await tx.stockBalance.update({
+          where: {
+            warehouseId_productId: {
+              warehouseId: order.warehouseId,
+              productId: item.productId,
+            },
+          },
+          data: { available: { increment: qty } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            companyId,
+            warehouseId: order.warehouseId,
+            productId: item.productId,
+            type: 'ENTRY',
+            quantity: qty,
+            reason: `Devolução OV #${id}: ${dto.reason}`,
+            reference: `SO-RETURN:${id}`,
+            userId,
+          },
+        });
+      }
+
+      const returned = await tx.salesOrder.update({
+        where: { id },
+        data: { status: SalesOrderStatus.RETURNED, returnedAt: new Date() },
+        include: { items: { include: { product: true } }, customer: true, warehouse: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          companyId,
+          entity: 'SalesOrder',
+          action: 'RETURN',
+          payload: { salesOrderId: id, reason: dto.reason },
+        },
+      });
+
+      return returned;
+    });
+  }
+
+  // ─── S07.05: Cancelar venda ───────────────────────────────────────────────
+  //   Permitido em DRAFT, RESERVED e CONFIRMED.
+  //   RESERVED e CONFIRMED: devolve estoque reservado para disponível.
+  //   INVOICED: não pode cancelar — usar devolução.
 
   async cancelOrder(id: string, companyId: string, userId?: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -220,15 +320,23 @@ export class SalesService {
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
-      if (order.status === SalesOrderStatus.CONFIRMED) {
-        throw new BadRequestException('Venda já confirmada não pode ser cancelada');
+      if (order.status === SalesOrderStatus.INVOICED) {
+        throw new BadRequestException(
+          'Venda já faturada não pode ser cancelada. Use o endpoint de devolução.',
+        );
+      }
+      if (order.status === SalesOrderStatus.RETURNED) {
+        throw new BadRequestException('Venda devolvida não pode ser cancelada');
       }
       if (order.status === SalesOrderStatus.CANCELLED) {
         throw new BadRequestException('Venda já está cancelada');
       }
 
-      // Se estava RESERVED, devolver reservado para disponível
-      if (order.status === SalesOrderStatus.RESERVED) {
+      const needsStockRevert =
+        order.status === SalesOrderStatus.RESERVED ||
+        order.status === SalesOrderStatus.CONFIRMED;
+
+      if (needsStockRevert) {
         for (const item of order.items) {
           const qty = Number(item.quantity);
 
@@ -269,9 +377,29 @@ export class SalesService {
 
   // ─── Consultas ────────────────────────────────────────────────────────────
 
-  async findAll(companyId: string) {
+  async findAll(
+    companyId: string,
+    filters: {
+      status?: SalesOrderStatus;
+      customerId?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ) {
     return this.prisma.salesOrder.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        ...(filters.from || filters.to
+          ? {
+              createdAt: {
+                ...(filters.from ? { gte: new Date(filters.from) } : {}),
+                ...(filters.to ? { lte: new Date(filters.to) } : {}),
+              },
+            }
+          : {}),
+      },
       include: {
         customer: true,
         warehouse: true,

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FinanceListener } from './finance.listener';
 import { FinanceService } from './finance.service';
-import { SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
+import { SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { GoodsReceivedEvent } from '../stock/events/goods-received.event';
 
 const mockFinanceService = {
@@ -24,16 +24,16 @@ describe('FinanceListener', () => {
     jest.clearAllMocks();
   });
 
-  describe('onSaleConfirmed', () => {
-    it('deve criar CR com o total da venda', async () => {
-      const event = new SaleConfirmedEvent('co-1', 'u-1', 'so-1', 'wh-1', [
+  describe('onSaleInvoiced', () => {
+    it('deve criar CR com o total da venda faturada', async () => {
+      const event = new SaleInvoicedEvent('co-1', 'u-1', 'so-1', 'wh-1', [
         { productId: 'p-1', quantity: 2, unitPrice: 100 },
         { productId: 'p-2', quantity: 1, unitPrice: 50 },
       ]);
 
       mockFinanceService.createReceivableForSale.mockResolvedValue(undefined);
 
-      await listener.onSaleConfirmed(event);
+      await listener.onSaleInvoiced(event);
 
       expect(mockFinanceService.createReceivableForSale).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -45,13 +45,13 @@ describe('FinanceListener', () => {
     });
 
     it('deve absorver erros sem propagar exceção', async () => {
-      const event = new SaleConfirmedEvent('co-1', 'u-1', 'so-1', 'wh-1', [
+      const event = new SaleInvoicedEvent('co-1', 'u-1', 'so-1', 'wh-1', [
         { productId: 'p-1', quantity: 1, unitPrice: 100 },
       ]);
 
       mockFinanceService.createReceivableForSale.mockRejectedValue(new Error('DB error'));
 
-      await expect(listener.onSaleConfirmed(event)).resolves.not.toThrow();
+      await expect(listener.onSaleInvoiced(event)).resolves.not.toThrow();
     });
   });
 

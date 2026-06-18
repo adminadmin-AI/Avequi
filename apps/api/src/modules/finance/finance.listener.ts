@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
+import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { GOODS_RECEIVED_EVENT, GoodsReceivedEvent } from '../stock/events/goods-received.event';
 import { FinanceService } from './finance.service';
 
@@ -12,8 +12,8 @@ export class FinanceListener {
 
   // ─── S09.02: Venda confirmada → gera conta a receber ─────────────────────
 
-  @OnEvent(SALE_CONFIRMED_EVENT, { async: true })
-  async onSaleConfirmed(event: SaleConfirmedEvent): Promise<void> {
+  @OnEvent(SALE_INVOICED_EVENT, { async: true })
+  async onSaleInvoiced(event: SaleInvoicedEvent): Promise<void> {
     try {
       const amount = event.items.reduce(
         (sum, item) => sum + item.quantity * item.unitPrice,

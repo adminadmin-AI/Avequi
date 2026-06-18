@@ -426,6 +426,8 @@ enum SalesOrderStatus {
   DRAFT
   RESERVED
   CONFIRMED
+  INVOICED
+  RETURNED
   CANCELLED
 }
 
@@ -442,6 +444,8 @@ model SalesOrder {
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
+  invoicedAt  DateTime?
+  returnedAt  DateTime?
   cancelledAt DateTime?
   items            SaleItem[]
   fiscalDocument   FiscalDocument?
