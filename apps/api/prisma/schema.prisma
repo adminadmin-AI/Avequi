@@ -77,6 +77,7 @@ model User {
   purchaseRequests          PurchaseRequest[]   @relation("PRRequestedBy")
   triggeredMrpRuns          MrpRun[]            @relation("MrpTriggeredBy")
   createdProductionOrders   ProductionOrder[]   @relation("POProdCreatedBy")
+  productionLogs            ProductionLog[]     @relation("ProductionLogUser")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -280,6 +281,7 @@ model RoutingStep {
   setupTimeMin    Int      @default(0)
   runTimeMin      Int      @default(0)
   notes           String?
+  productionLogs  ProductionLog[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -758,6 +760,24 @@ enum ProductionOrderStatus {
   CANCELLED
 }
 
+model ProductionLog {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  routingStepId     String?
+  routingStep       RoutingStep?    @relation(fields: [routingStepId], references: [id])
+  stepOrder         Int?            // cache do stepOrder para ordenação
+  workCenter        String?
+  qty               Decimal         @db.Decimal(14, 4)
+  userId            String?
+  user              User?           @relation("ProductionLogUser", fields: [userId], references: [id])
+  notes             String?
+  loggedAt          DateTime        @default(now()) @map("logged_at")
+
+  @@index([productionOrderId])
+  @@map("gdr_production_log")
+}
+
 model ProductionOrder {
   id               String                @id @default(cuid())
   companyId        String
@@ -777,6 +797,7 @@ model ProductionOrder {
   completedAt      DateTime?
   notes            String?
   items            ProductionOrderItem[]
+  logs             ProductionLog[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())

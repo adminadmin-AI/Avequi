@@ -12,6 +12,7 @@ import {
 import { ProductionOrderStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
+import { CreateProductionLogDto } from './dto/create-log.dto';
 import { ProductionService } from './production.service';
 
 @UseGuards(JwtAuthGuard)
@@ -81,5 +82,33 @@ export class ProductionController {
     @Request() req: { user: { companyId: string; sub: string } },
   ) {
     return this.productionService.cancel(id, req.user.companyId, req.user.sub);
+  }
+
+  // POST /production/:id/logs — registrar apontamento
+  @Post(':id/logs')
+  addLog(
+    @Param('id') id: string,
+    @Body() dto: CreateProductionLogDto,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.productionService.addLog(id, req.user.companyId, dto, req.user.sub);
+  }
+
+  // GET /production/:id/logs — listar apontamentos
+  @Get(':id/logs')
+  getLogs(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.productionService.getLogs(id, req.user.companyId);
+  }
+
+  // GET /production/:id/progress — resumo de progresso
+  @Get(':id/progress')
+  getProgress(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.productionService.getProgress(id, req.user.companyId);
   }
 }

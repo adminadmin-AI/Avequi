@@ -7,6 +7,7 @@ import {
 import { ProductionOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
+import { CreateProductionLogDto } from './dto/create-log.dto';
 
 const ORDER_INCLUDE = {
   product: { select: { id: true, sku: true, name: true, unit: true } },
@@ -353,5 +354,139 @@ export class ProductionService {
       this.logger.log(`OP ${id} cancelada (era: ${order.status})`);
       return updated;
     });
+  }
+
+  // ─── S14.01: Registrar apontamento ───────────────────────────────────────
+
+  async addLog(id: string, companyId: string, dto: CreateProductionLogDto, userId?: string) {
+    const order = await this.prisma.productionOrder.findFirst({
+      where: { id, companyId },
+      include: { items: true },
+    });
+
+    if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
+
+    if (order.status !== ProductionOrderStatus.IN_PROGRESS) {
+      throw new BadRequestException(
+        `Apontamento só é permitido em OPs IN_PROGRESS. Status atual: ${order.status}`,
+      );
+    }
+
+    // Valida que qty não excede o saldo pendente (plannedQty - producedQty)
+    const alreadyProduced = Number(order.producedQty);
+    const planned = Number(order.plannedQty);
+    if (alreadyProduced + dto.qty > planned) {
+      throw new BadRequestException(
+        `Quantidade apontada excede o saldo pendente. ` +
+          `Planejado: ${planned}, já produzido: ${alreadyProduced}, solicitado: ${dto.qty}`,
+      );
+    }
+
+    // Busca stepOrder da etapa, se informada
+    let stepOrder: number | null = null;
+    if (dto.routingStepId) {
+      const step = await this.prisma.routingStep.findFirst({ where: { id: dto.routingStepId } });
+      stepOrder = step?.stepOrder ?? null;
+    }
+
+    const log = await this.prisma.productionLog.create({
+      data: {
+        productionOrderId: id,
+        routingStepId: dto.routingStepId ?? null,
+        stepOrder,
+        workCenter: dto.workCenter ?? null,
+        qty: dto.qty,
+        userId: userId ?? null,
+        notes: dto.notes ?? null,
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        routingStep: { select: { id: true, stepOrder: true, name: true, workCenter: true } },
+      },
+    });
+
+    // Acumula producedQty na OP
+    await this.prisma.productionOrder.update({
+      where: { id },
+      data: { producedQty: { increment: dto.qty } },
+    });
+
+    this.logger.log(`Apontamento: OP ${id} +${dto.qty} (total: ${alreadyProduced + dto.qty}/${planned})`);
+    return log;
+  }
+
+  // ─── S14.02: Listar apontamentos da OP ───────────────────────────────────
+
+  async getLogs(id: string, companyId: string) {
+    // Verifica que a OP pertence à empresa
+    const order = await this.prisma.productionOrder.findFirst({ where: { id, companyId } });
+    if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
+
+    return this.prisma.productionLog.findMany({
+      where: { productionOrderId: id },
+      include: {
+        user: { select: { id: true, name: true } },
+        routingStep: { select: { id: true, stepOrder: true, name: true, workCenter: true } },
+      },
+      orderBy: { loggedAt: 'asc' },
+    });
+  }
+
+  // ─── S14.03: Progresso da OP ──────────────────────────────────────────────
+
+  async getProgress(id: string, companyId: string) {
+    const order = await this.prisma.productionOrder.findFirst({
+      where: { id, companyId },
+      include: {
+        items: { include: { component: { select: { id: true, sku: true, name: true, unit: true } } } },
+        logs: {
+          include: { routingStep: { select: { id: true, stepOrder: true, name: true } } },
+          orderBy: { loggedAt: 'asc' },
+        },
+        product: { select: { id: true, sku: true, name: true, unit: true } },
+      },
+    });
+
+    if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
+
+    const plannedQty = Number(order.plannedQty);
+    const producedQty = Number(order.producedQty);
+    const pctComplete = plannedQty > 0 ? Math.min(100, (producedQty / plannedQty) * 100) : 0;
+
+    // Agrega qty por etapa do roteiro
+    const byStep = new Map<string, { stepOrder: number; stepName: string; totalQty: number; entries: number }>();
+    for (const log of order.logs) {
+      const key = log.routingStepId ?? '__no_step__';
+      if (!byStep.has(key)) {
+        byStep.set(key, {
+          stepOrder: log.stepOrder ?? 0,
+          stepName: log.routingStep?.name ?? 'Sem etapa',
+          totalQty: 0,
+          entries: 0,
+        });
+      }
+      const entry = byStep.get(key)!;
+      entry.totalQty += Number(log.qty);
+      entry.entries += 1;
+    }
+
+    return {
+      id: order.id,
+      product: order.product,
+      status: order.status,
+      plannedQty,
+      producedQty,
+      pctComplete: Math.round(pctComplete * 10) / 10,
+      totalLogs: order.logs.length,
+      byStep: Array.from(byStep.values()).sort((a, b) => a.stepOrder - b.stepOrder),
+      components: order.items.map((item) => ({
+        component: item.component,
+        plannedQty: Number(item.plannedQty),
+        consumedQty: Number(item.consumedQty),
+        pctConsumed: Number(item.plannedQty) > 0
+          ? Math.round((Number(item.consumedQty) / Number(item.plannedQty)) * 1000) / 10
+          : 0,
+      })),
+    };
   }
 }

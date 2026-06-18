@@ -19,6 +19,8 @@ const mockPrisma = {
   bomVersion: { findFirst: jest.fn() },
   productionOrder: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   productionOrderItem: { update: jest.fn() },
+  productionLog: { create: jest.fn(), findMany: jest.fn() },
+  routingStep: { findFirst: jest.fn() },
   stockBalance: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   stockMovement: { create: jest.fn() },
   auditLog: { create: jest.fn() },
@@ -316,8 +318,164 @@ describe('ProductionService', () => {
 
   describe('isolamento multi-tenant', () => {
     it('findOne lança NotFoundException para OP de outra empresa', async () => {
-      mockPrisma.productionOrder.findFirst.mockResolvedValue(null); // não encontrado no tenant errado
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
       await expect(service.findOne('op-1', 'co-outro')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S14: addLog ──────────────────────────────────────────────────────────
+
+  describe('addLog', () => {
+    const inProgressOrder = {
+      ...baseOrder,
+      status: 'IN_PROGRESS',
+      plannedQty: '10',
+      producedQty: '0',
+    };
+    const baseLog = {
+      id: 'log-1',
+      productionOrderId: 'op-1',
+      qty: '3',
+      routingStepId: null,
+      stepOrder: null,
+      workCenter: null,
+      notes: null,
+      loggedAt: new Date(),
+      user: null,
+      routingStep: null,
+    };
+
+    it('deve registrar apontamento e acumular producedQty', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockPrisma.routingStep.findFirst.mockResolvedValue(null);
+      mockPrisma.productionLog.create.mockResolvedValue(baseLog);
+      mockPrisma.productionOrder.update.mockResolvedValue({});
+
+      const result = await service.addLog('op-1', 'co-1', { qty: 3 }, 'u-1');
+
+      expect(mockPrisma.productionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ productionOrderId: 'op-1', qty: 3 }),
+        }),
+      );
+      expect(mockPrisma.productionOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { producedQty: { increment: 3 } },
+        }),
+      );
+      expect(result.id).toBe('log-1');
+    });
+
+    it('deve registrar stepOrder quando routingStepId é informado', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockPrisma.routingStep.findFirst.mockResolvedValue({ id: 'rs-1', stepOrder: 2 });
+      mockPrisma.productionLog.create.mockResolvedValue({ ...baseLog, routingStepId: 'rs-1', stepOrder: 2 });
+      mockPrisma.productionOrder.update.mockResolvedValue({});
+
+      await service.addLog('op-1', 'co-1', { qty: 2, routingStepId: 'rs-1' }, 'u-1');
+
+      expect(mockPrisma.productionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ routingStepId: 'rs-1', stepOrder: 2 }),
+        }),
+      );
+    });
+
+    it('deve lançar BadRequest quando qty excede saldo pendente', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({
+        ...inProgressOrder,
+        plannedQty: '5',
+        producedQty: '4',
+      });
+
+      await expect(
+        service.addLog('op-1', 'co-1', { qty: 2 }, 'u-1'), // 4 + 2 > 5
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequest para OP não IN_PROGRESS', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({ ...inProgressOrder, status: 'RELEASED' });
+      await expect(service.addLog('op-1', 'co-1', { qty: 1 })).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar NotFoundException para OP inexistente', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
+      await expect(service.addLog('op-x', 'co-1', { qty: 1 })).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S14: getLogs ─────────────────────────────────────────────────────────
+
+  describe('getLogs', () => {
+    it('deve listar logs da OP em ordem cronológica', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(baseOrder);
+      mockPrisma.productionLog.findMany.mockResolvedValue([
+        { id: 'log-1', qty: '3', loggedAt: new Date('2026-06-18T10:00:00Z') },
+        { id: 'log-2', qty: '2', loggedAt: new Date('2026-06-18T11:00:00Z') },
+      ]);
+
+      const result = await service.getLogs('op-1', 'co-1');
+
+      expect(mockPrisma.productionLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { productionOrderId: 'op-1' },
+          orderBy: { loggedAt: 'asc' },
+        }),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('deve lançar NotFoundException para OP de outra empresa', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
+      await expect(service.getLogs('op-1', 'co-outro')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S14: getProgress ─────────────────────────────────────────────────────
+
+  describe('getProgress', () => {
+    it('deve retornar percentual de conclusão correto', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: 'IN_PROGRESS',
+        plannedQty: '10',
+        producedQty: '7',
+        logs: [],
+        product,
+      });
+
+      const result = await service.getProgress('op-1', 'co-1');
+
+      expect(result.plannedQty).toBe(10);
+      expect(result.producedQty).toBe(7);
+      expect(result.pctComplete).toBe(70);
+    });
+
+    it('deve agregar qty por etapa do roteiro', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: 'IN_PROGRESS',
+        plannedQty: '10',
+        producedQty: '5',
+        product,
+        logs: [
+          { id: 'l1', qty: '3', stepOrder: 1, routingStepId: 'rs-1', routingStep: { id: 'rs-1', stepOrder: 1, name: 'Corte' } },
+          { id: 'l2', qty: '2', stepOrder: 2, routingStepId: 'rs-2', routingStep: { id: 'rs-2', stepOrder: 2, name: 'Solda' } },
+          { id: 'l3', qty: '1', stepOrder: 1, routingStepId: 'rs-1', routingStep: { id: 'rs-1', stepOrder: 1, name: 'Corte' } },
+        ],
+      });
+
+      const result = await service.getProgress('op-1', 'co-1');
+
+      expect(result.byStep).toHaveLength(2);
+      const corte = result.byStep.find((s) => s.stepName === 'Corte');
+      expect(corte?.totalQty).toBe(4); // 3 + 1
+      expect(corte?.entries).toBe(2);
+    });
+
+    it('deve lançar NotFoundException para OP inexistente', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
+      await expect(service.getProgress('op-x', 'co-1')).rejects.toThrow(NotFoundException);
     });
   });
 });
