@@ -168,4 +168,50 @@ export class DemandService {
       take: 50,
     });
   }
+
+  // ─── S11.06: Sugestão baseada em histórico de vendas ─────────────────────
+
+  async getSuggestions(
+    companyId: string,
+    parentCompanyId?: string,
+  ): Promise<Array<{ productId: string; productName: string; productSku: string; totalSold: number; horizonDays: number }>> {
+    const lookupCompanyId = parentCompanyId ?? companyId;
+    const param = await this.prisma.systemParameter.findUnique({
+      where: { companyId_key: { companyId: lookupCompanyId, key: 'mrp_horizon_days' } },
+    });
+    const horizonDays = param ? parseInt(param.value, 10) : 30;
+    const since = new Date();
+    since.setDate(since.getDate() - horizonDays);
+
+    const companyFilter: any = parentCompanyId
+      ? { OR: [{ companyId: parentCompanyId }, { company: { parentId: parentCompanyId } }] }
+      : { companyId };
+
+    const items = await this.prisma.saleItem.findMany({
+      where: { salesOrder: { ...companyFilter, status: 'INVOICED' as any, invoicedAt: { gte: since } } },
+      include: { product: { select: { id: true, name: true, sku: true } } },
+    });
+
+    const map = new Map<string, { productId: string; productName: string; productSku: string; totalSold: number }>();
+    for (const item of items) {
+      if (!map.has(item.productId)) {
+        map.set(item.productId, { productId: item.productId, productName: item.product.name, productSku: item.product.sku, totalSold: 0 });
+      }
+      map.get(item.productId)!.totalSold += Number(item.quantity);
+    }
+
+    return Array.from(map.values())
+      .sort((a, b) => b.totalSold - a.totalSold)
+      .map((r) => ({ ...r, horizonDays }));
+  }
+
+  // ─── S11.06b: Configurar horizonte MRP ───────────────────────────────────
+
+  async setHorizon(companyId: string, days: number) {
+    return this.prisma.systemParameter.upsert({
+      where: { companyId_key: { companyId, key: 'mrp_horizon_days' } },
+      create: { companyId, key: 'mrp_horizon_days', value: String(days) },
+      update: { value: String(days) },
+    });
+  }
 }

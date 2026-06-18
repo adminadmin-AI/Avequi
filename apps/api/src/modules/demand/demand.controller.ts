@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Request,
@@ -54,6 +55,24 @@ export class DemandController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.demandService.getHistory(productId, req.user.companyId);
+  }
+
+  // GET /demand/suggestions?parentCompanyId=yyy
+  @Get('suggestions')
+  getSuggestions(
+    @Request() req: { user: { companyId: string } },
+    @Query('parentCompanyId') parentCompanyId?: string,
+  ) {
+    return this.demandService.getSuggestions(req.user.companyId, parentCompanyId);
+  }
+
+  // PATCH /demand/horizon — configura mrp_horizon_days
+  @Patch('horizon')
+  setHorizon(
+    @Request() req: { user: { companyId: string } },
+    @Body('days') days: number,
+  ) {
+    return this.demandService.setHorizon(req.user.companyId, days);
   }
 
   // DELETE /demand/:id

@@ -38,6 +38,7 @@ model Company {
   demandForecasts      DemandForecast[]
   purchaseRequests     PurchaseRequest[]
   supplierPriceHistory SupplierPriceHistory[]
+  systemParameters     SystemParameter[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -671,6 +672,21 @@ model StoreTransferItem {
   unit            UnitOfMeasure @default(UN)
 
   @@map("gdr_store_transfer_items")
+}
+
+// ─── Configurações do Sistema ─────────────────────────────────────────────────
+
+model SystemParameter {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key])
+  @@map("gdr_system_parameters")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────
