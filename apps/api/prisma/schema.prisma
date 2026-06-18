@@ -40,6 +40,7 @@ model Company {
   supplierPriceHistory SupplierPriceHistory[]
   systemParameters     SystemParameter[]
   mrpRuns              MrpRun[]
+  productionOrders     ProductionOrder[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -75,6 +76,7 @@ model User {
   demandForecasts           DemandForecast[]    @relation("DemandCreatedBy")
   purchaseRequests          PurchaseRequest[]   @relation("PRRequestedBy")
   triggeredMrpRuns          MrpRun[]            @relation("MrpTriggeredBy")
+  createdProductionOrders   ProductionOrder[]   @relation("POProdCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -174,7 +176,9 @@ model Product {
   demandForecasts      DemandForecast[]
   purchaseRequests     PurchaseRequest[]
   supplierPriceHistory SupplierPriceHistory[]
-  mrpSuggestions       MrpSuggestion[]
+  mrpSuggestions            MrpSuggestion[]
+  productionOrdersAsProduct ProductionOrder[]   @relation("ProductionOrderProduct")
+  productionOrderItems      ProductionOrderItem[] @relation("ProductionOrderComponent")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -308,6 +312,7 @@ model Warehouse {
   salesOrders      SalesOrder[]
   transfersFrom    StoreTransfer[] @relation("TransferFrom")
   transfersTo      StoreTransfer[] @relation("TransferTo")
+  productionOrders ProductionOrder[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -740,6 +745,58 @@ model MrpSuggestion {
   @@index([mrpRunId])
   @@index([productId])
   @@map("gdr_mrp_suggestions")
+  productionOrders ProductionOrder[]
+}
+
+// ─── Ordens de Produção ───────────────────────────────────────────────────────
+
+enum ProductionOrderStatus {
+  DRAFT
+  RELEASED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model ProductionOrder {
+  id               String                @id @default(cuid())
+  companyId        String
+  company          Company               @relation(fields: [companyId], references: [id])
+  productId        String
+  product          Product               @relation("ProductionOrderProduct", fields: [productId], references: [id])
+  warehouseId      String
+  warehouse        Warehouse             @relation(fields: [warehouseId], references: [id])
+  mrpSuggestionId  String?
+  mrpSuggestion    MrpSuggestion?        @relation(fields: [mrpSuggestionId], references: [id])
+  plannedQty       Decimal               @db.Decimal(14, 4)
+  producedQty      Decimal               @default(0) @db.Decimal(14, 4)
+  status           ProductionOrderStatus @default(DRAFT)
+  scheduledStart   DateTime?
+  scheduledEnd     DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  notes            String?
+  items            ProductionOrderItem[]
+  createdById      String?
+  createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_production_orders")
+}
+
+model ProductionOrderItem {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  componentId       String
+  component         Product         @relation("ProductionOrderComponent", fields: [componentId], references: [id])
+  plannedQty        Decimal         @db.Decimal(14, 4)
+  consumedQty       Decimal         @default(0) @db.Decimal(14, 4)
+  unit              UnitOfMeasure   @default(UN)
+
+  @@map("gdr_production_order_items")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────
