@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
+import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 
 @Injectable()
 export class FinanceService {
@@ -214,6 +216,117 @@ export class FinanceService {
     });
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
     return entry;
+  }
+
+  // ─── S09.05b: Cron diário — OPEN vencidos → OVERDUE ─────────────────────
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async markOverdue(): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { count } = await this.prisma.financialEntry.updateMany({
+      where: {
+        status: FinancialEntryStatus.OPEN,
+        dueDate: { lt: today },
+      },
+      data: { status: FinancialEntryStatus.OVERDUE },
+    });
+
+    if (count > 0) {
+      this.logger.log(`markOverdue: ${count} lançamentos marcados como OVERDUE`);
+    }
+  }
+
+  // ─── S09.07: BankAccount CRUD ─────────────────────────────────────────────
+
+  async createBankAccount(companyId: string, dto: CreateBankAccountDto) {
+    const account = await this.prisma.bankAccount.create({
+      data: { companyId, ...dto },
+    });
+    this.logger.log(`BankAccount criado: ${account.id} — ${dto.name}`);
+    return account;
+  }
+
+  async findAllBankAccounts(companyId: string) {
+    return this.prisma.bankAccount.findMany({
+      where: { companyId, active: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async updateBankAccount(id: string, companyId: string, dto: Partial<CreateBankAccountDto>) {
+    const account = await this.prisma.bankAccount.findFirst({ where: { id, companyId } });
+    if (!account) throw new NotFoundException(`Conta bancária ${id} não encontrada`);
+
+    return this.prisma.bankAccount.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateBankAccount(id: string, companyId: string) {
+    const account = await this.prisma.bankAccount.findFirst({ where: { id, companyId } });
+    if (!account) throw new NotFoundException(`Conta bancária ${id} não encontrada`);
+
+    return this.prisma.bankAccount.update({
+      where: { id },
+      data: { active: false },
+    });
+  }
+
+  // ─── S09.08: CashFlowSnapshot — entradas e saídas previstas ──────────────
+
+  async getCashFlow(
+    companyId: string,
+    filters: { from?: string; to?: string } = {},
+  ): Promise<{
+    totalReceivable: number;
+    totalPayable: number;
+    netBalance: number;
+    entries: Array<{
+      id: string;
+      type: FinancialEntryType;
+      status: FinancialEntryStatus;
+      amount: number;
+      dueDate: Date;
+      description: string | null;
+    }>;
+  }> {
+    const where = {
+      companyId,
+      status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.OVERDUE] as FinancialEntryStatus[] },
+      ...(filters.from || filters.to
+        ? {
+            dueDate: {
+              ...(filters.from ? { gte: new Date(filters.from) } : {}),
+              ...(filters.to ? { lte: new Date(filters.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const rows = await this.prisma.financialEntry.findMany({
+      where,
+      select: { id: true, type: true, status: true, amount: true, dueDate: true, description: true },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    let totalReceivable = 0;
+    let totalPayable = 0;
+
+    for (const row of rows) {
+      const amount = Number(row.amount);
+      if (row.type === FinancialEntryType.RECEIVABLE) totalReceivable += amount;
+      else totalPayable += amount;
+    }
+
+    return {
+      totalReceivable,
+      totalPayable,
+      netBalance: totalReceivable - totalPayable,
+      entries: rows.map((r) => ({ ...r, amount: Number(r.amount) })),
+    };
   }
 
   // ─── Util ─────────────────────────────────────────────────────────────────

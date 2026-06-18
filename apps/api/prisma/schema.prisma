@@ -33,6 +33,7 @@ model Company {
   salesOrders      SalesOrder[]
   fiscalDocuments  FiscalDocument[]
   financialEntries FinancialEntry[]
+  bankAccounts     BankAccount[]
   storeTransfers   StoreTransfer[]
   demandForecasts  DemandForecast[]
   createdAt DateTime @default(now())
@@ -518,6 +519,7 @@ enum FinancialEntryType {
 
 enum FinancialEntryStatus {
   OPEN
+  OVERDUE
   PAID
   CANCELLED
 }
@@ -549,6 +551,23 @@ model FinancialEntry {
   @@index([type, status])
   @@index([dueDate])
   @@map("gdr_financial_entries")
+}
+
+model BankAccount {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  name      String
+  bank      String?
+  agency    String?
+  account   String?
+  balance   Decimal   @default(0) @db.Decimal(14, 4)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([companyId])
+  @@map("gdr_bank_accounts")
 }
 
 // ─── Transferências fábrica → loja ───────────────────────────────────────────
