@@ -8,7 +8,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { FinanceService } from './finance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';

@@ -8,7 +8,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TransferService } from './transfer.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 

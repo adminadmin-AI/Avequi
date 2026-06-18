@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Empresa / Tenant ─────────────────────────────────────────────────────────
@@ -22,28 +23,22 @@ model Company {
   products  Product[]
   suppliers Supplier[]
   customers Customer[]
-  bomVersions   BomVersion[]
-  routingSteps  RoutingStep[]
-  warehouses    Warehouse[]
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
-  systemParameters SystemParameter[]
-  supplierPrices   SupplierPrice[]
+  bomVersions    BomVersion[]
+  routingSteps   RoutingStep[]
+  warehouses       Warehouse[]
+  stockBalances    StockBalance[]
+  stockMovements   StockMovement[]
   purchaseOrders   PurchaseOrder[]
   goodsReceipts    GoodsReceipt[]
   salesOrders      SalesOrder[]
   fiscalDocuments  FiscalDocument[]
-  bankAccounts     BankAccount[]
-  financialCategories FinancialCategory[]
-  costCenters      CostCenter[]
-  payables         Payable[]
-  paymentEntries   PaymentEntry[]
-  receivables      Receivable[]
-  stockTransfers   StockTransfer[]
+  financialEntries FinancialEntry[]
+  storeTransfers   StoreTransfer[]
+  demandForecasts  DemandForecast[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("companies")
+  @@map("gdr_companies")
 }
 
 enum CompanyType {
@@ -62,17 +57,21 @@ model User {
   isActive      Boolean  @default(true)
   companyId     String
   company       Company  @relation(fields: [companyId], references: [id])
-  refreshTokens    RefreshToken[]
-  auditLogs        AuditLog[]
-  stockMovements   StockMovement[]
-  purchaseOrdersCreated PurchaseOrder[] @relation("POCreatedBy")
-  goodsReceiptsReceived GoodsReceipt[]  @relation("GRReceivedBy")
-  salesOrdersCreated    SalesOrder[]    @relation("SOCreatedBy")
-  stockTransfersCreated StockTransfer[] @relation("TransferCreatedBy")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  stockMovements            StockMovement[]
+  createdPurchaseOrders     PurchaseOrder[] @relation("POCreatedBy")
+  approvedPurchaseOrders    PurchaseOrder[] @relation("POApprovedBy")
+  goodsReceipts             GoodsReceipt[]  @relation("GRReceivedBy")
+  createdSalesOrders        SalesOrder[]    @relation("SOCreatedBy")
+  requestedTransfers        StoreTransfer[] @relation("TransferRequestedBy")
+  dispatchedTransfers       StoreTransfer[] @relation("TransferDispatchedBy")
+  receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
+  demandForecasts           DemandForecast[] @relation("DemandCreatedBy")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@map("users")
+  @@map("gdr_users")
 }
 
 enum UserRole {
@@ -99,7 +98,7 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime @default(now())
 
-  @@map("refresh_tokens")
+  @@map("gdr_refresh_tokens")
 }
 
 // ─── Auditoria ────────────────────────────────────────────────────────────────
@@ -115,7 +114,7 @@ model AuditLog {
   payload   Json?
   createdAt DateTime @default(now())
 
-  @@map("audit_logs")
+  @@map("gdr_audit_logs")
 }
 
 // ─── Produto ──────────────────────────────────────────────────────────────────
@@ -126,6 +125,7 @@ enum ProductType {
   FINISHED_GOOD
   CONSUMABLE
   SERVICE
+  COMPONENT
 }
 
 enum UnitOfMeasure {
@@ -153,47 +153,43 @@ model Product {
   ncm         String?
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
+  avgCost     Decimal?       @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
-  boms              BomVersion[]      @relation("ProductBoms")
-  usedInBoms        BomItem[]         @relation("ComponentOf")
-  routingSteps      RoutingStep[]     @relation("ProductRouting")
-  stockBalances     StockBalance[]
-  stockMovements    StockMovement[]
-  supplierPrices    SupplierPrice[]
-  purchaseOrderItems PurchaseOrderItem[] @relation("POItems")
-  goodsReceiptItems  GoodsReceiptItem[]  @relation("GRItems")
-  salesOrderItems    SalesOrderItem[]    @relation("SOItems")
-  salesOrderSerials  SalesOrderSerial[]  @relation("SOSerials")
-  fiscalDocumentItems FiscalDocumentItem[] @relation("FDItems")
-  stockTransferItems  StockTransferItem[]  @relation("TransferItems")
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  boms           BomVersion[]  @relation("ProductBoms")
+  usedInBoms     BomItem[]     @relation("ComponentOf")
+  routingSteps   RoutingStep[] @relation("ProductRouting")
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+  poItems          POItem[]
+  grItems          GRItem[]
+  saleItems        SaleItem[]
+  transferItems    StoreTransferItem[]
+  demandForecasts  DemandForecast[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@unique([companyId, sku])
-  @@map("products")
+  @@map("gdr_products")
 }
 
 // ─── Fornecedor ───────────────────────────────────────────────────────────────
 
 model Supplier {
-  id           String   @id @default(cuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  name         String
-  cnpj         String?
-  email        String?
-  phone        String?
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  name           String
+  cnpj           String?
+  email          String?
+  phone          String?
   leadTimeDays   Int             @default(0)
   isActive       Boolean         @default(true)
-  legacyId       String?
-  prices         SupplierPrice[]
   purchaseOrders PurchaseOrder[]
-  payables       Payable[]       @relation("PayableSupplier")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@unique([companyId, cnpj])
-  @@map("suppliers")
+  @@map("gdr_suppliers")
 }
 
 // ─── Cliente ──────────────────────────────────────────────────────────────────
@@ -216,14 +212,12 @@ model Customer {
   city         String?
   state        String?
   isActive     Boolean      @default(true)
-  legacyId     String?
   salesOrders  SalesOrder[]
-  receivables  Receivable[] @relation("ReceivableCustomer")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   @@unique([companyId, document])
-  @@map("customers")
+  @@map("gdr_customers")
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
@@ -241,7 +235,7 @@ model BomVersion {
   createdAt   DateTime  @default(now())
 
   @@unique([productId, version])
-  @@map("bom_versions")
+  @@map("gdr_bom_versions")
 }
 
 model BomItem {
@@ -254,7 +248,7 @@ model BomItem {
   scrapPct     Decimal    @default(0) @db.Decimal(5, 2)
   unit         UnitOfMeasure @default(UN)
 
-  @@map("bom_items")
+  @@map("gdr_bom_items")
 }
 
 // ─── Roteiro de Produção ─────────────────────────────────────────────────────
@@ -275,7 +269,7 @@ model RoutingStep {
   updatedAt       DateTime @updatedAt
 
   @@unique([productId, stepOrder])
-  @@map("routing_steps")
+  @@map("gdr_routing_steps")
 }
 
 // ─── Estoque ──────────────────────────────────────────────────────────────────
@@ -296,17 +290,18 @@ model Warehouse {
   name        String
   code        String
   description String?
-  isActive        Boolean         @default(true)
-  balances        StockBalance[]
-  movements       StockMovement[]
-  goodsReceipts   GoodsReceipt[]
-  transfersFrom   StockTransfer[] @relation("TransferFrom")
-  transfersTo     StockTransfer[] @relation("TransferTo")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  isActive    Boolean         @default(true)
+  balances         StockBalance[]
+  movements        StockMovement[]
+  goodsReceipts    GoodsReceipt[]
+  salesOrders      SalesOrder[]
+  transfersFrom    StoreTransfer[] @relation("TransferFrom")
+  transfersTo      StoreTransfer[] @relation("TransferTo")
+  createdAt     DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@unique([companyId, code])
-  @@map("warehouses")
+  @@map("gdr_warehouses")
 }
 
 model StockBalance {
@@ -319,10 +314,11 @@ model StockBalance {
   product     Product   @relation(fields: [productId], references: [id])
   available   Decimal   @default(0) @db.Decimal(14, 4)
   reserved    Decimal   @default(0) @db.Decimal(14, 4)
+  inTransit   Decimal   @default(0) @db.Decimal(14, 4)
   updatedAt   DateTime  @updatedAt
 
   @@unique([warehouseId, productId])
-  @@map("stock_balances")
+  @@map("gdr_stock_balances")
 }
 
 model StockMovement {
@@ -340,58 +336,16 @@ model StockMovement {
   reversedById String?
   userId       String?
   user         User?        @relation(fields: [userId], references: [id])
-  // Origem do movimento (compras, vendas, transferência, etc.)
-  sourceType   String?      // PURCHASE_RECEIPT | SALES_ORDER | TRANSFER | PRODUCTION | MANUAL
-  sourceId     String?
   createdAt    DateTime     @default(now())
 
-  @@map("stock_movements")
-}
-
-// ─── Parâmetro de Sistema ─────────────────────────────────────────────────────
-
-model SystemParameter {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  key       String
-  value     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([companyId, key])
-  @@map("system_parameters")
-}
-
-// ─── Preço de Fornecedor ──────────────────────────────────────────────────────
-
-model SupplierPrice {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  price       Decimal  @db.Decimal(14, 4)
-  minQty      Decimal  @default(1) @db.Decimal(14, 4)
-  leadTimeDays Int     @default(0)
-  isActive    Boolean  @default(true)
-  validFrom   DateTime @default(now())
-  validTo     DateTime?
-  legacyId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("supplier_prices")
+  @@map("gdr_stock_movements")
 }
 
 // ─── Compras ──────────────────────────────────────────────────────────────────
 
 enum PurchaseOrderStatus {
   DRAFT
-  SENT
-  PARTIAL
+  APPROVED
   RECEIVED
   CANCELLED
 }
@@ -402,488 +356,266 @@ model PurchaseOrder {
   company      Company             @relation(fields: [companyId], references: [id])
   supplierId   String
   supplier     Supplier            @relation(fields: [supplierId], references: [id])
-  number       String
   status       PurchaseOrderStatus @default(DRAFT)
   expectedAt   DateTime?
   notes        String?
-  totalAmount  Decimal             @default(0) @db.Decimal(14, 2)
-  items        PurchaseOrderItem[]
-  receipts     GoodsReceipt[]
-  legacyId     String?
   createdById  String?
   createdBy    User?               @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  items            POItem[]
+  receipts         GoodsReceipt[]
+  financialEntries FinancialEntry[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
-  @@unique([companyId, number])
-  @@map("purchase_orders")
+  @@map("gdr_purchase_orders")
 }
 
-model PurchaseOrderItem {
+model POItem {
   id              String        @id @default(cuid())
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   productId       String
-  product         Product       @relation("POItems", fields: [productId], references: [id])
+  product         Product       @relation(fields: [productId], references: [id])
   quantity        Decimal       @db.Decimal(14, 4)
-  unitPrice       Decimal       @db.Decimal(14, 4)
-  totalPrice      Decimal       @db.Decimal(14, 2)
-  receivedQty     Decimal       @default(0) @db.Decimal(14, 4)
+  unitCost        Decimal       @db.Decimal(14, 4)
   unit            UnitOfMeasure @default(UN)
+  grItems         GRItem[]
 
-  @@map("purchase_order_items")
-}
-
-enum GoodsReceiptStatus {
-  PENDING
-  INSPECTING
-  APPROVED
-  REJECTED
+  @@map("gdr_po_items")
 }
 
 model GoodsReceipt {
-  id              String             @id @default(cuid())
+  id              String        @id @default(cuid())
   companyId       String
-  company         Company            @relation(fields: [companyId], references: [id])
-  purchaseOrderId String?
-  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  company         Company       @relation(fields: [companyId], references: [id])
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
   warehouseId     String
-  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
-  status          GoodsReceiptStatus @default(PENDING)
-  supplierNfeKey  String?
-  receivedAt      DateTime           @default(now())
-  notes           String?
-  items           GoodsReceiptItem[]
-  legacyId        String?
+  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id])
   receivedById    String?
-  receivedBy      User?              @relation("GRReceivedBy", fields: [receivedById], references: [id])
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  receivedBy      User?         @relation("GRReceivedBy", fields: [receivedById], references: [id])
+  notes            String?
+  items            GRItem[]
+  financialEntry   FinancialEntry?
+  createdAt        DateTime      @default(now())
 
-  @@map("goods_receipts")
+  @@map("gdr_goods_receipts")
 }
 
-model GoodsReceiptItem {
-  id             String       @id @default(cuid())
-  goodsReceiptId String
-  goodsReceipt   GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product      @relation("GRItems", fields: [productId], references: [id])
-  quantity       Decimal      @db.Decimal(14, 4)
-  unitPrice      Decimal?     @db.Decimal(14, 4)
-  unit           UnitOfMeasure @default(UN)
-  lotNumber      String?
-  expiresAt      DateTime?
+model GRItem {
+  id               String       @id @default(cuid())
+  goodsReceiptId   String
+  goodsReceipt     GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poItemId         String
+  poItem           POItem       @relation(fields: [poItemId], references: [id])
+  productId        String
+  product          Product      @relation(fields: [productId], references: [id])
+  qtyOrdered       Decimal      @db.Decimal(14, 4)
+  qtyReceived      Decimal      @db.Decimal(14, 4)
+  divergenceReason String?
 
-  @@map("goods_receipt_items")
+  @@map("gdr_gr_items")
 }
 
 // ─── Vendas ───────────────────────────────────────────────────────────────────
 
 enum SalesOrderStatus {
   DRAFT
+  RESERVED
   CONFIRMED
-  IN_PRODUCTION
-  READY
-  INVOICED
-  DELIVERED
   CANCELLED
 }
 
-enum SalesOrderOrigin {
-  INTERNAL
-  SP_SYSTEM
-  NFE
-  ECOMMERCE
-}
-
 model SalesOrder {
-  id              String           @id @default(cuid())
-  companyId       String
-  company         Company          @relation(fields: [companyId], references: [id])
-  customerId      String
-  customer        Customer         @relation(fields: [customerId], references: [id])
-  number          String
-  status          SalesOrderStatus @default(DRAFT)
-  origin          SalesOrderOrigin @default(INTERNAL)
-  deliveryDate    DateTime?
-  notes           String?
-  totalAmount     Decimal          @default(0) @db.Decimal(14, 2)
-  items           SalesOrderItem[]
-  serials         SalesOrderSerial[]
-  fiscalDocuments FiscalDocument[]
-  legacyId        String?
-  createdById     String?
-  createdBy       User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  customerId  String?
+  customer    Customer?        @relation(fields: [customerId], references: [id])
+  warehouseId String
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
+  status      SalesOrderStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  items            SaleItem[]
+  fiscalDocument   FiscalDocument?
+  financialEntry   FinancialEntry?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  @@unique([companyId, number])
-  @@map("sales_orders")
+  @@map("gdr_sales_orders")
 }
 
-model SalesOrderItem {
+model SaleItem {
   id           String        @id @default(cuid())
   salesOrderId String
   salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productId    String
-  product      Product       @relation("SOItems", fields: [productId], references: [id])
+  product      Product       @relation(fields: [productId], references: [id])
   quantity     Decimal       @db.Decimal(14, 4)
   unitPrice    Decimal       @db.Decimal(14, 4)
-  totalPrice   Decimal       @db.Decimal(14, 2)
   unit         UnitOfMeasure @default(UN)
-  legacyId     String?
 
-  @@map("sales_order_items")
+  @@map("gdr_sale_items")
 }
 
-model SalesOrderSerial {
-  id           String     @id @default(cuid())
-  salesOrderId String
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId    String
-  product      Product    @relation("SOSerials", fields: [productId], references: [id])
-  serialNumber String
-  legacyId     String?
-
-  @@unique([productId, serialNumber])
-  @@map("sales_order_serials")
-}
-
-// ─── Fiscal / NF-e ────────────────────────────────────────────────────────────
+// ─── Fiscal ───────────────────────────────────────────────────────────────────
 
 enum FiscalDocumentType {
   NFE
   NFCE
-  CTE
-  NFSE
 }
 
-enum FiscalDocumentDirection {
-  OUTBOUND
-  INBOUND
-}
-
-enum FiscalDocumentStatus {
-  DRAFT
+enum FiscalStatus {
   PENDING
+  PROCESSING
   AUTHORIZED
-  CANCELLED
-  DENIED
   REJECTED
+  CANCELLED
+  ERROR
 }
 
 model FiscalDocument {
-  id                  String                  @id @default(cuid())
-  companyId           String
-  company             Company                 @relation(fields: [companyId], references: [id])
-  salesOrderId        String?
-  salesOrder          SalesOrder?             @relation(fields: [salesOrderId], references: [id])
-  type                FiscalDocumentType      @default(NFE)
-  direction           FiscalDocumentDirection @default(OUTBOUND)
-  status              FiscalDocumentStatus    @default(DRAFT)
-  accessKey           String?                 @unique // chave de 44 dígitos
-  number              String?
-  series              String?
-  issuedAt            DateTime?
-  totalAmount         Decimal?                @db.Decimal(14, 2)
-  operationDesc       String?
-  recipientTaxId      String?
-  recipientName       String?
-  issuerTaxId         String?
-  issuerName          String?
-  xmlContent          String?                 @db.Text
-  focusNfeId          String?                 // ID retornado pelo Focus NFe
-  legacyId            String?
-  items               FiscalDocumentItem[]
-  events              FiscalEvent[]
-  receivables         Receivable[]
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
+  id               String             @id @default(cuid())
+  companyId        String
+  company          Company            @relation(fields: [companyId], references: [id])
+  salesOrderId     String?            @unique
+  salesOrder       SalesOrder?        @relation(fields: [salesOrderId], references: [id])
+  storeTransferId  String?            @unique
+  storeTransfer    StoreTransfer?     @relation(fields: [storeTransferId], references: [id])
+  type             FiscalDocumentType @default(NFCE)
+  status           FiscalStatus       @default(PENDING)
+  focusRef         String?
+  chave            String?
+  xml              String?
+  rejectionCode    String?
+  rejectionReason  String?
+  retryCount       Int                @default(0)
+  lastError        String?
+  financialEntry   FinancialEntry?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  @@map("fiscal_documents")
-}
-
-model FiscalDocumentItem {
-  id               String         @id @default(cuid())
-  fiscalDocumentId String
-  fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
-  productId        String?
-  product          Product?       @relation("FDItems", fields: [productId], references: [id])
-  lineNumber       Int
-  description      String
-  ncm              String?
-  cfop             String?
-  quantity         Decimal        @db.Decimal(14, 4)
-  unit             String         @default("UN")
-  unitPrice        Decimal        @db.Decimal(14, 4)
-  totalPrice       Decimal        @db.Decimal(14, 2)
-  legacyId         String?
-  taxes            FiscalDocumentItemTax[]
-
-  @@map("fiscal_document_items")
-}
-
-model FiscalDocumentItemTax {
-  id                   String             @id @default(cuid())
-  fiscalDocumentItemId String
-  fiscalDocumentItem   FiscalDocumentItem @relation(fields: [fiscalDocumentItemId], references: [id], onDelete: Cascade)
-  taxType              String             // ICMS | IPI | PIS | COFINS | ISS
-  cst                  String?
-  baseAmount           Decimal?           @db.Decimal(14, 2)
-  rate                 Decimal?           @db.Decimal(7, 4)
-  amount               Decimal?           @db.Decimal(14, 2)
-
-  @@map("fiscal_document_item_taxes")
-}
-
-enum FiscalEventType {
-  CANCELLATION
-  CORRECTION
-  DENIAL
-  OTHER
-}
-
-model FiscalEvent {
-  id               String          @id @default(cuid())
-  fiscalDocumentId String
-  fiscalDocument   FiscalDocument  @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
-  type             FiscalEventType
-  protocol         String?
-  description      String?
-  occurredAt       DateTime        @default(now())
-  legacyId         String?
-
-  @@map("fiscal_events")
+  @@map("gdr_fiscal_documents")
 }
 
 // ─── Financeiro ───────────────────────────────────────────────────────────────
 
-enum BankAccountType {
-  CHECKING
-  SAVINGS
-  CASH
-  DIGITAL
-  INVESTMENT
+enum FinancialEntryType {
+  RECEIVABLE
+  PAYABLE
 }
 
-model BankAccount {
-  id                String          @id @default(cuid())
-  companyId         String
-  company           Company         @relation(fields: [companyId], references: [id])
-  name              String
-  bankCode          String?
-  agency            String?
-  accountNumber     String?
-  type              BankAccountType @default(CHECKING)
-  initialBalance    Decimal         @default(0) @db.Decimal(14, 2)
-  initialBalanceAt  DateTime?
-  isActive          Boolean         @default(true)
-  legacyId          String?
-  paymentEntries    PaymentEntry[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  @@map("bank_accounts")
-}
-
-enum FinancialCategoryType {
-  REVENUE
-  EXPENSE
-  TRANSFER
-  GROUP
-}
-
-model FinancialCategory {
-  id          String                @id @default(cuid())
-  companyId   String
-  company     Company               @relation(fields: [companyId], references: [id])
-  code        String
-  name        String
-  type        FinancialCategoryType
-  parentId    String?
-  parent      FinancialCategory?    @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    FinancialCategory[]   @relation("CategoryHierarchy")
-  dreCode     String?               // código DRE para classificação
-  isActive    Boolean               @default(true)
-  legacyId    String?
-  payables    PayableCategory[]
-  receivables Receivable[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-
-  @@unique([companyId, code])
-  @@map("financial_categories")
-}
-
-model CostCenter {
-  id           String               @id @default(cuid())
-  companyId    String
-  company      Company              @relation(fields: [companyId], references: [id])
-  code         String
-  name         String
-  isActive     Boolean              @default(true)
-  legacyId     String?
-  payables     PayableDepartment[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-
-  @@unique([companyId, code])
-  @@map("cost_centers")
-}
-
-enum PayableStatus {
+enum FinancialEntryStatus {
   OPEN
   PAID
-  PARTIAL
   CANCELLED
-  OVERDUE
 }
 
-model Payable {
-  id              String              @id @default(cuid())
-  companyId       String
-  company         Company             @relation(fields: [companyId], references: [id])
-  supplierId      String?
-  supplier        Supplier?           @relation("PayableSupplier", fields: [supplierId], references: [id])
-  description     String
-  amount          Decimal             @db.Decimal(14, 2)
-  dueDate         DateTime
-  status          PayableStatus       @default(OPEN)
-  paidAt          DateTime?
-  paidAmount      Decimal?            @db.Decimal(14, 2)
-  barcode         String?
-  originRef       String?             // id_origem: APIP, EXTP, BAXP
-  legacyId        String?
-  categories      PayableCategory[]
-  departments     PayableDepartment[]
-  entries         PaymentEntry[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+model FinancialEntry {
+  id               String               @id @default(cuid())
+  companyId        String
+  company          Company              @relation(fields: [companyId], references: [id])
+  type             FinancialEntryType
+  status           FinancialEntryStatus @default(OPEN)
+  amount           Decimal              @db.Decimal(14, 4)
+  dueDate          DateTime
+  description      String?
+  salesOrderId     String?              @unique
+  salesOrder       SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  purchaseOrderId  String?
+  purchaseOrder    PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId   String?              @unique
+  goodsReceipt     GoodsReceipt?        @relation(fields: [goodsReceiptId], references: [id])
+  fiscalDocumentId String?              @unique
+  fiscalDocument   FiscalDocument?      @relation(fields: [fiscalDocumentId], references: [id])
+  paidAt           DateTime?
+  paidAmount       Decimal?             @db.Decimal(14, 4)
+  paymentNote      String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
-  @@map("payables")
+  @@index([companyId])
+  @@index([type, status])
+  @@index([dueDate])
+  @@map("gdr_financial_entries")
 }
 
-model PayableCategory {
-  id                  String            @id @default(cuid())
-  payableId           String
-  payable             Payable           @relation(fields: [payableId], references: [id], onDelete: Cascade)
-  financialCategoryId String
-  financialCategory   FinancialCategory @relation(fields: [financialCategoryId], references: [id])
-  percentage          Decimal           @db.Decimal(5, 2)
-  amount              Decimal           @db.Decimal(14, 2)
-  legacyId            String?
+// ─── Transferências fábrica → loja ───────────────────────────────────────────
 
-  @@map("payable_categories")
-}
-
-model PayableDepartment {
-  id          String     @id @default(cuid())
-  payableId   String
-  payable     Payable    @relation(fields: [payableId], references: [id], onDelete: Cascade)
-  costCenterId String
-  costCenter  CostCenter @relation(fields: [costCenterId], references: [id])
-  percentage  Decimal    @db.Decimal(5, 2)
-  amount      Decimal    @db.Decimal(14, 2)
-  legacyId    String?
-
-  @@map("payable_departments")
-}
-
-model PaymentEntry {
-  id            String       @id @default(cuid())
-  companyId     String
-  company       Company      @relation(fields: [companyId], references: [id])
-  payableId     String?
-  payable       Payable?     @relation(fields: [payableId], references: [id])
-  receivableId  String?
-  receivable    Receivable?  @relation(fields: [receivableId], references: [id])
-  bankAccountId String?
-  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
-  amount        Decimal      @db.Decimal(14, 2)
-  paidAt        DateTime
-  method        String?      // PIX | TED | BOLETO | CARTAO | DINHEIRO
-  legacyId      String?
-  createdAt     DateTime     @default(now())
-
-  @@map("payment_entries")
-}
-
-enum ReceivableStatus {
-  OPEN
-  PAID
-  PARTIAL
-  CANCELLED
-  OVERDUE
-}
-
-model Receivable {
-  id                 String            @id @default(cuid())
-  companyId          String
-  company            Company           @relation(fields: [companyId], references: [id])
-  customerId         String?
-  customer           Customer?         @relation("ReceivableCustomer", fields: [customerId], references: [id])
-  fiscalDocumentId   String?
-  fiscalDocument     FiscalDocument?   @relation(fields: [fiscalDocumentId], references: [id])
-  financialCategoryId String?
-  financialCategory  FinancialCategory? @relation(fields: [financialCategoryId], references: [id])
-  description        String
-  amount             Decimal           @db.Decimal(14, 2)
-  dueDate            DateTime
-  status             ReceivableStatus  @default(OPEN)
-  paidAt             DateTime?
-  paidAmount         Decimal?          @db.Decimal(14, 2)
-  legacyId           String?
-  entries            PaymentEntry[]
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-
-  @@map("receivables")
-}
-
-// ─── Transferência Fábrica → Loja ─────────────────────────────────────────────
-
-enum StockTransferStatus {
+enum TransferStatus {
   DRAFT
-  IN_TRANSIT
+  DISPATCHED
   RECEIVED
   CANCELLED
 }
 
-model StockTransfer {
-  id              String              @id @default(cuid())
+model StoreTransfer {
+  id              String         @id @default(cuid())
   companyId       String
-  company         Company             @relation(fields: [companyId], references: [id])
+  company         Company        @relation(fields: [companyId], references: [id])
   fromWarehouseId String
-  fromWarehouse   Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
   toWarehouseId   String
-  toWarehouse     Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
-  number          String
-  status          StockTransferStatus @default(DRAFT)
-  fiscalNfeKey    String?
+  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  status          TransferStatus @default(DRAFT)
   notes           String?
-  items           StockTransferItem[]
-  shippedAt       DateTime?
+  requestedById   String?
+  requestedBy     User?          @relation("TransferRequestedBy", fields: [requestedById], references: [id])
+  dispatchedById  String?
+  dispatchedBy    User?          @relation("TransferDispatchedBy", fields: [dispatchedById], references: [id])
+  dispatchedAt    DateTime?
+  receivedById    String?
+  receivedBy      User?          @relation("TransferReceivedBy", fields: [receivedById], references: [id])
   receivedAt      DateTime?
-  legacyId        String?
-  createdById     String?
-  createdBy       User?               @relation("TransferCreatedBy", fields: [createdById], references: [id])
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  cancelledAt     DateTime?
+  items           StoreTransferItem[]
+  fiscalDocument  FiscalDocument?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  @@unique([companyId, number])
-  @@map("stock_transfers")
+  @@index([companyId])
+  @@index([status])
+  @@map("gdr_store_transfers")
 }
 
-model StockTransferItem {
+model StoreTransferItem {
   id              String        @id @default(cuid())
-  stockTransferId String
-  stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
+  storeTransferId String
+  storeTransfer   StoreTransfer @relation(fields: [storeTransferId], references: [id], onDelete: Cascade)
   productId       String
-  product         Product       @relation("TransferItems", fields: [productId], references: [id])
+  product         Product       @relation(fields: [productId], references: [id])
   quantity        Decimal       @db.Decimal(14, 4)
   unit            UnitOfMeasure @default(UN)
-  serialNumber    String?
 
-  @@map("stock_transfer_items")
+  @@map("gdr_store_transfer_items")
+}
+
+// ─── Demanda (MRP) ────────────────────────────────────────────────────────────
+
+model DemandForecast {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  period      String   // YYYY-MM (ex: "2026-05")
+  quantity    Decimal  @db.Decimal(14, 4)
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("DemandCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, productId, period])
+  @@index([companyId])
+  @@index([period])
+  @@index([productId])
+  @@map("gdr_demand_forecasts")
 }
