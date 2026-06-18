@@ -39,6 +39,7 @@ model Company {
   purchaseRequests     PurchaseRequest[]
   supplierPriceHistory SupplierPriceHistory[]
   systemParameters     SystemParameter[]
+  mrpRuns              MrpRun[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -73,6 +74,7 @@ model User {
   receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
   demandForecasts           DemandForecast[]    @relation("DemandCreatedBy")
   purchaseRequests          PurchaseRequest[]   @relation("PRRequestedBy")
+  triggeredMrpRuns          MrpRun[]            @relation("MrpTriggeredBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -172,6 +174,7 @@ model Product {
   demandForecasts      DemandForecast[]
   purchaseRequests     PurchaseRequest[]
   supplierPriceHistory SupplierPriceHistory[]
+  mrpSuggestions       MrpSuggestion[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -687,6 +690,56 @@ model SystemParameter {
 
   @@unique([companyId, key])
   @@map("gdr_system_parameters")
+}
+
+// ─── MRP Engine ──────────────────────────────────────────────────────────────
+
+enum MrpRunStatus {
+  RUNNING
+  DONE
+  ERROR
+}
+
+enum MrpSuggestionType {
+  PURCHASE
+  PRODUCTION
+}
+
+model MrpRun {
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
+  horizonDays  Int
+  status       MrpRunStatus  @default(RUNNING)
+  errorMessage String?
+  suggestions  MrpSuggestion[]
+  triggeredById String?
+  triggeredBy   User?        @relation("MrpTriggeredBy", fields: [triggeredById], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([companyId])
+  @@map("gdr_mrp_runs")
+}
+
+model MrpSuggestion {
+  id            String             @id @default(cuid())
+  mrpRunId      String
+  mrpRun        MrpRun             @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product            @relation(fields: [productId], references: [id])
+  type          MrpSuggestionType
+  grossQty      Decimal            @db.Decimal(14, 4)  // demanda bruta do período
+  stockOnHand   Decimal            @db.Decimal(14, 4)  // estoque disponível atual
+  netQty        Decimal            @db.Decimal(14, 4)  // necessidade líquida (gross - stock)
+  bomLevel      Int                @default(0)         // 0=produto final, 1+=componente
+  suggestedDate DateTime?
+  notes         String?
+  createdAt     DateTime           @default(now())
+
+  @@index([mrpRunId])
+  @@index([productId])
+  @@map("gdr_mrp_suggestions")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────
