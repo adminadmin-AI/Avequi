@@ -44,6 +44,8 @@ model Company {
   locations        Location[]
   receivingOrders  ReceivingOrder[]
   putawayTasks     PutawayTask[]
+  pickingOrders    PickingOrder[]
+  pickTasks        PickTask[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -82,6 +84,7 @@ model User {
   createdProductionOrders   ProductionOrder[]   @relation("POProdCreatedBy")
   productionLogs            ProductionLog[]     @relation("ProductionLogUser")
   putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
+  pickConfirmations         PickTask[]          @relation("PickConfirmedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -185,6 +188,7 @@ model Product {
   productionOrdersAsProduct ProductionOrder[]   @relation("ProductionOrderProduct")
   productionOrderItems      ProductionOrderItem[] @relation("ProductionOrderComponent")
   putawayTasks              PutawayTask[]        @relation("PutawayProduct")
+  pickTasks                 PickTask[]           @relation("PickTaskProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -323,6 +327,7 @@ model Warehouse {
   productionOrders ProductionOrder[]
   locations        Location[]
   receivingOrders  ReceivingOrder[]
+  pickingOrders    PickingOrder[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -525,6 +530,7 @@ model SalesOrder {
   items            SaleItem[]
   fiscalDocument   FiscalDocument?
   financialEntry   FinancialEntry?
+  pickingOrder     PickingOrder?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -876,6 +882,7 @@ model Location {
   type        LocationType @default(STORAGE)
   isActive    Boolean      @default(true)
   putawayTasks PutawayTask[]
+  pickTasks    PickTask[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -922,6 +929,60 @@ model PutawayTask {
   @@index([receivingOrderId])
   @@index([companyId, status])
   @@map("gdr_putaway_tasks")
+}
+
+// ─── WMS Saída ────────────────────────────────────────────────────────────────
+
+enum PickingStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum PickTaskStatus {
+  PENDING
+  CONFIRMED
+}
+
+model PickingOrder {
+  id            String        @id @default(cuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id])
+  salesOrderId  String        @unique
+  salesOrder    SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id])
+  status        PickingStatus @default(PENDING)
+  tasks         PickTask[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_picking_orders")
+}
+
+model PickTask {
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
+  pickingOrderId String
+  pickingOrder   PickingOrder   @relation(fields: [pickingOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product        @relation("PickTaskProduct", fields: [productId], references: [id])
+  qty            Decimal        @db.Decimal(14, 4)
+  locationId     String?
+  location       Location?      @relation(fields: [locationId], references: [id])
+  notes          String?
+  status         PickTaskStatus @default(PENDING)
+  confirmedById  String?
+  confirmedBy    User?          @relation("PickConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([pickingOrderId])
+  @@index([companyId, status])
+  @@map("gdr_pick_tasks")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────

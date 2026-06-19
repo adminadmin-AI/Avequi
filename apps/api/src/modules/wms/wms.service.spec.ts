@@ -20,6 +20,18 @@ const mockPrisma = {
     update: jest.fn(),
     count: jest.fn(),
   },
+  pickingOrder: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    findUnique: jest.fn(),
+  },
+  pickTask: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+  },
   stockBalance: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -288,6 +300,208 @@ describe('WmsService', () => {
 
       await expect(
         service.confirmPutaway(orderId, taskId, companyId, dto, 'u1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── S18: createPickingOrder ──────────────────────────────────────────────
+
+  describe('createPickingOrder', () => {
+    const event = {
+      companyId: 'c1',
+      userId: 'u1',
+      salesOrderId: 'so1',
+      warehouseId: 'w1',
+      items: [
+        { productId: 'p1', quantity: 5, unitPrice: 100 },
+        { productId: 'p2', quantity: 0, unitPrice: 200 },
+      ],
+    };
+
+    it('cria PickingOrder quando wmsEnabled=true', async () => {
+      mockPrisma.warehouse.findUnique.mockResolvedValue({ wmsEnabled: true });
+      mockPrisma.pickingOrder.create.mockResolvedValue({ id: 'po1', ...event });
+
+      await service.createPickingOrder(event as any);
+
+      expect(mockPrisma.pickingOrder.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            salesOrderId: 'so1',
+            warehouseId: 'w1',
+            tasks: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({ productId: 'p1', qty: 5 }),
+              ]),
+            }),
+          }),
+        }),
+      );
+      // item com quantity=0 deve ser filtrado
+      const callArg = mockPrisma.pickingOrder.create.mock.calls[0][0];
+      expect(callArg.data.tasks.create).toHaveLength(1);
+    });
+
+    it('ignora criação quando wmsEnabled=false', async () => {
+      mockPrisma.warehouse.findUnique.mockResolvedValue({ wmsEnabled: false });
+
+      await service.createPickingOrder(event as any);
+
+      expect(mockPrisma.pickingOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('ignora criação quando warehouse não existe', async () => {
+      mockPrisma.warehouse.findUnique.mockResolvedValue(null);
+
+      await service.createPickingOrder(event as any);
+
+      expect(mockPrisma.pickingOrder.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── S18: findPickingOrder ────────────────────────────────────────────────
+
+  describe('findPickingOrder', () => {
+    it('retorna a order quando encontrada', async () => {
+      const order = { id: 'po1', companyId: 'c1', tasks: [] };
+      mockPrisma.pickingOrder.findFirst.mockResolvedValue(order);
+
+      const result = await service.findPickingOrder('po1', 'c1');
+      expect(result).toEqual(order);
+    });
+
+    it('lança NotFoundException quando não encontrada', async () => {
+      mockPrisma.pickingOrder.findFirst.mockResolvedValue(null);
+
+      await expect(service.findPickingOrder('po1', 'wrong')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S18: getPickingReport ────────────────────────────────────────────────
+
+  describe('getPickingReport', () => {
+    it('retorna percentuais corretos', async () => {
+      const order = {
+        id: 'po1',
+        status: 'IN_PROGRESS',
+        warehouse: { id: 'w1', code: 'WH1', name: 'Armazém 1' },
+        salesOrderId: 'so1',
+        tasks: [
+          { id: 't1', status: 'CONFIRMED', product: {}, qty: 5, location: null, notes: null, confirmedBy: null, confirmedAt: null },
+          { id: 't2', status: 'CONFIRMED', product: {}, qty: 3, location: null, notes: null, confirmedBy: null, confirmedAt: null },
+          { id: 't3', status: 'PENDING', product: {}, qty: 2, location: null, notes: null, confirmedBy: null, confirmedAt: null },
+        ],
+      };
+      mockPrisma.pickingOrder.findFirst.mockResolvedValue(order);
+
+      const report = await service.getPickingReport('po1', 'c1');
+
+      expect(report.totalTasks).toBe(3);
+      expect(report.confirmedTasks).toBe(2);
+      expect(report.pendingTasks).toBe(1);
+      expect(report.pctComplete).toBe(67);
+    });
+
+    it('retorna pctComplete=0 quando sem tasks', async () => {
+      const order = {
+        id: 'po1',
+        status: 'PENDING',
+        warehouse: {},
+        salesOrderId: 'so1',
+        tasks: [],
+      };
+      mockPrisma.pickingOrder.findFirst.mockResolvedValue(order);
+
+      const report = await service.getPickingReport('po1', 'c1');
+      expect(report.pctComplete).toBe(0);
+    });
+  });
+
+  // ─── S18: confirmPickTask ─────────────────────────────────────────────────
+
+  describe('confirmPickTask', () => {
+    const orderId = 'po1';
+    const taskId = 'task1';
+    const companyId = 'c1';
+    const dto = {};
+
+    const buildPickTx = (overrides: Record<string, any> = {}) => ({
+      pickTask: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: taskId,
+          status: 'PENDING',
+          productId: 'p1',
+          qty: 10,
+          ...overrides.task,
+        }),
+        update: jest.fn().mockResolvedValue({ id: taskId, product: {}, location: null }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      pickingOrder: {
+        findUnique: jest.fn().mockResolvedValue({ warehouseId: 'w1' }),
+        update: jest.fn(),
+      },
+      location: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'loc1', warehouseId: 'w1', code: 'A-01', isActive: true }),
+      },
+      auditLog: { create: jest.fn() },
+      ...overrides.tx,
+    });
+
+    it('happy path: confirma task sem locationId → PickingOrder DONE', async () => {
+      const tx = buildPickTx();
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await service.confirmPickTask(orderId, taskId, companyId, dto, 'u1');
+
+      expect(tx.pickTask.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'CONFIRMED' }),
+        }),
+      );
+      expect(tx.pickingOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'DONE' } }),
+      );
+    });
+
+    it('PickingOrder → IN_PROGRESS quando ainda há tasks pendentes', async () => {
+      const tx = buildPickTx();
+      tx.pickTask.count.mockResolvedValue(3);
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await service.confirmPickTask(orderId, taskId, companyId, dto, 'u1');
+
+      expect(tx.pickingOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'IN_PROGRESS' } }),
+      );
+    });
+
+    it('lança BadRequestException se task já confirmada', async () => {
+      const tx = buildPickTx({ task: { status: 'CONFIRMED' } });
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.confirmPickTask(orderId, taskId, companyId, dto, 'u1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('lança NotFoundException se task não existe', async () => {
+      const tx = buildPickTx();
+      tx.pickTask.findFirst.mockResolvedValue(null);
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.confirmPickTask(orderId, taskId, companyId, dto, 'u1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('lança BadRequestException se locationId pertence a outro armazém', async () => {
+      const tx = buildPickTx();
+      tx.location.findFirst.mockResolvedValue({ id: 'loc1', warehouseId: 'w-other', code: 'X-01', isActive: true });
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.confirmPickTask(orderId, taskId, companyId, { locationId: 'loc1' }, 'u1'),
       ).rejects.toThrow(BadRequestException);
     });
   });

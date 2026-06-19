@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoodsReceivedEvent } from '../stock/events/goods-received.event';
+import { SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
+import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
 
 @Injectable()
 export class WmsService {
@@ -213,6 +215,195 @@ export class WmsService {
       });
 
       this.logger.log(`Putaway: ${task.productId} × ${qty} → ${location.code}`);
+      return updatedTask;
+    });
+  }
+
+  // ─── S18.01: Criar PickingOrder (chamado pelo listener SaleInvoiced) ────────
+
+  async createPickingOrder(event: SaleInvoicedEvent) {
+    const warehouse = await this.prisma.warehouse.findUnique({
+      where: { id: event.warehouseId },
+      select: { wmsEnabled: true },
+    });
+
+    if (!warehouse?.wmsEnabled) return; // WMS desativado para este armazém
+
+    const order = await this.prisma.pickingOrder.create({
+      data: {
+        companyId: event.companyId,
+        salesOrderId: event.salesOrderId,
+        warehouseId: event.warehouseId,
+        tasks: {
+          create: event.items
+            .filter((i) => i.quantity > 0)
+            .map((i) => ({
+              companyId: event.companyId,
+              productId: i.productId,
+              qty: i.quantity,
+            })),
+        },
+      },
+    });
+
+    this.logger.log(
+      `PickingOrder ${order.id} criada para SO ${event.salesOrderId} — ${event.items.length} tasks`,
+    );
+  }
+
+  // ─── S18.02: Listar PickingOrders ────────────────────────────────────────
+
+  async findPickingOrders(companyId: string, status?: string) {
+    return this.prisma.pickingOrder.findMany({
+      where: { companyId, ...(status ? { status: status as any } : {}) },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+        salesOrder: { select: { id: true, status: true, createdAt: true } },
+        _count: { select: { tasks: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ─── S18.03: Detalhe da PickingOrder ─────────────────────────────────────
+
+  async findPickingOrder(id: string, companyId: string) {
+    const order = await this.prisma.pickingOrder.findFirst({
+      where: { id, companyId },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+        salesOrder: { select: { id: true, status: true, notes: true, createdAt: true } },
+        tasks: {
+          include: {
+            product: { select: { id: true, sku: true, name: true, unit: true } },
+            location: { select: { id: true, code: true, type: true } },
+            confirmedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!order) throw new NotFoundException(`Picking Order ${id} não encontrada`);
+    return order;
+  }
+
+  // ─── S18.04: Relatório de picking ────────────────────────────────────────
+
+  async getPickingReport(id: string, companyId: string) {
+    const order = await this.findPickingOrder(id, companyId);
+
+    const totalTasks = order.tasks.length;
+    const confirmedTasks = order.tasks.filter((t) => t.status === 'CONFIRMED').length;
+    const pendingTasks = totalTasks - confirmedTasks;
+
+    return {
+      id: order.id,
+      status: order.status,
+      warehouse: order.warehouse,
+      salesOrderId: order.salesOrderId,
+      totalTasks,
+      confirmedTasks,
+      pendingTasks,
+      pctComplete: totalTasks > 0 ? Math.round((confirmedTasks / totalTasks) * 100) : 0,
+      tasks: order.tasks.map((t) => ({
+        id: t.id,
+        product: t.product,
+        qty: Number(t.qty),
+        status: t.status,
+        location: t.location,
+        notes: t.notes,
+        confirmedBy: t.confirmedBy,
+        confirmedAt: t.confirmedAt,
+      })),
+    };
+  }
+
+  // ─── S18.05: Confirmar pick task ──────────────────────────────────────────
+
+  async confirmPickTask(
+    orderId: string,
+    taskId: string,
+    companyId: string,
+    dto: ConfirmPickTaskDto,
+    userId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.pickTask.findFirst({
+        where: { id: taskId, pickingOrderId: orderId, companyId },
+      });
+
+      if (!task) throw new NotFoundException(`Tarefa de picking ${taskId} não encontrada`);
+      if (task.status === 'CONFIRMED') {
+        throw new BadRequestException('Tarefa já confirmada');
+      }
+
+      // Valida location (opcional — operador pode registrar de onde pegou)
+      if (dto.locationId) {
+        const pickingOrder = await tx.pickingOrder.findUnique({
+          where: { id: orderId },
+          select: { warehouseId: true },
+        });
+        const location = await tx.location.findFirst({
+          where: { id: dto.locationId, companyId, isActive: true },
+        });
+        if (!location) throw new NotFoundException(`Endereço ${dto.locationId} não encontrado`);
+        if (location.warehouseId !== pickingOrder!.warehouseId) {
+          throw new BadRequestException('Endereço pertence a outro armazém');
+        }
+      }
+
+      const updatedTask = await tx.pickTask.update({
+        where: { id: taskId },
+        data: {
+          status: 'CONFIRMED',
+          locationId: dto.locationId ?? null,
+          notes: dto.notes ?? null,
+          confirmedById: userId ?? null,
+          confirmedAt: new Date(),
+        },
+        include: {
+          product: { select: { id: true, sku: true, name: true, unit: true } },
+          location: { select: { id: true, code: true, type: true } },
+        },
+      });
+
+      // Verifica se todas as tasks foram confirmadas
+      const pendingCount = await tx.pickTask.count({
+        where: { pickingOrderId: orderId, status: 'PENDING' },
+      });
+
+      if (pendingCount === 0) {
+        await tx.pickingOrder.update({
+          where: { id: orderId },
+          data: { status: 'DONE' },
+        });
+        this.logger.log(`Picking Order ${orderId} concluída — todas as tarefas confirmadas`);
+      } else {
+        await tx.pickingOrder.update({
+          where: { id: orderId },
+          data: { status: 'IN_PROGRESS' },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          companyId,
+          entity: 'PickTask',
+          action: 'CONFIRM',
+          payload: {
+            taskId,
+            orderId,
+            locationId: dto.locationId ?? null,
+            qty: Number(task.qty),
+          },
+        },
+      });
+
+      this.logger.log(
+        `PickTask: ${task.productId} × ${Number(task.qty)} confirmado por ${userId ?? 'sistema'}`,
+      );
       return updatedTask;
     });
   }

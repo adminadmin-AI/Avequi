@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
+import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
 import { WmsService } from './wms.service';
 
 @UseGuards(JwtAuthGuard)
@@ -70,5 +71,45 @@ export class WmsController {
     @Request() req: { user: { companyId: string; sub: string } },
   ) {
     return this.wmsService.confirmPutaway(id, taskId, req.user.companyId, dto, req.user.sub);
+  }
+
+  // ─── S18: Saída e Expedição ───────────────────────────────────────────────
+
+  // GET /wms/picking?status=PENDING
+  @Get('picking')
+  findPickingOrders(
+    @Request() req: { user: { companyId: string } },
+    @Query('status') status?: string,
+  ) {
+    return this.wmsService.findPickingOrders(req.user.companyId, status);
+  }
+
+  // GET /wms/picking/:id
+  @Get('picking/:id')
+  findPickingOrder(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.findPickingOrder(id, req.user.companyId);
+  }
+
+  // GET /wms/picking/:id/report
+  @Get('picking/:id/report')
+  getPickingReport(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.getPickingReport(id, req.user.companyId);
+  }
+
+  // PATCH /wms/picking/:id/tasks/:taskId/confirm
+  @Patch('picking/:id/tasks/:taskId/confirm')
+  confirmPickTask(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: ConfirmPickTaskDto,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.wmsService.confirmPickTask(id, taskId, req.user.companyId, dto, req.user.sub);
   }
 }
