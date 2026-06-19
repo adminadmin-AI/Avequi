@@ -232,6 +232,7 @@ model Supplier {
   purchaseOrders       PurchaseOrder[]
   supplierPriceHistory SupplierPriceHistory[]
   nonConformances      NonConformance[]
+  portalTokens         SupplierToken[]
   createdAt            DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1335,4 +1336,21 @@ model MaintenanceOrder {
   @@index([companyId, status])
   @@index([equipmentId])
   @@map("gdr_maintenance_orders")
+}
+
+// ─── Portal do Fornecedor (S27C) ─────────────────────────────────────────────
+
+model SupplierToken {
+  id          String    @id @default(cuid())
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  token       String    @unique @default(cuid())
+  description String?   // e.g. "Token para integração ERP cliente"
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([supplierId])
+  @@map("gdr_supplier_tokens")
 }
