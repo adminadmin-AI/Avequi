@@ -51,6 +51,7 @@ model Company {
   alerts           Alert[]
   inspections      Inspection[]
   nonConformances  NonConformance[]
+  serialNumbers    SerialNumber[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -204,6 +205,7 @@ model Product {
   pickTasks                 PickTask[]           @relation("PickTaskProduct")
   inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
   nonConformances           NonConformance[]     @relation("NcrProduct")
+  serialNumbers             SerialNumber[]       @relation("SerialProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -345,6 +347,7 @@ model Warehouse {
   receivingOrders  ReceivingOrder[]
   pickingOrders    PickingOrder[]
   inventoryCounts  InventoryCount[]
+  serialNumbers    SerialNumber[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -549,6 +552,7 @@ model SalesOrder {
   fiscalDocument   FiscalDocument?
   financialEntry   FinancialEntry?
   pickingOrder     PickingOrder?
+  serialNumbers    SerialNumber[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -834,6 +838,7 @@ model ProductionOrder {
   logs             ProductionLog[]
   cost             ProductionCost?
   inspections      Inspection[]
+  serialNumbers    SerialNumber[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1215,4 +1220,43 @@ model NonConformance {
   @@index([supplierId])
   @@index([productId])
   @@map("gdr_non_conformances")
+}
+
+// ─── Rastreabilidade por Número de Série/Chassi (S27A) ───────────────────────
+
+enum SerialStatus {
+  IN_PRODUCTION
+  IN_STOCK
+  SOLD
+  TRANSFERRED
+  SCRAPPED
+}
+
+model SerialNumber {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()"))
+  companyId          String           @map("company_id")
+  company            Company          @relation(fields: [companyId], references: [id])
+  productId          String           @map("product_id")
+  product            Product          @relation("SerialProduct", fields: [productId], references: [id])
+  warehouseId        String?          @map("warehouse_id")
+  warehouse          Warehouse?       @relation(fields: [warehouseId], references: [id])
+  serial             String           @unique
+  status             SerialStatus     @default(IN_STOCK)
+  productionOrderId  String?          @map("production_order_id")
+  productionOrder    ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  salesOrderId       String?          @map("sales_order_id")
+  salesOrder         SalesOrder?      @relation(fields: [salesOrderId], references: [id])
+  producedAt         DateTime?        @map("produced_at")
+  soldAt             DateTime?        @map("sold_at")
+  legacyId           Int?             @map("legacy_id")
+  legacyOsId         Int?             @map("legacy_os_id")
+  engravingStartedAt DateTime?        @map("engraving_started_at")
+  engravingDoneAt    DateTime?        @map("engraving_done_at")
+  engravingOperator  String?          @map("engraving_operator")
+  observations       String?
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  @@index([companyId, status])
+  @@index([productId, status])
+  @@map("gdr_serial_number")
 }

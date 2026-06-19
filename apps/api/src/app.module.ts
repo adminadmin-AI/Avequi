@@ -29,6 +29,7 @@ import { ForecastModule } from './modules/forecast/forecast.module';
 import { AlertModule } from './modules/alert/alert.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { SerialModule } from './modules/serial/serial.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     AlertModule,
     QualityModule,
     AnalyticsModule,
+    SerialModule,
   ],
 })
 export class AppModule {}
