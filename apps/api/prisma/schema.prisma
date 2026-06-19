@@ -55,6 +55,7 @@ model Company {
   equipment        Equipment[]
   maintenanceOrders MaintenanceOrder[]
   quotations       Quotation[]
+  inboundNfes      InboundNfe[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -104,6 +105,7 @@ model User {
   maintenanceTasks          MaintenanceOrder[]  @relation("MaintenanceTechnician")
   maintenanceOrdersCreated  MaintenanceOrder[]  @relation("MaintenanceCreatedBy")
   quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
+  inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -476,6 +478,7 @@ model PurchaseOrder {
   receipts             GoodsReceipt[]
   financialEntries     FinancialEntry[]
   convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
+  inboundNfes          InboundNfe[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -511,6 +514,7 @@ model GoodsReceipt {
   financialEntry   FinancialEntry?
   receivingOrder   ReceivingOrder?
   inspections      Inspection[]
+  inboundNfe       InboundNfe?
   createdAt        DateTime      @default(now())
 
   @@map("gdr_goods_receipts")
@@ -1413,4 +1417,43 @@ model SupplierToken {
 
   @@index([supplierId])
   @@map("gdr_supplier_tokens")
+}
+
+// ─── NF-e de Entrada (S28B) ──────────────────────────────────────────────────
+
+enum InboundNfeStatus {
+  PENDING
+  MATCHED
+  IMPORTED
+  REJECTED
+}
+
+model InboundNfe {
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  chaveNfe        String           @unique  // 44-digit key
+  nfeNumber       String?
+  series          String?
+  supplierCnpj    String
+  supplierName    String
+  issueDate       DateTime?
+  totalValue      Decimal?         @db.Decimal(14, 4)
+  status          InboundNfeStatus @default(PENDING)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId  String?          @unique
+  goodsReceipt    GoodsReceipt?    @relation(fields: [goodsReceiptId], references: [id])
+  xmlContent      String           // raw XML
+  parsedItems     Json             // array of { ncm, description, quantity, unitPrice, totalPrice }
+  rejectReason    String?
+  importedById    String?
+  importedBy      User?            @relation("InboundNfeImportedBy", fields: [importedById], references: [id])
+  importedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([companyId, status])
+  @@index([supplierCnpj])
+  @@map("gdr_inbound_nfe")
 }

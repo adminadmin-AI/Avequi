@@ -33,6 +33,7 @@ import { SerialModule } from './modules/serial/serial.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
+import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { QuotationModule } from './modules/quotation/quotation.module';
     MaintenanceModule,
     SupplierPortalModule,
     QuotationModule,
+    InboundNfeModule,
   ],
 })
 export class AppModule {}
