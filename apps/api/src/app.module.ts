@@ -23,6 +23,7 @@ import { MrpModule } from './modules/mrp/mrp.module';
 import { ProductionModule } from './modules/production/production.module';
 import { WmsModule } from './modules/wms/wms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ProductionModule,
     WmsModule,
     DashboardModule,
+    ReportModule,
   ],
 })
 export class AppModule {}
