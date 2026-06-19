@@ -172,4 +172,42 @@ export class WmsController {
   ) {
     return this.wmsService.reconcile(id, req.user.companyId, req.user.sub);
   }
+
+  // ─── S20: Polimento ───────────────────────────────────────────────────────
+
+  // GET /wms/dashboard?warehouseId=...
+  @Get('dashboard')
+  getDashboard(
+    @Request() req: { user: { companyId: string } },
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.wmsService.getDashboard(req.user.companyId, warehouseId);
+  }
+
+  // PATCH /wms/locations/:id/toggle
+  @Patch('locations/:id/toggle')
+  toggleLocation(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.toggleLocation(id, req.user.companyId);
+  }
+
+  // PATCH /wms/warehouses/:id/wms
+  @Patch('warehouses/:id/wms')
+  toggleWarehouseWms(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.toggleWarehouseWms(id, req.user.companyId);
+  }
+
+  // POST /wms/inventory/:id/cancel
+  @Post('inventory/:id/cancel')
+  cancelInventoryCount(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.cancelInventoryCount(id, req.user.companyId);
+  }
 }

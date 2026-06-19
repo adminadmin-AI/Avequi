@@ -1003,6 +1003,7 @@ enum InventoryCountStatus {
   DRAFT
   IN_PROGRESS
   RECONCILED
+  CANCELLED
 }
 
 enum InventoryItemStatus {

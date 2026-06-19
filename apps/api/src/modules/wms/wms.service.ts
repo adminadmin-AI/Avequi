@@ -668,6 +668,108 @@ export class WmsService {
     });
   }
 
+  // ─── S20.01: Dashboard WMS ───────────────────────────────────────────────
+
+  async getDashboard(companyId: string, warehouseId?: string) {
+    const wFilter = warehouseId ? { warehouseId } : {};
+    // PickTask não tem warehouseId direto — filtra via pickingOrder
+    const pickTaskFilter = warehouseId
+      ? { pickingOrder: { warehouseId } }
+      : {};
+
+    const [
+      pendingPutaway,
+      pendingPick,
+      activeInventory,
+      receivingByStatus,
+      pickingByStatus,
+      inventoryByStatus,
+    ] = await Promise.all([
+      this.prisma.putawayTask.count({ where: { companyId, status: 'PENDING', ...wFilter } }),
+      this.prisma.pickTask.count({ where: { companyId, status: 'PENDING', ...pickTaskFilter } }),
+      this.prisma.inventoryCount.count({
+        where: { companyId, status: 'IN_PROGRESS', ...wFilter },
+      }),
+      this.prisma.receivingOrder.groupBy({
+        by: ['status'],
+        where: { companyId, ...wFilter },
+        _count: { id: true },
+      }),
+      this.prisma.pickingOrder.groupBy({
+        by: ['status'],
+        where: { companyId, ...wFilter },
+        _count: { id: true },
+      }),
+      this.prisma.inventoryCount.groupBy({
+        by: ['status'],
+        where: { companyId, ...wFilter },
+        _count: { id: true },
+      }),
+    ]);
+
+    const toMap = (rows: { status: string; _count: { id: number } }[]) =>
+      Object.fromEntries(rows.map((r) => [r.status, r._count.id]));
+
+    return {
+      pendingPutaway,
+      pendingPick,
+      activeInventory,
+      receiving: toMap(receivingByStatus as any),
+      picking: toMap(pickingByStatus as any),
+      inventory: toMap(inventoryByStatus as any),
+    };
+  }
+
+  // ─── S20.02: Toggle location ativo/inativo ───────────────────────────────
+
+  async toggleLocation(id: string, companyId: string) {
+    const location = await this.prisma.location.findFirst({
+      where: { id, companyId },
+    });
+    if (!location) throw new NotFoundException(`Endereço ${id} não encontrado`);
+
+    return this.prisma.location.update({
+      where: { id },
+      data: { isActive: !location.isActive },
+    });
+  }
+
+  // ─── S20.03: Toggle wmsEnabled no armazém ───────────────────────────────
+
+  async toggleWarehouseWms(warehouseId: string, companyId: string) {
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: { id: warehouseId, companyId },
+    });
+    if (!warehouse) throw new NotFoundException(`Armazém ${warehouseId} não encontrado`);
+
+    return this.prisma.warehouse.update({
+      where: { id: warehouseId },
+      data: { wmsEnabled: !warehouse.wmsEnabled },
+      select: { id: true, code: true, name: true, wmsEnabled: true },
+    });
+  }
+
+  // ─── S20.04: Cancelar InventoryCount ────────────────────────────────────
+
+  async cancelInventoryCount(id: string, companyId: string) {
+    const count = await this.prisma.inventoryCount.findFirst({
+      where: { id, companyId },
+    });
+    if (!count) throw new NotFoundException(`Contagem ${id} não encontrada`);
+    if (count.status === 'RECONCILED') {
+      throw new BadRequestException('Contagem já reconciliada — não pode ser cancelada');
+    }
+    if (count.status === 'CANCELLED') {
+      throw new BadRequestException('Contagem já cancelada');
+    }
+
+    return this.prisma.inventoryCount.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      select: { id: true, status: true, type: true, warehouseId: true, updatedAt: true },
+    });
+  }
+
   // ─── S17.07: Criar ReceivingOrder (chamado pelo listener) ─────────────────
 
   async createReceivingOrder(event: GoodsReceivedEvent) {

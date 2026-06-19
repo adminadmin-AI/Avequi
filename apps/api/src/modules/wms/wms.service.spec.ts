@@ -8,17 +8,20 @@ const mockPrisma = {
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    update: jest.fn(),
   },
   receivingOrder: {
     create: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    groupBy: jest.fn(),
   },
   putawayTask: {
     findFirst: jest.fn(),
     update: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn(),
   },
   pickingOrder: {
     create: jest.fn(),
@@ -26,6 +29,7 @@ const mockPrisma = {
     findMany: jest.fn(),
     update: jest.fn(),
     findUnique: jest.fn(),
+    groupBy: jest.fn(),
   },
   pickTask: {
     findFirst: jest.fn(),
@@ -43,12 +47,15 @@ const mockPrisma = {
   warehouse: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    update: jest.fn(),
   },
   inventoryCount: {
     create: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
+    groupBy: jest.fn(),
   },
   inventoryCountItem: {
     findFirst: jest.fn(),
@@ -742,6 +749,126 @@ describe('WmsService', () => {
       mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
 
       await expect(service.reconcile('ic1', 'c1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── S20: getDashboard ───────────────────────────────────────────────────
+
+  describe('getDashboard', () => {
+    it('retorna KPIs agregados corretamente', async () => {
+      mockPrisma.putawayTask.count = jest.fn().mockResolvedValue(3);
+      mockPrisma.pickTask.count = jest.fn().mockResolvedValue(5);
+      mockPrisma.inventoryCount.count = jest.fn().mockResolvedValue(1);
+      mockPrisma.receivingOrder.groupBy = jest.fn().mockResolvedValue([
+        { status: 'PENDING', _count: { id: 2 } },
+        { status: 'DONE', _count: { id: 8 } },
+      ]);
+      mockPrisma.pickingOrder.groupBy = jest.fn().mockResolvedValue([
+        { status: 'PENDING', _count: { id: 4 } },
+      ]);
+      mockPrisma.inventoryCount.groupBy = jest.fn().mockResolvedValue([
+        { status: 'IN_PROGRESS', _count: { id: 1 } },
+        { status: 'RECONCILED', _count: { id: 3 } },
+      ]);
+
+      const result = await service.getDashboard('c1');
+
+      expect(result.pendingPutaway).toBe(3);
+      expect(result.pendingPick).toBe(5);
+      expect(result.activeInventory).toBe(1);
+      expect(result.receiving).toEqual({ PENDING: 2, DONE: 8 });
+      expect(result.picking).toEqual({ PENDING: 4 });
+      expect(result.inventory).toEqual({ IN_PROGRESS: 1, RECONCILED: 3 });
+    });
+  });
+
+  // ─── S20: toggleLocation ─────────────────────────────────────────────────
+
+  describe('toggleLocation', () => {
+    it('desativa location ativa', async () => {
+      mockPrisma.location.findFirst.mockResolvedValue({ id: 'loc1', isActive: true });
+      mockPrisma.location.update = jest.fn().mockResolvedValue({ id: 'loc1', isActive: false });
+
+      const result = await service.toggleLocation('loc1', 'c1');
+
+      expect(mockPrisma.location.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { isActive: false } }),
+      );
+      expect(result.isActive).toBe(false);
+    });
+
+    it('ativa location inativa', async () => {
+      mockPrisma.location.findFirst.mockResolvedValue({ id: 'loc1', isActive: false });
+      mockPrisma.location.update = jest.fn().mockResolvedValue({ id: 'loc1', isActive: true });
+
+      const result = await service.toggleLocation('loc1', 'c1');
+
+      expect(mockPrisma.location.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { isActive: true } }),
+      );
+      expect(result.isActive).toBe(true);
+    });
+
+    it('lança NotFoundException se location não existe', async () => {
+      mockPrisma.location.findFirst.mockResolvedValue(null);
+
+      await expect(service.toggleLocation('loc1', 'c1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S20: toggleWarehouseWms ──────────────────────────────────────────────
+
+  describe('toggleWarehouseWms', () => {
+    it('ativa wmsEnabled', async () => {
+      mockPrisma.warehouse.findFirst.mockResolvedValue({ id: 'w1', wmsEnabled: false });
+      mockPrisma.warehouse.update = jest.fn().mockResolvedValue({ id: 'w1', wmsEnabled: true });
+
+      const result = await service.toggleWarehouseWms('w1', 'c1');
+
+      expect(mockPrisma.warehouse.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { wmsEnabled: true } }),
+      );
+      expect(result.wmsEnabled).toBe(true);
+    });
+
+    it('lança NotFoundException se armazém não existe', async () => {
+      mockPrisma.warehouse.findFirst.mockResolvedValue(null);
+
+      await expect(service.toggleWarehouseWms('w1', 'c1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S20: cancelInventoryCount ────────────────────────────────────────────
+
+  describe('cancelInventoryCount', () => {
+    it('cancela contagem IN_PROGRESS', async () => {
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue({ id: 'ic1', status: 'IN_PROGRESS' });
+      mockPrisma.inventoryCount.update.mockResolvedValue({ id: 'ic1', status: 'CANCELLED' });
+
+      const result = await service.cancelInventoryCount('ic1', 'c1');
+
+      expect(mockPrisma.inventoryCount.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'CANCELLED' } }),
+      );
+      expect(result.status).toBe('CANCELLED');
+    });
+
+    it('lança BadRequestException se já reconciliada', async () => {
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue({ id: 'ic1', status: 'RECONCILED' });
+
+      await expect(service.cancelInventoryCount('ic1', 'c1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('lança BadRequestException se já cancelada', async () => {
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue({ id: 'ic1', status: 'CANCELLED' });
+
+      await expect(service.cancelInventoryCount('ic1', 'c1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('lança NotFoundException se não existe', async () => {
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue(null);
+
+      await expect(service.cancelInventoryCount('ic1', 'c1')).rejects.toThrow(NotFoundException);
     });
   });
 });
