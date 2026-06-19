@@ -32,6 +32,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SerialModule } from './modules/serial/serial.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
+import { QuotationModule } from './modules/quotation/quotation.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.
     SerialModule,
     MaintenanceModule,
     SupplierPortalModule,
+    QuotationModule,
   ],
 })
 export class AppModule {}
