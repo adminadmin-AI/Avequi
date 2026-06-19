@@ -52,6 +52,9 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  warehouse: {
+    findUnique: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -84,6 +87,8 @@ describe('PurchaseService', () => {
     service = module.get<PurchaseService>(PurchaseService);
     jest.clearAllMocks();
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
+    // S17: default sem WMS para não quebrar testes existentes
+    mockPrisma.warehouse.findUnique.mockResolvedValue({ wmsEnabled: false });
   });
 
   // ─── approvePO ────────────────────────────────────────────────────────────

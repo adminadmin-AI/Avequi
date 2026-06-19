@@ -21,6 +21,7 @@ import { TransferModule } from './modules/transfer/transfer.module';
 import { DemandModule } from './modules/demand/demand.module';
 import { MrpModule } from './modules/mrp/mrp.module';
 import { ProductionModule } from './modules/production/production.module';
+import { WmsModule } from './modules/wms/wms.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ProductionModule } from './modules/production/production.module';
     DemandModule,
     MrpModule,
     ProductionModule,
+    WmsModule,
   ],
 })
 export class AppModule {}

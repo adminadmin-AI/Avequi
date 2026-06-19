@@ -41,6 +41,9 @@ model Company {
   systemParameters     SystemParameter[]
   mrpRuns              MrpRun[]
   productionOrders     ProductionOrder[]
+  locations        Location[]
+  receivingOrders  ReceivingOrder[]
+  putawayTasks     PutawayTask[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -78,6 +81,7 @@ model User {
   triggeredMrpRuns          MrpRun[]            @relation("MrpTriggeredBy")
   createdProductionOrders   ProductionOrder[]   @relation("POProdCreatedBy")
   productionLogs            ProductionLog[]     @relation("ProductionLogUser")
+  putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -180,6 +184,7 @@ model Product {
   mrpSuggestions            MrpSuggestion[]
   productionOrdersAsProduct ProductionOrder[]   @relation("ProductionOrderProduct")
   productionOrderItems      ProductionOrderItem[] @relation("ProductionOrderComponent")
+  putawayTasks              PutawayTask[]        @relation("PutawayProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -308,6 +313,7 @@ model Warehouse {
   code        String
   description String?
   isActive    Boolean         @default(true)
+  wmsEnabled       Boolean         @default(false)
   balances         StockBalance[]
   movements        StockMovement[]
   goodsReceipts    GoodsReceipt[]
@@ -315,6 +321,8 @@ model Warehouse {
   transfersFrom    StoreTransfer[] @relation("TransferFrom")
   transfersTo      StoreTransfer[] @relation("TransferTo")
   productionOrders ProductionOrder[]
+  locations        Location[]
+  receivingOrders  ReceivingOrder[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -330,10 +338,11 @@ model StockBalance {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   productId   String
   product     Product   @relation(fields: [productId], references: [id])
-  available   Decimal   @default(0) @db.Decimal(14, 4)
-  reserved    Decimal   @default(0) @db.Decimal(14, 4)
-  inTransit   Decimal   @default(0) @db.Decimal(14, 4)
-  updatedAt   DateTime  @updatedAt
+  available       Decimal   @default(0) @db.Decimal(14, 4)
+  reserved        Decimal   @default(0) @db.Decimal(14, 4)
+  inTransit       Decimal   @default(0) @db.Decimal(14, 4)
+  pendingPutaway  Decimal   @default(0) @db.Decimal(14, 4)
+  updatedAt       DateTime  @updatedAt
 
   @@unique([warehouseId, productId])
   @@map("gdr_stock_balances")
@@ -465,6 +474,7 @@ model GoodsReceipt {
   notes            String?
   items            GRItem[]
   financialEntry   FinancialEntry?
+  receivingOrder   ReceivingOrder?
   createdAt        DateTime      @default(now())
 
   @@map("gdr_goods_receipts")
@@ -834,6 +844,84 @@ model ProductionOrderItem {
   unit              UnitOfMeasure   @default(UN)
 
   @@map("gdr_production_order_items")
+}
+
+// ─── WMS ─────────────────────────────────────────────────────────────────────
+
+enum LocationType {
+  RECEIVING
+  STORAGE
+  STAGING
+}
+
+enum ReceivingStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum PutawayStatus {
+  PENDING
+  CONFIRMED
+}
+
+model Location {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  warehouseId String
+  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
+  code        String
+  description String?
+  type        LocationType @default(STORAGE)
+  isActive    Boolean      @default(true)
+  putawayTasks PutawayTask[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([warehouseId, code])
+  @@index([companyId])
+  @@map("gdr_locations")
+}
+
+model ReceivingOrder {
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  goodsReceiptId String          @unique
+  goodsReceipt   GoodsReceipt    @relation(fields: [goodsReceiptId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  status         ReceivingStatus @default(PENDING)
+  tasks          PutawayTask[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_receiving_orders")
+}
+
+model PutawayTask {
+  id               String         @id @default(cuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id])
+  receivingOrderId String
+  receivingOrder   ReceivingOrder @relation(fields: [receivingOrderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product        @relation("PutawayProduct", fields: [productId], references: [id])
+  qty              Decimal        @db.Decimal(14, 4)
+  locationId       String?
+  location         Location?      @relation(fields: [locationId], references: [id])
+  status           PutawayStatus  @default(PENDING)
+  confirmedById    String?
+  confirmedBy      User?          @relation("PutawayConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([receivingOrderId])
+  @@index([companyId, status])
+  @@map("gdr_putaway_tasks")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────

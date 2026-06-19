@@ -220,6 +220,13 @@ export class PurchaseService {
 
       const companyId = po.companyId;
 
+      // S17: verificar se o armazém tem WMS ativado
+      const wh = await tx.warehouse.findUnique({
+        where: { id: dto.warehouseId },
+        select: { wmsEnabled: true },
+      });
+      const wmsEnabled = wh?.wmsEnabled ?? false;
+
       // Validar itens e divergências (S05.05)
       const grItemsData: {
         poItemId: string;
@@ -312,9 +319,12 @@ export class PurchaseService {
         const newAvgCost = computeAvgCost(prevTotalQty, prevAvgCost, item.qtyReceived, item.unitCost);
 
         // ── Atualizar saldo (S06.02) ───────────────────────────────────────
+        // WMS: itens ficam em pendingPutaway até confirmação de endereço
         await tx.stockBalance.update({
           where: { warehouseId_productId: { warehouseId: dto.warehouseId, productId: item.productId } },
-          data: { available: { increment: item.qtyReceived } },
+          data: wmsEnabled
+            ? { pendingPutaway: { increment: item.qtyReceived } }
+            : { available: { increment: item.qtyReceived } },
         });
 
         // ── Persistir novo custo médio no produto (S06.03) ─────────────────
@@ -334,19 +344,22 @@ export class PurchaseService {
           },
         });
 
-        // ── Registro de movimento (append-only) ────────────────────────────
-        await tx.stockMovement.create({
-          data: {
-            companyId,
-            warehouseId: dto.warehouseId,
-            productId: item.productId,
-            type: 'ENTRY',
-            quantity: item.qtyReceived,
-            reason: `Recebimento PO #${dto.purchaseOrderId}`,
-            reference: `GR:${receipt.id}`,
-            userId,
-          },
-        });
+        // ── Registro de movimento (apenas para armazéns sem WMS) ─────────
+        // Com WMS, o StockMovement ENTRY é criado no putaway
+        if (!wmsEnabled) {
+          await tx.stockMovement.create({
+            data: {
+              companyId,
+              warehouseId: dto.warehouseId,
+              productId: item.productId,
+              type: 'ENTRY',
+              quantity: item.qtyReceived,
+              reason: `Recebimento PO #${dto.purchaseOrderId}`,
+              reference: `GR:${receipt.id}`,
+              userId,
+            },
+          });
+        }
       }
 
       // Marcar PO como RECEIVED
