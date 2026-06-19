@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bull';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
@@ -25,12 +26,27 @@ import { WmsModule } from './modules/wms/wms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ReportModule } from './modules/report/report.module';
 import { ForecastModule } from './modules/forecast/forecast.module';
+import { AlertModule } from './modules/alert/alert.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
+    }),
+    BullModule.forRootAsync({
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+        const parsed = new URL(url);
+        return {
+          redis: {
+            host: parsed.hostname,
+            port: Number(parsed.port) || 6379,
+            password: parsed.password || undefined,
+          },
+        };
+      },
+      inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
@@ -57,6 +73,7 @@ import { ForecastModule } from './modules/forecast/forecast.module';
     DashboardModule,
     ReportModule,
     ForecastModule,
+    AlertModule,
   ],
 })
 export class AppModule {}

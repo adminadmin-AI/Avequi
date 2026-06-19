@@ -48,6 +48,7 @@ model Company {
   pickTasks        PickTask[]
   inventoryCounts  InventoryCount[]
   inventoryItems   InventoryCountItem[]
+  alerts           Alert[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -176,6 +177,7 @@ model Product {
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
+  minStock    Decimal        @default(0) @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
   boms           BomVersion[]  @relation("ProductBoms")
   usedInBoms     BomItem[]     @relation("ComponentOf")
@@ -1079,4 +1081,39 @@ model DemandForecast {
   @@index([period])
   @@index([productId])
   @@map("gdr_demand_forecasts")
+}
+
+// ─── Alertas (S24) ───────────────────────────────────────────────────────────
+
+enum AlertType {
+  STOCK_MIN
+  PAYABLE_DUE
+  PRODUCTION_LATE
+  NFE_REJECTED
+  MRP_RUN_DONE
+  FOCUS_NFE_DOWN
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Alert {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
+  type        AlertType
+  severity    AlertSeverity @default(WARNING)
+  title       String
+  body        String
+  entityId    String?
+  entityType  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([companyId, resolvedAt])
+  @@index([type])
+  @@map("gdr_alerts")
 }
