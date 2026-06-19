@@ -111,4 +111,13 @@ export class ProductionController {
   ) {
     return this.productionService.getProgress(id, req.user.companyId);
   }
+
+  // GET /production/:id/cost — custo real da OP (disponível após DONE)
+  @Get(':id/cost')
+  getCost(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.productionService.getCost(id, req.user.companyId);
+  }
 }

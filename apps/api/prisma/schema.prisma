@@ -798,6 +798,7 @@ model ProductionOrder {
   notes            String?
   items            ProductionOrderItem[]
   logs             ProductionLog[]
+  cost             ProductionCost?
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -805,6 +806,21 @@ model ProductionOrder {
 
   @@index([companyId, status])
   @@map("gdr_production_orders")
+}
+
+model ProductionCost {
+  id                String          @id @default(cuid())
+  productionOrderId String          @unique
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  materialCost      Decimal         @default(0) @db.Decimal(14, 4)
+  laborCost         Decimal         @default(0) @db.Decimal(14, 4)
+  totalCost         Decimal         @default(0) @db.Decimal(14, 4)
+  costPerUnit       Decimal         @default(0) @db.Decimal(14, 4)
+  breakdown         Json            @default("[]")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("gdr_production_costs")
 }
 
 model ProductionOrderItem {

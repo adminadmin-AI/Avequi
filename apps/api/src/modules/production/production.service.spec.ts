@@ -8,8 +8,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 const mockTx = {
   productionOrder: { findFirst: jest.fn(), update: jest.fn() },
   productionOrderItem: { update: jest.fn() },
+  productionCost: { create: jest.fn() },
   stockBalance: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   stockMovement: { create: jest.fn() },
+  product: { update: jest.fn() },
   auditLog: { create: jest.fn() },
 };
 
@@ -19,6 +21,7 @@ const mockPrisma = {
   bomVersion: { findFirst: jest.fn() },
   productionOrder: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   productionOrderItem: { update: jest.fn() },
+  productionCost: { findUnique: jest.fn() },
   productionLog: { create: jest.fn(), findMany: jest.fn() },
   routingStep: { findFirst: jest.fn() },
   stockBalance: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
@@ -29,7 +32,7 @@ const mockPrisma = {
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const product = { id: 'p-1', sku: 'PA001', name: 'Reboque 3 Eixos', unit: 'UN' };
+const product = { id: 'p-1', sku: 'PA001', name: 'Reboque 3 Eixos', unit: 'UN', avgCost: null };
 const warehouse = { id: 'wh-1', code: 'ALM-FAB', name: 'Almoxarifado Fábrica' };
 
 const baseOrder = {
@@ -41,8 +44,22 @@ const baseOrder = {
   producedQty: '0',
   status: 'DRAFT',
   items: [
-    { id: 'poi-1', componentId: 'c-1', plannedQty: '10', unit: 'UN' },
-    { id: 'poi-2', componentId: 'c-2', plannedQty: '20', unit: 'KG' },
+    {
+      id: 'poi-1',
+      componentId: 'c-1',
+      plannedQty: '10',
+      consumedQty: '0',
+      unit: 'UN',
+      component: { id: 'c-1', sku: 'MP001', name: 'Chapa de Aço', unit: 'UN', avgCost: '5.00' },
+    },
+    {
+      id: 'poi-2',
+      componentId: 'c-2',
+      plannedQty: '20',
+      consumedQty: '0',
+      unit: 'KG',
+      component: { id: 'c-2', sku: 'MP002', name: 'Tinta Esmalte', unit: 'KG', avgCost: '3.00' },
+    },
   ],
   product,
   warehouse,
@@ -64,6 +81,8 @@ describe('ProductionService', () => {
     mockTx.auditLog.create.mockResolvedValue({});
     mockTx.stockMovement.create.mockResolvedValue({});
     mockTx.productionOrderItem.update.mockResolvedValue({});
+    mockTx.productionCost.create.mockResolvedValue({});
+    mockTx.product.update.mockResolvedValue({});
   });
 
   // ─── create ───────────────────────────────────────────────────────────────
@@ -91,8 +110,8 @@ describe('ProductionService', () => {
             plannedQty: 5,
             items: {
               create: expect.arrayContaining([
-                expect.objectContaining({ componentId: 'c-1', plannedQty: 10 }),  // 2 × 5 × 1.0
-                expect.objectContaining({ componentId: 'c-2', plannedQty: 16.5 }), // 3 × 5 × 1.1
+                expect.objectContaining({ componentId: 'c-1', plannedQty: 10 }),
+                expect.objectContaining({ componentId: 'c-2', plannedQty: 16.5 }),
               ]),
             },
           }),
@@ -134,8 +153,8 @@ describe('ProductionService', () => {
     it('deve reservar componentes e mudar status para RELEASED', async () => {
       mockTx.productionOrder.findFirst.mockResolvedValue(baseOrder);
       mockTx.stockBalance.findUnique
-        .mockResolvedValueOnce({ available: '15' }) // c-1: 15 disponível, precisa 10 ✅
-        .mockResolvedValueOnce({ available: '25' }); // c-2: 25 disponível, precisa 20 ✅
+        .mockResolvedValueOnce({ available: '15' })
+        .mockResolvedValueOnce({ available: '25' });
       mockTx.stockBalance.update.mockResolvedValue({});
       mockTx.productionOrder.update.mockResolvedValue({ ...baseOrder, status: 'RELEASED' });
 
@@ -157,7 +176,7 @@ describe('ProductionService', () => {
 
     it('deve lançar BadRequest quando estoque de componente é insuficiente', async () => {
       mockTx.productionOrder.findFirst.mockResolvedValue(baseOrder);
-      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '5' }); // precisa 10
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '5' });
       await expect(service.release('op-1', 'co-1')).rejects.toThrow(BadRequestException);
     });
 
@@ -195,14 +214,14 @@ describe('ProductionService', () => {
     });
   });
 
-  // ─── complete ─────────────────────────────────────────────────────────────
+  // ─── complete (S13 + S16) ─────────────────────────────────────────────────
 
   describe('complete', () => {
     const inProgressOrder = { ...baseOrder, status: 'IN_PROGRESS' };
 
-    it('deve dar EXIT nos componentes e ENTRY no produto acabado', async () => {
+    it('deve dar EXIT nos componentes, ENTRY no PA e registrar custo', async () => {
       mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
-      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' }); // PA ainda sem saldo
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' });
       mockTx.stockBalance.update.mockResolvedValue({});
       mockTx.stockBalance.create.mockResolvedValue({});
       mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '5' });
@@ -217,22 +236,100 @@ describe('ProductionService', () => {
       expect(mockTx.stockMovement.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ type: 'ENTRY', productId: 'p-1' }) }),
       );
+
+      // Custo: 10×5.00 + 20×3.00 = 110, costPerUnit = 22
+      expect(mockTx.productionCost.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            productionOrderId: 'op-1',
+            materialCost: 110,
+            totalCost: 110,
+            costPerUnit: 22,
+          }),
+        }),
+      );
+
       expect(result.status).toBe('DONE');
     });
 
-    it('deve usar producedQty informado quando fornecido', async () => {
+    it('deve consumir proporcionalmente ao encerrar parcialmente (3 de 5)', async () => {
+      // ratio = 3/5 = 0.6 → c-1: 10×0.6=6, excess=4; c-2: 20×0.6=12, excess=8
       mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
-      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '2' });
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '10' });
       mockTx.stockBalance.update.mockResolvedValue({});
       mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '3' });
 
       await service.complete('op-1', 'co-1', 3, 'u-1');
 
-      expect(mockTx.productionOrder.update).toHaveBeenCalledWith(
+      // Excedente de c-1 (4) devolvido ao disponível
+      expect(mockTx.stockBalance.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ producedQty: 3 }),
+          where: expect.objectContaining({ warehouseId_productId: expect.objectContaining({ productId: 'c-1' }) }),
+          data: {
+            reserved: { decrement: 10 },
+            available: { increment: 4 },
+          },
         }),
       );
+
+      // Custo: 6×5 + 12×3 = 66, costPerUnit = 66/3 = 22
+      expect(mockTx.productionCost.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            materialCost: 66,
+            totalCost: 66,
+            costPerUnit: 22,
+          }),
+        }),
+      );
+    });
+
+    it('deve atualizar avgCost do PA quando custo > 0 (sem estoque prévio)', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockTx.stockBalance.findUnique.mockResolvedValue(null); // PA sem saldo
+      mockTx.stockBalance.create.mockResolvedValue({});
+      mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '5' });
+
+      await service.complete('op-1', 'co-1', undefined, 'u-1');
+
+      // newAvgCost = (0×0 + 5×22) / 5 = 22
+      expect(mockTx.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p-1' },
+          data: { avgCost: 22 },
+        }),
+      );
+    });
+
+    it('deve calcular CMPC ponderado quando PA já tem estoque', async () => {
+      // Estoque existente: 10 un a R$20.00; nova produção: 5 un a R$22.00
+      // newAvgCost = (10×20 + 5×22) / 15 ≈ 20.6667
+      const orderWithCost = {
+        ...inProgressOrder,
+        product: { ...product, avgCost: '20.00' },
+      };
+      mockTx.productionOrder.findFirst.mockResolvedValue(orderWithCost);
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '10' });
+      mockTx.stockBalance.update.mockResolvedValue({});
+      mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '5' });
+
+      await service.complete('op-1', 'co-1', undefined, 'u-1');
+
+      expect(mockTx.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { avgCost: expect.closeTo(20.6667, 3) },
+        }),
+      );
+    });
+
+    it('deve lançar BadRequest quando producedQty > plannedQty', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder); // plannedQty=5
+      await expect(service.complete('op-1', 'co-1', 10, 'u-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequest quando producedQty = 0', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      await expect(service.complete('op-1', 'co-1', 0, 'u-1')).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar BadRequest para status diferente de IN_PROGRESS', async () => {
@@ -389,7 +486,7 @@ describe('ProductionService', () => {
       });
 
       await expect(
-        service.addLog('op-1', 'co-1', { qty: 2 }, 'u-1'), // 4 + 2 > 5
+        service.addLog('op-1', 'co-1', { qty: 2 }, 'u-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -469,13 +566,65 @@ describe('ProductionService', () => {
 
       expect(result.byStep).toHaveLength(2);
       const corte = result.byStep.find((s) => s.stepName === 'Corte');
-      expect(corte?.totalQty).toBe(4); // 3 + 1
+      expect(corte?.totalQty).toBe(4);
       expect(corte?.entries).toBe(2);
     });
 
     it('deve lançar NotFoundException para OP inexistente', async () => {
       mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
       await expect(service.getProgress('op-x', 'co-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S16: getCost ─────────────────────────────────────────────────────────
+
+  describe('getCost', () => {
+    const doneOrder = {
+      id: 'op-1',
+      status: 'DONE',
+      plannedQty: '5',
+      producedQty: '5',
+      completedAt: new Date('2026-06-18T15:00:00Z'),
+    };
+
+    const costRecord = {
+      id: 'cost-1',
+      productionOrderId: 'op-1',
+      materialCost: '110.00',
+      laborCost: '0.00',
+      totalCost: '110.00',
+      costPerUnit: '22.00',
+      breakdown: [
+        { componentId: 'c-1', sku: 'MP001', qty: 10, unitCost: 5, totalCost: 50 },
+        { componentId: 'c-2', sku: 'MP002', qty: 20, unitCost: 3, totalCost: 60 },
+      ],
+    };
+
+    it('deve retornar custo da OP encerrada com breakdown', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(doneOrder);
+      mockPrisma.productionCost.findUnique.mockResolvedValue(costRecord);
+
+      const result = await service.getCost('op-1', 'co-1');
+
+      expect(result.orderId).toBe('op-1');
+      expect(result.totalCost).toBe(110);
+      expect(result.costPerUnit).toBe(22);
+      expect(result.materialCost).toBe(110);
+      expect(result.laborCost).toBe(0);
+      expect(result.breakdown).toHaveLength(2);
+    });
+
+    it('deve lançar NotFoundException se OP não tem custo ainda', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({ ...doneOrder, status: 'IN_PROGRESS' });
+      mockPrisma.productionCost.findUnique.mockResolvedValue(null);
+
+      await expect(service.getCost('op-1', 'co-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar NotFoundException para OP de outra empresa', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(null);
+
+      await expect(service.getCost('op-x', 'co-outro')).rejects.toThrow(NotFoundException);
     });
   });
 });

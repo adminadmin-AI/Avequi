@@ -19,7 +19,16 @@ const ORDER_INCLUDE = {
   },
   createdBy: { select: { id: true, name: true } },
   mrpSuggestion: { select: { id: true, netQty: true, grossQty: true } },
+  cost: true,
 };
+
+interface CostBreakdownItem {
+  componentId: string;
+  sku: string;
+  qty: number;
+  unitCost: number;
+  totalCost: number;
+}
 
 @Injectable()
 export class ProductionService {
@@ -192,14 +201,20 @@ export class ProductionService {
     return updated;
   }
 
-  // ─── S13.06: Concluir (IN_PROGRESS → DONE) ───────────────────────────────
-  //   EXIT componentes (reserved→out) + ENTRY produto acabado
+  // ─── S13.06 / S16: Concluir (IN_PROGRESS → DONE) ─────────────────────────
+  //   • Consumo proporcional de componentes (suporte a encerramento parcial)
+  //   • Estorno automático do excedente reservado
+  //   • Cálculo de custo material por componente (avgCost)
+  //   • Atualização do avgCost do produto acabado (CMPC)
 
   async complete(id: string, companyId: string, producedQty?: number, userId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.productionOrder.findFirst({
         where: { id, companyId },
-        include: { items: true, product: true },
+        include: {
+          items: { include: { component: true } },
+          product: true,
+        },
       });
 
       if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
@@ -208,38 +223,108 @@ export class ProductionService {
       }
 
       const finalQty = producedQty ?? Number(order.plannedQty);
+      const plannedQty = Number(order.plannedQty);
 
-      // 1. EXIT de cada componente (debita reserved)
+      if (finalQty <= 0) {
+        throw new BadRequestException('Quantidade produzida deve ser maior que zero');
+      }
+      if (finalQty > plannedQty) {
+        throw new BadRequestException(
+          `Quantidade produzida (${finalQty}) não pode exceder a planejada (${plannedQty})`,
+        );
+      }
+
+      // Proporção de consumo: 1.0 = pleno, < 1.0 = encerramento parcial
+      const ratio = plannedQty > 0 ? finalQty / plannedQty : 1;
+
+      // ─── 1. Processar cada componente ─────────────────────────────────────
+      const breakdown: CostBreakdownItem[] = [];
+      let materialCost = 0;
+
       for (const item of order.items) {
+        const plannedItemQty = Number(item.plannedQty);
+        const actualConsumed = plannedItemQty * ratio;
+        const excessReserved = plannedItemQty - actualConsumed;
+
+        // Debita reserva e devolve excedente ao disponível
         await tx.stockBalance.update({
           where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: item.componentId } },
-          data: { reserved: { decrement: Number(item.plannedQty) } },
+          data: {
+            reserved: { decrement: plannedItemQty },
+            ...(excessReserved > 0 ? { available: { increment: excessReserved } } : {}),
+          },
         });
 
+        // Movimento de saída do consumo real
         await tx.stockMovement.create({
           data: {
             companyId,
             warehouseId: order.warehouseId,
             productId: item.componentId,
             type: 'EXIT',
-            quantity: item.plannedQty,
+            quantity: actualConsumed,
             reason: 'Consumo em Ordem de Produção',
             reference: `OP:${id}`,
             userId,
           },
         });
 
+        // Atualiza consumedQty no item da OP
         await tx.productionOrderItem.update({
           where: { id: item.id },
-          data: { consumedQty: item.plannedQty },
+          data: { consumedQty: actualConsumed },
+        });
+
+        // Custo do componente: qty × avgCost do cadastro
+        const unitCost = Number(item.component.avgCost ?? 0);
+        const itemCost = actualConsumed * unitCost;
+        materialCost += itemCost;
+
+        breakdown.push({
+          componentId: item.componentId,
+          sku: item.component.sku,
+          qty: actualConsumed,
+          unitCost,
+          totalCost: itemCost,
         });
       }
 
-      // 2. ENTRY do produto acabado
+      // ─── 2. Registrar custo da OP ─────────────────────────────────────────
+      const totalCost = materialCost; // laborCost = 0 (custo/hora no roteiro não implementado ainda)
+      const costPerUnit = finalQty > 0 ? totalCost / finalQty : 0;
+
+      await tx.productionCost.create({
+        data: {
+          productionOrderId: id,
+          materialCost,
+          laborCost: 0,
+          totalCost,
+          costPerUnit,
+          breakdown: breakdown as object[],
+        },
+      });
+
+      // ─── 3. Atualizar avgCost do produto acabado (CMPC) ───────────────────
       const paBalance = await tx.stockBalance.findUnique({
         where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
       });
 
+      const existingStock = Number(paBalance?.available ?? 0);
+      const oldAvgCost = Number(order.product.avgCost ?? 0);
+
+      if (costPerUnit > 0) {
+        const newAvgCost =
+          existingStock + finalQty > 0
+            ? (existingStock * oldAvgCost + finalQty * costPerUnit) / (existingStock + finalQty)
+            : costPerUnit;
+
+        await tx.product.update({
+          where: { id: order.productId },
+          data: { avgCost: newAvgCost },
+        });
+      }
+
+      // ─── 4. Dar entrada no produto acabado ────────────────────────────────
       if (paBalance) {
         await tx.stockBalance.update({
           where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
@@ -270,7 +355,7 @@ export class ProductionService {
         },
       });
 
-      // 3. Fecha a OP
+      // ─── 5. Fechar a OP ───────────────────────────────────────────────────
       const updated = await tx.productionOrder.update({
         where: { id },
         data: {
@@ -287,11 +372,14 @@ export class ProductionService {
           companyId,
           entity: 'ProductionOrder',
           action: 'COMPLETE',
-          payload: { id, plannedQty: Number(order.plannedQty), producedQty: finalQty },
+          payload: { id, plannedQty, producedQty: finalQty, totalCost, costPerUnit },
         },
       });
 
-      this.logger.log(`OP ${id} concluída — produzido: ${finalQty} × ${order.product.sku}`);
+      this.logger.log(
+        `OP ${id} encerrada — produzido: ${finalQty}/${plannedQty} × ${order.product.sku}` +
+          ` | custo: R$ ${totalCost.toFixed(2)} (R$ ${costPerUnit.toFixed(4)}/un)`,
+      );
       return updated;
     });
   }
@@ -418,7 +506,6 @@ export class ProductionService {
   // ─── S14.02: Listar apontamentos da OP ───────────────────────────────────
 
   async getLogs(id: string, companyId: string) {
-    // Verifica que a OP pertence à empresa
     const order = await this.prisma.productionOrder.findFirst({ where: { id, companyId } });
     if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
 
@@ -483,10 +570,45 @@ export class ProductionService {
         component: item.component,
         plannedQty: Number(item.plannedQty),
         consumedQty: Number(item.consumedQty),
-        pctConsumed: Number(item.plannedQty) > 0
-          ? Math.round((Number(item.consumedQty) / Number(item.plannedQty)) * 1000) / 10
-          : 0,
+        pctConsumed:
+          Number(item.plannedQty) > 0
+            ? Math.round((Number(item.consumedQty) / Number(item.plannedQty)) * 1000) / 10
+            : 0,
       })),
+    };
+  }
+
+  // ─── S16.01: Custo da OP ──────────────────────────────────────────────────
+
+  async getCost(id: string, companyId: string) {
+    const order = await this.prisma.productionOrder.findFirst({
+      where: { id, companyId },
+      select: { id: true, status: true, plannedQty: true, producedQty: true, completedAt: true },
+    });
+
+    if (!order) throw new NotFoundException(`Ordem de produção ${id} não encontrada`);
+
+    const cost = await this.prisma.productionCost.findUnique({
+      where: { productionOrderId: id },
+    });
+
+    if (!cost) {
+      throw new NotFoundException(
+        `Custo da OP ${id} ainda não calculado. O custo é registrado ao encerrar a OP (status DONE).`,
+      );
+    }
+
+    return {
+      orderId: id,
+      status: order.status,
+      plannedQty: Number(order.plannedQty),
+      producedQty: Number(order.producedQty),
+      completedAt: order.completedAt,
+      materialCost: Number(cost.materialCost),
+      laborCost: Number(cost.laborCost),
+      totalCost: Number(cost.totalCost),
+      costPerUnit: Number(cost.costPerUnit),
+      breakdown: cost.breakdown,
     };
   }
 }
