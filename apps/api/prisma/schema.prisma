@@ -46,6 +46,8 @@ model Company {
   putawayTasks     PutawayTask[]
   pickingOrders    PickingOrder[]
   pickTasks        PickTask[]
+  inventoryCounts  InventoryCount[]
+  inventoryItems   InventoryCountItem[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -85,6 +87,9 @@ model User {
   productionLogs            ProductionLog[]     @relation("ProductionLogUser")
   putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
   pickConfirmations         PickTask[]          @relation("PickConfirmedBy")
+  inventoryCountsCreated    InventoryCount[]    @relation("InventoryCreatedBy")
+  inventoryCountsReconciled InventoryCount[]    @relation("InventoryReconciledBy")
+  inventoryItemsCounted     InventoryCountItem[] @relation("InventoryItemCountedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -189,6 +194,7 @@ model Product {
   productionOrderItems      ProductionOrderItem[] @relation("ProductionOrderComponent")
   putawayTasks              PutawayTask[]        @relation("PutawayProduct")
   pickTasks                 PickTask[]           @relation("PickTaskProduct")
+  inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -328,6 +334,7 @@ model Warehouse {
   locations        Location[]
   receivingOrders  ReceivingOrder[]
   pickingOrders    PickingOrder[]
+  inventoryCounts  InventoryCount[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -983,6 +990,71 @@ model PickTask {
   @@index([pickingOrderId])
   @@index([companyId, status])
   @@map("gdr_pick_tasks")
+}
+
+// ─── WMS Inventário ───────────────────────────────────────────────────────────
+
+enum InventoryCountType {
+  CYCLIC
+  FULL
+}
+
+enum InventoryCountStatus {
+  DRAFT
+  IN_PROGRESS
+  RECONCILED
+}
+
+enum InventoryItemStatus {
+  PENDING
+  COUNTED
+}
+
+model InventoryCount {
+  id             String               @id @default(cuid())
+  companyId      String
+  company        Company              @relation(fields: [companyId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse            @relation(fields: [warehouseId], references: [id])
+  type           InventoryCountType   @default(CYCLIC)
+  status         InventoryCountStatus @default(DRAFT)
+  notes          String?
+  createdById    String?
+  createdBy      User?                @relation("InventoryCreatedBy", fields: [createdById], references: [id])
+  reconciledById String?
+  reconciledBy   User?                @relation("InventoryReconciledBy", fields: [reconciledById], references: [id])
+  reconciledAt   DateTime?
+  items          InventoryCountItem[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([companyId, status])
+  @@index([warehouseId])
+  @@map("gdr_inventory_counts")
+}
+
+model InventoryCountItem {
+  id               String              @id @default(cuid())
+  companyId        String
+  company          Company             @relation(fields: [companyId], references: [id])
+  inventoryCountId String
+  inventoryCount   InventoryCount      @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product             @relation("InventoryItemProduct", fields: [productId], references: [id])
+  systemQty        Decimal             @db.Decimal(14, 4)
+  countedQty       Decimal?            @db.Decimal(14, 4)
+  variance         Decimal?            @db.Decimal(14, 4)
+  status           InventoryItemStatus @default(PENDING)
+  countedById      String?
+  countedBy        User?               @relation("InventoryItemCountedBy", fields: [countedById], references: [id])
+  countedAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([inventoryCountId, productId])
+  @@index([inventoryCountId])
+  @@index([companyId, status])
+  @@map("gdr_inventory_count_items")
 }
 
 // ─── Demanda (MRP) ────────────────────────────────────────────────────────────

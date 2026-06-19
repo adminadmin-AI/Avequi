@@ -34,11 +34,26 @@ const mockPrisma = {
   },
   stockBalance: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     update: jest.fn(),
+    upsert: jest.fn(),
   },
   stockMovement: { create: jest.fn() },
   auditLog: { create: jest.fn() },
-  warehouse: { findUnique: jest.fn() },
+  warehouse: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+  },
+  inventoryCount: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
+  inventoryCountItem: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -503,6 +518,230 @@ describe('WmsService', () => {
       await expect(
         service.confirmPickTask(orderId, taskId, companyId, { locationId: 'loc1' }, 'u1'),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── S19: createInventoryCount ────────────────────────────────────────────
+
+  describe('createInventoryCount', () => {
+    const dto = { warehouseId: 'w1', type: 'CYCLIC' as any };
+
+    it('cria InventoryCount com itens do StockBalance', async () => {
+      mockPrisma.warehouse.findFirst.mockResolvedValue({ id: 'w1' });
+      mockPrisma.stockBalance.findMany.mockResolvedValue([
+        { productId: 'p1', available: 10 },
+        { productId: 'p2', available: 5 },
+      ]);
+      mockPrisma.inventoryCount.create.mockResolvedValue({
+        id: 'ic1',
+        type: 'CYCLIC',
+        status: 'IN_PROGRESS',
+        warehouse: {},
+        _count: { items: 2 },
+      });
+
+      const result = await service.createInventoryCount(dto, 'c1', 'u1');
+
+      expect(mockPrisma.inventoryCount.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'CYCLIC',
+            status: 'IN_PROGRESS',
+            items: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({ productId: 'p1', systemQty: 10 }),
+                expect.objectContaining({ productId: 'p2', systemQty: 5 }),
+              ]),
+            }),
+          }),
+        }),
+      );
+      expect(result.id).toBe('ic1');
+    });
+
+    it('lança NotFoundException se armazém não existe', async () => {
+      mockPrisma.warehouse.findFirst.mockResolvedValue(null);
+
+      await expect(service.createInventoryCount(dto, 'c1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('lança BadRequestException se não há saldo para contar', async () => {
+      mockPrisma.warehouse.findFirst.mockResolvedValue({ id: 'w1' });
+      mockPrisma.stockBalance.findMany.mockResolvedValue([]);
+
+      await expect(service.createInventoryCount(dto, 'c1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── S19: findInventoryCount ──────────────────────────────────────────────
+
+  describe('findInventoryCount', () => {
+    it('retorna a contagem quando encontrada', async () => {
+      const count = { id: 'ic1', companyId: 'c1', items: [] };
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue(count);
+
+      const result = await service.findInventoryCount('ic1', 'c1');
+      expect(result).toEqual(count);
+    });
+
+    it('lança NotFoundException quando não encontrada', async () => {
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue(null);
+
+      await expect(service.findInventoryCount('ic1', 'c1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── S19: recordCount ────────────────────────────────────────────────────
+
+  describe('recordCount', () => {
+    it('registra contagem e calcula variância corretamente', async () => {
+      mockPrisma.inventoryCountItem.findFirst.mockResolvedValue({
+        id: 'item1',
+        productId: 'p1',
+        systemQty: 10,
+        inventoryCount: { status: 'IN_PROGRESS' },
+      });
+      mockPrisma.inventoryCountItem.update.mockResolvedValue({
+        id: 'item1',
+        countedQty: 8,
+        variance: -2,
+        status: 'COUNTED',
+        product: {},
+      });
+
+      const result = await service.recordCount('ic1', 'item1', 'c1', { countedQty: 8 }, 'u1');
+
+      expect(mockPrisma.inventoryCountItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            countedQty: 8,
+            variance: -2,
+            status: 'COUNTED',
+          }),
+        }),
+      );
+      expect(result.variance).toBe(-2);
+    });
+
+    it('lança NotFoundException se item não existe', async () => {
+      mockPrisma.inventoryCountItem.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.recordCount('ic1', 'item1', 'c1', { countedQty: 5 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('lança BadRequestException se contagem já reconciliada', async () => {
+      mockPrisma.inventoryCountItem.findFirst.mockResolvedValue({
+        id: 'item1',
+        systemQty: 10,
+        inventoryCount: { status: 'RECONCILED' },
+      });
+
+      await expect(
+        service.recordCount('ic1', 'item1', 'c1', { countedQty: 5 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── S19: getInventoryReport ──────────────────────────────────────────────
+
+  describe('getInventoryReport', () => {
+    it('retorna métricas e variâncias corretamente', async () => {
+      const count = {
+        id: 'ic1',
+        type: 'FULL',
+        status: 'IN_PROGRESS',
+        warehouse: {},
+        salesOrderId: null,
+        reconciledAt: null,
+        items: [
+          { id: 'i1', status: 'COUNTED', product: {}, systemQty: 10, countedQty: 8, variance: -2, countedBy: null, countedAt: null },
+          { id: 'i2', status: 'COUNTED', product: {}, systemQty: 5, countedQty: 5, variance: 0, countedBy: null, countedAt: null },
+          { id: 'i3', status: 'PENDING', product: {}, systemQty: 3, countedQty: null, variance: null, countedBy: null, countedAt: null },
+        ],
+      };
+      mockPrisma.inventoryCount.findFirst.mockResolvedValue(count);
+
+      const report = await service.getInventoryReport('ic1', 'c1');
+
+      expect(report.totalItems).toBe(3);
+      expect(report.countedItems).toBe(2);
+      expect(report.pendingItems).toBe(1);
+      expect(report.itemsWithVariance).toBe(1);
+      expect(report.pctComplete).toBe(67);
+    });
+  });
+
+  // ─── S19: reconcile ───────────────────────────────────────────────────────
+
+  describe('reconcile', () => {
+    const buildReconcileTx = (overrides: Record<string, any> = {}) => ({
+      inventoryCount: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'ic1',
+          warehouseId: 'w1',
+          status: 'IN_PROGRESS',
+          items: [
+            { id: 'i1', productId: 'p1', systemQty: 10, countedQty: 8, variance: -2, status: 'COUNTED', product: { id: 'p1', sku: 'SKU-01' } },
+            { id: 'i2', productId: 'p2', systemQty: 5, countedQty: 5, variance: 0, status: 'COUNTED', product: { id: 'p2', sku: 'SKU-02' } },
+          ],
+          ...overrides.count,
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'ic1', status: 'RECONCILED', reconciledAt: new Date() }),
+      },
+      stockBalance: { upsert: jest.fn() },
+      stockMovement: { create: jest.fn() },
+      auditLog: { create: jest.fn() },
+      ...overrides.tx,
+    });
+
+    it('happy path: gera ajuste apenas para items com variância ≠ 0', async () => {
+      const tx = buildReconcileTx();
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      const result = await service.reconcile('ic1', 'c1', 'u1');
+
+      // só p1 tem variância (-2), p2 não gera ajuste
+      expect(tx.stockBalance.upsert).toHaveBeenCalledTimes(1);
+      expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+      expect(tx.stockMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'EXIT', quantity: 2, productId: 'p1' }),
+        }),
+      );
+      expect(result.adjustments).toHaveLength(1);
+      expect(result.adjustments[0].variance).toBe(-2);
+    });
+
+    it('lança NotFoundException se contagem não existe', async () => {
+      const tx = buildReconcileTx();
+      tx.inventoryCount.findFirst.mockResolvedValue(null);
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(service.reconcile('ic1', 'c1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('lança BadRequestException se já reconciliada', async () => {
+      const tx = buildReconcileTx({ count: { status: 'RECONCILED' } });
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(service.reconcile('ic1', 'c1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('lança BadRequestException se há itens pendentes', async () => {
+      const tx = buildReconcileTx({
+        count: {
+          status: 'IN_PROGRESS',
+          items: [
+            { id: 'i1', productId: 'p1', systemQty: 10, countedQty: 8, variance: -2, status: 'COUNTED', product: { sku: 'SKU-01' } },
+            { id: 'i2', productId: 'p2', systemQty: 5, countedQty: null, variance: null, status: 'PENDING', product: { sku: 'SKU-02' } },
+          ],
+        },
+      });
+      mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+
+      await expect(service.reconcile('ic1', 'c1')).rejects.toThrow(BadRequestException);
     });
   });
 });

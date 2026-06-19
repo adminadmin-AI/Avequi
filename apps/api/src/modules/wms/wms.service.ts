@@ -10,6 +10,8 @@ import { SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
 import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
+import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
+import { RecordCountDto } from './dto/record-count.dto';
 
 @Injectable()
 export class WmsService {
@@ -405,6 +407,264 @@ export class WmsService {
         `PickTask: ${task.productId} × ${Number(task.qty)} confirmado por ${userId ?? 'sistema'}`,
       );
       return updatedTask;
+    });
+  }
+
+  // ─── S19.01: Criar InventoryCount ────────────────────────────────────────
+
+  async createInventoryCount(dto: CreateInventoryCountDto, companyId: string, userId?: string) {
+    // Valida warehouse
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: { id: dto.warehouseId, companyId },
+    });
+    if (!warehouse) throw new NotFoundException(`Armazém ${dto.warehouseId} não encontrado`);
+
+    // Busca saldos para popular os itens
+    const balances = await this.prisma.stockBalance.findMany({
+      where: {
+        warehouseId: dto.warehouseId,
+        ...(dto.productIds?.length ? { productId: { in: dto.productIds } } : {}),
+        available: { gt: 0 },
+      },
+      select: { productId: true, available: true },
+    });
+
+    if (balances.length === 0) {
+      throw new BadRequestException('Nenhum produto com saldo disponível encontrado para contagem');
+    }
+
+    const count = await this.prisma.inventoryCount.create({
+      data: {
+        companyId,
+        warehouseId: dto.warehouseId,
+        type: dto.type as any,
+        notes: dto.notes ?? null,
+        createdById: userId ?? null,
+        status: 'IN_PROGRESS',
+        items: {
+          create: balances.map((b) => ({
+            companyId,
+            productId: b.productId,
+            systemQty: b.available,
+          })),
+        },
+      },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+        _count: { select: { items: true } },
+      },
+    });
+
+    this.logger.log(
+      `InventoryCount ${count.id} criada — ${balances.length} produtos a contar (${dto.type})`,
+    );
+    return count;
+  }
+
+  // ─── S19.02: Listar InventoryCounts ──────────────────────────────────────
+
+  async findInventoryCounts(companyId: string, status?: string) {
+    return this.prisma.inventoryCount.findMany({
+      where: { companyId, ...(status ? { status: status as any } : {}) },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ─── S19.03: Detalhe da InventoryCount ───────────────────────────────────
+
+  async findInventoryCount(id: string, companyId: string) {
+    const count = await this.prisma.inventoryCount.findFirst({
+      where: { id, companyId },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+        reconciledBy: { select: { id: true, name: true } },
+        items: {
+          include: {
+            product: { select: { id: true, sku: true, name: true, unit: true } },
+            countedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!count) throw new NotFoundException(`Contagem ${id} não encontrada`);
+    return count;
+  }
+
+  // ─── S19.04: Registrar contagem física de um item ────────────────────────
+
+  async recordCount(
+    countId: string,
+    itemId: string,
+    companyId: string,
+    dto: RecordCountDto,
+    userId?: string,
+  ) {
+    const item = await this.prisma.inventoryCountItem.findFirst({
+      where: { id: itemId, inventoryCountId: countId, companyId },
+      include: { inventoryCount: { select: { status: true } } },
+    });
+
+    if (!item) throw new NotFoundException(`Item ${itemId} não encontrado na contagem ${countId}`);
+    if (item.inventoryCount.status === 'RECONCILED') {
+      throw new BadRequestException('Contagem já reconciliada — não é possível alterar itens');
+    }
+
+    const systemQty = Number(item.systemQty);
+    const countedQty = dto.countedQty;
+    const variance = countedQty - systemQty;
+
+    const updated = await this.prisma.inventoryCountItem.update({
+      where: { id: itemId },
+      data: {
+        countedQty,
+        variance,
+        status: 'COUNTED',
+        countedById: userId ?? null,
+        countedAt: new Date(),
+      },
+      include: {
+        product: { select: { id: true, sku: true, name: true, unit: true } },
+      },
+    });
+
+    this.logger.log(
+      `Contagem: ${item.productId} — sistema ${systemQty} | contado ${countedQty} | variação ${variance}`,
+    );
+    return updated;
+  }
+
+  // ─── S19.05: Relatório de contagem (com variâncias) ──────────────────────
+
+  async getInventoryReport(id: string, companyId: string) {
+    const count = await this.findInventoryCount(id, companyId);
+
+    const totalItems = count.items.length;
+    const countedItems = count.items.filter((i) => i.status === 'COUNTED').length;
+    const pendingItems = totalItems - countedItems;
+    const itemsWithVariance = count.items.filter(
+      (i) => i.variance !== null && Number(i.variance) !== 0,
+    ).length;
+
+    return {
+      id: count.id,
+      type: count.type,
+      status: count.status,
+      warehouse: count.warehouse,
+      totalItems,
+      countedItems,
+      pendingItems,
+      itemsWithVariance,
+      pctComplete: totalItems > 0 ? Math.round((countedItems / totalItems) * 100) : 0,
+      reconciledAt: count.reconciledAt,
+      items: count.items.map((i) => ({
+        id: i.id,
+        product: i.product,
+        systemQty: Number(i.systemQty),
+        countedQty: i.countedQty !== null ? Number(i.countedQty) : null,
+        variance: i.variance !== null ? Number(i.variance) : null,
+        status: i.status,
+        countedBy: i.countedBy,
+        countedAt: i.countedAt,
+      })),
+    };
+  }
+
+  // ─── S19.06: Reconciliar contagem — ajusta StockBalance ──────────────────
+
+  async reconcile(id: string, companyId: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const count = await tx.inventoryCount.findFirst({
+        where: { id, companyId },
+        include: {
+          items: {
+            include: { product: { select: { id: true, sku: true } } },
+          },
+        },
+      });
+
+      if (!count) throw new NotFoundException(`Contagem ${id} não encontrada`);
+      if (count.status === 'RECONCILED') {
+        throw new BadRequestException('Contagem já reconciliada');
+      }
+
+      const pendingItems = count.items.filter((i) => i.status === 'PENDING');
+      if (pendingItems.length > 0) {
+        throw new BadRequestException(
+          `${pendingItems.length} item(ns) ainda não contado(s) — conclua a contagem antes de reconciliar`,
+        );
+      }
+
+      const adjustments: Array<{ productId: string; sku: string; variance: number }> = [];
+
+      for (const item of count.items) {
+        const variance = Number(item.variance ?? 0);
+        if (variance === 0) continue;
+
+        const warehouseId = count.warehouseId;
+
+        // Ajusta StockBalance
+        await tx.stockBalance.upsert({
+          where: { warehouseId_productId: { warehouseId, productId: item.productId } },
+          create: {
+            companyId,
+            warehouseId,
+            productId: item.productId,
+            available: Math.max(0, Number(item.countedQty ?? 0)),
+          },
+          update: {
+            available: { increment: variance },
+          },
+        });
+
+        // Cria StockMovement de ajuste
+        await tx.stockMovement.create({
+          data: {
+            companyId,
+            warehouseId,
+            productId: item.productId,
+            type: variance > 0 ? 'ENTRY' : 'EXIT',
+            quantity: Math.abs(variance),
+            reason: `Ajuste de inventário — Contagem ${id}`,
+            reference: `INV:${id}`,
+            userId,
+          },
+        });
+
+        adjustments.push({ productId: item.productId, sku: item.product.sku, variance });
+      }
+
+      // Marca contagem como RECONCILED
+      const reconciled = await tx.inventoryCount.update({
+        where: { id },
+        data: {
+          status: 'RECONCILED',
+          reconciledById: userId ?? null,
+          reconciledAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          companyId,
+          entity: 'InventoryCount',
+          action: 'RECONCILE',
+          payload: { countId: id, adjustments },
+        },
+      });
+
+      this.logger.log(
+        `InventoryCount ${id} reconciliada — ${adjustments.length} ajuste(s) aplicado(s)`,
+      );
+      return { ...reconciled, adjustments };
     });
   }
 

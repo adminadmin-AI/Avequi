@@ -13,6 +13,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
 import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
+import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
+import { RecordCountDto } from './dto/record-count.dto';
 import { WmsService } from './wms.service';
 
 @UseGuards(JwtAuthGuard)
@@ -111,5 +113,63 @@ export class WmsController {
     @Request() req: { user: { companyId: string; sub: string } },
   ) {
     return this.wmsService.confirmPickTask(id, taskId, req.user.companyId, dto, req.user.sub);
+  }
+
+  // ─── S19: Inventário ──────────────────────────────────────────────────────
+
+  // POST /wms/inventory
+  @Post('inventory')
+  createInventoryCount(
+    @Body() dto: CreateInventoryCountDto,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.wmsService.createInventoryCount(dto, req.user.companyId, req.user.sub);
+  }
+
+  // GET /wms/inventory?status=IN_PROGRESS
+  @Get('inventory')
+  findInventoryCounts(
+    @Request() req: { user: { companyId: string } },
+    @Query('status') status?: string,
+  ) {
+    return this.wmsService.findInventoryCounts(req.user.companyId, status);
+  }
+
+  // GET /wms/inventory/:id
+  @Get('inventory/:id')
+  findInventoryCount(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.findInventoryCount(id, req.user.companyId);
+  }
+
+  // GET /wms/inventory/:id/report
+  @Get('inventory/:id/report')
+  getInventoryReport(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.getInventoryReport(id, req.user.companyId);
+  }
+
+  // PATCH /wms/inventory/:id/items/:itemId/count
+  @Patch('inventory/:id/items/:itemId/count')
+  recordCount(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: RecordCountDto,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.wmsService.recordCount(id, itemId, req.user.companyId, dto, req.user.sub);
+  }
+
+  // POST /wms/inventory/:id/reconcile
+  @Post('inventory/:id/reconcile')
+  reconcile(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.wmsService.reconcile(id, req.user.companyId, req.user.sub);
   }
 }
