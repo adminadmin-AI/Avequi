@@ -56,6 +56,7 @@ model Company {
   maintenanceOrders MaintenanceOrder[]
   quotations       Quotation[]
   inboundNfes      InboundNfe[]
+  workCenters      WorkCenter[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1456,4 +1457,25 @@ model InboundNfe {
   @@index([companyId, status])
   @@index([supplierCnpj])
   @@map("gdr_inbound_nfe")
+}
+
+// ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
+
+model WorkCenter {
+  id                  String   @id @default(cuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id])
+  code                String
+  name                String
+  description         String?
+  capacityHoursPerDay Decimal  @default(8) @db.Decimal(5, 2)
+  operatorsCount      Int      @default(1)
+  efficiencyPct       Decimal  @default(85) @db.Decimal(5, 2)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("gdr_work_centers")
 }

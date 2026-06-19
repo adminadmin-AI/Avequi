@@ -34,6 +34,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
 import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
+import { CapacityModule } from './modules/capacity/capacity.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
     SupplierPortalModule,
     QuotationModule,
     InboundNfeModule,
+    CapacityModule,
   ],
 })
 export class AppModule {}
