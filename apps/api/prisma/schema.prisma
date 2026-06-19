@@ -54,6 +54,7 @@ model Company {
   serialNumbers    SerialNumber[]
   equipment        Equipment[]
   maintenanceOrders MaintenanceOrder[]
+  quotations       Quotation[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -102,6 +103,7 @@ model User {
   ncrsCreated               NonConformance[]    @relation("NcrCreatedBy")
   maintenanceTasks          MaintenanceOrder[]  @relation("MaintenanceTechnician")
   maintenanceOrdersCreated  MaintenanceOrder[]  @relation("MaintenanceCreatedBy")
+  quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -210,6 +212,7 @@ model Product {
   inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
   nonConformances           NonConformance[]     @relation("NcrProduct")
   serialNumbers             SerialNumber[]       @relation("SerialProduct")
+  quotationItems            QuotationItem[]      @relation("QuotationItemProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -261,6 +264,7 @@ model Customer {
   state        String?
   isActive     Boolean      @default(true)
   salesOrders  SalesOrder[]
+  quotations   Quotation[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -353,6 +357,7 @@ model Warehouse {
   pickingOrders    PickingOrder[]
   inventoryCounts  InventoryCount[]
   serialNumbers    SerialNumber[]
+  quotations       Quotation[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -558,6 +563,7 @@ model SalesOrder {
   financialEntry   FinancialEntry?
   pickingOrder     PickingOrder?
   serialNumbers    SerialNumber[]
+  quotation        Quotation?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -1336,6 +1342,60 @@ model MaintenanceOrder {
   @@index([companyId, status])
   @@index([equipmentId])
   @@map("gdr_maintenance_orders")
+}
+
+// ─── Orçamentos / Propostas Comerciais (S28A) ─────────────────────────────────
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+model Quotation {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  customerId   String?
+  customer     Customer?       @relation(fields: [customerId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
+  status       QuotationStatus @default(DRAFT)
+  validUntil   DateTime?
+  notes        String?
+  discount     Decimal         @default(0) @db.Decimal(5, 2)
+  items        QuotationItem[]
+  salesOrder   SalesOrder?     @relation(fields: [salesOrderId], references: [id])
+  salesOrderId String?         @unique
+  createdById  String?
+  createdBy    User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  sentAt       DateTime?
+  approvedAt   DateTime?
+  rejectedAt   DateTime?
+  rejectionReason String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("gdr_quotations")
+}
+
+model QuotationItem {
+  id           String    @id @default(cuid())
+  quotationId  String
+  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product   @relation("QuotationItemProduct", fields: [productId], references: [id])
+  quantity     Decimal   @db.Decimal(14, 4)
+  unitPrice    Decimal   @db.Decimal(14, 4)
+  discount     Decimal   @default(0) @db.Decimal(5, 2)
+  unit         UnitOfMeasure @default(UN)
+
+  @@map("gdr_quotation_items")
 }
 
 // ─── Portal do Fornecedor (S27C) ─────────────────────────────────────────────
