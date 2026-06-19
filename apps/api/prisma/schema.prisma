@@ -52,6 +52,8 @@ model Company {
   inspections      Inspection[]
   nonConformances  NonConformance[]
   serialNumbers    SerialNumber[]
+  equipment        Equipment[]
+  maintenanceOrders MaintenanceOrder[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -98,6 +100,8 @@ model User {
   ncrResponsibilities       NonConformance[]    @relation("NcrResponsible")
   ncrsClosed                NonConformance[]    @relation("NcrClosedBy")
   ncrsCreated               NonConformance[]    @relation("NcrCreatedBy")
+  maintenanceTasks          MaintenanceOrder[]  @relation("MaintenanceTechnician")
+  maintenanceOrdersCreated  MaintenanceOrder[]  @relation("MaintenanceCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1108,6 +1112,7 @@ enum AlertType {
   MRP_RUN_DONE
   FOCUS_NFE_DOWN
   QC_INSPECTION_FAILED
+  MAINTENANCE_DUE
 }
 
 enum AlertSeverity {
@@ -1259,4 +1264,75 @@ model SerialNumber {
   @@index([companyId, status])
   @@index([productId, status])
   @@map("gdr_serial_number")
+}
+
+// ─── Manutenção de Equipamentos (S27B) ───────────────────────────────────────
+
+enum EquipmentStatus {
+  ACTIVE
+  INACTIVE
+  UNDER_MAINTENANCE
+  SCRAPPED
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  CALIBRATION
+  INSPECTION
+}
+
+enum MaintenanceOrderStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Equipment {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id])
+  code             String
+  name             String
+  description      String?
+  location         String?
+  status           EquipmentStatus @default(ACTIVE)
+  acquisitionDate  DateTime?
+  nextMaintenanceAt DateTime?
+  maintenanceIntervalDays Int      @default(30)
+  maintenanceOrders MaintenanceOrder[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@map("gdr_equipment")
+}
+
+model MaintenanceOrder {
+  id           String                 @id @default(cuid())
+  companyId    String
+  company      Company                @relation(fields: [companyId], references: [id])
+  equipmentId  String
+  equipment    Equipment              @relation(fields: [equipmentId], references: [id])
+  type         MaintenanceType        @default(PREVENTIVE)
+  status       MaintenanceOrderStatus @default(OPEN)
+  title        String
+  description  String?
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  technicianId String?
+  technician   User?                  @relation("MaintenanceTechnician", fields: [technicianId], references: [id])
+  resolution   String?
+  cost         Decimal?               @db.Decimal(14, 4)
+  createdById  String?
+  createdBy    User?                  @relation("MaintenanceCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([companyId, status])
+  @@index([equipmentId])
+  @@map("gdr_maintenance_orders")
 }

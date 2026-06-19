@@ -30,6 +30,7 @@ import { AlertModule } from './modules/alert/alert.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SerialModule } from './modules/serial/serial.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { SerialModule } from './modules/serial/serial.module';
     QualityModule,
     AnalyticsModule,
     SerialModule,
+    MaintenanceModule,
   ],
 })
 export class AppModule {}
