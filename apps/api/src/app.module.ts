@@ -35,6 +35,7 @@ import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.
 import { QuotationModule } from './modules/quotation/quotation.module';
 import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
+import { BatchModule } from './modules/batch/batch.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { CapacityModule } from './modules/capacity/capacity.module';
     QuotationModule,
     InboundNfeModule,
     CapacityModule,
+    BatchModule,
   ],
 })
 export class AppModule {}

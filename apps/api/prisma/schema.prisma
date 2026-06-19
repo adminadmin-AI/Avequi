@@ -57,6 +57,7 @@ model Company {
   quotations       Quotation[]
   inboundNfes      InboundNfe[]
   workCenters      WorkCenter[]
+  batches          Batch[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -107,6 +108,7 @@ model User {
   maintenanceOrdersCreated  MaintenanceOrder[]  @relation("MaintenanceCreatedBy")
   quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
   inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
+  batchEvents               BatchEvent[]        @relation("BatchEventUser")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -195,6 +197,7 @@ model Product {
   avgCost     Decimal?       @db.Decimal(14, 4)
   minStock    Decimal        @default(0) @db.Decimal(14, 4)
   isActive    Boolean        @default(true)
+  batches        Batch[]       @relation("BatchProduct")
   boms           BomVersion[]  @relation("ProductBoms")
   usedInBoms     BomItem[]     @relation("ComponentOf")
   routingSteps   RoutingStep[] @relation("ProductRouting")
@@ -239,6 +242,7 @@ model Supplier {
   supplierPriceHistory SupplierPriceHistory[]
   nonConformances      NonConformance[]
   portalTokens         SupplierToken[]
+  batches              Batch[]               @relation("BatchSupplier")
   createdAt            DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -348,6 +352,7 @@ model Warehouse {
   description String?
   isActive    Boolean         @default(true)
   wmsEnabled       Boolean         @default(false)
+  batches          Batch[]
   balances         StockBalance[]
   movements        StockMovement[]
   goodsReceipts    GoodsReceipt[]
@@ -512,6 +517,7 @@ model GoodsReceipt {
   receivedBy      User?         @relation("GRReceivedBy", fields: [receivedById], references: [id])
   notes            String?
   items            GRItem[]
+  batches          Batch[]
   financialEntry   FinancialEntry?
   receivingOrder   ReceivingOrder?
   inspections      Inspection[]
@@ -855,6 +861,7 @@ model ProductionOrder {
   cost             ProductionCost?
   inspections      Inspection[]
   serialNumbers    SerialNumber[]
+  batchEvents      BatchEvent[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1478,4 +1485,79 @@ model WorkCenter {
   @@unique([companyId, code])
   @@index([companyId])
   @@map("gdr_work_centers")
+}
+
+// ─── Gestão de Lotes (S28D) ──────────────────────────────────────────────────
+
+enum BatchStatus {
+  ACTIVE
+  QUARANTINE
+  CONSUMED
+  EXPIRED
+  SCRAPPED
+}
+
+enum BatchEventType {
+  RECEIPT
+  TRANSFER
+  CONSUMPTION
+  ADJUSTMENT
+  QUARANTINE
+  RELEASE
+  EXPIRY
+  SCRAP
+}
+
+model Batch {
+  id                 String      @id @default(cuid())
+  companyId          String
+  company            Company     @relation(fields: [companyId], references: [id])
+  batchNumber        String
+  productId          String
+  product            Product     @relation("BatchProduct", fields: [productId], references: [id])
+  supplierId         String?
+  supplier           Supplier?   @relation("BatchSupplier", fields: [supplierId], references: [id])
+  goodsReceiptId     String?
+  goodsReceipt       GoodsReceipt? @relation(fields: [goodsReceiptId], references: [id])
+  status             BatchStatus @default(ACTIVE)
+  initialQty         Decimal     @db.Decimal(14, 4)
+  currentQty         Decimal     @db.Decimal(14, 4)
+  unit               UnitOfMeasure @default(UN)
+  manufacturingDate  DateTime?
+  expirationDate     DateTime?
+  warehouseId        String?
+  warehouse          Warehouse?  @relation(fields: [warehouseId], references: [id])
+  notes              String?
+  events             BatchEvent[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@unique([companyId, batchNumber, productId])
+  @@index([companyId, status])
+  @@index([productId])
+  @@index([expirationDate])
+  @@map("gdr_batches")
+}
+
+model BatchEvent {
+  id                  String         @id @default(cuid())
+  batchId             String
+  batch               Batch          @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type                BatchEventType
+  quantity            Decimal        @db.Decimal(14, 4)
+  qtyBefore           Decimal        @db.Decimal(14, 4)
+  qtyAfter            Decimal        @db.Decimal(14, 4)
+  productionOrderId   String?
+  productionOrder     ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  warehouseFromId     String?
+  warehouseTo         String?
+  reference           String?
+  notes               String?
+  userId              String?
+  user                User?          @relation("BatchEventUser", fields: [userId], references: [id])
+  createdAt           DateTime       @default(now())
+
+  @@index([batchId])
+  @@index([productionOrderId])
+  @@map("gdr_batch_events")
 }
