@@ -49,6 +49,8 @@ model Company {
   inventoryCounts  InventoryCount[]
   inventoryItems   InventoryCountItem[]
   alerts           Alert[]
+  inspections      Inspection[]
+  nonConformances  NonConformance[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -91,6 +93,10 @@ model User {
   inventoryCountsCreated    InventoryCount[]    @relation("InventoryCreatedBy")
   inventoryCountsReconciled InventoryCount[]    @relation("InventoryReconciledBy")
   inventoryItemsCounted     InventoryCountItem[] @relation("InventoryItemCountedBy")
+  inspectionsLed            Inspection[]        @relation("InspectionInspectedBy")
+  ncrResponsibilities       NonConformance[]    @relation("NcrResponsible")
+  ncrsClosed                NonConformance[]    @relation("NcrClosedBy")
+  ncrsCreated               NonConformance[]    @relation("NcrCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -197,6 +203,7 @@ model Product {
   putawayTasks              PutawayTask[]        @relation("PutawayProduct")
   pickTasks                 PickTask[]           @relation("PickTaskProduct")
   inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
+  nonConformances           NonConformance[]     @relation("NcrProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -218,6 +225,7 @@ model Supplier {
   isActive       Boolean         @default(true)
   purchaseOrders       PurchaseOrder[]
   supplierPriceHistory SupplierPriceHistory[]
+  nonConformances      NonConformance[]
   createdAt            DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -489,6 +497,7 @@ model GoodsReceipt {
   items            GRItem[]
   financialEntry   FinancialEntry?
   receivingOrder   ReceivingOrder?
+  inspections      Inspection[]
   createdAt        DateTime      @default(now())
 
   @@map("gdr_goods_receipts")
@@ -824,6 +833,7 @@ model ProductionOrder {
   items            ProductionOrderItem[]
   logs             ProductionLog[]
   cost             ProductionCost?
+  inspections      Inspection[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1092,6 +1102,7 @@ enum AlertType {
   NFE_REJECTED
   MRP_RUN_DONE
   FOCUS_NFE_DOWN
+  QC_INSPECTION_FAILED
 }
 
 enum AlertSeverity {
@@ -1116,4 +1127,92 @@ model Alert {
   @@index([companyId, resolvedAt])
   @@index([type])
   @@map("gdr_alerts")
+}
+
+// ─── Qualidade (S25) ─────────────────────────────────────────────────────────
+
+enum InspectionType {
+  RECEIVING
+  IN_PROCESS
+  FINAL
+}
+
+enum InspectionStatus {
+  PENDING
+  IN_PROGRESS
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+enum NcrStatus {
+  OPEN
+  UNDER_ANALYSIS
+  CORRECTIVE_ACTION
+  CLOSED
+  CANCELLED
+}
+
+enum NcrSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+model Inspection {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id])
+  type              InspectionType
+  status            InspectionStatus @default(PENDING)
+  goodsReceiptId    String?
+  goodsReceipt      GoodsReceipt?    @relation(fields: [goodsReceiptId], references: [id])
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  notes             String?
+  inspectedById     String?
+  inspectedBy       User?            @relation("InspectionInspectedBy", fields: [inspectedById], references: [id])
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  nonConformances   NonConformance[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([companyId, status])
+  @@index([goodsReceiptId])
+  @@index([productionOrderId])
+  @@map("gdr_inspections")
+}
+
+model NonConformance {
+  id               String      @id @default(cuid())
+  companyId        String
+  company          Company     @relation(fields: [companyId], references: [id])
+  inspectionId     String?
+  inspection       Inspection? @relation(fields: [inspectionId], references: [id])
+  productId        String?
+  product          Product?    @relation("NcrProduct", fields: [productId], references: [id])
+  supplierId       String?
+  supplier         Supplier?   @relation(fields: [supplierId], references: [id])
+  title            String
+  description      String
+  severity         NcrSeverity @default(MAJOR)
+  status           NcrStatus   @default(OPEN)
+  rootCause        String?
+  correctiveAction String?
+  responsibleId    String?
+  responsible      User?       @relation("NcrResponsible", fields: [responsibleId], references: [id])
+  dueDate          DateTime?
+  closedAt         DateTime?
+  closedById       String?
+  closedBy         User?       @relation("NcrClosedBy", fields: [closedById], references: [id])
+  createdById      String?
+  createdBy        User?       @relation("NcrCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([companyId, status])
+  @@index([supplierId])
+  @@index([productId])
+  @@map("gdr_non_conformances")
 }
