@@ -28,6 +28,7 @@ import { ReportModule } from './modules/report/report.module';
 import { ForecastModule } from './modules/forecast/forecast.module';
 import { AlertModule } from './modules/alert/alert.module';
 import { QualityModule } from './modules/quality/quality.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { QualityModule } from './modules/quality/quality.module';
     ForecastModule,
     AlertModule,
     QualityModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
