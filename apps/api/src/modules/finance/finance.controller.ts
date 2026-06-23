@@ -19,6 +19,7 @@ import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
+import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -43,6 +44,15 @@ export class FinanceController {
     @Query('dueDateTo') dueDateTo?: string,
   ) {
     return this.financeService.findAll(req.user.companyId, { type, status, dueDateFrom, dueDateTo });
+  }
+
+  @Post('entries/manual')
+  @ApiOperation({ summary: 'Criar lançamento manual (avulso)' })
+  createManualEntry(
+    @Body() dto: CreateManualEntryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createManualEntry(req.user.companyId, dto);
   }
 
   @Get('cashflow')

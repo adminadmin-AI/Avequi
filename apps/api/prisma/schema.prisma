@@ -860,6 +860,12 @@ enum PaymentMethod {
   CHEQUE
 }
 
+enum EntrySource {
+  AUTO_SALES
+  AUTO_PURCHASE
+  MANUAL
+}
+
 model FinancialEntry {
   id               String               @id @default(cuid())
   companyId        String
@@ -869,6 +875,8 @@ model FinancialEntry {
   amount           Decimal              @db.Decimal(14, 4)
   dueDate          DateTime
   description      String?
+  source           EntrySource          @default(AUTO_SALES)
+  attachmentUrl    String?
   salesOrderId     String?              @unique
   salesOrder       SalesOrder?          @relation(fields: [salesOrderId], references: [id])
   purchaseOrderId  String?

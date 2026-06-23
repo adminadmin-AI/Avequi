@@ -7,6 +7,7 @@ import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
+import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
 @Injectable()
 export class FinanceService {
@@ -102,6 +103,54 @@ export class FinanceService {
     });
 
     this.logger.log(`PAYABLE criado: ${entry.id} — GR ${params.goodsReceiptId} — R$ ${params.amount}`);
+  }
+
+  // ─── Lançamento manual (avulso) ────────────────────────────────────────────
+
+  async createManualEntry(companyId: string, dto: CreateManualEntryDto) {
+    const recurrence = dto.recurrence ?? 'NONE';
+    const count = recurrence !== 'NONE' ? (dto.recurrenceCount ?? 6) : 1;
+
+    const entries = Array.from({ length: count }, (_, i) => {
+      const dueDate = new Date(dto.dueDate);
+      if (recurrence === 'MONTHLY') dueDate.setMonth(dueDate.getMonth() + i);
+      else if (recurrence === 'WEEKLY') dueDate.setDate(dueDate.getDate() + i * 7);
+
+      return {
+        companyId,
+        type: dto.type as FinancialEntryType,
+        status: FinancialEntryStatus.OPEN,
+        amount: dto.amount,
+        dueDate,
+        description: count > 1 ? `${dto.description} (${i + 1}/${count})` : dto.description,
+        source: 'MANUAL' as const,
+        categoryId: dto.categoryId ?? null,
+        attachmentUrl: dto.attachmentUrl ?? null,
+      };
+    });
+
+    const created = await this.prisma.$transaction(
+      entries.map((data) => this.prisma.financialEntry.create({ data })),
+    );
+
+    // Cost center split if provided
+    if (dto.costCenterId) {
+      await this.prisma.$transaction(
+        created.map((entry) =>
+          this.prisma.entryCostCenterSplit.create({
+            data: {
+              entryId: entry.id,
+              costCenterId: dto.costCenterId!,
+              percentage: 100,
+              amount: dto.amount,
+            },
+          }),
+        ),
+      );
+    }
+
+    this.logger.log(`Manual entries criados: ${created.length} — ${dto.description}`);
+    return created;
   }
 
   // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
