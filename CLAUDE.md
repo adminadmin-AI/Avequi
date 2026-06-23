@@ -119,7 +119,7 @@ Colunas são **camelCase** no banco.
 | `Supplier` | campo `cnpj` (não `taxId`), sem `city`/`state`; campo `contact` |
 | `Product` | campos `costPrice`, `salePrice`, `avgCost`; tem `minStock` |
 | `User` | sem campo `phone` |
-| `Company` | SEM dados fiscais (sem IE, CRT, endereço) — #161 |
+| `Company` | Dados fiscais: `razaoSocial`, `ie`, `im`, `crt`, `taxRegime`, `suframa`, `cnae` + endereço completo (#161) |
 | Tabela NF-e entrada | `gdr_inbound_nfe` |
 
 ### Regra de migração
@@ -161,7 +161,7 @@ Colunas são **camelCase** no banco.
 - CST **hardcoded 102** em 3 lugares (`fiscal-mapper.ts:76,119,169`)
 - 4 CFOPs hardcoded (5102/6102/5152/6152) — faltam industriais
 - **Sem** cancelamento NF-e, CC-e, inutilização
-- **Sem** dados fiscais na Company (endereço hardcoded como placeholder)
+- Company com dados fiscais completos (IE, CRT, endereço, CNAE, regime tributário)
 - **Sem** FiscalDocumentItem/ItemTax — itens não persistidos
 
 ## Financeiro — estado real (score 12/100)

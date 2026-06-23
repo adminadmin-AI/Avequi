@@ -10,6 +10,12 @@ datasource db {
 
 // ─── Empresa / Tenant ─────────────────────────────────────────────────────────
 
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -18,6 +24,27 @@ model Company {
   parentId  String?
   parent    Company?  @relation("branches", fields: [parentId], references: [id])
   branches  Company[] @relation("branches")
+
+  // ── Dados fiscais ──
+  razaoSocial  String?
+  ie           String?   // Inscrição Estadual
+  im           String?   // Inscrição Municipal
+  crt          Int?      // Código Regime Tributário: 1=SN, 2=SN-ExSub, 3=Normal
+  taxRegime    TaxRegime?
+  suframa      String?
+  cnae         String?   // CNAE principal
+
+  // ── Endereço ──
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?   // UF (2 letras)
+  zipCode      String?   // CEP
+  ibgeCode     String?   // Código IBGE do município
+  phone        String?
+  email        String?
   users     User[]
   auditLogs AuditLog[]
   products  Product[]

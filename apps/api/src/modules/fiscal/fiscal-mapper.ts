@@ -23,9 +23,17 @@ export interface FiscalItem {
 export interface FiscalEmitter {
   cnpj: string;
   name: string;
+  ie?: string;
+  crt?: number;
   address: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
   city: string;
   state: string;
+  zipCode?: string;
+  ibgeCode?: string;
+  phone?: string;
 }
 
 export interface FiscalRecipient {
@@ -51,9 +59,17 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
+      ...(input.emitter.ie && { inscricao_estadual: input.emitter.ie }),
       logradouro: input.emitter.address,
+      ...(input.emitter.number && { numero: input.emitter.number }),
+      ...(input.emitter.complement && { complemento: input.emitter.complement }),
+      ...(input.emitter.neighborhood && { bairro: input.emitter.neighborhood }),
       municipio: input.emitter.city,
       uf: input.emitter.state,
+      ...(input.emitter.zipCode && { cep: input.emitter.zipCode.replace(/\D/g, '') }),
+      ...(input.emitter.ibgeCode && { codigo_municipio: input.emitter.ibgeCode }),
+      ...(input.emitter.phone && { telefone: input.emitter.phone.replace(/\D/g, '') }),
+      ...(input.emitter.crt && { regime_tributario: input.emitter.crt }),
     },
     ...(input.recipient?.document && {
       destinatario: {
@@ -94,9 +110,17 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
+      ...(input.emitter.ie && { inscricao_estadual: input.emitter.ie }),
       logradouro: input.emitter.address,
+      ...(input.emitter.number && { numero: input.emitter.number }),
+      ...(input.emitter.complement && { complemento: input.emitter.complement }),
+      ...(input.emitter.neighborhood && { bairro: input.emitter.neighborhood }),
       municipio: input.emitter.city,
       uf: input.emitter.state,
+      ...(input.emitter.zipCode && { cep: input.emitter.zipCode.replace(/\D/g, '') }),
+      ...(input.emitter.ibgeCode && { codigo_municipio: input.emitter.ibgeCode }),
+      ...(input.emitter.phone && { telefone: input.emitter.phone.replace(/\D/g, '') }),
+      ...(input.emitter.crt && { regime_tributario: input.emitter.crt }),
     },
     destinatario: {
       nome: input.recipient?.name ?? 'CONSUMIDOR NÃO IDENTIFICADO',
@@ -145,9 +169,17 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
+      ...(input.emitter.ie && { inscricao_estadual: input.emitter.ie }),
       logradouro: input.emitter.address,
+      ...(input.emitter.number && { numero: input.emitter.number }),
+      ...(input.emitter.complement && { complemento: input.emitter.complement }),
+      ...(input.emitter.neighborhood && { bairro: input.emitter.neighborhood }),
       municipio: input.emitter.city,
       uf: input.emitter.state,
+      ...(input.emitter.zipCode && { cep: input.emitter.zipCode.replace(/\D/g, '') }),
+      ...(input.emitter.ibgeCode && { codigo_municipio: input.emitter.ibgeCode }),
+      ...(input.emitter.phone && { telefone: input.emitter.phone.replace(/\D/g, '') }),
+      ...(input.emitter.crt && { regime_tributario: input.emitter.crt }),
     },
     destinatario: {
       nome: input.recipient?.name ?? 'ESTABELECIMENTO DESTINATÁRIO',

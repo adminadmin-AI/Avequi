@@ -1,21 +1,92 @@
-import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType } from '@prisma/client';
+import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create GDR Matriz
+  // Create GDR Matriz — dados fiscais reais
   const matriz = await prisma.company.upsert({
     where: { cnpj: '12.345.678/0001-90' },
-    update: {},
-    create: { name: 'GDR Matriz', cnpj: '12.345.678/0001-90', type: CompanyType.MATRIZ },
+    update: {
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '2930101',
+      street: 'Rua das Indústrias',
+      number: '1500',
+      complement: 'Galpão 3',
+      neighborhood: 'Distrito Industrial',
+      city: 'Cascavel',
+      state: 'PR',
+      zipCode: '85807-030',
+      ibgeCode: '4104808',
+      phone: '(45) 3222-1234',
+      email: 'fiscal@gdr.com.br',
+    },
+    create: {
+      name: 'GDR Matriz',
+      cnpj: '12.345.678/0001-90',
+      type: CompanyType.MATRIZ,
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '2930101',
+      street: 'Rua das Indústrias',
+      number: '1500',
+      complement: 'Galpão 3',
+      neighborhood: 'Distrito Industrial',
+      city: 'Cascavel',
+      state: 'PR',
+      zipCode: '85807-030',
+      ibgeCode: '4104808',
+      phone: '(45) 3222-1234',
+      email: 'fiscal@gdr.com.br',
+    },
   });
 
-  // Create Filial SP
+  // Create Filial SP — dados fiscais reais
   const filialSP = await prisma.company.upsert({
     where: { cnpj: '12.345.678/0002-71' },
-    update: {},
-    create: { name: 'GDR Loja São Paulo', cnpj: '12.345.678/0002-71', type: CompanyType.FILIAL, parentId: matriz.id },
+    update: {
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '4789099',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: 'Loja 12',
+      neighborhood: 'Bela Vista',
+      city: 'São Paulo',
+      state: 'SP',
+      zipCode: '01310-100',
+      ibgeCode: '3550308',
+      phone: '(11) 3333-4444',
+      email: 'lojasp@gdr.com.br',
+    },
+    create: {
+      name: 'GDR Loja São Paulo',
+      cnpj: '12.345.678/0002-71',
+      type: CompanyType.FILIAL,
+      parentId: matriz.id,
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '4789099',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: 'Loja 12',
+      neighborhood: 'Bela Vista',
+      city: 'São Paulo',
+      state: 'SP',
+      zipCode: '01310-100',
+      ibgeCode: '3550308',
+      phone: '(11) 3333-4444',
+      email: 'lojasp@gdr.com.br',
+    },
   });
 
   // Create users
