@@ -69,6 +69,21 @@ export class FinanceController {
     return this.financeService.getDre(req.user.companyId, { from, to, costCenterId });
   }
 
+  @Get('cash-flow/projection')
+  @ApiOperation({ summary: 'Fluxo de caixa projetado dia-a-dia' })
+  @ApiQuery({ name: 'days', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  getCashFlowProjection(
+    @Request() req: { user: { companyId: string } },
+    @Query('days') days?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowProjection(req.user.companyId, {
+      days: days ? parseInt(days, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
   @Get('cashflow')
   @ApiOperation({ summary: 'Fluxo de caixa previsto (OPEN + OVERDUE)' })
   @ApiQuery({ name: 'from', required: false })

@@ -601,6 +601,88 @@ export class FinanceService {
     };
   }
 
+  // ─── Fluxo de caixa projetado dia-a-dia ────────────────────────────────────
+
+  async getCashFlowProjection(companyId: string, filters: { days?: number; bankAccountId?: string } = {}) {
+    const days = filters.days ?? 30;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = this.addDays(today, days);
+
+    // Get current balance
+    const accountWhere: any = { companyId, active: true };
+    if (filters.bankAccountId) accountWhere.id = filters.bankAccountId;
+
+    const accounts = await this.prisma.bankAccount.findMany({
+      where: accountWhere,
+      select: { balance: true },
+    });
+    const currentBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+
+    // Get open/overdue/partially_paid entries in the period
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.OVERDUE, FinancialEntryStatus.PARTIALLY_PAID] },
+        dueDate: { gte: today, lte: endDate },
+      },
+      select: { type: true, amount: true, paidAmount: true, dueDate: true, description: true },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    // Build day-by-day projection
+    const projection: Array<{
+      date: string;
+      receivable: number;
+      payable: number;
+      netFlow: number;
+      projectedBalance: number;
+      alert: boolean;
+    }> = [];
+
+    let runningBalance = currentBalance;
+
+    for (let i = 0; i <= days; i++) {
+      const date = this.addDays(today, i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      let dayReceivable = 0;
+      let dayPayable = 0;
+
+      for (const e of entries) {
+        const entryDate = new Date(e.dueDate);
+        entryDate.setHours(0, 0, 0, 0);
+        if (entryDate.getTime() === date.getTime()) {
+          const remaining = Number(e.amount) - Number(e.paidAmount ?? 0);
+          if (e.type === FinancialEntryType.RECEIVABLE) dayReceivable += remaining;
+          else dayPayable += remaining;
+        }
+      }
+
+      const netFlow = dayReceivable - dayPayable;
+      runningBalance += netFlow;
+
+      projection.push({
+        date: dateStr,
+        receivable: +dayReceivable.toFixed(2),
+        payable: +dayPayable.toFixed(2),
+        netFlow: +netFlow.toFixed(2),
+        projectedBalance: +runningBalance.toFixed(2),
+        alert: runningBalance < 0,
+      });
+    }
+
+    const alertDays = projection.filter((d) => d.alert);
+
+    return {
+      currentBalance,
+      days,
+      alertDaysCount: alertDays.length,
+      firstAlertDate: alertDays.length > 0 ? alertDays[0].date : null,
+      projection,
+    };
+  }
+
   // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
 
   async getBankStatement(
