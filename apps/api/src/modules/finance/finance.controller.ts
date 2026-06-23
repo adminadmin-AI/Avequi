@@ -55,6 +55,20 @@ export class FinanceController {
     return this.financeService.createManualEntry(req.user.companyId, dto);
   }
 
+  @Get('reports/dre')
+  @ApiOperation({ summary: 'DRE gerencial por período' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'costCenterId', required: false })
+  getDre(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('costCenterId') costCenterId?: string,
+  ) {
+    return this.financeService.getDre(req.user.companyId, { from, to, costCenterId });
+  }
+
   @Get('cashflow')
   @ApiOperation({ summary: 'Fluxo de caixa previsto (OPEN + OVERDUE)' })
   @ApiQuery({ name: 'from', required: false })

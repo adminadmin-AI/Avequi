@@ -528,6 +528,79 @@ export class FinanceService {
     };
   }
 
+  // ─── DRE gerencial ────────────────────────────────────────────────────────
+
+  async getDre(companyId: string, filters: { from?: string; to?: string; costCenterId?: string } = {}) {
+    const where: any = {
+      companyId,
+      status: FinancialEntryStatus.PAID,
+    };
+    if (filters.from || filters.to) {
+      where.paidAt = {};
+      if (filters.from) where.paidAt.gte = new Date(filters.from);
+      if (filters.to) where.paidAt.lte = new Date(filters.to);
+    }
+    if (filters.costCenterId) {
+      where.costCenterSplits = { some: { costCenterId: filters.costCenterId } };
+    }
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where,
+      select: {
+        type: true,
+        amount: true,
+        status: true,
+        categoryId: true,
+        category: { select: { code: true, name: true, type: true, dreCode: true } },
+      },
+    });
+
+    let receitaBruta = 0;
+    let deducoes = 0;
+    let cpv = 0;
+    let despesasOp = 0;
+    const byCategory: Record<string, { code: string; name: string; dreCode: string | null; total: number }> = {};
+
+    for (const e of entries) {
+      const amount = Number(e.amount);
+      const catCode = e.category?.code ?? 'SEM-CAT';
+      const catName = e.category?.name ?? 'Sem Categoria';
+      const dreCode = e.category?.dreCode ?? null;
+
+      if (!byCategory[catCode]) {
+        byCategory[catCode] = { code: catCode, name: catName, dreCode, total: 0 };
+      }
+      byCategory[catCode].total += amount;
+
+      if (e.type === FinancialEntryType.RECEIVABLE) {
+        receitaBruta += amount;
+      } else {
+        // Classify by dreCode prefix
+        if (dreCode?.startsWith('2')) cpv += amount;
+        else if (dreCode?.startsWith('3')) despesasOp += amount;
+        else deducoes += amount;
+      }
+    }
+
+    const receitaLiquida = receitaBruta - deducoes;
+    const lucroBruto = receitaLiquida - cpv;
+    const resultadoOperacional = lucroBruto - despesasOp;
+
+    return {
+      period: { from: filters.from ?? null, to: filters.to ?? null },
+      receitaBruta,
+      deducoes,
+      receitaLiquida,
+      cpv,
+      lucroBruto,
+      despesasOperacionais: despesasOp,
+      resultadoOperacional,
+      margemBruta: receitaBruta > 0 ? +(lucroBruto / receitaBruta * 100).toFixed(2) : 0,
+      margemOperacional: receitaBruta > 0 ? +(resultadoOperacional / receitaBruta * 100).toFixed(2) : 0,
+      detalhamento: Object.values(byCategory).sort((a, b) => (a.dreCode ?? '').localeCompare(b.dreCode ?? '')),
+    };
+  }
+
   // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
 
   async getBankStatement(
