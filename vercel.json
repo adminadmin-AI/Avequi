@@ -3,6 +3,5 @@
   "buildCommand": "npx turbo run build --filter=@gdr-erp/web",
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- apps/web/ packages/"
+  "framework": "nextjs"
 }
