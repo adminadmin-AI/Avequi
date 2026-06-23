@@ -30,6 +30,12 @@ const mockPrisma = {
   fiscalVoidRange: {
     create: jest.fn(),
   },
+  fiscalDocumentItem: {
+    create: jest.fn(),
+  },
+  fiscalDocumentItemTax: {
+    create: jest.fn(),
+  },
   company: {
     findUnique: jest.fn(),
   },
@@ -100,6 +106,8 @@ describe('FiscalService', () => {
     service = module.get<FiscalService>(FiscalService);
     jest.clearAllMocks();
     mockPrisma.auditLog.create.mockResolvedValue({});
+    mockPrisma.fiscalDocumentItem.create.mockResolvedValue({ id: 'fdi-1' });
+    mockPrisma.fiscalDocumentItemTax.create.mockResolvedValue({ id: 'fdit-1' });
   });
 
   // ─── S08.06: fluxo autorizado ────────────────────────────────────────────
@@ -499,6 +507,42 @@ describe('FiscalService', () => {
       await expect(
         service.voidRange('co-1', '1', 100, 100, 'Tentativa de inutilizar número já usado'),
       ).rejects.toThrow('Número já utilizado');
+    });
+  });
+
+  // ─── #166: Persistência de FiscalDocumentItem + ItemTax ────────────────
+
+  describe('emitForSale — persiste itens e impostos', () => {
+    it('deve criar FiscalDocumentItem e FiscalDocumentItemTax ao emitir', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.salesOrder.findUnique.mockResolvedValue(baseOrder);
+      mockPrisma.fiscalDocument.create.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFCe.mockResolvedValue({ status: 'autorizado', chave_nfe: 'CHAVE-123' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({ ...baseFiscalDoc, status: FiscalStatus.AUTHORIZED });
+
+      await service.emitForSale('so-1');
+
+      expect(mockPrisma.fiscalDocumentItem.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          fiscalDocumentId: 'fd-1',
+          productCode: 'COD001',
+          productName: 'Produto A',
+          ncm: '61099000',
+          cfop: '5101',
+          quantity: 2,
+          unitPrice: 150,
+          totalPrice: 300,
+        }),
+      });
+      expect(mockPrisma.fiscalDocumentItemTax.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          fiscalDocumentItemId: 'fdi-1',
+          cstIcms: '00',
+          valorIcms: 54,
+          cstCofins: '01',
+          valorCofins: 9,
+        }),
+      });
     });
   });
 });

@@ -168,6 +168,9 @@ export class FiscalService {
       totalValue,
     };
 
+    // Persistir itens + impostos detalhados (#166)
+    await this.persistFiscalItems(fiscalDoc.id, items, order.items);
+
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
     // Enviar para Focus NFe
@@ -345,6 +348,9 @@ export class FiscalService {
       items,
       totalValue,
     };
+
+    // Persistir itens + impostos (#166)
+    await this.persistFiscalItems(fiscalDoc.id, items, transfer.items);
 
     const payload = buildTransferNFePayload(input);
     const response = await this.client.emitNFe(ref, payload);
@@ -530,6 +536,59 @@ export class FiscalService {
     });
     if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
     return doc;
+  }
+
+  // ─── Privado: persiste itens + impostos detalhados (#166) ────────────────
+
+  private async persistFiscalItems(
+    fiscalDocumentId: string,
+    fiscalItems: FiscalItem[],
+    orderItems: Array<{ product: any; quantity: any; unitPrice?: any; unit?: any }>,
+  ): Promise<void> {
+    for (let i = 0; i < fiscalItems.length; i++) {
+      const fi = fiscalItems[i];
+      const oi = orderItems[i];
+      const totalPrice = Number(fi.quantity) * Number(fi.unitPrice);
+
+      const docItem = await this.prisma.fiscalDocumentItem.create({
+        data: {
+          fiscalDocumentId,
+          productId: oi?.product?.id ?? null,
+          productCode: fi.sku,
+          productName: fi.name,
+          ncm: fi.ncm,
+          cfop: fi.tax?.cfop ?? null,
+          unit: fi.unit,
+          quantity: fi.quantity,
+          unitPrice: fi.unitPrice,
+          totalPrice,
+        },
+      });
+
+      if (fi.tax) {
+        await this.prisma.fiscalDocumentItemTax.create({
+          data: {
+            fiscalDocumentItemId: docItem.id,
+            cstIcms: fi.tax.icmsCst,
+            baseIcms: fi.tax.icmsBase,
+            aliquotaIcms: fi.tax.icmsAliquota,
+            valorIcms: fi.tax.icmsValor,
+            cstIpi: fi.tax.ipiCst,
+            baseIpi: fi.tax.ipiBase,
+            aliquotaIpi: fi.tax.ipiAliquota,
+            valorIpi: fi.tax.ipiValor,
+            cstPis: fi.tax.pisCst,
+            basePis: fi.tax.pisBase,
+            aliquotaPis: fi.tax.pisAliquota,
+            valorPis: fi.tax.pisValor,
+            cstCofins: fi.tax.cofinsCst,
+            baseCofins: fi.tax.cofinsBase,
+            aliquotaCofins: fi.tax.cofinsAliquota,
+            valorCofins: fi.tax.cofinsValor,
+          },
+        });
+      }
+    }
   }
 
   // ─── Privado: aplica resposta da Focus ───────────────────────────────────

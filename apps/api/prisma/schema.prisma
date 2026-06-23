@@ -795,9 +795,11 @@ model FiscalDocumentItem {
   id               String         @id @default(cuid())
   fiscalDocumentId String
   fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
+  productId        String?
   productCode      String?
   productName      String
   ncm              String?
+  cest             String?        // Código Especificador de Substituição Tributária
   cfop             String?
   unit             String?
   quantity         Decimal        @db.Decimal(14, 4)
@@ -826,6 +828,10 @@ model FiscalDocumentItemTax {
   basePis              Decimal?           @db.Decimal(14, 4)
   aliquotaPis          Decimal?           @db.Decimal(14, 4)
   valorPis             Decimal?           @db.Decimal(14, 4)
+  cstCofins            String?
+  baseCofins           Decimal?           @db.Decimal(14, 4)
+  aliquotaCofins       Decimal?           @db.Decimal(14, 4)
+  valorCofins          Decimal?           @db.Decimal(14, 4)
 
   @@map("gdr_fiscal_document_item_taxes")
 }
