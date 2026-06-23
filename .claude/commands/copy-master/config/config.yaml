@@ -1,0 +1,334 @@
+# ═══════════════════════════════════════════════════════════════════
+# Squad: Copy Master
+# Domain: Elite Copywriting, Persuasion & Direct Response 2.0
+# Version: 2.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+squad:
+  name: copy-master
+  display_name: "Copy Master"
+  version: "2.0.0"
+  domain: "Elite copywriting 2.0 — direct response, email, funnels, VSLs, sales letters, offers, brand copy, persuasion psychology, negotiation, pitch, SaaS conversion"
+  description: |
+    Squad of 33 copywriting agents — 32 legendary masters + 1 orchestrator.
+    Enhanced version of Copy Squad with deeper frameworks, real champion examples,
+    swipe files, and 10 new specialists covering persuasion psychology, offer
+    architecture, SaaS copy, pitch dynamics, and negotiation-based selling.
+  keywords: [copywriting, direct response, sales letter, email, VSL, funnel, headline, offer, ad copy, launch, bullets, brand copy, persuasion, psychology, negotiation, pitch, SaaS, conversion]
+  entry_agent: copy-master-chief
+  created_at: "2026-04-04"
+
+tiers:
+  tier_0:
+    name: "Orchestration"
+    agents: [copy-master-chief]
+    purpose: "Triage copywriting requests, route to the right specialist, quality control, multi-agent coordination"
+  tier_1a:
+    name: "Direct Response Legends"
+    agents: [gary-halbert, eugene-schwartz, claude-hopkins, gary-bencivenga, robert-collier, john-carlton, jim-rutz, john-caples, rosser-reeves]
+    purpose: "Classic direct response masters — long-form, print, mail, scientific testing, USP"
+  tier_1b:
+    name: "Modern Copy & Funnels"
+    agents: [dan-kennedy, frank-kern, russell-brunson, todd-brown, stefan-georgi, jon-benson, ry-schwartz, sabri-suby, evaldo-albuquerque]
+    purpose: "Digital-era copy — VSLs, funnels, webinars, launches, cold traffic, belief-based selling"
+  tier_1c:
+    name: "Email & Relationship"
+    agents: [ben-settle, andre-chaperon, dan-koe]
+    purpose: "Email sequences, daily emails, nurture copy, personal brand content"
+  tier_1d:
+    name: "Offers & Sales Pages"
+    agents: [joe-sugarman, david-ogilvy, clayton-makepeace, parris-lampropoulos, david-deutsch, alex-hormozi, joanna-wiebe]
+    purpose: "Offer architecture, print ads, financial/health copy, value equation, SaaS conversion, data-driven copy"
+  tier_1e:
+    name: "Persuasion & Psychology"
+    agents: [robert-cialdini, blair-warren, chris-voss, oren-klaff]
+    purpose: "Persuasion science, emotional triggers, negotiation psychology, frame control, pitch dynamics"
+
+agents:
+  copy-master-chief:
+    file: agents/copy-master-chief.md
+    tier: 0
+    icon: "👑"
+    focus: "Orchestration, routing, copy review, multi-agent projects"
+  # Tier 1A — Direct Response Legends
+  gary-halbert:
+    file: agents/gary-halbert.md
+    tier: 1a
+    icon: "✍️"
+    focus: "Sales letters, emotional storytelling, direct mail, A-pile technique"
+  eugene-schwartz:
+    file: agents/eugene-schwartz.md
+    tier: 1a
+    icon: "🧠"
+    focus: "Headlines, awareness levels, market sophistication, breakthrough advertising"
+  claude-hopkins:
+    file: agents/claude-hopkins.md
+    tier: 1a
+    icon: "📊"
+    focus: "Scientific advertising, testing, reason-why copy, preemptive claims"
+  gary-bencivenga:
+    file: agents/gary-bencivenga.md
+    tier: 1a
+    icon: "🎯"
+    focus: "Proof-based selling, fascinations, control-beating, Persuasion Equation"
+  robert-collier:
+    file: agents/robert-collier.md
+    tier: 1a
+    icon: "💌"
+    focus: "Empathy letters, mental movies, reader psychology, conversation principle"
+  john-carlton:
+    file: agents/john-carlton.md
+    tier: 1a
+    icon: "🔥"
+    focus: "Sales Detective process, raw selling power, Simple Writing System"
+  jim-rutz:
+    file: agents/jim-rutz.md
+    tier: 1a
+    icon: "📰"
+    focus: "Magalog format, format innovation, anti-boring philosophy"
+  john-caples:
+    file: agents/john-caples.md
+    tier: 1a
+    icon: "🎹"
+    focus: "Scientific headline testing, split testing, Tested Advertising Methods"
+  rosser-reeves:
+    file: agents/rosser-reeves.md
+    tier: 1a
+    icon: "💎"
+    focus: "USP creation, message simplification, repetition strategy"
+  # Tier 1B — Modern Copy & Funnels
+  dan-kennedy:
+    file: agents/dan-kennedy.md
+    tier: 1b
+    icon: "💰"
+    focus: "No-BS marketing, offer structure, Magnetic Marketing, fear of loss"
+  frank-kern:
+    file: agents/frank-kern.md
+    tier: 1b
+    icon: "🌊"
+    focus: "Launch copy, intent-based branding, behavioral sequences, Results In Advance"
+  russell-brunson:
+    file: agents/russell-brunson.md
+    tier: 1b
+    icon: "📈"
+    focus: "Funnel copy, Perfect Webinar, Hook-Story-Offer, Value Ladder"
+  todd-brown:
+    file: agents/todd-brown.md
+    tier: 1b
+    icon: "💡"
+    focus: "Big Marketing Idea, E5 Method, Unique Mechanism, campaign architecture"
+  stefan-georgi:
+    file: agents/stefan-georgi.md
+    tier: 1b
+    icon: "🎬"
+    focus: "VSL scripts, RMBC method, cold traffic copy, systematic production"
+  jon-benson:
+    file: agents/jon-benson.md
+    tier: 1b
+    icon: "📹"
+    focus: "VSL inventor, NLP techniques, EPIC email, ugly VSL format"
+  ry-schwartz:
+    file: agents/ry-schwartz.md
+    tier: 1b
+    icon: "📧"
+    focus: "Launch email sequences, belief transformation, Coaching The Conversion"
+  sabri-suby:
+    file: agents/sabri-suby.md
+    tier: 1b
+    icon: "🦈"
+    focus: "Full-funnel cold traffic copy, Sell Like Crazy, Godfather Strategy, HVCO"
+  evaldo-albuquerque:
+    file: agents/evaldo-albuquerque.md
+    tier: 1b
+    icon: "🇧🇷"
+    focus: "16-Word Sales Letter, belief-centric copy, financial publishing, one belief"
+  # Tier 1C — Email & Relationship
+  ben-settle:
+    file: agents/ben-settle.md
+    tier: 1c
+    icon: "📬"
+    focus: "Daily emails, personality-first selling, infotainment, anti-guru"
+  andre-chaperon:
+    file: agents/andre-chaperon.md
+    tier: 1c
+    icon: "🎭"
+    focus: "Soap Opera Sequences, email storytelling, open loops, Sphere of Influence"
+  dan-koe:
+    file: agents/dan-koe.md
+    tier: 1c
+    icon: "🧩"
+    focus: "Personal brand copy, one-person business, short-form content, Deep Generalism"
+  # Tier 1D — Offers & Sales Pages
+  joe-sugarman:
+    file: agents/joe-sugarman.md
+    tier: 1d
+    icon: "🛒"
+    focus: "Slippery Slide, 30 psychological triggers, print ads, seeds of curiosity"
+  david-ogilvy:
+    file: agents/david-ogilvy.md
+    tier: 1d
+    icon: "👔"
+    focus: "Brand positioning, Big Idea, research-driven, premium/luxury copy"
+  clayton-makepeace:
+    file: agents/clayton-makepeace.md
+    tier: 1d
+    icon: "💊"
+    focus: "Dominant Resident Emotions, Four-Legged Stool, financial/health power copy"
+  parris-lampropoulos:
+    file: agents/parris-lampropoulos.md
+    tier: 1d
+    icon: "🏆"
+    focus: "Fascination bullets, 700-to-100 method, format innovation, Stanislavsky"
+  david-deutsch:
+    file: agents/david-deutsch.md
+    tier: 1d
+    icon: "🎩"
+    focus: "CopyTHINKING, Big Idea generation, method actor technique, fiction for non-fiction"
+  alex-hormozi:
+    file: agents/alex-hormozi.md
+    tier: 1d
+    icon: "⚡"
+    focus: "Value Equation, Grand Slam Offer, offer math, $100M frameworks"
+  joanna-wiebe:
+    file: agents/joanna-wiebe.md
+    tier: 1d
+    icon: "🔬"
+    focus: "Message Mining, voice-of-customer, SaaS conversion copy, data-driven copy"
+  # Tier 1E — Persuasion & Psychology
+  robert-cialdini:
+    file: agents/robert-cialdini.md
+    tier: 1e
+    icon: "🧪"
+    focus: "7 Principles of Influence, Pre-Suasion, science-backed persuasion"
+  blair-warren:
+    file: agents/blair-warren.md
+    tier: 1e
+    icon: "🗝️"
+    focus: "One Sentence Persuasion, 5 emotional triggers, primal connection"
+  chris-voss:
+    file: agents/chris-voss.md
+    tier: 1e
+    icon: "🎙️"
+    focus: "Tactical empathy, labeling, mirroring, accusation audit, objection handling"
+  oren-klaff:
+    file: agents/oren-klaff.md
+    tier: 1e
+    icon: "🧲"
+    focus: "STRONG method, frame control, crocodile brain, status dynamics, pitch copy"
+
+handoffs:
+  copy-master-chief:
+    routes_to: [gary-halbert, eugene-schwartz, claude-hopkins, gary-bencivenga, robert-collier, john-carlton, jim-rutz, john-caples, rosser-reeves, dan-kennedy, frank-kern, russell-brunson, todd-brown, stefan-georgi, jon-benson, ry-schwartz, sabri-suby, evaldo-albuquerque, ben-settle, andre-chaperon, dan-koe, joe-sugarman, david-ogilvy, clayton-makepeace, parris-lampropoulos, david-deutsch, alex-hormozi, joanna-wiebe, robert-cialdini, blair-warren, chris-voss, oren-klaff]
+  # Tier 1A collaborations
+  gary-halbert:
+    collaborates_with: [john-carlton, eugene-schwartz, john-caples]
+    escalates_to: [copy-master-chief]
+  eugene-schwartz:
+    collaborates_with: [gary-halbert, todd-brown, john-caples]
+    escalates_to: [copy-master-chief]
+  claude-hopkins:
+    collaborates_with: [gary-bencivenga, john-caples, rosser-reeves]
+    escalates_to: [copy-master-chief]
+  gary-bencivenga:
+    collaborates_with: [clayton-makepeace, claude-hopkins, parris-lampropoulos]
+    escalates_to: [copy-master-chief]
+  robert-collier:
+    collaborates_with: [jim-rutz, andre-chaperon]
+    escalates_to: [copy-master-chief]
+  john-carlton:
+    collaborates_with: [gary-halbert, dan-kennedy]
+    escalates_to: [copy-master-chief]
+  jim-rutz:
+    collaborates_with: [robert-collier, parris-lampropoulos]
+    escalates_to: [copy-master-chief]
+  john-caples:
+    collaborates_with: [claude-hopkins, eugene-schwartz, rosser-reeves]
+    escalates_to: [copy-master-chief]
+  rosser-reeves:
+    collaborates_with: [john-caples, david-ogilvy, claude-hopkins]
+    escalates_to: [copy-master-chief]
+  # Tier 1B collaborations
+  dan-kennedy:
+    collaborates_with: [joe-sugarman, frank-kern, alex-hormozi]
+    escalates_to: [copy-master-chief]
+  frank-kern:
+    collaborates_with: [russell-brunson, dan-kennedy, sabri-suby]
+    escalates_to: [copy-master-chief]
+  russell-brunson:
+    collaborates_with: [frank-kern, todd-brown, sabri-suby]
+    escalates_to: [copy-master-chief]
+  todd-brown:
+    collaborates_with: [eugene-schwartz, russell-brunson, evaldo-albuquerque]
+    escalates_to: [copy-master-chief]
+  stefan-georgi:
+    collaborates_with: [jon-benson, evaldo-albuquerque]
+    escalates_to: [copy-master-chief]
+  jon-benson:
+    collaborates_with: [stefan-georgi, chris-voss]
+    escalates_to: [copy-master-chief]
+  ry-schwartz:
+    collaborates_with: [dan-koe, andre-chaperon]
+    escalates_to: [copy-master-chief]
+  sabri-suby:
+    collaborates_with: [frank-kern, russell-brunson, alex-hormozi]
+    escalates_to: [copy-master-chief]
+  evaldo-albuquerque:
+    collaborates_with: [stefan-georgi, todd-brown, blair-warren]
+    escalates_to: [copy-master-chief]
+  # Tier 1C collaborations
+  ben-settle:
+    collaborates_with: [dan-koe, andre-chaperon]
+    escalates_to: [copy-master-chief]
+  andre-chaperon:
+    collaborates_with: [ben-settle, robert-collier, ry-schwartz]
+    escalates_to: [copy-master-chief]
+  dan-koe:
+    collaborates_with: [ry-schwartz, ben-settle]
+    escalates_to: [copy-master-chief]
+  # Tier 1D collaborations
+  joe-sugarman:
+    collaborates_with: [dan-kennedy, robert-cialdini]
+    escalates_to: [copy-master-chief]
+  david-ogilvy:
+    collaborates_with: [david-deutsch, rosser-reeves]
+    escalates_to: [copy-master-chief]
+  clayton-makepeace:
+    collaborates_with: [parris-lampropoulos, gary-bencivenga]
+    escalates_to: [copy-master-chief]
+  parris-lampropoulos:
+    collaborates_with: [clayton-makepeace, david-deutsch]
+    escalates_to: [copy-master-chief]
+  david-deutsch:
+    collaborates_with: [david-ogilvy, parris-lampropoulos]
+    escalates_to: [copy-master-chief]
+  alex-hormozi:
+    collaborates_with: [dan-kennedy, sabri-suby, joanna-wiebe]
+    escalates_to: [copy-master-chief]
+  joanna-wiebe:
+    collaborates_with: [alex-hormozi, robert-cialdini, claude-hopkins]
+    escalates_to: [copy-master-chief]
+  # Tier 1E collaborations
+  robert-cialdini:
+    collaborates_with: [blair-warren, joe-sugarman, joanna-wiebe]
+    escalates_to: [copy-master-chief]
+  blair-warren:
+    collaborates_with: [robert-cialdini, evaldo-albuquerque, chris-voss]
+    escalates_to: [copy-master-chief]
+  chris-voss:
+    collaborates_with: [oren-klaff, blair-warren, jon-benson]
+    escalates_to: [copy-master-chief]
+  oren-klaff:
+    collaborates_with: [chris-voss, alex-hormozi, frank-kern]
+    escalates_to: [copy-master-chief]
+
+cross_cutting:
+  quality_standards:
+    min_score: 7.5
+  conflict_resolution: "When agents disagree, Copy Master Chief mediates using awareness level + market context + persuasion psychology"
+  collaboration: "Copy Master Chief can assign primary + secondary + psychology advisor for complex projects"
+  reference_data: "All agents have access to data/ directory with champion examples, frameworks, and swipe files"
+
+settings:
+  activation:
+    prefix: "copy-master"
+    example: "@copy-master:gary-halbert"

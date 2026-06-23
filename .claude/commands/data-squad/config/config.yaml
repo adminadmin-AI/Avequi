@@ -1,0 +1,102 @@
+# ═══════════════════════════════════════════════════════════════════
+# Squad: Data Squad
+# Domain: Data Analytics, Growth, Community & Customer Success
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+squad:
+  name: data-squad
+  display_name: "Data Squad"
+  version: "1.0.0"
+  domain: "Data-Driven Growth & Customer Intelligence"
+  description: |
+    A squad of the world's leading data-driven strategists combining analytics mastery
+    (Avinash Kaushik), customer lifetime value (Peter Fader), growth hacking (Sean Ellis),
+    community-led growth (David Spinks), customer success (Nick Mehta), and audience
+    building (Wes Kao).
+
+    Each advisor brings battle-tested frameworks that turn data into decisions and metrics
+    into growth. Together they cover the full spectrum from acquisition to retention.
+  keywords: [analytics, growth, customer-success, community, CLV, metrics, retention, activation, growth-hacking, audience, data-driven, web-analytics]
+  entry_agent: data-chief
+  created_at: "2026-03-05"
+
+tiers:
+  tier_0:
+    name: "Orchestration"
+    agents: [data-chief]
+    purpose: "Triage, routing, quality — connects the right data expert to the right problem"
+  tier_1:
+    name: "Analytics & Customer Intelligence"
+    agents: [avinash-kaushik, peter-fader]
+    purpose: "Web analytics, digital marketing measurement, customer lifetime value, customer-centricity, data-driven decision making"
+  tier_2:
+    name: "Growth & Audience Building"
+    agents: [sean-ellis, wes-kao]
+    purpose: "Growth hacking, product-market fit, viral loops, cohort-based courses, audience building, spiky points of view"
+  tier_3:
+    name: "Community & Customer Success"
+    agents: [nick-mehta, david-spinks]
+    purpose: "Customer success, net revenue retention, community-led growth, community strategy, member engagement"
+
+agents:
+  data-chief:
+    file: agents/data-chief.md
+    tier: 0
+    icon: "📊"
+    focus: "Orchestration, triage, routing across analytics, growth, and retention domains"
+  avinash-kaushik:
+    file: agents/avinash-kaushik.md
+    tier: 1
+    icon: "📈"
+    focus: "Web analytics, digital marketing measurement, actionable insights"
+  peter-fader:
+    file: agents/peter-fader.md
+    tier: 1
+    icon: "💎"
+    focus: "Customer lifetime value, customer-centricity, probabilistic models"
+  sean-ellis:
+    file: agents/sean-ellis.md
+    tier: 2
+    icon: "🚀"
+    focus: "Growth hacking, product-market fit, viral loops, experimentation"
+  wes-kao:
+    file: agents/wes-kao.md
+    tier: 2
+    icon: "🎯"
+    focus: "Audience building, cohort-based courses, spiky points of view, content strategy"
+  nick-mehta:
+    file: agents/nick-mehta.md
+    tier: 3
+    icon: "🤝"
+    focus: "Customer success, net revenue retention, churn prevention, expansion revenue"
+  david-spinks:
+    file: agents/david-spinks.md
+    tier: 3
+    icon: "👥"
+    focus: "Community-led growth, community strategy, member engagement, community health"
+
+handoffs:
+  data-chief:
+    routes_to: [avinash-kaushik, peter-fader, sean-ellis, wes-kao, nick-mehta, david-spinks]
+  avinash-kaushik:
+    escalates_to: [data-chief]
+  peter-fader:
+    escalates_to: [data-chief]
+  sean-ellis:
+    escalates_to: [data-chief]
+  wes-kao:
+    escalates_to: [data-chief]
+  nick-mehta:
+    escalates_to: [data-chief]
+  david-spinks:
+    escalates_to: [data-chief]
+
+cross_cutting:
+  quality_standards:
+    min_score: 7.0
+
+settings:
+  activation:
+    prefix: "data-squad"
+    example: "@data-squad:sean-ellis"

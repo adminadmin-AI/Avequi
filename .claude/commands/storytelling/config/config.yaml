@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════
+# Squad: Storytelling
+# Domain: Narrative & Communication
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+squad:
+  name: storytelling
+  display_name: "Storytelling Squad"
+  version: "1.0.0"
+  domain: "Narrative & Communication"
+  description: |
+    Elite squad of storytelling masters spanning mythology, screenwriting, personal narrative,
+    business storytelling, improvisation, pitching, presentations, and social movements. From
+    Campbell's Hero's Journey to Harmon's Story Circle, from Snyder's Beat Sheet to Coyne's
+    Story Grid — every narrative framework ever created, unified under one roof.
+
+    Covers six narrative domains: mythic structure, story architecture, personal narrative,
+    business storytelling, persuasion and performance, and movement narrative. Each specialist
+    brings decades of real-world craft distilled into actionable frameworks.
+  keywords: [storytelling, narrative, screenwriting, mythology, presentations, brand-story, pitching, improv, social-movements, story-structure]
+  entry_agent: story-chief
+  created_at: "2026-03-05"
+
+tiers:
+  tier_0:
+    name: "Orchestration"
+    agents: [story-chief]
+    purpose: "Triage, routing, quality control, narrative domain matching"
+  tier_1:
+    name: "Storytelling Masters"
+    agents: [joseph-campbell, dan-harmon, blake-snyder, shawn-coyne, matthew-dicks, kindra-hall, nancy-duarte, park-howell, keith-johnstone, oren-klaff, marshall-ganz]
+    purpose: "Domain expertise across all narrative frameworks, from mythic structure to social movements"
+
+agents:
+  story-chief:      { file: agents/story-chief.md, tier: 0, icon: "📖", focus: "Triage, routing, narrative domain matching" }
+  joseph-campbell:   { file: agents/joseph-campbell.md, tier: 1, icon: "🏛️", focus: "Hero's Journey, monomyth, archetypes" }
+  dan-harmon:        { file: agents/dan-harmon.md, tier: 1, icon: "🔄", focus: "Story Circle, TV/episodic writing" }
+  blake-snyder:      { file: agents/blake-snyder.md, tier: 1, icon: "🎬", focus: "Beat Sheet, screenplay structure" }
+  shawn-coyne:       { file: agents/shawn-coyne.md, tier: 1, icon: "📊", focus: "Story Grid, genre, scene analysis" }
+  matthew-dicks:     { file: agents/matthew-dicks.md, tier: 1, icon: "🎤", focus: "Personal narrative, Moth storytelling" }
+  kindra-hall:       { file: agents/kindra-hall.md, tier: 1, icon: "💼", focus: "Sales stories, stories that stick" }
+  nancy-duarte:      { file: agents/nancy-duarte.md, tier: 1, icon: "📊", focus: "Presentations, data storytelling" }
+  park-howell:       { file: agents/park-howell.md, tier: 1, icon: "🏷️", focus: "Brand storytelling, ABT framework" }
+  keith-johnstone:   { file: agents/keith-johnstone.md, tier: 1, icon: "🎭", focus: "Improvisation, spontaneity, status" }
+  oren-klaff:        { file: agents/oren-klaff.md, tier: 1, icon: "🎯", focus: "Pitching, frame control, neurofinance" }
+  marshall-ganz:     { file: agents/marshall-ganz.md, tier: 1, icon: "✊", focus: "Public narrative, social movements" }
+
+handoffs:
+  story-chief: { routes_to: [joseph-campbell, dan-harmon, blake-snyder, shawn-coyne, matthew-dicks, kindra-hall, nancy-duarte, park-howell, keith-johnstone, oren-klaff, marshall-ganz] }
+  joseph-campbell: { escalates_to: [story-chief] }
+  dan-harmon: { escalates_to: [story-chief] }
+  blake-snyder: { escalates_to: [story-chief] }
+  shawn-coyne: { escalates_to: [story-chief] }
+  matthew-dicks: { escalates_to: [story-chief] }
+  kindra-hall: { escalates_to: [story-chief] }
+  nancy-duarte: { escalates_to: [story-chief] }
+  park-howell: { escalates_to: [story-chief] }
+  keith-johnstone: { escalates_to: [story-chief] }
+  oren-klaff: { escalates_to: [story-chief] }
+  marshall-ganz: { escalates_to: [story-chief] }
+
+cross_cutting:
+  quality_standards: { min_score: 7.0 }
+
+settings:
+  activation:
+    prefix: "storytelling"
+    example: "@storytelling:joseph-campbell"

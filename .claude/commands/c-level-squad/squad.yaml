@@ -1,0 +1,45 @@
+name: c-level-squad
+version: "1.0.0"
+short-title: "C-Level Squad"
+description: "C-suite virtual de 6 executivos — CEO (Vision Chief), COO, CMO, CTO, CIO, CAIO. Estrategia, operacoes, marketing, tecnologia, AI."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "c-level-squad"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - c-suite
+  - strategy
+  - operations
+  - marketing
+  - technology
+  - ai
+  - leadership
+
+components:
+  agents:
+    - vision-chief.md
+    - coo-orchestrator.md
+    - cmo-architect.md
+    - cto-architect.md
+    - cio-engineer.md
+    - caio-architect.md
+  tasks:
+    - design-operations.md
+    - diagnose.md
+    - evaluate-technology.md
+    - plan-fundraise.md
+    - plan-go-to-market.md
+    - review.md
+    - set-vision.md
+  workflows:
+    - wf-board-presentation.yaml
+    - wf-strategic-planning.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

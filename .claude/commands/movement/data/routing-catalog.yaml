@@ -1,0 +1,65 @@
+# ═══════════════════════════════════════════════════════════════════
+# Movement Squad — Routing Catalog
+# Maps domains to specialist agents for intelligent routing
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  movement_design:
+    keywords: [movement, architecture, community-design, tribe-structure, movement-building, cause, blueprint, framework]
+    primary_agent: movement-architect
+    secondary_agent: identitario
+    description: "Overall movement architecture, community structure, and tribe design"
+
+  shared_experience:
+    keywords: [phenomenology, shared-experience, tension, frustration, aspiration, human-experience, lived-experience, empathy]
+    primary_agent: fenomenologo
+    secondary_agent: movement-architect
+    description: "Phenomenological analysis of shared human experiences that fuel movements"
+
+  identity_formation:
+    keywords: [identity, belonging, tribe, us-vs-them, cultural-codes, symbols, values, beliefs, who-we-are]
+    primary_agent: identitario
+    secondary_agent: fenomenologo
+    description: "Identity architecture — defining who we are, what we believe, what we stand against"
+
+  growth_strategy:
+    keywords: [growth, cycles, scaling, attract, activate, sustain, multiply, traction, momentum, expansion]
+    primary_agent: estrategista-de-ciclo
+    secondary_agent: movement-architect
+    description: "Growth cycle strategy — attract, activate, sustain, multiply phases"
+
+  manifesto_creation:
+    keywords: [manifesto, declaration, narrative, story, message, copywriting, rallying-cry, call-to-action, propaganda]
+    primary_agent: manifestador
+    secondary_agent: identitario
+    description: "Manifesto writing, narrative creation, and rallying cries for the movement"
+
+  impact_measurement:
+    keywords: [impact, metrics, measurement, KPIs, community-health, outcomes, results, ROI, social-impact]
+    primary_agent: analista-de-impacto
+    secondary_agent: estrategista-de-ciclo
+    description: "Impact measurement, community health metrics, and real-world effect tracking"
+
+  community_building:
+    keywords: [community, members, engagement, rituals, events, gatherings, onboarding, activation, retention]
+    primary_agent: movement-architect
+    secondary_agent: estrategista-de-ciclo
+    description: "Community building, member engagement, rituals, and gathering design"
+
+  narrative_propagation:
+    keywords: [narrative, propagation, virality, word-of-mouth, storytelling, content, media, amplification, spread]
+    primary_agent: manifestador
+    secondary_agent: fenomenologo
+    description: "Spreading the movement's narrative through storytelling and content"
+
+  belief_systems:
+    keywords: [beliefs, worldview, philosophy, principles, doctrine, ideology, mindset, conviction, paradigm]
+    primary_agent: fenomenologo
+    secondary_agent: identitario
+    description: "Deep analysis and construction of belief systems that sustain movements"
+
+  tribal_identity:
+    keywords: [tribe, tribal, in-group, out-group, signals, language, dress-code, insider, badge, ritual]
+    primary_agent: identitario
+    secondary_agent: manifestador
+    description: "Tribal markers, insider signals, and identity rituals that bind members"

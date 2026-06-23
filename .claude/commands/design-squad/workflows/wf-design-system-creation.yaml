@@ -1,0 +1,131 @@
+# Design System Creation Workflow
+# From audit through methodology to launch
+
+workflow:
+  id: wf-design-system-creation
+  name: "Criação de Design System"
+  trigger: "*design-system-creation"
+  entry_agent: design-chief
+  estimated_duration: "4-8 hours"
+  description: |
+    Workflow completo de criação de design system, desde a auditoria inicial até
+    seleção de metodologia, definição de tokens, construção de componentes,
+    estabelecimento de governança e lançamento. Segue a metodologia atomic design.
+
+  type: sequential
+  sequence:
+    - agent: brad-frost
+      action: create-design-system
+      creates: methodology
+    - agent: design-system-architect
+      action: create-component-spec
+      creates: components
+    - agent: dan-mall
+      action: create-design-system
+      creates: governance
+    - agent: design-chief
+      action: review
+      creates: final_system
+
+phases:
+  - id: phase_1_audit
+    name: "Interface Audit"
+    agent: brad-frost
+    task: create-design-system.md
+    depends_on: []
+    description: "Inventory all existing UI elements, identify inconsistencies and patterns"
+    checkpoint:
+      gate: "Complete component inventory with inconsistencies documented"
+      veto: "HALT if no access to existing interface — cannot audit what you cannot see"
+    outputs:
+      - component_inventory
+      - inconsistency_report
+      - priority_components
+
+  - id: phase_2_methodology
+    name: "Methodology & Token Architecture"
+    agent: brad-frost
+    task: create-design-system.md
+    depends_on: [phase_1_audit]
+    support_agents: [design-system-architect]
+    description: "Define atomic design methodology, establish token architecture (global → alias → component)"
+    checkpoint:
+      gate: "Token naming convention defined, hierarchy established, initial tokens created"
+      veto: "HALT if token naming convention is ambiguous or inconsistent"
+    outputs:
+      - token_architecture
+      - naming_conventions
+      - color_tokens
+      - typography_tokens
+      - spacing_tokens
+
+  - id: phase_3_tokens
+    name: "Token Implementation"
+    agent: design-system-architect
+    task: create-component-spec.md
+    depends_on: [phase_2_methodology]
+    description: "Implement all design tokens in code with theme support"
+    checkpoint:
+      gate: "All tokens implemented with light/dark mode and WCAG contrast verified"
+      veto: "HALT if contrast ratios fail WCAG AA requirements"
+    outputs:
+      - token_files
+      - theme_configuration
+      - contrast_verification
+
+  - id: phase_4_components
+    name: "Component Building"
+    agent: brad-frost
+    task: create-component-spec.md
+    depends_on: [phase_3_tokens]
+    support_agents: [design-system-architect, ui-engineer]
+    description: "Build atoms, molecules, and organisms following the priority list from audit"
+    checkpoint:
+      gate: "Core components built with all variants, states, and accessibility requirements"
+      veto: "HALT if components use hardcoded values instead of tokens"
+    outputs:
+      - atom_components
+      - molecule_components
+      - organism_components
+      - component_specs
+
+  - id: phase_5_governance
+    name: "Governance & Documentation"
+    agent: dan-mall
+    task: create-design-system.md
+    depends_on: [phase_4_components]
+    support_agents: [dave-malouf]
+    description: "Establish governance model, contribution guide, and complete documentation"
+    checkpoint:
+      gate: "Governance model defined, documentation complete, contribution process clear"
+      veto: "HALT if no clear ownership or approval process for component changes"
+    outputs:
+      - governance_model
+      - contribution_guide
+      - component_documentation
+      - getting_started_guide
+
+  - id: phase_6_launch
+    name: "Launch & Adoption"
+    agent: dan-mall
+    task: create-design-system.md
+    depends_on: [phase_5_governance]
+    support_agents: [dave-malouf, design-chief]
+    description: "Plan adoption strategy, train teams, launch the design system"
+    checkpoint:
+      gate: "Design system published, teams trained, adoption metrics established"
+      veto: "HALT if no adoption plan exists — a design system nobody uses has no value"
+    outputs:
+      - published_system
+      - training_materials
+      - adoption_metrics
+      - feedback_channels
+
+completion_criteria:
+  - "Interface audit completed with priority components identified"
+  - "Token architecture defined with naming conventions"
+  - "All tokens implemented with theme and contrast verification"
+  - "Core components built with variants, states, and accessibility"
+  - "Governance model established with clear ownership"
+  - "Documentation complete and accessible"
+  - "Teams trained and adoption metrics tracking"

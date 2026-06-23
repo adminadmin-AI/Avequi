@@ -1,0 +1,86 @@
+workflow:
+  id: wf-rebrand
+  name: "Rebranding"
+  version: "1.0.0"
+  description: |
+    Workflow de rebranding para marcas existentes. Começa com uma auditoria
+    abrangente, revisa a validade do posicionamento, atualiza elementos de
+    identidade e renova o messaging. Preserva o que funciona e corrige o que não funciona.
+  trigger: "*rebrand"
+  entry_agent: brand-chief
+  estimated_duration: "45-90 minutes"
+  type: sequential
+  sequence:
+    - agent: david-aaker
+      action: audit-brand
+      creates: audit_report
+    - agent: al-ries
+      action: create-positioning
+      creates: positioning_review
+    - agent: alina-wheeler
+      action: build-identity
+      creates: updated_identity
+    - agent: donald-miller
+      action: create-brand-story
+      creates: updated_messaging
+
+phases:
+  - id: phase_0
+    name: "Brand Audit"
+    agent: david-aaker
+    task: audit-brand.md
+    description: "Comprehensive brand health audit using Aaker's equity model and Kapferer's identity prism. Identifies what to preserve, what to fix, and what to rebuild."
+    outputs:
+      - audit_report: "markdown"
+      - health_score: "number"
+      - preserve_list: "list"
+      - fix_list: "list"
+    checkpoint:
+      gate: "Audit complete with clear preserve/fix/rebuild classification"
+      veto: "Audit reveals the brand is healthy — rebrand not justified"
+
+  - id: phase_1
+    name: "Positioning Review"
+    agent: al-ries
+    task: create-positioning.md
+    depends_on: [phase_0]
+    description: "Reassess the brand's positioning against the current competitive landscape. Determine if the position needs to shift or if the same position needs stronger execution."
+    outputs:
+      - positioning_review: "markdown"
+      - new_positioning: "string"
+      - change_magnitude: "string"
+    checkpoint:
+      gate: "Positioning decision made: keep, refine, or pivot"
+      veto: "Positioning pivot proposed without sufficient competitive analysis"
+
+  - id: phase_2
+    name: "Identity Update"
+    agent: alina-wheeler
+    task: build-identity.md
+    depends_on: [phase_0, phase_1]
+    description: "Update the visual and verbal identity based on audit findings and positioning review. Preserve elements flagged as strong, redesign elements flagged for repair."
+    outputs:
+      - updated_identity: "markdown"
+      - change_summary: "list"
+    checkpoint:
+      gate: "Identity updates align with new positioning and preserve strengths"
+      veto: "Changes destroy existing brand equity without justification"
+
+  - id: phase_3
+    name: "Messaging Refresh"
+    agent: donald-miller
+    task: create-brand-story.md
+    depends_on: [phase_1, phase_2]
+    description: "Refresh the brand story and messaging using StoryBrand SB7. Update the BrandScript, one-liner, and touchpoint copy to align with the updated positioning and identity."
+    outputs:
+      - updated_brandscript: "markdown"
+      - updated_messaging: "markdown"
+    checkpoint:
+      gate: "Messaging consistent with updated positioning and identity"
+      veto: "Story disconnected from the brand's actual capabilities"
+
+completion_criteria:
+  - "Brand audited with preserve/fix/rebuild classification"
+  - "Positioning reviewed and decision made (keep, refine, or pivot)"
+  - "Identity updated preserving strengths and fixing weaknesses"
+  - "Messaging refreshed with StoryBrand alignment"

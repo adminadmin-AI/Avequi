@@ -1,0 +1,293 @@
+# Narrative Frameworks Catalog
+# Comprehensive reference for all storytelling methodologies
+# Version: 1.0.0
+
+catalog:
+  version: "1.0.0"
+  last_updated: "2026-03-05"
+
+frameworks:
+  heros_journey:
+    name: "The Hero's Journey (Monomyth)"
+    creator: "Joseph Campbell"
+    agent: joseph-campbell
+    source: "The Hero with a Thousand Faces (1949)"
+    best_for: "Epic transformations, mythic scale, archetypal narratives"
+    stages:
+      - order: 1
+        name: "Ordinary World"
+        description: "The hero's normal life before the adventure begins"
+        purpose: "Establish baseline so transformation is visible"
+      - order: 2
+        name: "Call to Adventure"
+        description: "Something disrupts the ordinary world"
+        purpose: "Create initial tension and desire"
+      - order: 3
+        name: "Refusal of the Call"
+        description: "The hero hesitates or refuses the challenge"
+        purpose: "Show the stakes and fear — makes acceptance meaningful"
+      - order: 4
+        name: "Meeting the Mentor"
+        description: "A guide appears with wisdom, tools, or encouragement"
+        purpose: "Provide the hero with what they need to cross the threshold"
+      - order: 5
+        name: "Crossing the Threshold"
+        description: "The hero commits and enters the unknown world"
+        purpose: "Point of no return — the adventure truly begins"
+      - order: 6
+        name: "Tests, Allies, and Enemies"
+        description: "The hero faces challenges, makes friends, discovers foes"
+        purpose: "Build the world and develop character through trials"
+      - order: 7
+        name: "Approach to the Inmost Cave"
+        description: "The hero prepares for the major challenge"
+        purpose: "Build anticipation and raise stakes"
+      - order: 8
+        name: "The Ordeal"
+        description: "The hero faces the greatest challenge — death and rebirth"
+        purpose: "Central crisis that transforms the hero"
+      - order: 9
+        name: "Reward (Seizing the Sword)"
+        description: "The hero gains what they sought"
+        purpose: "Payoff for the ordeal — but the journey is not over"
+      - order: 10
+        name: "The Road Back"
+        description: "The hero begins the return, often with new challenges"
+        purpose: "Show the journey has consequences"
+      - order: 11
+        name: "Resurrection"
+        description: "The final test — the hero is transformed and purified"
+        purpose: "Ultimate proof of transformation"
+      - order: 12
+        name: "Return with the Elixir"
+        description: "The hero returns home changed, bringing a gift"
+        purpose: "The transformation benefits the community, completing the circle"
+    archetypes:
+      - Hero
+      - Mentor
+      - Threshold Guardian
+      - Herald
+      - Shapeshifter
+      - Shadow
+      - Trickster
+      - Ally
+
+  beat_sheet:
+    name: "Save the Cat! Beat Sheet"
+    creator: "Blake Snyder"
+    agent: blake-snyder
+    source: "Save the Cat! (2005)"
+    best_for: "Commercial screenplays, tight plotting, audience-friendly structure"
+    beats:
+      - order: 1
+        name: "Opening Image"
+        page: "1"
+        description: "A visual that represents the world and tone before the journey"
+        purpose: "Visual thesis — establish 'before' state"
+      - order: 2
+        name: "Theme Stated"
+        page: "5"
+        description: "Someone states the theme, often to the hero who doesn't understand yet"
+        purpose: "Plant the thematic seed"
+      - order: 3
+        name: "Set-Up"
+        page: "1-10"
+        description: "Introduce the hero, their world, their flaws, and what needs fixing"
+        purpose: "Build empathy and establish stakes"
+      - order: 4
+        name: "Catalyst"
+        page: "12"
+        description: "The event that disrupts the status quo"
+        purpose: "Inciting incident — life will never be the same"
+      - order: 5
+        name: "Debate"
+        page: "12-25"
+        description: "The hero wrestles with the decision to act"
+        purpose: "Build suspense and show reluctance"
+      - order: 6
+        name: "Break into Two"
+        page: "25"
+        description: "The hero makes a proactive choice and enters the new world"
+        purpose: "Act break — commitment to the journey"
+      - order: 7
+        name: "B Story"
+        page: "30"
+        description: "A secondary story (often love) that carries the theme"
+        purpose: "Theme explored through relationship"
+      - order: 8
+        name: "Fun and Games"
+        page: "30-55"
+        description: "The promise of the premise — what the audience came to see"
+        purpose: "Deliver the concept — this is the trailer material"
+      - order: 9
+        name: "Midpoint"
+        page: "55"
+        description: "A false victory or false defeat that raises the stakes"
+        purpose: "Pivot point — stakes become life-and-death"
+      - order: 10
+        name: "Bad Guys Close In"
+        page: "55-75"
+        description: "External pressure mounts, internal flaws worsen"
+        purpose: "Escalating complications"
+      - order: 11
+        name: "All Is Lost"
+        page: "75"
+        description: "The lowest point — whiff of death (literal or metaphorical)"
+        purpose: "Maximum despair before transformation"
+      - order: 12
+        name: "Dark Night of the Soul"
+        page: "75-85"
+        description: "The hero processes the loss and finds the strength to continue"
+        purpose: "Emotional rock bottom — catharsis before clarity"
+      - order: 13
+        name: "Break into Three"
+        page: "85"
+        description: "The hero discovers the solution, combining A and B stories"
+        purpose: "Fusion of plot and theme — the answer"
+      - order: 14
+        name: "Finale"
+        page: "85-110"
+        description: "The hero executes the plan, defeats the bad guys, transforms"
+        purpose: "Climax and resolution — all threads resolved"
+      - order: 15
+        name: "Final Image"
+        page: "110"
+        description: "Opposite of the Opening Image — proof of change"
+        purpose: "Visual antithesis — the 'after' state"
+    genres:
+      - "Monster in the House"
+      - "Golden Fleece"
+      - "Out of the Bottle"
+      - "Dude with a Problem"
+      - "Rites of Passage"
+      - "Buddy Love"
+      - "Whydunit"
+      - "The Fool Triumphant"
+      - "Institutionalized"
+      - "Superhero"
+
+  story_circle:
+    name: "Story Circle"
+    creator: "Dan Harmon"
+    agent: dan-harmon
+    source: "Channel 101 / Community writers' room"
+    best_for: "TV episodes, character-driven arcs, relatable journeys"
+    steps:
+      - order: 1
+        name: "YOU"
+        description: "A character is in a zone of comfort"
+        purpose: "Establish the protagonist and their world"
+      - order: 2
+        name: "NEED"
+        description: "But they want something"
+        purpose: "Create desire and motivation"
+      - order: 3
+        name: "GO"
+        description: "They enter an unfamiliar situation"
+        purpose: "Leave the comfort zone — the adventure begins"
+      - order: 4
+        name: "SEARCH"
+        description: "They adapt to the new situation"
+        purpose: "Struggle and growth through challenges"
+      - order: 5
+        name: "FIND"
+        description: "They get what they wanted"
+        purpose: "Achieve the goal — but at a cost"
+      - order: 6
+        name: "TAKE"
+        description: "They pay a heavy price for it"
+        purpose: "Consequences — nothing is free"
+      - order: 7
+        name: "RETURN"
+        description: "They return to the familiar situation"
+        purpose: "Come home — but everything is different now"
+      - order: 8
+        name: "CHANGE"
+        description: "Having changed"
+        purpose: "Transformation is complete — they are not who they were"
+    principle: "The circle represents descent and return — going into the unconscious and coming back transformed"
+
+  sparkline:
+    name: "Sparkline (Presentation Structure)"
+    creator: "Nancy Duarte"
+    agent: nancy-duarte
+    source: "Resonate (2010)"
+    best_for: "Presentations, keynotes, data storytelling, TED talks"
+    structure:
+      what_is: "The current reality — the world as it exists today"
+      what_could_be: "The possible future — the world transformed"
+      alternation: "Toggle between pain (what is) and promise (what could be)"
+      star_moment: "One unforgettable moment — the emotional peak"
+      new_bliss: "The transformed future after the audience acts"
+      call_to_action: "The specific step the audience must take"
+    principle: "Great presentations create a gap between what is and what could be, then build desire to cross it"
+
+  public_narrative:
+    name: "Story of Self, Us, Now"
+    creator: "Marshall Ganz"
+    agent: marshall-ganz
+    source: "Harvard Kennedy School / Community Organizing"
+    best_for: "Movements, activism, collective action, organizational change"
+    stories:
+      story_of_self:
+        purpose: "Why I care — personal origin and values"
+        elements: ["Origin experience", "Choice point", "Values expressed", "Emotional honesty"]
+      story_of_us:
+        purpose: "Why WE care — shared identity and values"
+        elements: ["Shared experiences", "Collective values", "Common challenges", "Sense of belonging"]
+      story_of_now:
+        purpose: "What we must do NOW — urgent action"
+        elements: ["Urgent challenge", "The choice we face", "Hope vs fear", "Specific call to action"]
+    principle: "Narrative is the way we translate values into action — connecting personal to collective to urgent"
+
+  abt:
+    name: "And-But-Therefore (ABT)"
+    creator: "Randy Olson / Park Howell"
+    agent: park-howell
+    source: "Houston, We Have a Narrative (2015)"
+    best_for: "Brand storytelling, business narratives, content marketing, elevator pitches"
+    structure:
+      and: "Set up the context — the status quo (agreement)"
+      but: "Introduce the conflict — the problem or tension (contradiction)"
+      therefore: "Present the resolution — the action or solution (consequence)"
+    example: "We want to grow our business AND we have a great product, BUT customers can't find us, THEREFORE we need a new marketing strategy."
+    anti_patterns:
+      aaa: "And-And-And — boring, no conflict (death by agreement)"
+      dht: "Despite-However-Thus — academic, no narrative energy"
+    principle: "All compelling stories follow ABT structure. Conflict (BUT) is what makes a story a story."
+
+  story_grid:
+    name: "Story Grid"
+    creator: "Shawn Coyne"
+    agent: shawn-coyne
+    source: "The Story Grid (2015)"
+    best_for: "Story editing, genre analysis, structural diagnosis"
+    content_genres:
+      - name: "Action"
+        core_value: "Life / Death"
+        core_emotion: "Excitement"
+      - name: "Horror"
+        core_value: "Life / Damnation"
+        core_emotion: "Terror"
+      - name: "Love"
+        core_value: "Love / Hate"
+        core_emotion: "Intimacy"
+      - name: "Performance"
+        core_value: "Respect / Shame"
+        core_emotion: "Admiration"
+      - name: "Society"
+        core_value: "Power / Impotence"
+        core_emotion: "Social satisfaction"
+      - name: "Status"
+        core_value: "Success / Failure"
+        core_emotion: "Admiration"
+      - name: "Worldview"
+        core_value: "Meaning / Meaninglessness"
+        core_emotion: "Transcendence"
+    five_commandments:
+      - "Inciting Incident (causal or coincidental)"
+      - "Progressive Complication (turning point)"
+      - "Crisis (best bad choice or irreconcilable goods)"
+      - "Climax (the decision made)"
+      - "Resolution (the aftermath)"
+    principle: "Every scene must have a value shift. A scene without change is not a scene."

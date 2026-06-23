@@ -1,0 +1,121 @@
+# Board Presentation Workflow
+# Data Gathering > Narrative > Deck Creation > Rehearsal
+# Version: 1.0.0
+
+workflow:
+  id: wf-board-presentation
+  name: "Apresentacao para o Conselho"
+  version: "1.0.0"
+  trigger: "*board-presentation"
+  entry_agent: vision-chief
+  description: "Preparar uma apresentacao para o conselho ou investidores reunindo dados de todos os dominios C-level, construindo uma narrativa coesa, montando o deck e ensaiando."
+  estimated_duration: "2-4 hours"
+  type: sequential
+  sequence:
+    - agent: coo-orchestrator
+      action: gather-data
+      creates: ops_data
+    - agent: vision-chief
+      action: craft-narrative
+      creates: narrative
+    - agent: cmo-architect
+      action: market-context
+      creates: market_data
+    - agent: vision-chief
+      action: finalize
+      creates: presentation
+
+
+inputs:
+  - name: purpose
+    required: true
+    description: "Presentation purpose (board update, fundraise, strategic review, annual plan)"
+  - name: audience
+    required: true
+    description: "Who will see this (board, investors, advisory, team)"
+  - name: financials
+    required: true
+    description: "Current financial data (revenue, burn, runway, KPIs)"
+  - name: time_period
+    required: false
+    default: "last quarter"
+    description: "Period being reported on"
+  - name: key_decisions
+    required: false
+    description: "Decisions that need board/investor input"
+
+
+phases:
+  - id: phase_1_data_gathering
+    name: "Data Gathering"
+    agent: coo-orchestrator
+    task: design-operations.md
+    depends_on: []
+    description: "Collect operational data, KPIs, OKR progress, and team metrics from all departments"
+    checkpoint:
+      gate: "All key metrics collected with period-over-period comparison"
+      veto: "vision-chief rejects if critical data is missing or unverified"
+      required_output: "Consolidated data package with financial, operational, and product metrics"
+
+  - id: phase_2_narrative
+    name: "Narrative"
+    agent: vision-chief
+    task: set-vision.md
+    depends_on: [phase_1_data_gathering]
+    description: "Craft the strategic narrative that ties data to vision and highlights key decisions"
+    checkpoint:
+      gate: "Narrative is honest, forward-looking, and surfaces real challenges"
+      veto: "None — vision-chief owns the narrative"
+      required_output: "Narrative outline with key messages, wins, challenges, and asks"
+
+  - id: phase_3_deck_creation
+    name: "Deck Creation"
+    agent: cmo-architect
+    task: plan-go-to-market.md
+    depends_on: [phase_2_narrative]
+    description: "Build the presentation deck with clear visuals, data, and narrative flow"
+    checkpoint:
+      gate: "Deck follows one-message-per-slide rule, data visualized not tabled"
+      veto: "vision-chief rejects if deck doesn't match approved narrative"
+      required_output: "Presentation deck outline (15-20 slides)"
+    deck_structure:
+      - "Opening: Where we are and where we're going (1 slide)"
+      - "Executive summary: Key wins, challenges, asks (1 slide)"
+      - "Financial review: Revenue, burn, runway, unit economics (2-3 slides)"
+      - "Product update: Milestones, roadmap progress, key metrics (2-3 slides)"
+      - "Market and growth: Acquisition, retention, market dynamics (2-3 slides)"
+      - "Team and operations: Hires, OKR progress, operational health (1-2 slides)"
+      - "Strategic initiatives: Progress on strategic pillars (2-3 slides)"
+      - "Challenges and risks: Honest assessment with mitigation plans (1-2 slides)"
+      - "Asks and decisions: What we need from the board (1 slide)"
+      - "Forward look: Next quarter priorities and targets (1 slide)"
+
+  - id: phase_4_rehearsal
+    name: "Rehearsal"
+    agent: vision-chief
+    task: null
+    depends_on: [phase_3_deck_creation]
+    description: "Rehearse the presentation, prepare for tough questions, and finalize"
+    checkpoint:
+      gate: "Presentation can be delivered in allocated time with Q&A buffer"
+      veto: "None — final polish phase"
+      required_output: "Final deck, speaker notes, FAQ document, timing guide"
+    rehearsal_steps:
+      - "Time the full presentation (target: 60% of allocated time for Q&A)"
+      - "Identify top 10 tough questions and prepare answers"
+      - "Practice the opening hook (first 60 seconds are critical)"
+      - "Review every number for accuracy"
+      - "Prepare 'appendix' slides for deep-dive questions"
+
+completion_criteria:
+  - "Data gathered from all departments and verified"
+  - "Strategic narrative crafted with honest assessment"
+  - "Deck built with max 20 slides, one message per slide"
+  - "Top 10 tough questions prepared with answers"
+  - "Presentation timed and within allocated window"
+  - "Speaker notes completed for each slide"
+
+error_handling:
+  missing_data: "Flag the gap, use best available estimate with clear disclosure. Never present fabricated numbers."
+  narrative_conflict: "If data contradicts the narrative, change the narrative (not the data)."
+  time_pressure: "If prep time is short, cut to essential slides: financials, traction, asks."

@@ -1,0 +1,65 @@
+# ═══════════════════════════════════════════════════════════════════
+# Data Squad — Routing Catalog
+# Maps domains to specialist agents for intelligent routing
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  web_analytics:
+    keywords: [analytics, web-analytics, google-analytics, GA4, pageviews, bounce-rate, conversion-rate, attribution, dashboards, reporting, KPIs]
+    primary_agent: avinash-kaushik
+    secondary_agent: sean-ellis
+    description: "Web analytics, digital marketing measurement, and actionable data insights"
+
+  customer_lifetime_value:
+    keywords: [CLV, LTV, lifetime-value, customer-value, segmentation, RFM, cohort, probability, customer-centricity, whale-customers]
+    primary_agent: peter-fader
+    secondary_agent: nick-mehta
+    description: "Customer lifetime value modeling, probabilistic segmentation, and customer-centric strategy"
+
+  growth_hacking:
+    keywords: [growth, hacking, experimentation, A/B-test, viral, loops, acquisition, activation, referral, north-star-metric, AARRR]
+    primary_agent: sean-ellis
+    secondary_agent: avinash-kaushik
+    description: "Growth hacking, rapid experimentation, viral loops, and scalable acquisition"
+
+  product_market_fit:
+    keywords: [product-market-fit, PMF, survey, must-have, retention-curve, activation, onboarding, aha-moment]
+    primary_agent: sean-ellis
+    secondary_agent: wes-kao
+    description: "Product-market fit assessment, the 40% test, and activation optimization"
+
+  audience_building:
+    keywords: [audience, followers, subscribers, newsletter, content, spiky-point-of-view, thought-leadership, personal-brand, cohort-course]
+    primary_agent: wes-kao
+    secondary_agent: david-spinks
+    description: "Audience building, cohort-based courses, spiky points of view, and content strategy"
+
+  community_strategy:
+    keywords: [community, community-led, members, engagement, forums, events, ambassador, user-groups, community-ops, SPACES-model]
+    primary_agent: david-spinks
+    secondary_agent: nick-mehta
+    description: "Community-led growth, community strategy, member engagement, and community health"
+
+  customer_success:
+    keywords: [customer-success, churn, NRR, net-revenue-retention, expansion, upsell, health-score, CSM, onboarding, renewal]
+    primary_agent: nick-mehta
+    secondary_agent: peter-fader
+    description: "Customer success operations, churn prevention, expansion revenue, and health scoring"
+
+  retention:
+    keywords: [retention, churn-rate, cohort-retention, engagement, reactivation, win-back, loyalty, stickiness, DAU-MAU]
+    primary_agent: nick-mehta
+    secondary_agent: peter-fader
+    description: "Retention optimization, churn analysis, and customer reactivation strategies"
+
+  content_strategy:
+    keywords: [content, content-strategy, editorial, publishing, distribution, repurpose, thought-leadership, LinkedIn, Twitter]
+    primary_agent: wes-kao
+    secondary_agent: avinash-kaushik
+    description: "Content strategy, distribution channels, and thought leadership positioning"
+
+  data_driven_decisions:
+    keywords: [data-driven, decision-making, metrics, measurement, ROI, dashboard, insights, actionable, optimization]
+    primary_agent: avinash-kaushik
+    secondary_agent: peter-fader
+    description: "Turning raw data into actionable business decisions and strategic insights"

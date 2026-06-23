@@ -1,0 +1,88 @@
+workflow:
+  id: wf-account-audit
+  name: "Auditoria e Correção de Conta"
+  version: "1.0.0"
+  description: |
+    Workflow completo de auditoria de conta de anúncios. Diagnostica a saúde da conta,
+    identifica gastos desperdiçados, produz um plano de correção e estabelece
+    monitoramento contínuo. Usado para onboarding de novas contas ou correção
+    de contas com baixo desempenho.
+  trigger: "*account-audit"
+  entry_agent: traffic-chief
+  estimated_duration: "30-60 minutes"
+
+  type: sequential
+  sequence:
+    - agent: ads-analyst
+      action: audit-ad-account
+      creates: audit_report
+    - agent: pixel-specialist
+      action: setup-tracking
+      creates: tracking_review
+    - agent: performance-analyst
+      action: analyze-performance
+      creates: performance_report
+    - agent: fiscal
+      action: manage-budget
+      creates: budget_plan
+
+phases:
+  - id: phase_0
+    name: "Account Audit"
+    agent: ads-analyst
+    task: audit-ad-account.md
+    description: "Full 8-dimension account health audit. Score the account, categorize campaigns by performance tier, identify wasted spend, and produce the kill/scale/fix lists."
+    outputs:
+      - audit_report: "markdown"
+      - health_score: "number"
+      - wasted_spend: "number"
+      - action_lists: "object"
+    checkpoint:
+      gate: "Audit complete with all 8 dimensions scored and campaigns tiered"
+      veto: "Insufficient data for meaningful audit — request more history"
+
+  - id: phase_1
+    name: "Tracking Verification"
+    agent: pixel-specialist
+    task: setup-tracking.md
+    depends_on: [phase_0]
+    description: "Verify tracking accuracy before making optimization decisions. If tracking is broken, fix it before proceeding. This prevents optimizing toward bad data."
+    outputs:
+      - tracking_status: "markdown"
+      - fixes_needed: "list"
+    checkpoint:
+      gate: "Tracking verified or issues identified with fix plan"
+      veto: "Cannot proceed with optimization if primary conversion tracking is broken"
+
+  - id: phase_2
+    name: "Performance Deep Dive"
+    agent: performance-analyst
+    task: analyze-performance.md
+    depends_on: [phase_0, phase_1]
+    description: "Deep performance analysis at the campaign, ad set, and ad level. 80/20 analysis, trend identification, and root cause diagnosis for underperformers."
+    outputs:
+      - performance_report: "markdown"
+      - top_insights: "list"
+    checkpoint:
+      gate: "Performance analyzed with 80/20 breakdown and actionable insights"
+      veto: "Analysis based on unverified tracking data"
+
+  - id: phase_3
+    name: "Fix Plan and Budget Optimization"
+    agent: fiscal
+    task: manage-budget.md
+    depends_on: [phase_2]
+    description: "Create the budget reallocation plan based on audit and performance findings. Kill underperformers, reallocate to winners, and set up ongoing management framework."
+    outputs:
+      - budget_plan: "markdown"
+      - reallocation_schedule: "object"
+      - automated_rules: "list"
+    checkpoint:
+      gate: "Budget plan complete with phased reallocation and guardrails"
+      veto: "Reallocation too aggressive — phase over minimum 2 weeks"
+
+completion_criteria:
+  - "Account audited with 8-dimension scorecard"
+  - "Tracking verified or fixed"
+  - "Performance analyzed with 80/20 breakdown"
+  - "Budget reallocation plan created with monitoring framework"

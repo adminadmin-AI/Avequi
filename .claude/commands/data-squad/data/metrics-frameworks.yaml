@@ -1,0 +1,254 @@
+# Metrics Frameworks — Reference Data
+# Canonical models used by all Data Squad agents
+# Version: 1.0.0
+
+see_think_do_care:
+  name: "See-Think-Do-Care Framework"
+  author: "Avinash Kaushik"
+  description: "Audience-intent framework that maps marketing to customer journey stages"
+  stages:
+    - id: see
+      name: "See"
+      audience: "Largest addressable qualified audience"
+      intent: "No commercial intent"
+      content: "Awareness, inspiration, education"
+      metrics: ["impressions", "reach", "new visitors", "brand recall"]
+      channels: ["display", "social organic", "video", "PR"]
+    - id: think
+      name: "Think"
+      audience: "Audience with some commercial intent"
+      intent: "Considering options"
+      content: "Comparison, reviews, how-to"
+      metrics: ["engagement rate", "time on site", "pages per session", "email signups"]
+      channels: ["search", "content marketing", "retargeting", "email"]
+    - id: do
+      name: "Do"
+      audience: "Audience with strong commercial intent"
+      intent: "Ready to act"
+      content: "Product pages, pricing, trials, demos"
+      metrics: ["conversion rate", "cost per acquisition", "revenue", "ROAS"]
+      channels: ["paid search", "remarketing", "email nurture", "sales"]
+    - id: care
+      name: "Care"
+      audience: "Existing customers (2+ transactions)"
+      intent: "Loyal, repeat behavior"
+      content: "Support, loyalty, upsell, community"
+      metrics: ["NPS", "retention rate", "CLV", "referral rate"]
+      channels: ["email", "community", "support", "loyalty programs"]
+
+aarrr_pirate_metrics:
+  name: "AARRR Pirate Metrics"
+  author: "Dave McClure / Sean Ellis"
+  description: "Startup growth funnel framework"
+  stages:
+    - id: acquisition
+      name: "Acquisition"
+      question: "How do users find us?"
+      metrics: ["traffic by channel", "CAC", "signup rate"]
+    - id: activation
+      name: "Activation"
+      question: "Do users have a great first experience?"
+      metrics: ["onboarding completion", "time to value", "activation rate"]
+    - id: retention
+      name: "Retention"
+      question: "Do users come back?"
+      metrics: ["DAU/MAU", "cohort retention", "churn rate"]
+    - id: referral
+      name: "Referral"
+      question: "Do users tell others?"
+      metrics: ["viral coefficient", "NPS", "referral rate"]
+    - id: revenue
+      name: "Revenue"
+      question: "Do users pay?"
+      metrics: ["ARPU", "MRR", "LTV/CAC ratio"]
+
+north_star_metric:
+  name: "North Star Metric Framework"
+  author: "Sean Ellis"
+  description: "The single metric that best captures the core value delivered to customers"
+  properties:
+    - "Reflects customer value (not just revenue)"
+    - "Is leadable (team can influence it)"
+    - "Is measurable (can track weekly)"
+    - "Predicts long-term business success"
+  input_dimensions:
+    breadth: "How many users experience the value"
+    depth: "How much value each user gets"
+    frequency: "How often users get value"
+  examples:
+    - product: "Airbnb"
+      nsm: "Nights booked"
+    - product: "Spotify"
+      nsm: "Time spent listening"
+    - product: "Slack"
+      nsm: "Messages sent within a team"
+    - product: "Shopify"
+      nsm: "GMV (Gross Merchandise Volume)"
+
+ice_scoring:
+  name: "ICE Scoring Framework"
+  author: "Sean Ellis"
+  description: "Prioritization framework for growth experiments"
+  dimensions:
+    impact:
+      range: "1-10"
+      question: "How much will this move the North Star Metric?"
+      anchors:
+        1: "Negligible impact"
+        5: "Moderate impact on a subset of users"
+        10: "Massive impact on all users"
+    confidence:
+      range: "1-10"
+      question: "How sure are we this will work?"
+      anchors:
+        1: "Pure guess"
+        5: "Some supporting data"
+        10: "Proven in similar context"
+    ease:
+      range: "1-10"
+      question: "How easy is this to implement?"
+      anchors:
+        1: "Months of work, many dependencies"
+        5: "1-2 weeks, some dependencies"
+        10: "Hours, no dependencies"
+  formula: "ICE = (Impact + Confidence + Ease) / 3"
+
+bg_nbd_clv_model:
+  name: "BG/NBD Customer Lifetime Value Model"
+  author: "Peter Fader & Bruce Hardie"
+  description: "Probabilistic model for predicting customer lifetime value in non-contractual settings"
+  principles:
+    - "Customers have heterogeneous transaction rates"
+    - "Customers have heterogeneous dropout rates"
+    - "After any transaction, a customer may become permanently inactive"
+    - "Transaction rates and dropout rates vary independently"
+  inputs:
+    recency: "Time since last transaction"
+    frequency: "Number of repeat transactions"
+    monetary: "Average transaction value"
+    tenure: "Time since first transaction"
+  outputs:
+    - "P(alive) — probability customer is still active"
+    - "Expected future transactions"
+    - "Expected CLV over horizon"
+  segmentation:
+    platinum: "Top 5% by CLV"
+    gold: "Next 15% by CLV"
+    silver: "Next 30% by CLV"
+    bronze: "Bottom 50% by CLV"
+
+spaces_model:
+  name: "SPACES Model"
+  author: "David Spinks"
+  description: "Framework for defining community business value"
+  dimensions:
+    - id: support
+      name: "Support"
+      description: "Members help each other, reducing support costs"
+      metrics: ["ticket deflection rate", "community resolution rate", "time to resolution"]
+    - id: product
+      name: "Product"
+      description: "Members provide feedback, improving the product"
+      metrics: ["ideas submitted", "beta testers", "feature adoption from feedback"]
+    - id: acquisition
+      name: "Acquisition"
+      description: "Community attracts new customers"
+      metrics: ["community-sourced leads", "referral rate", "SEO from UGC"]
+    - id: contribution
+      name: "Contribution"
+      description: "Members create content or code"
+      metrics: ["UGC volume", "contributor count", "content quality score"]
+    - id: engagement
+      name: "Engagement"
+      description: "Members connect, increasing retention"
+      metrics: ["DAU/MAU", "response rate", "returning visitor rate"]
+    - id: success
+      name: "Success"
+      description: "Members achieve outcomes, reducing churn"
+      metrics: ["goal completion rate", "NPS from community members", "churn diff vs non-members"]
+
+ten_laws_customer_success:
+  name: "10 Laws of Customer Success"
+  author: "Nick Mehta"
+  description: "Foundational principles for building a customer success practice"
+  laws:
+    - number: 1
+      title: "Sell to the Right Customer"
+      principle: "CS starts in sales — wrong-fit customers cannot be saved"
+    - number: 2
+      title: "The Natural Tendency for Customers is to Churn"
+      principle: "Without proactive engagement, customers drift away"
+    - number: 3
+      title: "Customers Expect You to Make Them Wildly Successful"
+      principle: "The bar is not satisfaction — it is transformation"
+    - number: 4
+      title: "Relentlessly Monitor and Manage Customer Health"
+      principle: "Health scores must be multi-dimensional and predictive"
+    - number: 5
+      title: "You Can No Longer Build Loyalty Through Personal Relationships Alone"
+      principle: "Product and process must scale beyond individual relationships"
+    - number: 6
+      title: "Product Is Your Only Scalable Differentiator"
+      principle: "Long-term retention is driven by product value"
+    - number: 7
+      title: "Obsessively Improve Time-to-Value"
+      principle: "The faster customers see value, the higher retention"
+    - number: 8
+      title: "Deeply Understand Your Customer Metrics"
+      principle: "Data-driven CS outperforms gut-driven CS"
+    - number: 9
+      title: "Drive Customer Success via Hard Metrics"
+      principle: "NRR, expansion, and health score — not feelings"
+    - number: 10
+      title: "It Is a Top-Down, Company-Wide Commitment"
+      principle: "CS is not a department — it is a company strategy"
+
+health_score:
+  name: "Customer Health Score"
+  description: "Multi-dimensional health assessment for churn prediction"
+  dimensions:
+    - name: "Product Usage"
+      weight: 25
+      signals: ["login frequency", "feature adoption", "time in app"]
+    - name: "Support Interaction"
+      weight: 15
+      signals: ["ticket volume", "sentiment", "escalation rate"]
+    - name: "Engagement"
+      weight: 20
+      signals: ["email opens", "event attendance", "community activity"]
+    - name: "Business Outcome"
+      weight: 20
+      signals: ["goal achievement", "ROI reported", "success milestones"]
+    - name: "Relationship"
+      weight: 10
+      signals: ["NPS score", "executive sponsor engagement", "QBR attendance"]
+    - name: "Financial"
+      weight: 10
+      signals: ["payment timeliness", "contract value trend", "expansion signals"]
+  thresholds:
+    healthy: "0-25"
+    monitor: "26-50"
+    at_risk: "51-75"
+    critical: "76-100"
+
+spiky_pov_framework:
+  name: "Spiky Point of View Framework"
+  author: "Wes Kao"
+  description: "Framework for developing a differentiated perspective that builds audience"
+  criteria:
+    specific: "Not a broad truism — a precise, narrow claim"
+    provable: "Backed by data, experience, or results"
+    interesting: "Makes people stop scrolling"
+    contrarian: "Challenges conventional wisdom"
+    your_terrain: "You have more credibility here than most"
+  validation_test: "Would someone knowledgeable argue with this?"
+  content_generation:
+    minimum_pieces: 50
+    description: "A valid spiky POV should generate at least 50 content pieces"
+  platform_selection:
+    factors:
+      - "Audience presence (where they already are)"
+      - "Content format fit (matches your creation style)"
+      - "Distribution mechanics (organic reach potential)"
+      - "Monetization path (leads, courses, consulting)"
+    rule: "Max 2 platforms simultaneously"

@@ -1,0 +1,114 @@
+# Movement Launch Workflow
+# Full 5-phase movement building from spark to impact
+# Version: 1.0.0
+
+workflow:
+  id: wf-movement-launch
+  name: "Lancamento de Movimento"
+  version: "1.0.0"
+  trigger: "*build-movement"
+  entry_agent: movement-chief
+  description: "Orquestra o processo completo de construcao de movimento atraves de 5 fases especialistas. Cada fase se baseia na anterior, com gates de checkpoint entre as fases."
+  estimated_duration: "2-4 hours"
+  type: sequential
+  sequence:
+    - agent: fenomenologo
+      action: analyze-phenomenon
+      creates: phenomenon_analysis
+    - agent: identitario
+      action: create-identity
+      creates: identity_system
+    - agent: manifestador
+      action: write-manifesto
+      creates: manifesto
+    - agent: estrategista-de-ciclo
+      action: build-movement
+      creates: growth_plan
+    - agent: analista-de-impacto
+      action: measure-impact
+      creates: impact_metrics
+
+
+inputs:
+  - name: cause
+    required: true
+    description: "The cause, idea, or brand to build a movement around"
+  - name: audience
+    required: true
+    description: "Target audience or community description"
+  - name: context
+    required: false
+    description: "Market context, existing brand assets"
+  - name: intensity
+    required: false
+    default: "regional"
+    description: "Scale: grassroots, regional, national, global"
+
+
+phases:
+  - id: phase_1_spark
+    name: "Spark"
+    agent: fenomenologo
+    task: analyze-phenomenon.md
+    depends_on: []
+    description: "Identify the lived experience and collective tension that will ignite the movement"
+    checkpoint:
+      gate: "Spark validity — does the identified tension have movement-grade intensity (>= 3/5)?"
+      veto: "movement-chief can reject if tension is superficial or fabricated"
+      required_output: "spark-analysis with movement_potential >= MEDIUM"
+
+  - id: phase_2_identity
+    name: "Identity"
+    agent: identitario
+    task: create-identity.md
+    depends_on: [phase_1_spark]
+    description: "Architect the belief system, tribal markers, rituals, and in-group signals"
+    checkpoint:
+      gate: "Identity coherence — does the identity naturally emerge from the validated spark?"
+      veto: "movement-chief can reject if identity contradicts or ignores the spark analysis"
+      required_output: "identity-architecture with full Identity Stack"
+
+  - id: phase_3_ignition
+    name: "Ignition"
+    agent: manifestador
+    task: write-manifesto.md
+    depends_on: [phase_2_identity]
+    description: "Create the manifesto, origin story, battle cry, and ignition plan"
+    checkpoint:
+      gate: "Manifesto alignment — does the manifesto authentically express the identity?"
+      veto: "movement-chief can reject if manifesto feels generic or misaligned with identity"
+      required_output: "manifesto with all 7 components + battle cry"
+
+  - id: phase_4_growth
+    name: "Growth"
+    agent: estrategista-de-ciclo
+    task: build-movement.md
+    depends_on: [phase_3_ignition]
+    description: "Design the Growth Flywheel: Attract > Activate > Sustain > Multiply"
+    checkpoint:
+      gate: "Growth feasibility — is the flywheel realistic for the movement's current stage?"
+      veto: "movement-chief can reject if growth plan exceeds current resources or skips stages"
+      required_output: "growth-strategy with all 4 flywheel phases"
+
+  - id: phase_5_impact
+    name: "Impact"
+    agent: analista-de-impacto
+    task: measure-impact.md
+    depends_on: [phase_4_growth]
+    description: "Define impact pyramid, metrics, community health dashboard, and vitality index"
+    checkpoint:
+      gate: "Measurement completeness — are all 5 pyramid levels covered with actionable metrics?"
+      veto: "movement-chief can reject if metrics are unmeasurable or disconnected from the cause"
+      required_output: "impact-framework with vitality index and reporting cadence"
+
+completion_criteria:
+  - "All 5 phases completed with passing checkpoints"
+  - "6 deliverable documents produced (spark, identity, manifesto, ignition, growth, impact)"
+  - "End-to-end coherence validated by movement-chief"
+  - "Battle cry and core belief are consistent across all documents"
+  - "Vitality Index baseline established"
+
+error_handling:
+  phase_failure: "Return to the failed phase with specific feedback. Do not skip phases."
+  checkpoint_veto: "Agent must revise output and resubmit. Max 2 revision cycles per phase."
+  escalation: "If a phase fails after 2 revisions, escalate to movement-chief for manual intervention."

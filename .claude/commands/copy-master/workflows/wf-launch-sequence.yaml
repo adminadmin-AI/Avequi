@@ -1,0 +1,127 @@
+workflow:
+  id: wf-launch-sequence
+  name: "Sequencia Completa de Lancamento"
+  version: "2.0.0"
+  description: |
+    Workflow completo de lancamento de produto combinando os melhores especialistas:
+    Frank Kern para pre-lancamento e anticipation, Ry Schwartz para emails de
+    cart open/close, Russell Brunson para webinar de conversao, e revisao final
+    do Copy Master Chief com audit de psicologia da persuasao.
+    Produz o pacote completo de lancamento pronto para execucao.
+  trigger: "*launch-sequence"
+  entry_agent: copy-master-chief
+  estimated_duration: "60-120 minutes"
+  type: sequential
+  sequence:
+    - agent: copy-master-chief
+      action: diagnose-launch
+      creates: launch_brief
+    - agent: frank-kern
+      action: write-pre-launch
+      creates: pre_launch_content
+    - agent: ry-schwartz
+      action: write-launch-emails
+      creates: launch_emails
+    - agent: russell-brunson
+      action: write-webinar
+      creates: webinar_script
+    - agent: copy-master-chief
+      action: psychology-checkpoint
+      creates: psychology_audit
+    - agent: copy-master-chief
+      action: final-review
+      creates: launch_package
+
+phases:
+  - id: phase_0
+    name: "Launch Brief and Strategy"
+    agent: copy-master-chief
+    task: diagnose.md
+    description: "Copy Master Chief receives the launch brief, defines the product, audience, offer stack, launch timeline, and traffic strategy. Maps the complete launch calendar with content dates, cart open/close, and webinar date. Sets persuasion architecture goals for the entire launch."
+    outputs:
+      - launch_brief: "markdown"
+      - launch_calendar: "markdown"
+      - offer_stack: "object"
+      - persuasion_goals: "markdown"
+    checkpoint:
+      gate: "Complete launch brief with calendar, offer stack, and timeline defined"
+      veto: "No offer stack defined OR no launch timeline — cannot plan without dates"
+
+  - id: phase_1
+    name: "Pre-Launch Content (Frank Kern)"
+    agent: frank-kern
+    task: create-funnel-copy.md
+    depends_on: [phase_0]
+    description: "Frank Kern creates the pre-launch content sequence. 3-4 pieces of high-value content that build anticipation, establish authority, and create demand before the cart opens. Each piece ends with an open loop pointing to the next. Follows the 4 Day Cash Machine principles for building urgency and reciprocity."
+    outputs:
+      - pre_launch_content: "markdown"
+      - content_calendar: "markdown"
+      - anticipation_emails: "markdown"
+    checkpoint:
+      gate: "3-4 pre-launch content pieces complete with anticipation emails and open loops"
+      veto: "Content does not build toward the offer OR no open loops between pieces"
+
+  - id: phase_2
+    name: "Launch Email Sequence (Ry Schwartz)"
+    agent: ry-schwartz
+    task: write-email-sequence.md
+    depends_on: [phase_1]
+    description: "Ry Schwartz writes the complete launch email sequence: cart open announcement, mid-cart belief-shifting emails, FAQ/objection handling, and cart close urgency sequence. Applies his signature emotional escalation technique and belief-layer approach from Agora Financial launches."
+    outputs:
+      - launch_emails: "markdown"
+      - email_calendar: "markdown"
+      - subject_line_bank: "list"
+    checkpoint:
+      gate: "Complete email sequence from cart open through cart close with escalating urgency"
+      veto: "No cart close sequence OR no objection-handling emails"
+
+  - id: phase_3
+    name: "Webinar Script (Russell Brunson)"
+    agent: russell-brunson
+    task: write-webinar-script.md
+    depends_on: [phase_0]
+    description: "Russell Brunson writes the webinar script using the Perfect Webinar framework. This is the primary conversion event of the launch. The webinar must break the 3 core beliefs (vehicle, internal, external) and present the offer through the Stack. Includes Epiphany Bridge stories and full persuasion architecture."
+    outputs:
+      - webinar_script: "markdown"
+      - webinar_slides_outline: "markdown"
+      - post_webinar_emails: "markdown"
+    checkpoint:
+      gate: "Perfect Webinar framework complete with 3 Secrets, Stack, and Close"
+      veto: "Missing any of the 3 Secrets OR no Stack slide sequence"
+
+  - id: phase_4
+    name: "Psychology Checkpoint"
+    agent: copy-master-chief
+    task: review.md
+    depends_on: [phase_1, phase_2, phase_3]
+    description: "Copy Master Chief reviews the complete launch package for persuasion consistency. Verifies that pre-launch content, emails, and webinar form a coherent persuasion arc. Checks that Cialdini principles build progressively and Warren levers are distributed across the full launch timeline. Ensures no contradictions between specialists' outputs."
+    outputs:
+      - psychology_audit: "markdown"
+      - consistency_check: "boolean"
+      - persuasion_arc: "markdown"
+    checkpoint:
+      gate: "All 3 deliverables form coherent persuasion arc AND min 6 Cialdini principles active across launch AND min 4 Warren levers engaged"
+      veto: "Contradictions between pre-launch promise and webinar offer OR email sequence disconnected from webinar content"
+
+  - id: phase_5
+    name: "Final Review and Launch Package"
+    agent: copy-master-chief
+    task: review.md
+    depends_on: [phase_4]
+    description: "Copy Master Chief compiles the complete launch package: pre-launch content + anticipation emails + launch email sequence + webinar script + post-webinar emails. Includes the master launch calendar, persuasion architecture documentation, and execution checklist."
+    outputs:
+      - launch_package: "markdown"
+      - master_calendar: "markdown"
+      - execution_checklist: "markdown"
+      - persuasion_architecture: "markdown"
+    checkpoint:
+      gate: "Complete launch package with all deliverables, calendar, and execution checklist"
+      veto: "Any major deliverable missing or inconsistent with launch brief"
+
+completion_criteria:
+  - "Pre-launch content created by Frank Kern (3-4 pieces + anticipation emails)"
+  - "Launch email sequence written by Ry Schwartz (cart open through cart close)"
+  - "Webinar script completed by Russell Brunson (Perfect Webinar framework)"
+  - "Psychology checkpoint passed (coherent persuasion arc across all deliverables)"
+  - "Final review passed by Copy Master Chief"
+  - "Complete launch package delivered with master calendar and execution checklist"

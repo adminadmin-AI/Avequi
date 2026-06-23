@@ -1,0 +1,124 @@
+workflow:
+  id: wf-vsl-production
+  name: "Producao de VSL Completa"
+  version: "2.0.0"
+  description: |
+    Workflow especializado para producao de Video Sales Letters. Combina o RMBC de
+    Stefan Georgi com o formato de Jon Benson, a camada de crenca de Evaldo Albuquerque,
+    e revisao final do Copy Master Chief com audit de psicologia da persuasao.
+    Produz um script de VSL completo, production-ready, com notas visuais e de audio.
+  trigger: "*vsl-production"
+  entry_agent: copy-master-chief
+  estimated_duration: "45-90 minutes"
+  type: sequential
+  sequence:
+    - agent: copy-master-chief
+      action: diagnose-vsl
+      creates: vsl_brief
+    - agent: stefan-georgi
+      action: write-rmbc-draft
+      creates: rmbc_draft
+    - agent: jon-benson
+      action: format-vsl
+      creates: formatted_vsl
+    - agent: evaldo-albuquerque
+      action: add-belief-layer
+      creates: belief_enhanced_vsl
+    - agent: copy-master-chief
+      action: psychology-checkpoint
+      creates: psychology_audit
+    - agent: copy-master-chief
+      action: final-review
+      creates: final_vsl
+
+phases:
+  - id: phase_0
+    name: "VSL Brief and Strategy"
+    agent: copy-master-chief
+    task: diagnose.md
+    description: "Copy Master Chief receives the VSL brief, identifies the product, audience, awareness level, unique mechanism, and proof elements. Defines the RMBC strategy and target duration. Sets the persuasion architecture goals."
+    outputs:
+      - vsl_brief: "markdown"
+      - target_duration: "string"
+      - mechanism_name: "string"
+      - persuasion_goals: "markdown"
+    checkpoint:
+      gate: "Brief complete with mechanism identified and duration target set"
+      veto: "No unique mechanism defined — cannot proceed without differentiation"
+
+  - id: phase_1
+    name: "RMBC Draft (Stefan Georgi)"
+    agent: stefan-georgi
+    task: write-vsl-script.md
+    depends_on: [phase_0]
+    description: "Stefan Georgi writes the core VSL using the RMBC (Relate-Mechanism-Benefits-Close) framework. This is the structural backbone of the VSL. Includes Psychological Layer mapping with Cialdini principles per RMBC section."
+    outputs:
+      - rmbc_draft: "markdown"
+      - hook_variants: "list"
+    checkpoint:
+      gate: "All 4 RMBC sections complete with hook, proof blocks, and close sequence"
+      veto: "Missing Relate section or Mechanism not named"
+
+  - id: phase_2
+    name: "VSL Format Optimization (Jon Benson)"
+    agent: jon-benson
+    task: write-vsl-script.md
+    depends_on: [phase_1]
+    description: "Jon Benson optimizes the script for the text-on-screen VSL format. Applies his micro-commitment style: short sentences, pattern interrupts, scroll-stopping text slides, and conversational pacing. Ensures the script works as text-on-screen with audio narration."
+    outputs:
+      - formatted_vsl: "markdown"
+      - slide_count: "number"
+      - pacing_notes: "markdown"
+    checkpoint:
+      gate: "Script formatted for text-on-screen with slide cues and pacing optimized"
+      veto: "Sentences too long for text slides (max 15 words per text slide)"
+
+  - id: phase_3
+    name: "Belief Layer (Evaldo Albuquerque)"
+    agent: evaldo-albuquerque
+    task: write-vsl-script.md
+    depends_on: [phase_2]
+    description: "Evaldo Albuquerque adds the belief-shifting layer. Identifies the One Belief that must change for the prospect to buy, and weaves belief-breaking elements throughout the VSL. Strengthens the paradigm shift from old solution to new mechanism. Applies Blair Warren's levers for deeper emotional impact."
+    outputs:
+      - belief_enhanced_vsl: "markdown"
+      - one_belief: "string"
+      - belief_breaking_points: "list"
+    checkpoint:
+      gate: "One Belief identified and belief-breaking elements woven into all RMBC sections"
+      veto: "No clear belief shift — VSL will not convert without paradigm change"
+
+  - id: phase_4
+    name: "Psychology Checkpoint"
+    agent: copy-master-chief
+    task: review.md
+    depends_on: [phase_3]
+    description: "Copy Master Chief verifies the complete persuasion architecture: RMBC structure + Jon Benson formatting + Evaldo belief layer + Cialdini principles + Warren levers. Ensures all layers work together harmoniously without contradiction."
+    outputs:
+      - psychology_audit: "markdown"
+      - layer_harmony: "boolean"
+    checkpoint:
+      gate: "All 3 specialist layers harmonized AND min 5 Cialdini principles active AND min 3 Warren levers engaged"
+      veto: "Layers contradict each other OR belief layer undermines RMBC structure"
+
+  - id: phase_5
+    name: "Final Review and Delivery"
+    agent: copy-master-chief
+    task: critique-copy.md
+    depends_on: [phase_4]
+    description: "Copy Master Chief performs the final 8-point critique plus persuasion audit. Compiles the production-ready VSL package with script, slide cues, timing notes, A/B test recommendations, and persuasion architecture documentation."
+    outputs:
+      - final_vsl: "markdown"
+      - critique_report: "markdown"
+      - production_package: "markdown"
+      - persuasion_architecture: "markdown"
+    checkpoint:
+      gate: "Composite score >= 70% (VSLs require higher bar) AND all psychology checks passed"
+      veto: "Score < 50% — return to Phase 1 for fundamental rewrite"
+
+completion_criteria:
+  - "RMBC framework fully executed by Stefan Georgi"
+  - "Text-on-screen format optimized by Jon Benson"
+  - "Belief layer added by Evaldo Albuquerque"
+  - "Psychology checkpoint passed (Cialdini + Warren + belief architecture)"
+  - "Final critique passed with Strong or Elite verdict (>= 70%)"
+  - "Production-ready package delivered with all notes and persuasion architecture"

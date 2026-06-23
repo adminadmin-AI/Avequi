@@ -1,0 +1,276 @@
+# Design Patterns Catalog
+# Reference for atomic design, tokens, accessibility, and component patterns
+# Version: 1.0.0
+
+catalog:
+  version: "1.0.0"
+  last_updated: "2026-03-05"
+
+atomic_design:
+  description: "Brad Frost's methodology for building design systems from smallest to largest"
+  source: "Atomic Design (2016) — bradfrost.com"
+  levels:
+    atoms:
+      description: "The smallest, indivisible UI elements"
+      examples:
+        - "Button"
+        - "Input field"
+        - "Label"
+        - "Icon"
+        - "Badge"
+        - "Avatar"
+        - "Checkbox"
+        - "Radio button"
+        - "Toggle switch"
+        - "Link"
+        - "Tag/chip"
+        - "Divider"
+        - "Spinner/loader"
+        - "Tooltip"
+      characteristics:
+        - "Cannot be broken down further without losing meaning"
+        - "Reusable across all contexts"
+        - "Styled with design tokens"
+        - "Accessible by default"
+
+    molecules:
+      description: "Simple groups of atoms functioning as a unit"
+      examples:
+        - "Search bar (input + button + icon)"
+        - "Form field (label + input + helper text + error)"
+        - "Navigation item (icon + label + badge)"
+        - "Media object (image + text block)"
+        - "Card header (avatar + name + subtitle)"
+        - "Button group (multiple buttons)"
+        - "Breadcrumb (links + separators)"
+        - "Pagination (buttons + page indicators)"
+        - "Alert (icon + message + action)"
+        - "Stat card (label + value + trend)"
+      characteristics:
+        - "Composed of 2-3 atoms"
+        - "Single, clear purpose"
+        - "Reusable in multiple contexts"
+        - "Self-contained functionality"
+
+    organisms:
+      description: "Complex groups of molecules and atoms forming distinct sections"
+      examples:
+        - "Navigation bar (logo + nav items + search + user menu)"
+        - "Form section (heading + description + form fields + actions)"
+        - "Data table (header + rows + pagination + filters)"
+        - "Card (header + media + content + footer)"
+        - "Modal (overlay + header + body + footer)"
+        - "Sidebar (logo + navigation + user + footer)"
+        - "Hero section (heading + description + CTA + media)"
+        - "Comment thread (comments + reply form + actions)"
+        - "Product listing (filters + grid + pagination)"
+        - "Dashboard widget (title + chart + legend + actions)"
+      characteristics:
+        - "Multiple molecules working together"
+        - "Represents a distinct section of the interface"
+        - "May contain business logic"
+        - "Repeated across pages with variations"
+
+    templates:
+      description: "Page-level structures defining layout and component placement"
+      examples:
+        - "Dashboard layout (sidebar + header + main content grid)"
+        - "Article layout (header + body + sidebar + footer)"
+        - "Settings layout (tabs + form sections)"
+        - "List/detail layout (list panel + detail panel)"
+        - "Authentication layout (centered card + background)"
+        - "Marketing page layout (hero + features + testimonials + CTA)"
+      characteristics:
+        - "Define the overall page structure"
+        - "Use placeholder content"
+        - "Focus on layout, not content"
+        - "Responsive grid definitions"
+
+    pages:
+      description: "Specific instances of templates with real content"
+      examples:
+        - "Homepage with actual hero copy and featured items"
+        - "User profile with real data"
+        - "Product detail with actual product"
+      characteristics:
+        - "Templates filled with real content"
+        - "Reveal edge cases (long names, missing images)"
+        - "Used for final review and testing"
+
+design_tokens:
+  description: "Design decisions expressed as data — the bridge between design and code"
+  architecture:
+    global_tokens:
+      description: "Raw values with no semantic meaning"
+      examples:
+        - "blue-500: #3B82F6"
+        - "spacing-4: 16px"
+        - "font-size-lg: 18px"
+        - "radius-md: 8px"
+        - "shadow-md: 0 4px 6px rgba(0,0,0,0.1)"
+      naming: "{category}-{property}-{variant}"
+
+    alias_tokens:
+      description: "Semantic names that reference global tokens"
+      examples:
+        - "color-primary: {blue-500}"
+        - "color-text-primary: {gray-900}"
+        - "color-bg-surface: {white}"
+        - "color-border-default: {gray-200}"
+        - "color-feedback-success: {green-500}"
+        - "color-feedback-error: {red-500}"
+      naming: "{category}-{semantic-name}"
+      theming: "Alias tokens change between themes (light/dark)"
+
+    component_tokens:
+      description: "Component-specific tokens that reference alias tokens"
+      examples:
+        - "button-primary-bg: {color-primary}"
+        - "button-primary-text: {color-text-inverse}"
+        - "input-border: {color-border-default}"
+        - "card-shadow: {shadow-md}"
+        - "nav-bg: {color-bg-surface}"
+      naming: "{component}-{property}"
+      override: "Component tokens allow per-component customization"
+
+  token_categories:
+    color:
+      subcategories: [brand, neutral, feedback, text, background, border, overlay]
+    typography:
+      subcategories: [family, size, weight, line-height, letter-spacing]
+    spacing:
+      subcategories: [inline, stack, inset, grid-gap]
+      base_unit: "4px"
+      scale: [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64]
+    border:
+      subcategories: [width, radius, style, color]
+    shadow:
+      subcategories: [elevation-1, elevation-2, elevation-3, elevation-4]
+    motion:
+      subcategories: [duration, easing, property]
+      durations: ["100ms (micro)", "200ms (fast)", "300ms (normal)", "500ms (slow)"]
+      easings: ["ease-in-out (default)", "ease-out (enter)", "ease-in (exit)", "linear (progress)"]
+    breakpoint:
+      values: ["sm: 640px", "md: 768px", "lg: 1024px", "xl: 1280px", "2xl: 1536px"]
+    z_index:
+      scale: ["base: 0", "dropdown: 1000", "sticky: 1100", "overlay: 1200", "modal: 1300", "popover: 1400", "toast: 1500"]
+
+wcag_accessibility:
+  standard: "WCAG 2.1 Level AA"
+  source: "w3.org/WAI/WCAG21/"
+  requirements:
+    perceivable:
+      - category: "Text Alternatives"
+        rule: "All non-text content has text alternatives"
+        implementation: "alt text on images, aria-label on icons, captions on media"
+      - category: "Color Contrast"
+        rule: "Normal text: 4.5:1 minimum. Large text (18px+ bold or 24px+): 3:1 minimum"
+        implementation: "Verify all token combinations meet ratios"
+      - category: "UI Component Contrast"
+        rule: "Non-text UI elements: 3:1 minimum against adjacent colors"
+        implementation: "Buttons, inputs, focus indicators must be distinguishable"
+      - category: "Do Not Use Color Alone"
+        rule: "Color must not be the sole means of conveying information"
+        implementation: "Add icons, patterns, or text alongside color indicators"
+
+    operable:
+      - category: "Keyboard Navigation"
+        rule: "All functionality available via keyboard"
+        implementation: "Tab order, Enter/Space activation, Arrow navigation, Escape to close"
+      - category: "Focus Visible"
+        rule: "Focus indicator is clearly visible"
+        implementation: "2px solid outline with offset, high contrast (3:1 minimum)"
+      - category: "Touch Target"
+        rule: "Minimum 44x44px touch target for mobile"
+        implementation: "Padding or minimum dimensions on interactive elements"
+      - category: "No Keyboard Traps"
+        rule: "User can navigate away from any component using keyboard"
+        implementation: "Escape closes modals/dropdowns, Tab moves through all elements"
+
+    understandable:
+      - category: "Error Identification"
+        rule: "Errors are identified and described in text"
+        implementation: "Error messages below fields, summary at form top, aria-describedby"
+      - category: "Labels"
+        rule: "All inputs have associated labels"
+        implementation: "Visible label + for/id pairing, or aria-label for icon-only"
+      - category: "Consistent Navigation"
+        rule: "Navigation appears in same order across pages"
+        implementation: "Fixed nav component, consistent ordering"
+
+    robust:
+      - category: "ARIA Usage"
+        rule: "Use ARIA roles, states, and properties correctly"
+        implementation: "role, aria-expanded, aria-selected, aria-live, aria-describedby"
+      - category: "Name, Role, Value"
+        rule: "Custom components expose name, role, and value to assistive tech"
+        implementation: "Proper ARIA attributes on custom widgets"
+
+component_anatomy:
+  description: "Standard anatomy patterns for common component types"
+  patterns:
+    button:
+      elements: [leading_icon, label, trailing_icon]
+      variants: [primary, secondary, tertiary, danger, ghost]
+      sizes: [sm, md, lg]
+      states: [default, hover, focus, active, disabled, loading]
+      accessibility: "role=button, aria-disabled, aria-busy (loading)"
+
+    input:
+      elements: [label, input_field, leading_icon, trailing_icon, helper_text, error_message, character_count]
+      variants: [text, number, email, password, search, textarea]
+      sizes: [sm, md, lg]
+      states: [default, hover, focus, filled, disabled, error, success, readonly]
+      accessibility: "label for/id, aria-describedby (helper/error), aria-invalid, required"
+
+    card:
+      elements: [media, header, title, subtitle, body, footer, actions, badge]
+      variants: [default, elevated, outlined, interactive]
+      states: [default, hover (if interactive), selected, loading (skeleton)]
+      accessibility: "article role, heading level, interactive cards need role=button or link"
+
+    modal:
+      elements: [overlay, container, header, close_button, body, footer, actions]
+      variants: [default, full_screen, side_panel, confirmation]
+      states: [opening, open, closing, closed]
+      accessibility: "role=dialog, aria-modal=true, focus trap, Escape to close, return focus on close"
+
+    table:
+      elements: [header, header_cell, body, row, cell, sort_indicator, pagination, empty_state]
+      variants: [default, striped, bordered, compact, sticky_header]
+      states: [loading, empty, populated, row_selected, row_expanded]
+      accessibility: "role=table, scope on headers, aria-sort, aria-selected, caption"
+
+designops_three_lenses:
+  description: "Dave Malouf's DesignOps framework — three interconnected lenses"
+  source: "DesignOps Handbook / Rosenfeld Media"
+  lenses:
+    how_we_work_together:
+      name: "People & Culture"
+      focus: "Team structure, roles, career paths, hiring, collaboration, culture"
+      maturity_levels:
+        1_ad_hoc: "No defined roles, designers work in isolation"
+        2_emerging: "Some roles defined, informal collaboration"
+        3_defined: "Clear roles, career paths, regular design reviews"
+        4_managed: "Metrics-driven team management, mentorship programs"
+        5_optimized: "Self-organizing teams, continuous improvement culture"
+
+    how_we_work:
+      name: "Process & Workflow"
+      focus: "Methodology, tools, handoff, review ceremonies, documentation"
+      maturity_levels:
+        1_ad_hoc: "No consistent process, each designer works differently"
+        2_emerging: "Some shared practices, inconsistent tooling"
+        3_defined: "Documented workflow, standardized tools, regular ceremonies"
+        4_managed: "Metrics on cycle time and quality, continuous process refinement"
+        5_optimized: "Automated workflows, predictive quality, seamless dev integration"
+
+    what_we_work_on:
+      name: "Craft & Output"
+      focus: "Design system, accessibility, visual quality, innovation, documentation"
+      maturity_levels:
+        1_ad_hoc: "No design system, inconsistent UI, accessibility unknown"
+        2_emerging: "Basic style guide, some shared components, accessibility awareness"
+        3_defined: "Design system in use, WCAG AA compliant, consistent visual language"
+        4_managed: "Design system governance, accessibility automated, innovation time"
+        5_optimized: "Design system is product, accessibility culture, design-led innovation"

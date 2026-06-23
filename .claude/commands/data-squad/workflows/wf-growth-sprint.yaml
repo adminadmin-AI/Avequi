@@ -1,0 +1,115 @@
+# Growth Sprint Workflow
+# 2-week cycle: Analyze > Hypothesize > Experiment > Measure > Iterate
+# Version: 1.0.0
+
+workflow:
+  id: wf-growth-sprint
+  name: "Sprint de Crescimento"
+  version: "1.0.0"
+  trigger: "*growth-sprint"
+  entry_agent: data-chief
+  description: "Um ciclo de sprint de crescimento de 2 semanas que combina analytics, experimentação de growth e mensuração. Cada sprint produz aprendizados validados e alimenta o próximo ciclo."
+  estimated_duration: "2 weeks (with async execution)"
+  type: sequential
+  sequence:
+    - agent: avinash-kaushik
+      action: analyze-data
+      creates: analysis
+    - agent: sean-ellis
+      action: hypothesize
+      creates: experiments
+    - agent: sean-ellis
+      action: execute
+      creates: results
+    - agent: avinash-kaushik
+      action: measure
+      creates: learnings
+    - agent: data-chief
+      action: synthesize
+      creates: sprint_report
+
+  cadence: "Repeatable every 2 weeks"
+
+inputs:
+  - name: product
+    required: true
+    description: "Product or service to grow"
+  - name: north_star_metric
+    required: false
+    description: "Pre-defined NSM (will be discovered if not provided)"
+  - name: focus_area
+    required: false
+    description: "AARRR stage to focus on (acquisition, activation, retention, referral, revenue)"
+  - name: sprint_number
+    required: false
+    default: 1
+    description: "Current sprint number for tracking iteration history"
+
+
+phases:
+  - id: phase_1_analyze
+    name: "Analyze"
+    agent: avinash-kaushik
+    task: analyze-data.md
+    depends_on: []
+    description: "Review current metrics, identify gaps, and surface the biggest opportunity"
+    checkpoint:
+      gate: "Business questions defined and mapped to See-Think-Do-Care"
+      veto: "data-chief rejects if analysis lacks actionable insights"
+      required_output: "Analytics framework with OMTM identified"
+
+  - id: phase_2_hypothesize
+    name: "Hypothesize"
+    agent: sean-ellis
+    task: measure-growth.md
+    depends_on: [phase_1_analyze]
+    description: "Generate growth hypotheses from funnel analysis and score with ICE"
+    checkpoint:
+      gate: "At least 5 hypotheses generated with ICE scores"
+      veto: "data-chief rejects if hypotheses are not tied to the North Star Metric"
+      required_output: "Ranked experiment backlog with top 2-3 selected"
+
+  - id: phase_3_experiment
+    name: "Experiment"
+    agent: sean-ellis
+    task: measure-growth.md
+    depends_on: [phase_2_hypothesize]
+    description: "Design and launch the top-ranked experiments with controls and tracking"
+    checkpoint:
+      gate: "Experiments have clear hypotheses, success metrics, and guardrails"
+      veto: "data-chief rejects experiments without statistical rigor"
+      required_output: "Running experiments with tracking confirmed"
+
+  - id: phase_4_measure
+    name: "Measure"
+    agent: avinash-kaushik
+    task: analyze-data.md
+    depends_on: [phase_3_experiment]
+    description: "Collect results, calculate significance, and determine winners/losers"
+    checkpoint:
+      gate: "Results are statistically significant or experiment extended"
+      veto: "data-chief rejects premature conclusions"
+      required_output: "Experiment results with verdicts and learnings"
+
+  - id: phase_5_iterate
+    name: "Iterate"
+    agent: data-chief
+    task: null
+    depends_on: [phase_4_measure]
+    description: "Review sprint learnings, update growth model, and plan next sprint"
+    checkpoint:
+      gate: "Learnings documented, next sprint priorities defined"
+      veto: "None — data-chief owns this phase"
+      required_output: "Sprint retrospective + next sprint plan"
+
+completion_criteria:
+  - "All experiments have clear verdicts (winner/loser/inconclusive)"
+  - "North Star Metric impact measured"
+  - "Learnings documented in experiment log"
+  - "Next sprint backlog updated with new hypotheses"
+  - "Sprint retrospective completed"
+
+error_handling:
+  experiment_failure: "Document the failure, extract learnings, do not repeat the same hypothesis"
+  insufficient_data: "Extend experiment duration by 1 week. If still insufficient, declare inconclusive."
+  escalation: "If 3 consecutive sprints show no NSM improvement, escalate to data-chief for strategy review"

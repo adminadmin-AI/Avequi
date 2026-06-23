@@ -1,0 +1,46 @@
+name: data-squad
+version: "1.0.0"
+short-title: "Data Squad"
+description: "Squad de 7 estrategistas data-driven — analytics (Kaushik), CLV (Fader), growth (Ellis), community (Spinks), customer success (Mehta), audience (Kao)."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "data-squad"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - analytics
+  - growth
+  - customer-success
+  - community
+  - clv
+  - metrics
+  - retention
+
+components:
+  agents:
+    - data-chief.md
+    - avinash-kaushik.md
+    - peter-fader.md
+    - sean-ellis.md
+    - wes-kao.md
+    - nick-mehta.md
+    - david-spinks.md
+  tasks:
+    - analyze-data.md
+    - build-audience.md
+    - build-community-strategy.md
+    - diagnose.md
+    - measure-growth.md
+    - optimize-retention.md
+    - review.md
+  workflows:
+    - wf-analytics-setup.yaml
+    - wf-growth-sprint.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

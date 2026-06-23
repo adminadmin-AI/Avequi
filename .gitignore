@@ -33,3 +33,9 @@ npm-debug.log*
 .idea/
 .vscode/
 *.swp
+
+# Claude Code worktrees (managed by Claude Code, not committed)
+.claude/worktrees/
+
+# Vercel local
+.vercel/

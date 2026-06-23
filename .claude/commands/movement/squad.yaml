@@ -1,0 +1,45 @@
+name: movement
+version: "1.0.0"
+short-title: "Movement Squad"
+description: "Squad de 7 agentes para construcao de movimentos. Fenomenologia, identidade, manifestos, ciclos de crescimento, medicao de impacto."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "movement"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - movement
+  - community
+  - social-impact
+  - identity
+  - manifesto
+  - growth-cycles
+  - phenomenology
+
+components:
+  agents:
+    - movement-chief.md
+    - movement-architect.md
+    - fenomenologo.md
+    - identitario.md
+    - estrategista-de-ciclo.md
+    - manifestador.md
+    - analista-de-impacto.md
+  tasks:
+    - analyze-phenomenon.md
+    - build-movement.md
+    - create-identity.md
+    - diagnose.md
+    - measure-impact.md
+    - review.md
+    - write-manifesto.md
+  workflows:
+    - wf-movement-launch.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

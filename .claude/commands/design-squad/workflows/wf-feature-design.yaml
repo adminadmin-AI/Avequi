@@ -1,0 +1,114 @@
+# Feature Design Workflow
+# From research through wireframes to implementation
+
+workflow:
+  id: wf-feature-design
+  name: "Design de Funcionalidade"
+  trigger: "*feature-design"
+  entry_agent: design-chief
+  estimated_duration: "2-4 hours"
+  description: |
+    Workflow completo de design de funcionalidade, desde pesquisa de usuário até wireframing,
+    design visual, especificação de implementação e integração com design system.
+
+  type: sequential
+  sequence:
+    - agent: ux-designer
+      action: design-ux-flow
+      creates: wireframes
+    - agent: visual-generator
+      action: create-component-spec
+      creates: visuals
+    - agent: ui-engineer
+      action: generate-handoff
+      creates: handoff
+    - agent: brad-frost
+      action: create-design-system
+      creates: integration
+
+phases:
+  - id: phase_1_research
+    name: "User Research & Discovery"
+    agent: ux-designer
+    task: design-ux-flow.md
+    depends_on: []
+    description: "Conduct user research, create personas, map user journeys"
+    checkpoint:
+      gate: "Research insights documented, personas created, user needs validated"
+      veto: "HALT if no user research is conducted — designing without research is guessing"
+    outputs:
+      - research_insights
+      - personas
+      - journey_map
+      - design_requirements
+
+  - id: phase_2_wireframe
+    name: "Information Architecture & Wireframes"
+    agent: ux-designer
+    task: design-ux-flow.md
+    depends_on: [phase_1_research]
+    description: "Define information architecture, create wireframes, design user flows"
+    checkpoint:
+      gate: "Wireframes cover all key screens, flows include happy and error paths"
+      veto: "HALT if wireframes only cover the happy path — error states must be designed"
+    outputs:
+      - information_architecture
+      - wireframes
+      - user_flows
+      - interaction_specs
+
+  - id: phase_3_visual
+    name: "Visual Design & Component Spec"
+    agent: visual-generator
+    task: create-component-spec.md
+    depends_on: [phase_2_wireframe]
+    support_agents: [brad-frost]
+    description: "Apply visual design, specify components, ensure design system alignment"
+    checkpoint:
+      gate: "Visual designs complete with all tokens mapped and WCAG compliance verified"
+      veto: "HALT if visual design introduces components that bypass the design system"
+    outputs:
+      - visual_designs
+      - component_specifications
+      - token_mapping
+      - accessibility_verification
+
+  - id: phase_4_implement
+    name: "Implementation Handoff"
+    agent: ui-engineer
+    task: generate-handoff.md
+    depends_on: [phase_3_visual]
+    support_agents: [dan-mall]
+    description: "Generate developer handoff documentation with tokens, interactions, and responsive specs"
+    checkpoint:
+      gate: "Handoff documentation complete with dev review conducted"
+      veto: "HALT if handoff lacks interaction specifications or responsive behavior"
+    outputs:
+      - handoff_documentation
+      - token_map
+      - interaction_specs
+      - asset_exports
+
+  - id: phase_5_integrate
+    name: "Design System Integration"
+    agent: brad-frost
+    task: create-design-system.md
+    depends_on: [phase_4_implement]
+    support_agents: [design-system-architect]
+    description: "Add new components to design system, update documentation, verify consistency"
+    checkpoint:
+      gate: "New components integrated into design system with documentation updated"
+      veto: "HALT if new components break existing system patterns"
+    outputs:
+      - updated_design_system
+      - new_component_docs
+      - regression_check
+
+completion_criteria:
+  - "User research conducted with insights documented"
+  - "Personas and journey maps created"
+  - "Wireframes cover all screens, flows, and states"
+  - "Visual design applied with design system alignment"
+  - "Accessibility verified (WCAG AA minimum)"
+  - "Developer handoff complete with all specifications"
+  - "New components integrated into design system"

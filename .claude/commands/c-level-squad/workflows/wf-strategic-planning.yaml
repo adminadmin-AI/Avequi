@@ -1,0 +1,130 @@
+# Strategic Planning Workflow
+# Vision > Strategy > Operations > Marketing > Technology > AI
+# Version: 1.0.0
+
+workflow:
+  id: wf-strategic-planning
+  name: "Planejamento Estrategico"
+  version: "1.0.0"
+  trigger: "*strategic-planning"
+  entry_agent: vision-chief
+  description: "Planejamento estrategico abrangente que flui da visao atraves de todos os dominios C-level. Cada fase adiciona uma camada de profundidade estrategica, resultando em um plano empresarial alinhado."
+  estimated_duration: "4-8 hours"
+  type: sequential
+  sequence:
+    - agent: vision-chief
+      action: set-vision
+      creates: vision
+    - agent: coo-orchestrator
+      action: design-operations
+      creates: ops_plan
+    - agent: cmo-architect
+      action: plan-go-to-market
+      creates: gtm_plan
+    - agent: cto-architect
+      action: evaluate-technology
+      creates: tech_plan
+    - agent: caio-architect
+      action: ai-strategy
+      creates: ai_plan
+
+
+inputs:
+  - name: company
+    required: true
+    description: "Company name and description"
+  - name: industry
+    required: true
+    description: "Industry or market sector"
+  - name: current_state
+    required: true
+    description: "Current stage, revenue, team size, key challenges"
+  - name: planning_horizon
+    required: false
+    default: "3 years"
+    description: "Strategic planning timeframe"
+
+
+phases:
+  - id: phase_1_vision
+    name: "Vision"
+    agent: vision-chief
+    task: set-vision.md
+    depends_on: []
+    description: "Define mission, vision, core values, and strategic direction"
+    checkpoint:
+      gate: "Mission and vision are specific, inspiring, and actionable"
+      veto: "vision-chief self-validates; no external veto at this stage"
+      required_output: "Mission, vision, core values, Porter's 5 Forces analysis"
+
+  - id: phase_2_strategy
+    name: "Strategy"
+    agent: vision-chief
+    task: set-vision.md
+    depends_on: [phase_1_vision]
+    description: "Define strategic pillars, BCG Matrix, and 3-year roadmap"
+    checkpoint:
+      gate: "3-5 strategic pillars defined with OKRs and owners"
+      veto: "vision-chief rejects pillars that don't close the strategic gap"
+      required_output: "Strategic pillars with measurable key results"
+
+  - id: phase_3_operations
+    name: "Operations"
+    agent: coo-orchestrator
+    task: design-operations.md
+    depends_on: [phase_2_strategy]
+    description: "Design operational framework to execute the strategy"
+    checkpoint:
+      gate: "OKRs aligned with strategic pillars, processes mapped"
+      veto: "vision-chief rejects if operations don't support strategic priorities"
+      required_output: "Process map, OKR framework, operating cadence"
+
+  - id: phase_4_marketing
+    name: "Marketing"
+    agent: cmo-architect
+    task: plan-go-to-market.md
+    depends_on: [phase_2_strategy]
+    description: "Design go-to-market strategy aligned with strategic direction"
+    checkpoint:
+      gate: "GTM strategy supports strategic pillars with measurable KPIs"
+      veto: "vision-chief rejects if positioning contradicts strategic direction"
+      required_output: "Market analysis, positioning, channel strategy, launch plan"
+
+  - id: phase_5_technology
+    name: "Technology"
+    agent: cto-architect
+    task: evaluate-technology.md
+    depends_on: [phase_2_strategy]
+    description: "Evaluate and plan technology strategy to enable the roadmap"
+    checkpoint:
+      gate: "Tech roadmap enables strategic pillars, critical debt addressed"
+      veto: "vision-chief rejects if tech roadmap doesn't support business timeline"
+      required_output: "Technology assessment, radar, ADRs, tech roadmap"
+
+  - id: phase_6_ai
+    name: "AI Strategy"
+    agent: caio-architect
+    task: evaluate-technology.md
+    depends_on: [phase_5_technology]
+    description: "Define AI strategy and maturity roadmap layered on technology plan"
+    checkpoint:
+      gate: "AI opportunities mapped to strategic pillars with ROI estimates"
+      veto: "vision-chief rejects AI initiatives without clear business value"
+      required_output: "AI maturity assessment, opportunity map, implementation plan"
+
+completion_criteria:
+  - "Vision, mission, and values defined and validated"
+  - "3-5 strategic pillars with OKRs and owners"
+  - "Operational framework aligned with strategy"
+  - "GTM strategy with positioning and channel plan"
+  - "Technology roadmap enabling strategic priorities"
+  - "AI opportunities identified and prioritized"
+  - "All phases produce deliverables that reference strategic pillars"
+
+error_handling:
+  misalignment: "If any phase produces output misaligned with strategic pillars, return to that phase with specific feedback from vision-chief."
+  resource_conflict: "If operations, marketing, and technology compete for resources, escalate to vision-chief for prioritization."
+  escalation: "Vision-chief has final authority on all strategic trade-offs."
+
+parallel_execution:
+  note: "Phases 3, 4, and 5 can run in parallel since they all depend only on Phase 2. Phase 6 depends on Phase 5."

@@ -1,0 +1,157 @@
+# Incident Response Workflow
+# NIST 800-61 based incident handling lifecycle
+
+workflow:
+  id: wf-incident-response
+  name: "Resposta a Incidentes"
+  trigger: "*incident-response"
+  entry_agent: omar-santos
+  estimated_duration: "1-8 hours (varies by severity)"
+  description: |
+    Workflow estruturado de resposta a incidentes seguindo o framework NIST 800-61.
+    Da detecção até contenção, erradicação, recuperação e lições aprendidas.
+
+  type: sequential
+  sequence:
+    - agent: omar-santos
+      action: detect
+      creates: detection_report
+    - agent: omar-santos
+      action: contain
+      creates: containment_plan
+    - agent: omar-santos
+      action: eradicate
+      creates: eradication
+    - agent: omar-santos
+      action: recover
+      creates: recovery
+    - agent: omar-santos
+      action: lessons-learned
+      creates: post_mortem
+
+phases:
+  - id: phase_1_detect
+    name: "Detection & Triage"
+    agent: omar-santos
+    task: respond-incident.md
+    depends_on: []
+    description: "Classify incident, establish timeline, assess severity"
+    checkpoint:
+      gate: "Incident classified with severity (P1-P4) and blast radius estimated"
+      veto: "HALT if incident involves active data exfiltration — escalate to P1 immediately"
+    outputs:
+      - incident_classification
+      - severity_level
+      - initial_timeline
+      - ioc_list
+
+  - id: phase_2_contain
+    name: "Containment"
+    agent: omar-santos
+    task: respond-incident.md
+    depends_on: [phase_1_detect]
+    support_agents: [chris-sanders, command-generator]
+    description: "Isolate affected systems, preserve evidence, stop spread"
+    checkpoint:
+      gate: "Attacker access severed and evidence preserved"
+      veto: "HALT if evidence is at risk of being destroyed — preserve before any other action"
+    actions:
+      - "Isolate affected systems (network segmentation)"
+      - "Capture memory dumps and disk images"
+      - "Block malicious IPs/domains at perimeter"
+      - "Disable compromised accounts"
+      - "Enable enhanced monitoring on adjacent systems"
+    outputs:
+      - containment_actions
+      - preserved_evidence
+      - network_changes
+
+  - id: phase_3_eradicate
+    name: "Eradication"
+    agent: omar-santos
+    task: respond-incident.md
+    depends_on: [phase_2_contain]
+    support_agents: [jim-manico, peter-kim]
+    description: "Remove threat, patch vulnerabilities, rebuild compromised systems"
+    checkpoint:
+      gate: "Root cause identified and all malicious artifacts removed"
+      veto: "HALT if root cause is unknown — do not declare eradicated without understanding the entry point"
+    actions:
+      - "Identify and document root cause"
+      - "Remove malware, backdoors, unauthorized accounts"
+      - "Patch exploited vulnerabilities"
+      - "Rebuild compromised systems from clean baselines"
+      - "Scan for residual IOCs"
+    outputs:
+      - root_cause_analysis
+      - eradication_confirmation
+      - patching_actions
+
+  - id: phase_4_recover
+    name: "Recovery"
+    agent: omar-santos
+    task: respond-incident.md
+    depends_on: [phase_3_eradicate]
+    support_agents: [chris-sanders]
+    description: "Restore services, validate integrity, monitor for re-compromise"
+    checkpoint:
+      gate: "All services restored and 72-hour enhanced monitoring active"
+      veto: "HALT if integrity validation fails — do not restore unverified systems to production"
+    actions:
+      - "Restore from verified clean backups"
+      - "Gradual reintroduction to production"
+      - "Validate system integrity (checksums, baselines)"
+      - "Enable 72-hour enhanced monitoring"
+      - "Update detection rules with new IOCs"
+    outputs:
+      - restored_services
+      - monitoring_status
+      - updated_detection_rules
+
+  - id: phase_5_lessons
+    name: "Lessons Learned"
+    agent: omar-santos
+    task: respond-incident.md
+    depends_on: [phase_4_recover]
+    support_agents: [marcus-carey]
+    description: "Post-incident review, documentation, and process improvement"
+    checkpoint:
+      gate: "Post-incident report complete with actionable improvements"
+      veto: "NEVER skip lessons learned — even for minor incidents"
+    actions:
+      - "Conduct post-incident review (within 5 business days)"
+      - "Document complete timeline with decisions"
+      - "Identify process improvements"
+      - "Update IR playbooks"
+      - "Create IOC sharing packages (if appropriate)"
+    outputs:
+      - incident_report
+      - lessons_learned
+      - playbook_updates
+      - ioc_packages
+
+completion_criteria:
+  - "Incident classified and triaged within SLA"
+  - "Containment verified — no ongoing compromise"
+  - "Root cause identified and documented"
+  - "All affected systems restored and validated"
+  - "Enhanced monitoring active for minimum 72 hours"
+  - "Lessons learned documented with actionable improvements"
+
+severity_sla:
+  P1_critical:
+    triage: "15 minutes"
+    containment: "1 hour"
+    executive_notification: "immediate"
+  P2_high:
+    triage: "30 minutes"
+    containment: "4 hours"
+    executive_notification: "within 2 hours"
+  P3_medium:
+    triage: "2 hours"
+    containment: "24 hours"
+    executive_notification: "daily summary"
+  P4_low:
+    triage: "24 hours"
+    containment: "1 week"
+    executive_notification: "weekly summary"

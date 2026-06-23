@@ -1,0 +1,90 @@
+# ═══════════════════════════════════════════════════════════════════
+# Squad: C-Level Squad
+# Domain: Executive Leadership & Strategic Operations
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+squad:
+  name: c-level-squad
+  display_name: "C-Level Squad"
+  version: "1.0.0"
+  domain: "Executive Leadership & Strategic Operations"
+  description: |
+    A virtual C-suite of executive leadership agents. Each agent embodies the strategic
+    perspective of a specific C-level role — CEO vision, COO operations, CMO marketing,
+    CTO technology, CIO information systems, and CAIO artificial intelligence.
+
+    Together they provide holistic executive counsel for business strategy, organizational
+    design, and digital transformation.
+  keywords: [c-suite, strategy, operations, marketing, technology, AI, leadership, digital-transformation, fundraising, go-to-market, scaling]
+  entry_agent: vision-chief
+  created_at: "2026-03-05"
+
+tiers:
+  tier_0:
+    name: "Orchestration"
+    agents: [vision-chief]
+    purpose: "Triage, routing, quality — CEO-level strategic orchestration across all C-suite functions"
+  tier_1:
+    name: "Operations & Market"
+    agents: [coo-orchestrator, cmo-architect]
+    purpose: "Operational excellence, process optimization, brand strategy, demand generation, go-to-market"
+  tier_2:
+    name: "Technology & Innovation"
+    agents: [cto-architect, cio-engineer, caio-architect]
+    purpose: "Technology strategy, infrastructure, security, data architecture, AI strategy, digital transformation"
+
+agents:
+  vision-chief:
+    file: agents/vision-chief.md
+    tier: 0
+    icon: "👔"
+    focus: "Company vision, strategic direction, board relations, fundraising, M&A, culture"
+  coo-orchestrator:
+    file: agents/coo-orchestrator.md
+    tier: 1
+    icon: "⚙️"
+    focus: "Operational excellence, process optimization, scaling, team structure, KPIs, OKRs"
+  cmo-architect:
+    file: agents/cmo-architect.md
+    tier: 1
+    icon: "📣"
+    focus: "Brand strategy, demand generation, positioning, go-to-market, customer acquisition"
+  cto-architect:
+    file: agents/cto-architect.md
+    tier: 2
+    icon: "💻"
+    focus: "Technology strategy, architecture decisions, engineering culture, build vs buy"
+  cio-engineer:
+    file: agents/cio-engineer.md
+    tier: 2
+    icon: "🏛️"
+    focus: "Infrastructure, security, data architecture, IT governance, systems integration"
+  caio-architect:
+    file: agents/caio-architect.md
+    tier: 2
+    icon: "🤖"
+    focus: "AI strategy, ML operations, digital transformation, automation, AI ethics"
+
+handoffs:
+  vision-chief:
+    routes_to: [coo-orchestrator, cmo-architect, cto-architect, cio-engineer, caio-architect]
+  coo-orchestrator:
+    escalates_to: [vision-chief]
+  cmo-architect:
+    escalates_to: [vision-chief]
+  cto-architect:
+    escalates_to: [vision-chief]
+  cio-engineer:
+    escalates_to: [vision-chief]
+  caio-architect:
+    escalates_to: [vision-chief]
+
+cross_cutting:
+  quality_standards:
+    min_score: 7.0
+
+settings:
+  activation:
+    prefix: "c-level"
+    example: "@c-level:cto-architect"

@@ -1,0 +1,207 @@
+# Movement Frameworks — Reference Data
+# Canonical models used by all Movement Squad agents
+# Version: 1.0.0
+
+phase_model:
+  name: "5-Phase Movement Model"
+  description: "Sequential phases for building a movement from insight to impact"
+  phases:
+    - id: spark
+      name: "Spark"
+      description: "Identify the shared tension, frustration, or aspiration"
+      entry_criteria:
+        - "Target audience defined"
+        - "Cause or idea articulated"
+      exit_criteria:
+        - "Lived experience identified and documented"
+        - "Collective tension mapped with intensity >= 3/5"
+        - "Shared narrative distilled with narrative kernel"
+        - "Movement potential rated >= MEDIUM"
+      primary_agent: fenomenologo
+      secondary_agent: movement-architect
+
+    - id: identity
+      name: "Identity"
+      description: "Define who we are, what we believe, what we stand against"
+      entry_criteria:
+        - "Spark analysis validated"
+        - "Movement potential >= MEDIUM"
+      exit_criteria:
+        - "Belief system defined with central conviction"
+        - "Tribal markers designed (language, visual, behavioral)"
+        - "At least 5 rituals created"
+        - "Belonging gradient with 5 levels"
+      primary_agent: identitario
+      secondary_agent: manifestador
+
+    - id: ignition
+      name: "Ignition"
+      description: "Create the manifesto, seed first followers, build rituals"
+      entry_criteria:
+        - "Identity architecture complete"
+        - "Identity Stack validated"
+      exit_criteria:
+        - "Manifesto written with all 7 components"
+        - "Battle cry defined"
+        - "First ritual designed"
+        - "Founding circle strategy defined"
+      primary_agent: manifestador
+      secondary_agent: estrategista-de-ciclo
+
+    - id: growth
+      name: "Growth"
+      description: "Scale through cycles — attract, activate, sustain, multiply"
+      entry_criteria:
+        - "Manifesto complete and approved"
+        - "At least one ritual operational"
+      exit_criteria:
+        - "Growth Flywheel designed with all 4 phases"
+        - "Channel strategy defined"
+        - "Activation ritual tested"
+        - "Multiplication triggers identified"
+      primary_agent: estrategista-de-ciclo
+      secondary_agent: analista-de-impacto
+
+    - id: impact
+      name: "Impact"
+      description: "Measure and amplify real-world impact"
+      entry_criteria:
+        - "Growth strategy defined"
+        - "Community exists (even if small)"
+      exit_criteria:
+        - "Impact Pyramid defined with 5 levels"
+        - "Metrics matrix complete"
+        - "Vitality Index formula established"
+        - "Reporting cadence set"
+      primary_agent: analista-de-impacto
+      secondary_agent: movement-chief
+
+identity_stack:
+  name: "Identity Stack"
+  description: "5 layers of movement identity, from foundational to expressive"
+  layers:
+    - level: 1
+      name: "Values"
+      description: "Core values that form the foundation (3-5 values)"
+      examples: ["freedom", "authenticity", "courage", "community", "justice"]
+    - level: 2
+      name: "Beliefs"
+      description: "Statements of conviction that translate values into worldview"
+      format: "We believe that..."
+      types: ["central", "supporting", "aspirational", "contrarian"]
+    - level: 3
+      name: "Behaviors"
+      description: "Actions and habits that demonstrate membership"
+      examples: ["daily practice", "public declaration", "peer support"]
+    - level: 4
+      name: "Symbols"
+      description: "Visual and verbal markers that identify members"
+      examples: ["logo", "colors", "catchphrases", "hand signals", "clothing"]
+    - level: 5
+      name: "Rituals"
+      description: "Repeated practices that reinforce belonging"
+      types: ["initiation", "daily", "gathering", "celebration", "storytelling"]
+
+manifesto_anatomy:
+  name: "7-Component Manifesto Anatomy"
+  description: "The structural blueprint for a movement manifesto"
+  components:
+    - order: 1
+      name: "Reality Declaration"
+      description: "Open with an undeniable truth about the current state"
+      purpose: "Create instant recognition and agreement"
+    - order: 2
+      name: "Pain Articulation"
+      description: "Name the frustration people feel but rarely say aloud"
+      purpose: "Build emotional connection through shared vulnerability"
+    - order: 3
+      name: "Belief Statements"
+      description: "3-7 'We believe' declarations in ascending intensity"
+      purpose: "Define the movement's worldview and create belonging"
+    - order: 4
+      name: "Enemy Naming"
+      description: "Identify the systemic force the movement opposes"
+      purpose: "Unite members against a common adversary (never a person)"
+    - order: 5
+      name: "Future Vision"
+      description: "Paint a specific, sensory picture of the promised land"
+      purpose: "Inspire action by making the future tangible"
+    - order: 6
+      name: "Call to Action"
+      description: "One concrete step anyone can take today"
+      purpose: "Convert emotion into action"
+    - order: 7
+      name: "Battle Cry"
+      description: "One sentence that captures everything"
+      purpose: "Give the movement a memorable, repeatable rallying call"
+
+growth_flywheel:
+  name: "Growth Flywheel"
+  description: "4-phase cycle for scaling a movement"
+  phases:
+    - id: attract
+      name: "Attract"
+      description: "Draw potential members through the movement's message"
+      tactics: ["content marketing", "manifesto distribution", "social proof", "word of mouth", "events"]
+    - id: activate
+      name: "Activate"
+      description: "Convert interested people into active participants"
+      tactics: ["initiation ritual", "first win", "buddy system", "onboarding sequence", "small commitment"]
+    - id: sustain
+      name: "Sustain"
+      description: "Keep members engaged and deepening commitment"
+      tactics: ["regular rituals", "content cadence", "community events", "recognition", "progress tracking"]
+    - id: multiply
+      name: "Multiply"
+      description: "Empower members to recruit and lead"
+      tactics: ["referral programs", "ambassador roles", "local chapters", "teach-to-learn", "shareable content"]
+
+impact_pyramid:
+  name: "Impact Pyramid"
+  description: "5 levels of movement impact from awareness to transformation"
+  levels:
+    - level: 1
+      name: "Awareness"
+      description: "People know the movement exists"
+      metrics: ["reach", "impressions", "mentions", "media coverage"]
+    - level: 2
+      name: "Engagement"
+      description: "People interact with the movement"
+      metrics: ["active participants", "event attendance", "content engagement", "conversation volume"]
+    - level: 3
+      name: "Commitment"
+      description: "People identify as members"
+      metrics: ["self-identified members", "ritual participation", "contribution rate", "retention"]
+    - level: 4
+      name: "Advocacy"
+      description: "Members actively recruit others"
+      metrics: ["referral rate", "user-generated content", "ambassador count", "organic growth"]
+    - level: 5
+      name: "Transformation"
+      description: "Real-world change occurs"
+      metrics: ["behavior change", "policy impact", "industry shifts", "cultural adoption"]
+
+ritual_architecture:
+  name: "Ritual Architecture"
+  description: "Framework for designing movement rituals"
+  types:
+    - type: "Initiation"
+      frequency: "Once (on joining)"
+      purpose: "Mark the transition from outsider to member"
+      emotional_arc: "anticipation > challenge > belonging"
+    - type: "Daily"
+      frequency: "Daily or near-daily"
+      purpose: "Reinforce identity through small repeated actions"
+      emotional_arc: "intention > action > satisfaction"
+    - type: "Gathering"
+      frequency: "Weekly or monthly"
+      purpose: "Strengthen bonds through shared experience"
+      emotional_arc: "connection > energy > commitment"
+    - type: "Celebration"
+      frequency: "On milestones"
+      purpose: "Recognize achievements and reinforce progress"
+      emotional_arc: "reflection > gratitude > pride"
+    - type: "Storytelling"
+      frequency: "Ongoing"
+      purpose: "Share personal transformation stories"
+      emotional_arc: "vulnerability > recognition > inspiration"

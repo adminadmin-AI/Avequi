@@ -1,0 +1,82 @@
+# Routing Catalog: Brand Squad
+# Maps keywords to specialist agents for fast routing
+# Referenced by: tasks/diagnose.md
+
+domains:
+  brand_equity:
+    keywords: [brand equity, brand value, brand loyalty, brand awareness, brand associations, equity model, CBBE]
+    primary_agent: david-aaker
+    secondary_agent: kevin-keller
+    description: "Brand equity measurement, building, and management"
+
+  brand_identity:
+    keywords: [brand identity, identity prism, brand DNA, brand personality, brand culture, brand essence]
+    primary_agent: jean-noel-kapferer
+    secondary_agent: alina-wheeler
+    description: "Brand identity systems — Kapferer's Identity Prism and brand DNA definition"
+
+  positioning:
+    keywords: [positioning, category, focus, differentiation, own a word, category creation, competitive position]
+    primary_agent: al-ries
+    secondary_agent: marty-neumeier
+    description: "Market positioning and category strategy — Ries' positioning principles"
+
+  evidence_based:
+    keywords: [how brands grow, mental availability, physical availability, distinctive assets, reach, penetration, mass marketing]
+    primary_agent: byron-sharp
+    secondary_agent: kevin-keller
+    description: "Evidence-based marketing — Sharp's How Brands Grow methodology"
+
+  messaging:
+    keywords: [StoryBrand, messaging, one-liner, brand script, website copy, marketing funnel, clarify your message]
+    primary_agent: donald-miller
+    secondary_agent: miller-sticky-brand
+    description: "StoryBrand messaging framework — clear messaging that sells"
+
+  visual_identity:
+    keywords: [logo, visual identity, brand guidelines, design system, brand elements, touchpoints, brand manual]
+    primary_agent: alina-wheeler
+    secondary_agent: archetype-consultant
+    description: "Visual identity systems, brand guidelines, and design systems"
+
+  brand_culture:
+    keywords: [brand culture, employer brand, internal brand, fusion, employee experience, culture alignment]
+    primary_agent: denise-yohn
+    secondary_agent: donald-miller
+    description: "Brand-culture fusion — aligning internal culture with external brand promise"
+
+  startup_brand:
+    keywords: [startup brand, DTC brand, launch brand, brand from day one, new brand, brand creation]
+    primary_agent: emily-heyward
+    secondary_agent: marty-neumeier
+    description: "Startup and DTC branding — building brand from day one"
+
+  luxury_brand:
+    keywords: [luxury, premium, prestige, luxury strategy, anti-laws, high-end, exclusive]
+    primary_agent: jean-noel-kapferer
+    secondary_agent: david-aaker
+    description: "Luxury and premium brand strategy — Kapferer's luxury anti-laws"
+
+  naming:
+    keywords: [naming, brand name, rename, name generation, domain, name strategy, nomenclature]
+    primary_agent: naming-strategist
+    secondary_agent: domain-scout
+    description: "Brand naming strategy, name generation, and domain availability"
+
+  archetype:
+    keywords: [archetype, brand personality, brand character, Jung, hero, rebel, sage, magician, everyman]
+    primary_agent: archetype-consultant
+    secondary_agent: jean-noel-kapferer
+    description: "Brand archetypes and personality — Jungian framework for brand character"
+
+  brand_architecture:
+    keywords: [brand architecture, sub-brands, branded house, house of brands, portfolio, brand hierarchy, extensions]
+    primary_agent: david-aaker
+    secondary_agent: kevin-keller
+    description: "Brand architecture and portfolio strategy — sub-brands, extensions, portfolio management"
+
+  differentiation_debate:
+    keywords: [differentiation vs distinctiveness, should we differentiate, zag, brand gap, radical differentiation]
+    primary_agent: marty-neumeier
+    secondary_agent: byron-sharp
+    description: "Differentiation vs distinctiveness debate — Neumeier's Zag vs Sharp's distinctiveness. Route both for balanced view."

@@ -1,0 +1,119 @@
+workflow:
+  id: wf-copy-review-cycle
+  name: "Ciclo de Revisao de Copy Master"
+  version: "2.0.0"
+  description: |
+    Ciclo iterativo de escrita-critica-revisao com camada de psicologia da persuasao.
+    Um especialista produz o copy, o Copy Master Chief faz a critica incluindo audit
+    de psicologia (Cialdini/Warren), e o especialista revisa com base no feedback.
+    Maximo de 3 iteracoes antes de escalacao ou aprovacao forcada.
+  trigger: "*copy-review-cycle"
+  entry_agent: copy-master-chief
+  estimated_duration: "20-45 minutes"
+  type: iterative
+  sequence:
+    - agent: "{specialist}"
+      action: write-draft
+      creates: draft_copy
+    - agent: copy-master-chief
+      action: psychology-checkpoint
+      creates: psychology_audit
+    - agent: copy-master-chief
+      action: critique
+      creates: critique_report
+    - agent: "{specialist}"
+      action: revise
+      creates: revised_copy
+    - agent: copy-master-chief
+      action: final-review
+      creates: final_verdict
+
+config:
+  max_iterations: 3
+  pass_threshold: 60
+  elite_threshold: 80
+  min_cialdini_principles: 3
+  min_warren_levers: 2
+
+phases:
+  - id: phase_0
+    name: "Initial Production"
+    agent: "{specialist}"
+    task: "{matched_task}"
+    description: "Specialist writes the initial draft using the appropriate task (write-headline.md, write-sales-letter.md, write-webinar-script.md, etc.). Task is selected based on the copy type requested. Draft must include Psychological Layer."
+    outputs:
+      - draft_copy: "markdown"
+      - iteration: "number"
+    checkpoint:
+      gate: "Draft complete with all required sections including Psychological Layer"
+      veto: "Draft incomplete or missing critical elements or persuasion mapping"
+
+  - id: phase_1
+    name: "Psychology Checkpoint"
+    agent: copy-master-chief
+    task: review.md
+    depends_on: [phase_0]
+    description: "Copy Master Chief verifies the persuasion psychology layer. Checks Cialdini principles (min 3), Warren levers (min 2), and natural integration. Flags gaps as WARN items for the critique phase."
+    outputs:
+      - psychology_audit: "markdown"
+      - psychology_gaps: "list"
+    checkpoint:
+      gate: "Minimum psychology thresholds met"
+      veto: "Zero Cialdini principles present — draft fundamentally incomplete"
+
+  - id: phase_2
+    name: "Chief Critique"
+    agent: copy-master-chief
+    task: critique-copy.md
+    depends_on: [phase_1]
+    description: "Copy Master Chief performs enhanced 8-point critique plus persuasion psychology audit. Assigns scores, identifies the fatal flaw, provides prioritized fix list with rewrite examples, and includes psychology gap recommendations."
+    outputs:
+      - critique_report: "markdown"
+      - composite_score: "number"
+      - verdict: "string"
+      - fix_list: "list"
+      - psychology_fixes: "list"
+    checkpoint:
+      gate: "Score >= 60% AND psychology checkpoint passed — approved for delivery"
+      veto: "Score < 40% after iteration 3 — escalate"
+
+  - id: phase_3
+    name: "Specialist Revision"
+    agent: "{specialist}"
+    task: "{matched_task}"
+    depends_on: [phase_2]
+    condition: "verdict != 'Elite' AND verdict != 'Strong' AND iteration < max_iterations"
+    description: "Specialist revises the copy addressing all items in the prioritized fix list including psychology gaps. Focus on the fatal flaw first, then psychology fixes, then quick wins, then remaining items."
+    outputs:
+      - revised_copy: "markdown"
+      - changes_made: "list"
+    checkpoint:
+      gate: "All priority 1 fixes addressed AND psychology gaps resolved"
+      veto: "Fatal flaw not addressed in revision"
+
+  - id: phase_4
+    name: "Final Review"
+    agent: copy-master-chief
+    task: critique-copy.md
+    depends_on: [phase_3]
+    description: "Copy Master Chief performs final critique including psychology re-audit. If score improved and passes threshold with psychology checkpoint, approve. If not improved after max iterations, escalate with documented issues."
+    outputs:
+      - final_critique: "markdown"
+      - final_verdict: "string"
+    checkpoint:
+      gate: "Score >= 60% AND psychology checkpoint passed OR max iterations reached with documented exceptions"
+      veto: "Score decreased between iterations — investigate root cause"
+
+iteration_rules:
+  on_pass: "Deliver final copy with critique report and persuasion architecture documentation"
+  on_fail_under_max: "Return to phase_3 with updated fix list including psychology gaps"
+  on_max_reached: "Approve with documented concerns OR escalate to user"
+  score_regression: "If score drops between iterations, halt and reassess approach"
+  psychology_fail: "If psychology checkpoint fails after revision, flag for Copy Master Chief direct intervention"
+
+completion_criteria:
+  - "Copy achieves Strong or Elite verdict"
+  - "Psychology checkpoint passed (min 3 Cialdini, min 2 Warren)"
+  - "OR max iterations reached with all priority 1 fixes addressed"
+  - "Critique report delivered with every iteration documented"
+  - "Final copy marked as approved or escalated with persuasion architecture"

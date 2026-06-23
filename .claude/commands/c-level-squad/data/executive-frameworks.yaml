@@ -1,0 +1,325 @@
+# Executive Frameworks — Reference Data
+# Canonical models used by all C-Level Squad agents
+# Version: 1.0.0
+
+vision_mission_strategy_cascade:
+  name: "Vision-Mission-Strategy Cascade"
+  description: "Hierarchical framework connecting purpose to daily action"
+  levels:
+    - level: 1
+      name: "Vision"
+      question: "What world do we want to create?"
+      timeframe: "5-10 years"
+      owner: "CEO / vision-chief"
+      format: "A world where [desired future state]"
+    - level: 2
+      name: "Mission"
+      question: "Why do we exist? What do we do today?"
+      timeframe: "Ongoing"
+      owner: "CEO / vision-chief"
+      format: "We [action] for [audience] by [method] so that [outcome]"
+    - level: 3
+      name: "Strategy"
+      question: "How will we achieve our vision?"
+      timeframe: "1-3 years"
+      owner: "C-suite collectively"
+      format: "Strategic pillars with OKRs"
+    - level: 4
+      name: "Tactics"
+      question: "What specifically will we do?"
+      timeframe: "Quarterly"
+      owner: "Department leads"
+      format: "Projects, initiatives, campaigns"
+    - level: 5
+      name: "Operations"
+      question: "How do we execute daily?"
+      timeframe: "Weekly/daily"
+      owner: "Team leads"
+      format: "Processes, rituals, metrics"
+
+porters_five_forces:
+  name: "Porter's Five Forces"
+  author: "Michael Porter"
+  description: "Framework for analyzing competitive intensity and attractiveness of an industry"
+  forces:
+    - name: "Competitive Rivalry"
+      question: "How intense is competition among existing players?"
+      high_signals: ["Many competitors", "Low differentiation", "Slow growth", "High exit barriers"]
+      low_signals: ["Few competitors", "Strong differentiation", "Fast growth", "Low switching costs"]
+    - name: "Threat of New Entrants"
+      question: "How easy is it for new players to enter?"
+      high_signals: ["Low capital requirements", "No patents", "No regulation", "Easy distribution"]
+      low_signals: ["High capital requirements", "Strong IP", "Heavy regulation", "Network effects"]
+    - name: "Threat of Substitutes"
+      question: "Can customers solve this problem differently?"
+      high_signals: ["Many alternatives", "Low switching cost", "Price-performance advantage"]
+      low_signals: ["Few alternatives", "High switching cost", "Inferior substitutes"]
+    - name: "Bargaining Power of Suppliers"
+      question: "How much leverage do suppliers have?"
+      high_signals: ["Few suppliers", "Unique inputs", "High switching cost", "Forward integration threat"]
+      low_signals: ["Many suppliers", "Commodity inputs", "Low switching cost"]
+    - name: "Bargaining Power of Buyers"
+      question: "How much leverage do customers have?"
+      high_signals: ["Few buyers", "Undifferentiated product", "Low switching cost", "Price sensitivity"]
+      low_signals: ["Many buyers", "Differentiated product", "High switching cost"]
+
+blue_ocean_strategy:
+  name: "Blue Ocean Strategy"
+  authors: "W. Chan Kim & Renee Mauborgne"
+  description: "Framework for creating uncontested market space"
+  four_actions:
+    eliminate: "What factors does the industry take for granted that should be eliminated?"
+    reduce: "What factors should be reduced well below the industry standard?"
+    raise: "What factors should be raised well above the industry standard?"
+    create: "What factors should be created that the industry has never offered?"
+  strategy_canvas:
+    x_axis: "Competing factors"
+    y_axis: "Offering level (low to high)"
+    purpose: "Visualize how your offering differs from competitors"
+  principles:
+    - "Reconstruct market boundaries"
+    - "Focus on the big picture, not numbers"
+    - "Reach beyond existing demand"
+    - "Get the strategic sequence right"
+
+bcg_matrix:
+  name: "BCG Growth-Share Matrix"
+  author: "Boston Consulting Group"
+  description: "Portfolio management framework for resource allocation"
+  quadrants:
+    stars:
+      growth: "High"
+      share: "High"
+      strategy: "Invest heavily, these are future cash cows"
+      cash_flow: "Neutral (high investment, high return)"
+    cash_cows:
+      growth: "Low"
+      share: "High"
+      strategy: "Harvest profits, invest minimally"
+      cash_flow: "Strong positive (low investment, high return)"
+    question_marks:
+      growth: "High"
+      share: "Low"
+      strategy: "Selective investment — bet big or exit"
+      cash_flow: "Negative (high investment, low return)"
+    dogs:
+      growth: "Low"
+      share: "Low"
+      strategy: "Divest or reposition"
+      cash_flow: "Neutral to negative"
+
+okr_framework:
+  name: "OKR Framework (Objectives and Key Results)"
+  authors: "Andy Grove / John Doerr"
+  description: "Goal-setting framework that aligns teams around measurable outcomes"
+  structure:
+    objective:
+      description: "What we want to achieve"
+      properties: ["Qualitative", "Inspiring", "Time-bound", "Actionable by the team"]
+    key_results:
+      description: "How we know we achieved it"
+      properties: ["Quantitative", "Measurable", "Specific", "2-3 per objective"]
+      scoring: "0.0 to 1.0 (0.7 is success for stretch goals)"
+  cadence:
+    annual: "Company-level objectives"
+    quarterly: "Team and individual OKRs"
+    weekly: "Progress check-in"
+    end_of_quarter: "Scoring and retrospective"
+  best_practices:
+    - "60% top-down, 40% bottom-up"
+    - "3-5 objectives per level"
+    - "2-3 key results per objective"
+    - "Separate committed (must-hit) from aspirational (stretch)"
+    - "Never link directly to compensation"
+    - "Public and transparent"
+  anti_patterns:
+    - "Using OKRs as a task list"
+    - "Setting only achievable targets (sandbagging)"
+    - "Too many objectives (>5)"
+    - "Key results without numbers"
+
+technology_radar:
+  name: "Technology Radar"
+  author: "ThoughtWorks"
+  description: "Tool for tracking technology adoption decisions"
+  rings:
+    adopt:
+      description: "Proven and recommended for broad use"
+      action: "Use in new projects, standardize across teams"
+    trial:
+      description: "Worth pursuing, proven in limited context"
+      action: "Use in specific projects with appropriate risk management"
+    assess:
+      description: "Worth exploring to understand its impact"
+      action: "Spike or proof of concept, research and evaluate"
+    hold:
+      description: "Proceed with caution"
+      action: "Do not start new work, plan migration if actively used"
+  quadrants:
+    - "Languages & Frameworks"
+    - "Tools & Infrastructure"
+    - "Platforms & Services"
+    - "Techniques & Patterns"
+  cadence: "Quarterly review"
+
+build_buy_partner_matrix:
+  name: "Build-Buy-Partner Decision Matrix"
+  description: "Framework for technology sourcing decisions"
+  options:
+    build:
+      when: ["Core differentiator", "Unique requirements", "Team has capability", "Long-term strategic value"]
+      risks: ["Time to market", "Ongoing maintenance", "Opportunity cost"]
+      score_dimensions: ["strategic_value", "uniqueness", "team_capability"]
+    buy:
+      when: ["Commodity function", "Well-served by market", "Faster time-to-market", "Lower TCO"]
+      risks: ["Vendor lock-in", "Limited customization", "Recurring cost"]
+      score_dimensions: ["market_availability", "integration_ease", "total_cost"]
+    partner:
+      when: ["Strategic ecosystem value", "Shared risk and reward", "Access to distribution", "Complementary capabilities"]
+      risks: ["Dependency", "Alignment", "IP sharing"]
+      score_dimensions: ["strategic_fit", "partner_reliability", "mutual_benefit"]
+
+ai_maturity_model:
+  name: "AI Maturity Model"
+  description: "Framework for assessing and advancing AI adoption"
+  levels:
+    - level: 1
+      name: "Aware"
+      description: "Organization recognizes AI potential"
+      characteristics: ["Ad-hoc AI experiments", "No AI strategy", "Limited data infrastructure"]
+      next_step: "Identify 2-3 high-value AI use cases"
+    - level: 2
+      name: "Active"
+      description: "Running AI pilots and experiments"
+      characteristics: ["Defined use cases", "Data pipeline for AI", "Small AI team or champion"]
+      next_step: "Productionize successful pilots"
+    - level: 3
+      name: "Operational"
+      description: "AI in production for specific functions"
+      characteristics: ["AI in production workflows", "Monitoring and governance", "Cross-functional adoption"]
+      next_step: "Scale across functions, build platform"
+    - level: 4
+      name: "Systemic"
+      description: "AI embedded across the organization"
+      characteristics: ["AI platform", "Company-wide data strategy", "AI in most decisions"]
+      next_step: "Optimize, innovate, lead industry"
+    - level: 5
+      name: "Transformational"
+      description: "AI is a core competitive advantage"
+      characteristics: ["AI-first products", "AI drives strategy", "Industry-leading innovation"]
+      next_step: "Maintain edge, explore frontier AI"
+
+togaf_simplified:
+  name: "TOGAF (Simplified)"
+  description: "Enterprise architecture framework adapted for startups and scale-ups"
+  domains:
+    business_architecture:
+      description: "Business strategy, governance, organization, and key processes"
+      artifacts: ["Value streams", "Business capabilities", "Organization map"]
+    data_architecture:
+      description: "Structure of logical and physical data assets"
+      artifacts: ["Data models", "Data flow diagrams", "Data governance policies"]
+    application_architecture:
+      description: "Blueprint for individual applications and their interactions"
+      artifacts: ["Application inventory", "Integration map", "API catalog"]
+    technology_architecture:
+      description: "Infrastructure, networks, and platforms"
+      artifacts: ["Infrastructure diagram", "Technology radar", "Security architecture"]
+  adm_cycle:
+    - "Architecture Vision"
+    - "Business Architecture"
+    - "Information Systems Architecture"
+    - "Technology Architecture"
+    - "Implementation Planning"
+    - "Migration Planning"
+    - "Governance"
+
+fundraising_readiness_assessment:
+  name: "Fundraising Readiness Assessment"
+  description: "10-dimension assessment for evaluating readiness to raise capital"
+  dimensions:
+    - name: "Product"
+      weight: 15
+      scoring:
+        1: "Idea stage, no prototype"
+        2: "Prototype or early MVP"
+        3: "Working MVP with initial users"
+        4: "Product with traction and retention"
+        5: "Product-market fit demonstrated"
+    - name: "Market"
+      weight: 10
+      scoring:
+        1: "Market undefined"
+        2: "Market identified but not sized"
+        3: "TAM/SAM/SOM defined"
+        4: "Market validated with customer research"
+        5: "Market timing proven (why now is clear)"
+    - name: "Traction"
+      weight: 15
+      scoring:
+        1: "No users or revenue"
+        2: "Early users, no revenue"
+        3: "Revenue, inconsistent growth"
+        4: "Consistent month-over-month growth"
+        5: "Strong growth with improving unit economics"
+    - name: "Team"
+      weight: 10
+      scoring:
+        1: "Solo founder, no team"
+        2: "Co-founders, complementary"
+        3: "Core team assembled"
+        4: "Key hires made, culture forming"
+        5: "Strong team with relevant experience"
+    - name: "Unit Economics"
+      weight: 10
+      scoring:
+        1: "Unknown"
+        2: "Estimated but not validated"
+        3: "Measured but not optimized"
+        4: "Positive and improving"
+        5: "Strong LTV/CAC (>3:1)"
+    - name: "Competitive Position"
+      weight: 5
+      scoring:
+        1: "No differentiation"
+        2: "Some differentiation"
+        3: "Clear positioning"
+        4: "Defensible advantage"
+        5: "Strong moat (network effects, IP, data)"
+    - name: "Vision"
+      weight: 10
+      scoring:
+        1: "Unclear or small"
+        2: "Defined but not compelling"
+        3: "Clear and credible"
+        4: "Inspiring and achievable"
+        5: "Visionary with believable path"
+    - name: "Financials"
+      weight: 10
+      scoring:
+        1: "No financial tracking"
+        2: "Basic bookkeeping"
+        3: "Clean books, basic projections"
+        4: "Detailed model with assumptions"
+        5: "Investor-ready financials with scenarios"
+    - name: "Legal"
+      weight: 5
+      scoring:
+        1: "Not incorporated"
+        2: "Incorporated, messy cap table"
+        3: "Clean structure, basic IP"
+        4: "All docs in order, IP protected"
+        5: "Investor-ready legal package"
+    - name: "Narrative"
+      weight: 10
+      scoring:
+        1: "Cannot explain the business clearly"
+        2: "Can explain but not compellingly"
+        3: "Clear narrative, some proof points"
+        4: "Compelling story with data"
+        5: "Irresistible narrative with strong proof"
+  scoring:
+    ready: ">= 40/50"
+    near_ready: "30-39/50"
+    prep_needed: "20-29/50"
+    not_ready: "< 20/50"

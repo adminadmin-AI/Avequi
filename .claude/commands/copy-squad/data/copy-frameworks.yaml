@@ -1,0 +1,129 @@
+# Copywriting Frameworks Reference
+# Referenced by specialist agents for structured methodology application
+
+frameworks:
+  aida:
+    source: "Elias St. Elmo Lewis (1898), popularized by direct response industry"
+    description: "The foundational persuasion sequence — Attention, Interest, Desire, Action"
+    components:
+      - name: "Attention"
+        description: "Headline or hook that stops the reader and selects the audience"
+      - name: "Interest"
+        description: "Opening copy that earns the next paragraph through curiosity or relevance"
+      - name: "Desire"
+        description: "Benefits, proof, and future-pacing that make the reader want the outcome"
+      - name: "Action"
+        description: "Clear CTA with urgency that compels immediate response"
+    when_to_use: "Default structure for any persuasive copy — sales pages, ads, emails, VSLs"
+
+  pas:
+    source: "Dan Kennedy, widely adopted in direct response"
+    description: "Problem-Agitate-Solve — agitate the pain before presenting the solution"
+    components:
+      - name: "Problem"
+        description: "Identify the specific problem the reader faces"
+      - name: "Agitate"
+        description: "Twist the knife — make the problem feel urgent and personal"
+      - name: "Solve"
+        description: "Present the product as the logical, inevitable solution"
+    when_to_use: "Short-form copy, ads, email leads, any context where the audience is problem-aware"
+
+  rmbc:
+    source: "Stefan Georgi"
+    description: "Relate-Mechanism-Benefits-Close — the modern VSL framework"
+    components:
+      - name: "Relate"
+        description: "Open with a relatable story or scenario the prospect has lived"
+      - name: "Mechanism"
+        description: "Introduce the unique mechanism that makes this solution different"
+      - name: "Benefits"
+        description: "Stack benefits with future-pacing and emotional language"
+      - name: "Close"
+        description: "Price anchoring, guarantee, bonus stack, urgency, and CTA"
+    when_to_use: "Video Sales Letters, long-form sales pages, webinar pitches"
+
+  bab:
+    source: "Classic copywriting formula, popularized by various practitioners"
+    description: "Before-After-Bridge — paint the transformation, then bridge to the product"
+    components:
+      - name: "Before"
+        description: "Describe the reader's current painful situation"
+      - name: "After"
+        description: "Paint the picture of life after the problem is solved"
+      - name: "Bridge"
+        description: "Position the product as the bridge between before and after"
+    when_to_use: "Email copy, social media posts, short ads, testimonial-style copy"
+
+  four_ps:
+    source: "Henry Hoke Sr."
+    description: "Picture-Promise-Prove-Push — visual persuasion sequence"
+    components:
+      - name: "Picture"
+        description: "Paint a vivid picture of the desired outcome"
+      - name: "Promise"
+        description: "Make a specific, bold promise about what the product delivers"
+      - name: "Prove"
+        description: "Back the promise with evidence — testimonials, stats, demonstrations"
+      - name: "Push"
+        description: "Push for action with urgency, scarcity, or risk reversal"
+    when_to_use: "Sales letters, landing pages, any copy that needs strong proof elements"
+
+  star_story_solution:
+    source: "Gary Halbert"
+    description: "Lead with a character, tell their story, reveal the solution"
+    components:
+      - name: "Star"
+        description: "Introduce a relatable character (often the reader or someone like them)"
+      - name: "Story"
+        description: "Tell the character's journey through struggle to discovery"
+      - name: "Solution"
+        description: "Reveal how the product was the turning point"
+    when_to_use: "Sales letters, VSLs, advertorials, any long-form narrative copy"
+
+  soap_opera_sequence:
+    source: "Andre Chaperon (Autoresponder Madness), named by Russell Brunson"
+    description: "Multi-email sequence that uses serialized storytelling with open loops"
+    components:
+      - name: "Email 1: Set the Stage"
+        description: "Hook with a dramatic opening, introduce the backstory"
+      - name: "Email 2: High Drama"
+        description: "Escalate tension, deepen the story"
+      - name: "Email 3: Epiphany"
+        description: "Reveal the turning point — the discovery or breakthrough"
+      - name: "Email 4: Hidden Benefits"
+        description: "Show unexpected positive outcomes beyond the main promise"
+      - name: "Email 5: Urgency and CTA"
+        description: "Close with urgency — the story demands action now"
+    when_to_use: "Email sequences after opt-in, product launches, any serialized email campaign"
+
+  awareness_levels:
+    source: "Eugene Schwartz (Breakthrough Advertising, 1966)"
+    description: "Five levels of prospect awareness that determine headline and lead strategy"
+    components:
+      - name: "Unaware"
+        description: "Prospect does not know they have a problem. Lead with story, emotion, or identity."
+      - name: "Problem-Aware"
+        description: "Prospect knows the problem but not the solution. Agitate the problem, hint at solution."
+      - name: "Solution-Aware"
+        description: "Prospect knows solutions exist but not yours. Differentiate via mechanism."
+      - name: "Product-Aware"
+        description: "Prospect knows your product but hasn't bought. Stack proof, handle objections."
+      - name: "Most-Aware"
+        description: "Prospect knows and trusts you. Lead with offer, deal, or urgency."
+    when_to_use: "Always — every piece of copy must be calibrated to the prospect's awareness level"
+
+  slippery_slide:
+    source: "Joe Sugarman (The Adweek Copywriting Handbook)"
+    description: "Every element of copy exists for one purpose — to get the reader to read the next line"
+    components:
+      - name: "Compelling Headline"
+        description: "Sole purpose: get them to read the first sentence"
+      - name: "Short First Sentence"
+        description: "So easy to read they cannot resist continuing"
+      - name: "Engaging Subheads"
+        description: "Re-engage scanners and pull them back into the body"
+      - name: "Curiosity Seeds"
+        description: "Plant questions throughout that are answered later"
+      - name: "No Exit Points"
+        description: "Remove anything that gives the reader permission to stop"
+    when_to_use: "All copy — this is a universal principle, not a format. Apply to every piece."

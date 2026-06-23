@@ -1,0 +1,119 @@
+workflow:
+  id: wf-brand-creation
+  name: "Criação de Marca"
+  version: "1.0.0"
+  description: |
+    Workflow completo de criação de marca de ponta a ponta. Da pesquisa de
+    mercado ao posicionamento, naming, design de identidade e desenvolvimento
+    de brand story. Produz um sistema de marca completo pronto para lançamento.
+  trigger: "*brand-creation"
+  entry_agent: brand-chief
+  estimated_duration: "60-120 minutes"
+  type: sequential
+  sequence:
+    - agent: archetype-consultant
+      action: map-archetype
+      creates: archetype_profile
+    - agent: al-ries
+      action: create-positioning
+      creates: positioning_strategy
+    - agent: naming-strategist
+      action: generate-names
+      creates: naming_candidates
+    - agent: alina-wheeler
+      action: build-identity
+      creates: identity_system
+    - agent: donald-miller
+      action: create-brand-story
+      creates: brandscript
+    - agent: brand-chief
+      action: review
+      creates: brand_package
+
+phases:
+  - id: phase_0
+    name: "Research and Archetype"
+    agent: archetype-consultant
+    task: map-archetype.md
+    description: "Evaluate all 12 archetypes against the brand's values, audience, and competitive landscape. Select primary and secondary archetypes to guide all subsequent brand decisions."
+    outputs:
+      - archetype_profile: "markdown"
+      - brand_expression_guide: "object"
+    checkpoint:
+      gate: "Primary archetype selected with expression guide"
+      veto: "Archetype conflicts with stated brand values or audience aspirations"
+
+  - id: phase_1
+    name: "Positioning"
+    agent: al-ries
+    task: create-positioning.md
+    depends_on: [phase_0]
+    description: "Define the brand's position in the market. Analyze the category, identify white space, and create the positioning statement, tagline, and proof points."
+    outputs:
+      - positioning_strategy: "markdown"
+      - positioning_statement: "string"
+      - tagline: "string"
+    checkpoint:
+      gate: "Positioning is relevant, differentiated, and credible"
+      veto: "Position already owned by a dominant competitor"
+
+  - id: phase_2
+    name: "Naming"
+    agent: naming-strategist
+    task: generate-names.md
+    depends_on: [phase_1]
+    description: "Generate and evaluate naming candidates based on the positioning strategy. Produce 30+ candidates, score on 7 criteria, and recommend top 5 finalists."
+    outputs:
+      - naming_candidates: "markdown"
+      - top_finalists: "list"
+    checkpoint:
+      gate: "Minimum 3 viable finalists with scores and rationale"
+      veto: "All finalists have trademark or domain conflicts"
+
+  - id: phase_3
+    name: "Visual and Verbal Identity"
+    agent: alina-wheeler
+    task: build-identity.md
+    depends_on: [phase_0, phase_1, phase_2]
+    description: "Design the complete identity system — visual (colors, typography, logo direction, photography) and verbal (voice, key messaging, brand story foundation)."
+    outputs:
+      - identity_system: "markdown"
+      - brand_guidelines: "markdown"
+    checkpoint:
+      gate: "Identity system complete with visual, verbal, and governance"
+      veto: "Identity contradicts the positioning or archetype"
+
+  - id: phase_4
+    name: "Brand Story"
+    agent: donald-miller
+    task: create-brand-story.md
+    depends_on: [phase_1, phase_3]
+    description: "Build the brand narrative using StoryBrand SB7. Create the BrandScript, one-liner, website wireframe copy, and touchpoint applications."
+    outputs:
+      - brandscript: "markdown"
+      - one_liner: "string"
+      - website_copy: "markdown"
+    checkpoint:
+      gate: "BrandScript complete with all 7 elements and applied to touchpoints"
+      veto: "Brand positioned as hero instead of guide"
+
+  - id: phase_5
+    name: "Brand Launch Package"
+    agent: brand-chief
+    task: review.md
+    depends_on: [phase_3, phase_4]
+    description: "Brand Chief compiles all deliverables into the final brand launch package. Reviews consistency across archetype, positioning, identity, and story. Provides implementation roadmap."
+    outputs:
+      - brand_package: "markdown"
+      - implementation_roadmap: "object"
+    checkpoint:
+      gate: "All brand elements consistent and launch-ready"
+      veto: "Inconsistencies between positioning, identity, and story"
+
+completion_criteria:
+  - "Brand archetype defined with expression guide"
+  - "Positioning strategy complete with tagline"
+  - "Brand name selected from evaluated candidates"
+  - "Identity system designed (visual + verbal)"
+  - "Brand story written with StoryBrand SB7"
+  - "Launch package compiled with implementation roadmap"

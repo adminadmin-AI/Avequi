@@ -1,0 +1,100 @@
+workflow:
+  id: wf-campaign-launch
+  name: "Lançamento de Campanha"
+  version: "1.0.0"
+  description: |
+    Lançamento completo de campanha de mídia paga. Da estratégia ao
+    desenvolvimento criativo, configuração de tracking, lançamento e otimização.
+    O Traffic Chief orquestra os especialistas de plataforma em cada fase.
+  trigger: "*campaign-launch"
+  entry_agent: traffic-chief
+  estimated_duration: "45-90 minutes"
+
+  type: sequential
+  sequence:
+    - agent: traffic-chief
+      action: create-ad-strategy
+      creates: strategy
+    - agent: ad-midas
+      action: create-ad-creative
+      creates: creatives
+    - agent: pixel-specialist
+      action: setup-tracking
+      creates: tracking
+    - agent: performance-analyst
+      action: analyze-performance
+      creates: analysis
+
+phases:
+  - id: phase_0
+    name: "Strategy Development"
+    agent: traffic-chief
+    task: create-ad-strategy.md
+    description: "Define audience architecture, campaign structure, creative themes, budget allocation, and KPI targets for the campaign."
+    outputs:
+      - ad_strategy: "markdown"
+      - audience_segments: "list"
+      - budget_allocation: "object"
+    checkpoint:
+      gate: "Strategy complete with audiences, structure, budget, and KPIs defined"
+      veto: "Missing audience sizing or budget allocation"
+
+  - id: phase_1
+    name: "Creative Development"
+    agent: ad-midas
+    task: create-ad-creative.md
+    depends_on: [phase_0]
+    description: "Develop ad creative concepts based on the strategy. Create hooks, copy, visual direction, and production briefs for each funnel stage."
+    outputs:
+      - creative_package: "markdown"
+      - production_briefs: "list"
+      - testing_plan: "object"
+    checkpoint:
+      gate: "Minimum 5 creative concepts with production-ready briefs"
+      veto: "Creatives do not match the strategy's audience and funnel stage mapping"
+
+  - id: phase_2
+    name: "Tracking Setup"
+    agent: pixel-specialist
+    task: setup-tracking.md
+    depends_on: [phase_0]
+    description: "Configure tracking pixels, conversion events, server-side APIs, UTM strategy, and attribution model. QA all tracking before launch."
+    outputs:
+      - tracking_setup: "markdown"
+      - qa_checklist: "list"
+    checkpoint:
+      gate: "All conversion events verified firing correctly with QA passed"
+      veto: "Primary conversion event not tracking — cannot launch without measurement"
+
+  - id: phase_3
+    name: "Campaign Launch"
+    agent: traffic-chief
+    task: create-ad-strategy.md
+    depends_on: [phase_1, phase_2]
+    description: "Execute the launch: build campaigns in-platform, upload creatives, set targeting, enable tracking, and activate. Monitor the first 48 hours."
+    outputs:
+      - launch_checklist: "markdown"
+      - monitoring_plan: "object"
+    checkpoint:
+      gate: "Campaigns live, spending, and tracking confirmed"
+      veto: "Tracking not verified post-launch — pause until confirmed"
+
+  - id: phase_4
+    name: "Optimize and Scale"
+    agent: performance-analyst
+    task: analyze-performance.md
+    depends_on: [phase_3]
+    description: "After 7 days of data, analyze performance, identify winners and losers, and provide optimization recommendations. Hand off to scale-optimizer if scaling is warranted."
+    outputs:
+      - performance_report: "markdown"
+      - optimization_actions: "list"
+    checkpoint:
+      gate: "Performance analyzed with actionable recommendations"
+      veto: "Insufficient data — extend learning phase before optimizing"
+
+completion_criteria:
+  - "Strategy defined with audiences, structure, and budget"
+  - "Creatives developed with testing plan"
+  - "Tracking verified with QA passed"
+  - "Campaigns launched and spending"
+  - "First performance analysis completed with optimization plan"

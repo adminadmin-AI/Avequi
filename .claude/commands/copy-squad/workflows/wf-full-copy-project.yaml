@@ -1,0 +1,99 @@
+workflow:
+  id: wf-full-copy-project
+  name: "Projeto Completo de Copy"
+  version: "1.0.0"
+  description: |
+    Workflow completo de projeto de copywriting de ponta a ponta. Conduz um
+    creative brief pela atribuição de especialista, escrita, revisão do chefe
+    e entrega final. O Copy Chief faz a triagem do brief, direciona ao melhor
+    especialista, supervisiona a escrita e realiza a revisão final de qualidade.
+  trigger: "*full-copy-project"
+  entry_agent: copy-chief
+  estimated_duration: "30-60 minutes"
+  type: sequential
+  sequence:
+    - agent: copy-chief
+      action: diagnose
+      creates: diagnosis
+    - agent: copy-chief
+      action: assign-specialist
+      creates: assignment_brief
+    - agent: "{assigned_specialist}"
+      action: write-copy
+      creates: draft_copy
+    - agent: copy-chief
+      action: critique
+      creates: critique_report
+    - agent: copy-chief
+      action: review
+      creates: final_copy
+
+phases:
+  - id: phase_0
+    name: "Brief and Diagnosis"
+    agent: copy-chief
+    task: diagnose.md
+    description: "Copy Chief receives the project brief, diagnoses the request, identifies copy type, awareness level, and selects the best specialist."
+    outputs:
+      - diagnosis: "markdown"
+      - assigned_specialist: "agent-id"
+      - copy_type: "string"
+    checkpoint:
+      gate: "Specialist identified with HIGH confidence"
+      veto: "Ambiguous brief — request clarification before proceeding"
+
+  - id: phase_1
+    name: "Specialist Assignment"
+    agent: copy-chief
+    task: diagnose.md
+    depends_on: [phase_0]
+    description: "Copy Chief formally assigns the project to the selected specialist with the brief, audience data, awareness level, and any reference material."
+    outputs:
+      - assignment_brief: "markdown"
+    checkpoint:
+      gate: "Specialist acknowledged with clear deliverables"
+      veto: "Specialist mismatch for the copy type"
+
+  - id: phase_2
+    name: "Copy Production"
+    agent: "{assigned_specialist}"
+    task: "{matched_task}"
+    depends_on: [phase_1]
+    description: "The assigned specialist writes the copy using their signature methodology. Task is dynamically selected based on copy type: write-headline.md, write-sales-letter.md, write-vsl-script.md, write-email-sequence.md, write-ad-copy.md, write-landing-page.md, create-funnel-copy.md, write-bullets.md, or create-offer.md."
+    outputs:
+      - draft_copy: "markdown"
+    checkpoint:
+      gate: "Draft complete with all required sections per task format"
+      veto: "Draft missing critical sections or off-brief"
+
+  - id: phase_3
+    name: "Chief Review"
+    agent: copy-chief
+    task: critique-copy.md
+    depends_on: [phase_2]
+    description: "Copy Chief reviews the draft using the 8-point critique framework. Scores, identifies issues, and determines if the copy is ready for delivery or needs revision."
+    outputs:
+      - critique_report: "markdown"
+      - verdict: "string"
+    checkpoint:
+      gate: "Composite score >= 60% (Strong or Elite verdict)"
+      veto: "Composite score < 40% — specialist must rewrite"
+
+  - id: phase_4
+    name: "Final Delivery"
+    agent: copy-chief
+    task: review.md
+    depends_on: [phase_3]
+    description: "Copy Chief compiles the final deliverable package with the approved copy, critique notes, and usage recommendations."
+    outputs:
+      - final_copy: "markdown"
+      - usage_notes: "markdown"
+    checkpoint:
+      gate: "Client-ready package with all deliverables"
+      veto: "Unresolved critique issues still open"
+
+completion_criteria:
+  - "Brief diagnosed and specialist assigned"
+  - "Copy produced by the right specialist using the right methodology"
+  - "Chief review passed with Strong or Elite verdict"
+  - "Final package delivered with usage notes"

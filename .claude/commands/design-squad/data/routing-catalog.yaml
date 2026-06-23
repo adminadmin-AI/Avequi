@@ -1,0 +1,95 @@
+# ═══════════════════════════════════════════════════════════════════
+# Routing Catalog: Design Squad
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  design_systems:
+    keywords: [design system, pattern library, component library, style guide, design language, system governance]
+    primary_agent: brad-frost
+    secondary_agent: dan-mall
+    description: "Design systems creation, governance, adoption, and evolution"
+
+  atomic_design:
+    keywords: [atomic design, atoms, molecules, organisms, templates, pages, component hierarchy]
+    primary_agent: brad-frost
+    secondary_agent: design-system-architect
+    description: "Atomic design methodology, component hierarchy, and pattern decomposition"
+
+  component_architecture:
+    keywords: [component, architecture, composition, props, variants, slots, compound components]
+    primary_agent: brad-frost
+    secondary_agent: design-system-architect
+    description: "Component architecture, composition patterns, and reusable UI building blocks"
+
+  design_scaling:
+    keywords: [design at scale, design organization, multi-team, federated, contribution model, adoption]
+    primary_agent: dan-mall
+    secondary_agent: dave-malouf
+    description: "Scaling design across teams, organizational design strategy, and adoption frameworks"
+
+  design_leadership:
+    keywords: [design leadership, design strategy, design culture, design maturity, design thinking]
+    primary_agent: dan-mall
+    secondary_agent: dave-malouf
+    description: "Design leadership, strategic design decisions, and design culture building"
+
+  design_ops:
+    keywords: [DesignOps, design operations, design process, design tooling, design metrics, workflow]
+    primary_agent: dave-malouf
+    secondary_agent: dan-mall
+    description: "Design operations management, process optimization, tooling, and metrics"
+
+  design_process:
+    keywords: [design process, design sprint, design review, critique, design workflow, handoff]
+    primary_agent: dave-malouf
+    secondary_agent: dan-mall
+    description: "Design process definition, sprints, reviews, critiques, and developer handoff"
+
+  ux_research:
+    keywords: [UX research, user research, usability, user testing, personas, journey map, information architecture]
+    primary_agent: ux-designer
+    secondary_agent: dave-malouf
+    description: "User research, usability testing, persona development, and information architecture"
+
+  user_testing:
+    keywords: [user testing, usability testing, A/B testing, heuristic evaluation, cognitive walkthrough]
+    primary_agent: ux-designer
+    secondary_agent: dan-mall
+    description: "User testing methodologies, usability evaluation, and test planning"
+
+  accessibility:
+    keywords: [accessibility, a11y, WCAG, screen reader, ARIA, inclusive design, color contrast]
+    primary_agent: ux-designer
+    secondary_agent: brad-frost
+    description: "Accessibility standards, WCAG compliance, inclusive design, and assistive technology"
+
+  design_tokens:
+    keywords: [design tokens, CSS variables, theme, spacing, typography, color palette, token architecture]
+    primary_agent: design-system-architect
+    secondary_agent: brad-frost
+    description: "Design token architecture, theming, and systematic design value management"
+
+  component_code:
+    keywords: [component code, React component, web component, Storybook, component API, implementation]
+    primary_agent: design-system-architect
+    secondary_agent: ui-engineer
+    description: "Component library implementation, Storybook documentation, and component APIs"
+
+  visual_assets:
+    keywords: [visual assets, icons, illustrations, images, graphics, mockup, visual design]
+    primary_agent: visual-generator
+    secondary_agent: ui-engineer
+    description: "Visual asset creation, icon systems, illustrations, and graphic production"
+
+  ui_implementation:
+    keywords: [UI implementation, CSS, responsive, layout, animation, frontend code, pixel-perfect]
+    primary_agent: ui-engineer
+    secondary_agent: design-system-architect
+    description: "UI code implementation, responsive layouts, CSS architecture, and animations"
+
+  prototyping:
+    keywords: [prototype, interactive, Figma prototype, code prototype, proof of concept, clickable]
+    primary_agent: ui-engineer
+    secondary_agent: ux-designer
+    description: "Interactive prototyping, proof of concept builds, and rapid UI experimentation"

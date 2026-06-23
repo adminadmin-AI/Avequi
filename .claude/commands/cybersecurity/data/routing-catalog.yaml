@@ -1,0 +1,107 @@
+# ═══════════════════════════════════════════════════════════════════
+# Routing Catalog: Cybersecurity Squad
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  penetration_testing:
+    keywords: [pentest, penetration test, red team, attack simulation, security assessment, ethical hacking]
+    primary_agent: peter-kim
+    secondary_agent: georgia-weidman
+    description: "Full-scope penetration testing, red team engagements, and attack simulation"
+
+  mobile_security:
+    keywords: [mobile, android, ios, mobile pentest, mobile app security, mobile exploit]
+    primary_agent: georgia-weidman
+    secondary_agent: peter-kim
+    description: "Mobile application security testing, mobile exploit development, and device security"
+
+  web_app_security:
+    keywords: [web security, OWASP, XSS, SQL injection, CSRF, web application, web pentest]
+    primary_agent: jim-manico
+    secondary_agent: peter-kim
+    description: "Web application security, OWASP Top 10, secure coding practices"
+
+  secure_coding:
+    keywords: [secure code, code review, security patterns, input validation, authentication, authorization]
+    primary_agent: jim-manico
+    secondary_agent: omar-santos
+    description: "Secure coding practices, security code review, and defensive programming"
+
+  network_monitoring:
+    keywords: [network monitoring, IDS, IPS, SOC, SIEM, network defense, traffic analysis]
+    primary_agent: chris-sanders
+    secondary_agent: omar-santos
+    description: "Network security monitoring, intrusion detection, SOC operations"
+
+  packet_analysis:
+    keywords: [packet capture, pcap, wireshark, tcpdump, network forensics, protocol analysis]
+    primary_agent: chris-sanders
+    secondary_agent: command-generator
+    description: "Network packet capture and analysis, protocol dissection, network forensics"
+
+  vulnerability_management:
+    keywords: [vulnerability, CVE, patch management, vulnerability scanner, risk assessment, CVSS]
+    primary_agent: omar-santos
+    secondary_agent: marcus-carey
+    description: "Vulnerability identification, assessment, prioritization, and remediation"
+
+  incident_response:
+    keywords: [incident response, IR, breach, forensics, containment, eradication, recovery]
+    primary_agent: omar-santos
+    secondary_agent: chris-sanders
+    description: "Security incident handling, digital forensics, containment, and recovery"
+
+  security_leadership:
+    keywords: [CISO, security program, security strategy, security team, security culture, compliance]
+    primary_agent: marcus-carey
+    secondary_agent: omar-santos
+    description: "Security program management, team building, strategy, and organizational security"
+
+  threat_intelligence:
+    keywords: [threat intel, IOC, TTPs, MITRE ATT&CK, threat actors, APT, threat hunting]
+    primary_agent: marcus-carey
+    secondary_agent: chris-sanders
+    description: "Threat intelligence gathering, analysis, and threat hunting"
+
+  reconnaissance:
+    keywords: [recon, scanning, nmap, footprinting, service discovery, port scan, network mapping]
+    primary_agent: cartographer
+    secondary_agent: shannon-runner
+    description: "Network reconnaissance, port scanning, service enumeration, and target mapping"
+
+  enumeration:
+    keywords: [enumerate, directory busting, brute force directories, gobuster, dirbuster, file discovery]
+    primary_agent: dirber
+    secondary_agent: busterer
+    description: "Web directory and file enumeration, hidden resource discovery"
+
+  fuzzing:
+    keywords: [fuzz, fuzzing, parameter testing, input testing, boundary testing, mutation]
+    primary_agent: fuzzer
+    secondary_agent: busterer
+    description: "Input fuzzing, parameter manipulation, and boundary testing"
+
+  credential_attacks:
+    keywords: [password, hash cracking, brute force, credential stuffing, hashcat, john the ripper]
+    primary_agent: ripper
+    secondary_agent: rogue
+    description: "Password cracking, hash analysis, credential attacks"
+
+  exploitation:
+    keywords: [exploit, payload, shell, reverse shell, privilege escalation, post-exploitation, metasploit]
+    primary_agent: rogue
+    secondary_agent: peter-kim
+    description: "Exploit development and delivery, post-exploitation, privilege escalation"
+
+  command_generation:
+    keywords: [command, one-liner, cheat sheet, syntax, tool usage, security tool]
+    primary_agent: command-generator
+    secondary_agent: peter-kim
+    description: "Security tool command generation, syntax reference, and usage guidance"
+
+  osint:
+    keywords: [OSINT, open source intelligence, social engineering, public records, digital footprint, dork]
+    primary_agent: shannon-runner
+    secondary_agent: cartographer
+    description: "Open source intelligence gathering, digital footprint analysis, and social engineering research"

@@ -1,0 +1,180 @@
+# ═══════════════════════════════════════════════════════════════════
+# Squad: Traffic Masters
+# Domain: Paid Traffic Acquisition & Media Buying
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+squad:
+  name: traffic-masters
+  display_name: "Traffic Masters"
+  version: "1.0.0"
+  domain: "Paid traffic acquisition across all major platforms — media buying, creative, analytics, and scaling"
+  description: |
+    16 specialized agents mastering paid traffic acquisition across all major platforms.
+    Combines real-person expert agents (world-class media buyers and ad strategists) with
+    functional specialist agents for creative analysis, performance optimization, scaling,
+    and fiscal management. Covers Facebook/Meta, YouTube, Google, TikTok, and LinkedIn.
+  keywords: [paid traffic, Facebook ads, Google ads, YouTube ads, TikTok ads, media buying, creative, scaling, ROAS, CPA, tracking, pixels, attribution, ad budget]
+  entry_agent: traffic-chief
+  created_at: "2026-03-05"
+
+tiers:
+  tier_0:
+    name: "Orchestration"
+    agents: [traffic-chief]
+    purpose: "Diagnose traffic challenges, route to the right specialist by platform or function"
+  tier_1_experts:
+    name: "Platform Expert Agents"
+    agents: [molly-pittman, ralph-burns, depesh-mandalia, nicholas-kusmich, tom-breeze, kasim-aslam, pedro-sobral]
+    purpose: "World-class traffic experts cloned from real practitioners with proven track records"
+  tier_1_functional:
+    name: "Functional Specialists"
+    agents: [ad-midas, media-buyer, performance-analyst, creative-analyst, scale-optimizer, pixel-specialist, ads-analyst, fiscal]
+    purpose: "Specialized agents for specific traffic management functions"
+
+agents:
+  traffic-chief:
+    file: agents/traffic-chief.md
+    tier: 0
+    icon: "🎯"
+    focus: "Orchestration, routing, traffic diagnosis"
+  molly-pittman:
+    file: agents/molly-pittman.md
+    tier: 1
+    icon: "📘"
+    focus: "Facebook/Meta ads, Customer Value Journey"
+  ralph-burns:
+    file: agents/ralph-burns.md
+    tier: 1
+    icon: "🔥"
+    focus: "Facebook/Meta, Tier 11 methodology, full-funnel, Perpetual Traffic"
+  depesh-mandalia:
+    file: agents/depesh-mandalia.md
+    tier: 1
+    icon: "📊"
+    focus: "Facebook/Meta, BPM scaling method"
+  nicholas-kusmich:
+    file: agents/nicholas-kusmich.md
+    tier: 1
+    icon: "🎁"
+    focus: "Facebook, Give-Give-Give-Ask method"
+  tom-breeze:
+    file: agents/tom-breeze.md
+    tier: 1
+    icon: "▶️"
+    focus: "YouTube ads, Viewability method"
+  kasim-aslam:
+    file: agents/kasim-aslam.md
+    tier: 1
+    icon: "🔍"
+    focus: "Google Ads, Solutions 8 methodology"
+  pedro-sobral:
+    file: agents/pedro-sobral.md
+    tier: 1
+    icon: "🇧🇷"
+    focus: "Facebook/Instagram, Sobral Method (Brazil/LATAM)"
+  ad-midas:
+    file: agents/ad-midas.md
+    tier: 1
+    icon: "🎨"
+    focus: "Ad creative strategy and production"
+  media-buyer:
+    file: agents/media-buyer.md
+    tier: 1
+    icon: "💳"
+    focus: "Cross-platform media buying execution"
+  performance-analyst:
+    file: agents/performance-analyst.md
+    tier: 1
+    icon: "📈"
+    focus: "Data analysis and performance reporting"
+  creative-analyst:
+    file: agents/creative-analyst.md
+    tier: 1
+    icon: "🔬"
+    focus: "Creative performance analysis and testing"
+  scale-optimizer:
+    file: agents/scale-optimizer.md
+    tier: 1
+    icon: "⚡"
+    focus: "Campaign scaling specialist"
+  pixel-specialist:
+    file: agents/pixel-specialist.md
+    tier: 1
+    icon: "🏷️"
+    focus: "Tracking, pixels, attribution"
+  ads-analyst:
+    file: agents/ads-analyst.md
+    tier: 1
+    icon: "🧾"
+    focus: "Ad account audit and optimization"
+  fiscal:
+    file: agents/fiscal.md
+    tier: 1
+    icon: "💰"
+    focus: "Ad budget and financial management"
+
+handoffs:
+  traffic-chief:
+    routes_to: [molly-pittman, ralph-burns, depesh-mandalia, nicholas-kusmich, tom-breeze, kasim-aslam, pedro-sobral, ad-midas, media-buyer, performance-analyst, creative-analyst, scale-optimizer, pixel-specialist, ads-analyst, fiscal]
+  molly-pittman:
+    collaborates_with: [depesh-mandalia, ralph-burns, nicholas-kusmich]
+    escalates_to: [traffic-chief]
+  ralph-burns:
+    collaborates_with: [molly-pittman, media-buyer, depesh-mandalia]
+    escalates_to: [traffic-chief]
+  depesh-mandalia:
+    collaborates_with: [ralph-burns, scale-optimizer]
+    escalates_to: [traffic-chief]
+  nicholas-kusmich:
+    collaborates_with: [molly-pittman]
+    escalates_to: [traffic-chief]
+  tom-breeze:
+    collaborates_with: [ad-midas]
+    escalates_to: [traffic-chief]
+  kasim-aslam:
+    collaborates_with: [performance-analyst]
+    escalates_to: [traffic-chief]
+  pedro-sobral:
+    collaborates_with: [depesh-mandalia]
+    escalates_to: [traffic-chief]
+  ad-midas:
+    collaborates_with: [creative-analyst, molly-pittman, tom-breeze]
+    escalates_to: [traffic-chief]
+  media-buyer:
+    collaborates_with: [ralph-burns, scale-optimizer]
+    escalates_to: [traffic-chief]
+  performance-analyst:
+    collaborates_with: [ads-analyst, kasim-aslam]
+    escalates_to: [traffic-chief]
+  creative-analyst:
+    collaborates_with: [ad-midas]
+    escalates_to: [traffic-chief]
+  scale-optimizer:
+    collaborates_with: [depesh-mandalia, fiscal]
+    escalates_to: [traffic-chief]
+  pixel-specialist:
+    collaborates_with: [performance-analyst]
+    escalates_to: [traffic-chief]
+  ads-analyst:
+    collaborates_with: [performance-analyst]
+    escalates_to: [traffic-chief]
+  fiscal:
+    collaborates_with: [scale-optimizer]
+    escalates_to: [traffic-chief]
+
+cross_cutting:
+  quality_standards:
+    min_score: 7.0
+  platform_routing:
+    facebook_meta: [molly-pittman, depesh-mandalia, ralph-burns, nicholas-kusmich, pedro-sobral]
+    youtube: [tom-breeze, ad-midas]
+    google: [kasim-aslam, performance-analyst]
+    tiktok: [media-buyer, ad-midas, creative-analyst]
+    linkedin: [media-buyer, nicholas-kusmich]
+    cross_platform: [traffic-chief, media-buyer, performance-analyst]
+
+settings:
+  activation:
+    prefix: "traffic-masters"
+    example: "@traffic-masters:molly-pittman"

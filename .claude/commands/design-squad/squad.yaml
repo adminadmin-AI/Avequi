@@ -1,0 +1,48 @@
+name: design-squad
+version: "1.0.0"
+short-title: "Design Squad"
+description: "Squad de design operations — 3 experts (Brad Frost, Dan Mall, Dave Malouf) + 4 especialistas + 1 orquestrador. Design systems, UX, UI, visual."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "design-squad"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - design-systems
+  - ux
+  - ui
+  - atomic-design
+  - components
+  - design-ops
+  - visual-design
+
+components:
+  agents:
+    - design-chief.md
+    - brad-frost.md
+    - dan-mall.md
+    - dave-malouf.md
+    - ux-designer.md
+    - design-system-architect.md
+    - visual-generator.md
+    - ui-engineer.md
+  tasks:
+    - audit-design.md
+    - create-component-spec.md
+    - create-design-system.md
+    - design-ux-flow.md
+    - diagnose.md
+    - generate-handoff.md
+    - review.md
+    - setup-design-ops.md
+  workflows:
+    - wf-design-system-creation.yaml
+    - wf-feature-design.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

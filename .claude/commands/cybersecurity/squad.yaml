@@ -1,0 +1,56 @@
+name: cybersecurity
+version: "1.0.0"
+short-title: "Cybersecurity Squad"
+description: "Squad de 15 agentes de ciberseguranca. Pentest, red team, blue team, AppSec, incident response, recon, exploitation — tudo com framework etico."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "cybersecurity"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - pentesting
+  - red-team
+  - blue-team
+  - appsec
+  - network-security
+  - vulnerability
+  - incident-response
+
+components:
+  agents:
+    - cyber-chief.md
+    - peter-kim.md
+    - georgia-weidman.md
+    - jim-manico.md
+    - chris-sanders.md
+    - omar-santos.md
+    - marcus-carey.md
+    - command-generator.md
+    - cartographer.md
+    - busterer.md
+    - dirber.md
+    - fuzzer.md
+    - ripper.md
+    - rogue.md
+    - shannon-runner.md
+  tasks:
+    - analyze-vulnerability.md
+    - assess-security.md
+    - audit-app-security.md
+    - diagnose.md
+    - generate-commands.md
+    - respond-incident.md
+    - review.md
+    - run-pentest.md
+    - run-recon.md
+  workflows:
+    - wf-incident-response.yaml
+    - wf-pentest-engagement.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copy Master Squad — 33 Agentes de Elite</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0b;
+      --surface: #111113;
+      --surface-2: #1a1a1f;
+      --border: #2a2a30;
+      --text: #e8e8ed;
+      --text-dim: #8888a0;
+      --accent: #d1ff02;
+      --accent-dim: rgba(209, 255, 2, 0.1);
+      --tier0: #d1ff02;
+      --tier1a: #ff6b6b;
+      --tier1b: #4ecdc4;
+      --tier1c: #a78bfa;
+      --tier1d: #fbbf24;
+      --tier1e: #f472b6;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 20%, rgba(209,255,2,0.06) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, rgba(78,205,196,0.04) 0%, transparent 50%);
+      animation: pulse 8s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1) rotate(0deg); opacity: 0.6; }
+      100% { transform: scale(1.1) rotate(2deg); opacity: 1; }
+    }
+
+    .hero-content { position: relative; z-index: 1; max-width: 900px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      background: var(--accent-dim);
+      border: 1px solid rgba(209,255,2,0.2);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+    }
+
+    .badge::before {
+      content: '';
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    h1 {
+      font-size: clamp(3rem, 8vw, 6rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 .accent { color: var(--accent); }
+
+    .hero-sub {
+      font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+      color: var(--text-dim);
+      max-width: 640px;
+      margin: 0 auto 3rem;
+      font-weight: 300;
+      line-height: 1.7;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 3rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 2.5rem;
+      font-weight: 900;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-top: 0.25rem;
+    }
+
+    /* ===== SCROLL INDICATOR ===== */
+    .scroll-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      animation: bounce 2s ease-in-out infinite;
+    }
+
+    .scroll-indicator svg {
+      width: 20px; height: 20px;
+      stroke: var(--text-dim);
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(8px); }
+    }
+
+    /* ===== TIER SECTIONS ===== */
+    .tier-section {
+      padding: 5rem 2rem;
+      position: relative;
+    }
+
+    .tier-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(100%, 1200px);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    .tier-header {
+      text-align: center;
+      margin-bottom: 4rem;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tier-badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .tier-0 .tier-badge { background: rgba(209,255,2,0.15); color: var(--tier0); border: 1px solid rgba(209,255,2,0.3); }
+    .tier-1a .tier-badge { background: rgba(255,107,107,0.12); color: var(--tier1a); border: 1px solid rgba(255,107,107,0.3); }
+    .tier-1b .tier-badge { background: rgba(78,205,196,0.12); color: var(--tier1b); border: 1px solid rgba(78,205,196,0.3); }
+    .tier-1c .tier-badge { background: rgba(167,139,250,0.12); color: var(--tier1c); border: 1px solid rgba(167,139,250,0.3); }
+    .tier-1d .tier-badge { background: rgba(251,191,36,0.12); color: var(--tier1d); border: 1px solid rgba(251,191,36,0.3); }
+    .tier-1e .tier-badge { background: rgba(244,114,182,0.12); color: var(--tier1e); border: 1px solid rgba(244,114,182,0.3); }
+
+    .tier-title {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+    }
+
+    .tier-desc {
+      color: var(--text-dim);
+      font-size: 1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* ===== AGENT CARDS ===== */
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.25rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .agent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 16px 16px 0 0;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .agent-card:hover {
+      border-color: transparent;
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .agent-card:hover::before { opacity: 1; }
+
+    .tier-0 .agent-card::before { background: var(--tier0); }
+    .tier-1a .agent-card::before { background: var(--tier1a); }
+    .tier-1b .agent-card::before { background: var(--tier1b); }
+    .tier-1c .agent-card::before { background: var(--tier1c); }
+    .tier-1d .agent-card::before { background: var(--tier1d); }
+    .tier-1e .agent-card::before { background: var(--tier1e); }
+
+    .agent-card:hover .agent-icon { transform: scale(1.15); }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .agent-icon {
+      font-size: 2rem;
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface-2);
+      border-radius: 12px;
+      flex-shrink: 0;
+      transition: transform 0.3s;
+    }
+
+    .agent-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .agent-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 0.2rem;
+    }
+
+    .agent-specialty {
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .agent-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 1rem;
+    }
+
+    .tag {
+      padding: 0.2rem 0.6rem;
+      background: var(--surface-2);
+      border-radius: 6px;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .tier-0 .tag { color: var(--tier0); background: rgba(209,255,2,0.08); }
+    .tier-1a .tag { color: var(--tier1a); background: rgba(255,107,107,0.08); }
+    .tier-1b .tag { color: var(--tier1b); background: rgba(78,205,196,0.08); }
+    .tier-1c .tag { color: var(--tier1c); background: rgba(167,139,250,0.08); }
+    .tier-1d .tag { color: var(--tier1d); background: rgba(251,191,36,0.08); }
+    .tier-1e .tag { color: var(--tier1e); background: rgba(244,114,182,0.08); }
+
+    /* ===== ORCHESTRATOR SPECIAL ===== */
+    .orchestrator-card {
+      max-width: 600px;
+      margin: 0 auto;
+      background: linear-gradient(135deg, var(--surface) 0%, rgba(209,255,2,0.03) 100%);
+      border: 1px solid rgba(209,255,2,0.15);
+      text-align: center;
+      padding: 2.5rem;
+    }
+
+    .orchestrator-card .agent-icon {
+      margin: 0 auto;
+      width: 72px;
+      height: 72px;
+      font-size: 2.5rem;
+      background: rgba(209,255,2,0.08);
+      border: 1px solid rgba(209,255,2,0.15);
+    }
+
+    .orchestrator-card .card-top {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .orchestrator-card .agent-name { font-size: 1.5rem; }
+
+    .orchestrator-routes {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--accent);
+      line-height: 2;
+    }
+
+    /* ===== FRAMEWORK BAR ===== */
+    .framework-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem;
+      overflow: hidden;
+    }
+
+    .framework-bar h2 {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 2rem;
+      color: var(--text-dim);
+    }
+
+    .scroll-track {
+      display: flex;
+      gap: 1rem;
+      animation: scroll-left 40s linear infinite;
+      width: max-content;
+    }
+
+    .scroll-track:hover { animation-play-state: paused; }
+
+    @keyframes scroll-left {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .fw-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.2rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      white-space: nowrap;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+
+    .fw-chip .fw-author {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+    }
+
+    /* ===== NUMBERS SECTION ===== */
+    .numbers-section {
+      padding: 6rem 2rem;
+      text-align: center;
+    }
+
+    .numbers-section h2 {
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      font-weight: 800;
+      margin-bottom: 3rem;
+      letter-spacing: -0.03em;
+    }
+
+    .numbers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .number-card {
+      padding: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .number-card .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .number-card .label {
+      color: var(--text-dim);
+      font-size: 0.82rem;
+      margin-top: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    footer .logo { font-weight: 800; color: var(--accent); font-size: 1rem; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .agents-grid { grid-template-columns: 1fr; }
+      .hero-stats { gap: 1.5rem; }
+      .tier-section { padding: 3rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="badge">RAXO v2.0</div>
+      <h1>Copy <span class="accent">Master</span></h1>
+      <p class="hero-sub">
+        33 agentes de copywriting de elite. Os maiores mestres da persuasao, vendas e conversao
+        reunidos em um unico squad com frameworks reais, exemplos campeoes e psicologia da influencia.
+      </p>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-num">33</div>
+          <div class="stat-label">Agentes</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">5</div>
+          <div class="stat-label">Tiers</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">25+</div>
+          <div class="stat-label">Frameworks</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">100+</div>
+          <div class="stat-label">Swipe Files</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">35</div>
+          <div class="stat-label">Livros</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-indicator">
+      <span>Conheca o squad</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </div>
+  </section>
+
+  <!-- ===== TIER 0 — ORCHESTRATOR ===== -->
+  <section class="tier-section tier-0">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 0 — Orchestrator</div>
+      <h2 class="tier-title">O Regente</h2>
+      <p class="tier-desc">Diagnostica, roteia para o especialista ideal e garante qualidade com gate de 8 pontos + camada de psicologia da persuasao.</p>
+    </div>
+    <div class="agent-card orchestrator-card">
+      <div class="card-top">
+        <div class="agent-icon">👑</div>
+        <div>
+          <div class="agent-name">Copy Master Chief</div>
+          <div class="agent-id">@copy-master:copy-master-chief</div>
+        </div>
+      </div>
+      <p class="agent-specialty">Orquestra 32 especialistas. Diagnostica pedidos, roteia por nivel de consciencia e tipo de copy, atribui revisor de psicologia, e conduz revisao final de qualidade com 8 criterios ponderados.</p>
+      <div class="agent-tags">
+        <span class="tag">27 dominios</span>
+        <span class="tag">routing matrix</span>
+        <span class="tag">quality gate</span>
+        <span class="tag">psychology layer</span>
+      </div>
+      <div class="orchestrator-routes">
+        *diagnose &middot; *full-copy-project &middot; *psychology &middot; *collab
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TIER 1A — DIRECT RESPONSE LEGENDS ===== -->
+  <section class="tier-section tier-1a">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 1A — Direct Response Legends</div>
+      <h2 class="tier-title">Os Classicos Imortais</h2>
+      <p class="tier-desc">Mestres do direct response que definiram as regras do jogo. Long-form, cartas de venda, headlines cientificos e USP.</p>
+    </div>
+    <div class="agents-grid">
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">✍️</div>
+          <div>
+            <div class="agent-name">Gary Halbert</div>
+            <div class="agent-id">The Prince of Print</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Cartas de venda, storytelling emocional, direct mail. Criador da tecnica A-Pile e da Coat of Arms letter (600M+ pecas enviadas, empresa vendida por $90M).</p>
+        <div class="agent-tags">
+          <span class="tag">sales letters</span>
+          <span class="tag">Star-Story-Solution</span>
+          <span class="tag">A-Pile technique</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🧠</div>
+          <div>
+            <div class="agent-name">Eugene Schwartz</div>
+            <div class="agent-id">Master of Market Awareness</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Headlines, 5 niveis de consciencia, sofisticacao de mercado. Autor de Breakthrough Advertising — o livro mais importante de copywriting ja escrito. 85% de hit ratio.</p>
+        <div class="agent-tags">
+          <span class="tag">headlines</span>
+          <span class="tag">awareness levels</span>
+          <span class="tag">mass desire</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📊</div>
+          <div>
+            <div class="agent-name">Claude Hopkins</div>
+            <div class="agent-id">Father of Scientific Advertising</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Publicidade cientifica, testes rigorosos, copy reason-why. Pioneiro de cupons, amostras gratis e claims preemptivos. Cada centavo medido.</p>
+        <div class="agent-tags">
+          <span class="tag">scientific testing</span>
+          <span class="tag">reason-why</span>
+          <span class="tag">preemptive claims</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎯</div>
+          <div>
+            <div class="agent-name">Gary Bencivenga</div>
+            <div class="agent-id">World's Greatest Living Copywriter</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Prova como arma, fascination bullets, batedor de controles. Equacao da Persuasao (UP+UP+UP+UFP) e 11 elementos de prova. O "Yeah Sure" test.</p>
+        <div class="agent-tags">
+          <span class="tag">proof-based selling</span>
+          <span class="tag">fascinations</span>
+          <span class="tag">Persuasion Equation</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">💌</div>
+          <div>
+            <div class="agent-name">Robert Collier</div>
+            <div class="agent-id">Master of Empathy</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Cartas empaticas, filmes mentais, psicologia do leitor. "Entre na conversa que ja esta acontecendo na mente do leitor." Vendeu milhoes de livros por correio.</p>
+        <div class="agent-tags">
+          <span class="tag">mental movies</span>
+          <span class="tag">conversation principle</span>
+          <span class="tag">empathy</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🔥</div>
+          <div>
+            <div class="agent-name">John Carlton</div>
+            <div class="agent-id">The Sales Detective</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Copy bruto de alta conversao, Sales Detective process, Simple Writing System (17 passos). Teste Gun-to-the-Head para headlines.</p>
+        <div class="agent-tags">
+          <span class="tag">sales detective</span>
+          <span class="tag">SWS method</span>
+          <span class="tag">raw selling power</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📰</div>
+          <div>
+            <div class="agent-name">Jim Rutz</div>
+            <div class="agent-id">The Copywriter Closest to God</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Inventor do magalog, filosofia anti-tedio, Greased Slide. "Read This or Die" — um dos headlines mais famosos da historia. 10 Mandamentos do Copy.</p>
+        <div class="agent-tags">
+          <span class="tag">magalog format</span>
+          <span class="tag">anti-boring</span>
+          <span class="tag">format innovation</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎹</div>
+          <div>
+            <div class="agent-name">John Caples</div>
+            <div class="agent-id">Pioneer of Scientific Testing</div>
+          </div>
+        </div>
+        <p class="agent-specialty">"They Laughed When I Sat Down at the Piano" — o headline mais famoso de todos os tempos. Autor de Tested Advertising Methods. Pai do A/B testing em copy.</p>
+        <div class="agent-tags">
+          <span class="tag">headline testing</span>
+          <span class="tag">split testing</span>
+          <span class="tag">29 headline formulas</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">💎</div>
+          <div>
+            <div class="agent-name">Rosser Reeves</div>
+            <div class="agent-id">Creator of USP</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Inventou o conceito de USP (Unique Selling Proposition). "Reality in Advertising." Uma mensagem, repetida incansavelmente. M&Ms "derrete na boca, nao na mao."</p>
+        <div class="agent-tags">
+          <span class="tag">USP framework</span>
+          <span class="tag">message simplification</span>
+          <span class="tag">repetition</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TIER 1B — MODERN COPY & FUNNELS ===== -->
+  <section class="tier-section tier-1b">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 1B — Modern Copy & Funnels</div>
+      <h2 class="tier-title">Os Arquitetos Digitais</h2>
+      <p class="tier-desc">Especialistas da era digital. VSLs, funis, webinars, lancamentos, trafego frio e venda baseada em crenca.</p>
+    </div>
+    <div class="agents-grid">
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">💰</div>
+          <div>
+            <div class="agent-name">Dan Kennedy</div>
+            <div class="agent-id">Professor of Harsh Reality</div>
+          </div>
+        </div>
+        <p class="agent-specialty">No-BS direct response, Magnetic Marketing, 10 Rules of Direct Response. Mestre em estrutura de oferta e medo da perda. "Fear of loss > desire for gain."</p>
+        <div class="agent-tags">
+          <span class="tag">No-BS methodology</span>
+          <span class="tag">Magnetic Marketing</span>
+          <span class="tag">PAS formula</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🌊</div>
+          <div>
+            <div class="agent-name">Frank Kern</div>
+            <div class="agent-id">Intent-Based Branding Pioneer</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Mass Control ($23.8M em 24h), Intent-Based Branding, Results In Advance. Behavioral Dynamic Response e 4 Day Cash Machine. Personalidade pura no copy.</p>
+        <div class="agent-tags">
+          <span class="tag">launch sequences</span>
+          <span class="tag">intent-based branding</span>
+          <span class="tag">Results In Advance</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📈</div>
+          <div>
+            <div class="agent-name">Russell Brunson</div>
+            <div class="agent-id">The Funnel Architect</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Perfect Webinar ($3.2M em 90min), Hook-Story-Offer, Value Ladder, Epiphany Bridge. ClickFunnels de $0 a $100M+ ARR com o mesmo webinar.</p>
+        <div class="agent-tags">
+          <span class="tag">Perfect Webinar</span>
+          <span class="tag">Hook-Story-Offer</span>
+          <span class="tag">Value Ladder</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">💡</div>
+          <div>
+            <div class="agent-name">Todd Brown</div>
+            <div class="agent-id">The Marketer's Marketer</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Big Marketing Idea, E5 Method, Unique Mechanism, S.I.N. Offer. Engenheiro de campanhas em 65+ mercados e 33 paises. Transforma desejo em demanda.</p>
+        <div class="agent-tags">
+          <span class="tag">Big Idea</span>
+          <span class="tag">E5 Method</span>
+          <span class="tag">Unique Mechanism</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎬</div>
+          <div>
+            <div class="agent-name">Stefan Georgi</div>
+            <div class="agent-id">The RMBC Architect</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Metodo RMBC (Research-Mechanism-Brief-Copy). $1B+ em vendas acumuladas. VShred: reescreveu so o lead em 25min e conversao subiu 72%. 80% dos VSLs funcionam em trafego frio.</p>
+        <div class="agent-tags">
+          <span class="tag">RMBC Method</span>
+          <span class="tag">VSL scripts</span>
+          <span class="tag">cold traffic</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📹</div>
+          <div>
+            <div class="agent-name">Jon Benson</div>
+            <div class="agent-id">The VSL Inventor</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Inventou o formato VSL em 2007. "Ugly VSL" (tela preta + texto). $1B+ para clientes. Truth About Abs foi #1 no ClickBank. Tecnicas de NLP aplicadas a video.</p>
+        <div class="agent-tags">
+          <span class="tag">VSL format</span>
+          <span class="tag">NLP techniques</span>
+          <span class="tag">EPIC email</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📧</div>
+          <div>
+            <div class="agent-name">Ry Schwartz</div>
+            <div class="agent-id">The Conversion Coach</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Coaching The Conversion (CTC) Method. $25M+ para clientes como Amy Porterfield e Todd Herman. Momento de Maxima Tensao e The Piglet (9-part closing email).</p>
+        <div class="agent-tags">
+          <span class="tag">CTC Method</span>
+          <span class="tag">launch emails</span>
+          <span class="tag">belief transformation</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🦈</div>
+          <div>
+            <div class="agent-name">Sabri Suby</div>
+            <div class="agent-id">Sell Like Crazy</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Sistema de 8 fases do Sell Like Crazy. Godfather Strategy, HVCO, Magic Lantern Technique. Construiu a King Kong ate 8 digitos com copy-driven funnels de trafego frio.</p>
+        <div class="agent-tags">
+          <span class="tag">8-phase system</span>
+          <span class="tag">Godfather Strategy</span>
+          <span class="tag">cold traffic funnels</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🇧🇷</div>
+          <div>
+            <div class="agent-name">Evaldo Albuquerque</div>
+            <div class="agent-id">The One Belief Master</div>
+          </div>
+        </div>
+        <p class="agent-specialty">The 16-Word Sales Letter. $170M em 3 anos na Agora. Quebrou o recorde all-time com $80M+ em um unico ano. Defina A UMA crenca, responda 10 perguntas.</p>
+        <div class="agent-tags">
+          <span class="tag">16-Word Formula</span>
+          <span class="tag">one belief</span>
+          <span class="tag">financial copy</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TIER 1C — EMAIL & RELATIONSHIP ===== -->
+  <section class="tier-section tier-1c">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 1C — Email & Relationship</div>
+      <h2 class="tier-title">Os Mestres do Email</h2>
+      <p class="tier-desc">Especialistas em email sequences, emails diarios, nurture e copy para marca pessoal. Relacionamento antes de conversao.</p>
+    </div>
+    <div class="agents-grid">
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">📬</div>
+          <div>
+            <div class="agent-name">Ben Settle</div>
+            <div class="agent-id">The Anti-Guru Email Maverick</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Email diario como estrategia. Personality-first selling, infotainment, polarizacao intencional. Anti-guru positioning. "Se voce nao gosta, unsubscribe."</p>
+        <div class="agent-tags">
+          <span class="tag">daily emails</span>
+          <span class="tag">infotainment</span>
+          <span class="tag">personality-first</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎭</div>
+          <div>
+            <div class="agent-name">Andre Chaperon</div>
+            <div class="agent-id">Master of Email Storytelling</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Soap Opera Sequences (5 emails que viciam), Open Loops, Sphere of Influence, AutoResponder Madness. Cada email e um episodio de uma serie que o leitor nao consegue parar de ler.</p>
+        <div class="agent-tags">
+          <span class="tag">Soap Opera Sequence</span>
+          <span class="tag">open loops</span>
+          <span class="tag">story arcs</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🧩</div>
+          <div>
+            <div class="agent-name">Dan Koe</div>
+            <div class="agent-id">The One-Person Business Philosopher</div>
+          </div>
+        </div>
+        <p class="agent-specialty">One-Person Business, Deep Generalism, APAG/BPAS content frameworks. Conteudo short-form que converte em newsletter e produtos. $5M+/ano como solopreneur.</p>
+        <div class="agent-tags">
+          <span class="tag">personal brand</span>
+          <span class="tag">Deep Generalism</span>
+          <span class="tag">short-form content</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TIER 1D — OFFERS & CONVERSION ===== -->
+  <section class="tier-section tier-1d">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 1D — Offers, Sales & Conversion</div>
+      <h2 class="tier-title">Os Engenheiros de Oferta</h2>
+      <p class="tier-desc">Arquitetura de ofertas, anuncios impressos, copy financeiro e de saude, Value Equation, SaaS conversion e CRO data-driven.</p>
+    </div>
+    <div class="agents-grid">
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🛒</div>
+          <div>
+            <div class="agent-name">Joe Sugarman</div>
+            <div class="agent-id">Master of the Slippery Slide</div>
+          </div>
+        </div>
+        <p class="agent-specialty">30 gatilhos psicologicos, Slippery Slide (cada frase obriga a ler a proxima), Seeds of Curiosity, 17 Axiomas do Copy. BluBlocker: 20M+ unidades vendidas de um unico anuncio.</p>
+        <div class="agent-tags">
+          <span class="tag">30 triggers</span>
+          <span class="tag">Slippery Slide</span>
+          <span class="tag">psychological selling</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">👔</div>
+          <div>
+            <div class="agent-name">David Ogilvy</div>
+            <div class="agent-id">Father of Modern Advertising</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Big Idea (teste de 5 perguntas), pesquisa-first, brand image. "A 60 milhas por hora, o barulho mais alto no novo Rolls-Royce vem do relogio eletrico." Copy premium e elegante.</p>
+        <div class="agent-tags">
+          <span class="tag">Big Idea</span>
+          <span class="tag">brand positioning</span>
+          <span class="tag">research-driven</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">💊</div>
+          <div>
+            <div class="agent-name">Clayton Makepeace</div>
+            <div class="agent-id">The Highest-Paid Copywriter</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Dominant Resident Emotions (16 tipos), Four-Legged Stool, copy financeiro e de saude. $1M+ em um unico dia com promos blockbuster. Quadruplicou a Weiss Research.</p>
+        <div class="agent-tags">
+          <span class="tag">emotional dominance</span>
+          <span class="tag">Four-Legged Stool</span>
+          <span class="tag">financial/health</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🏆</div>
+          <div>
+            <div class="agent-name">Parris Lampropoulos</div>
+            <div class="agent-id">Best Copywriter You Never Heard Of</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Metodo 700-to-100 bullets, Format Trumps Copy, Stanislavsky Method aplicado a copy. Controle de 12 ANOS na Bottom Line Health — ninguem conseguiu bater.</p>
+        <div class="agent-tags">
+          <span class="tag">fascination bullets</span>
+          <span class="tag">700-to-100 method</span>
+          <span class="tag">12-year control</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎩</div>
+          <div>
+            <div class="agent-name">David Deutsch</div>
+            <div class="agent-id">The CopyTHINKING Expert</div>
+          </div>
+        </div>
+        <p class="agent-specialty">CopyTHINKING (pensar antes de escrever), Big Idea Generation (4 ferramentas), Method Actor Technique. $1B+ em vendas. 6 controles simultaneos na Boardroom.</p>
+        <div class="agent-tags">
+          <span class="tag">CopyTHINKING</span>
+          <span class="tag">Big Idea generation</span>
+          <span class="tag">method acting</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">⚡</div>
+          <div>
+            <div class="agent-name">Alex Hormozi</div>
+            <div class="agent-id">The Offer Architect</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Value Equation, Grand Slam Offer, CLOSER Framework, $100M Offers/Leads. Portfolio Acquisition.com $200M+. "Faca uma oferta tao boa que a pessoa se sinta estupida em dizer nao."</p>
+        <div class="agent-tags">
+          <span class="tag">Value Equation</span>
+          <span class="tag">Grand Slam Offer</span>
+          <span class="tag">$100M frameworks</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🔬</div>
+          <div>
+            <div class="agent-name">Joanna Wiebe</div>
+            <div class="agent-id">The Conversion Copy Scientist</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Message Mining (extraia copy da voz do cliente), Copyhackers, conversion copywriting, SaaS copy. Pioneira do copy data-driven e CRO baseado em linguagem real do usuario.</p>
+        <div class="agent-tags">
+          <span class="tag">Message Mining</span>
+          <span class="tag">voice-of-customer</span>
+          <span class="tag">SaaS conversion</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TIER 1E — PERSUASION & PSYCHOLOGY ===== -->
+  <section class="tier-section tier-1e">
+    <div class="tier-header">
+      <div class="tier-badge">Tier 1E — Persuasion & Psychology</div>
+      <h2 class="tier-title">A Ciencia da Influencia</h2>
+      <p class="tier-desc">Psicologia da persuasao, gatilhos emocionais, negociacao, frame control e dinamicas de pitch. A camada invisivel que faz qualquer copy converter mais.</p>
+    </div>
+    <div class="agents-grid">
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🧪</div>
+          <div>
+            <div class="agent-name">Robert Cialdini</div>
+            <div class="agent-id">The Godfather of Influence</div>
+          </div>
+        </div>
+        <p class="agent-specialty">7 Principios da Influencia (Reciprocidade, Compromisso, Prova Social, Autoridade, Afinidade, Escassez, Unidade) + Pre-Suasion. O livro mais citado em copywriting de todos os tempos.</p>
+        <div class="agent-tags">
+          <span class="tag">7 Principles</span>
+          <span class="tag">Pre-Suasion</span>
+          <span class="tag">science-backed</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🗝️</div>
+          <div>
+            <div class="agent-name">Blair Warren</div>
+            <div class="agent-id">One Sentence Persuasion</div>
+          </div>
+        </div>
+        <p class="agent-specialty">"Pessoas farao qualquer coisa por quem encoraja seus sonhos, justifica seus fracassos, alivia seus medos, confirma suas suspeitas e as ajuda a jogar pedras em seus inimigos." 27 palavras. Persuasao destilada.</p>
+        <div class="agent-tags">
+          <span class="tag">5 emotional triggers</span>
+          <span class="tag">primal connection</span>
+          <span class="tag">identity persuasion</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🎙️</div>
+          <div>
+            <div class="agent-name">Chris Voss</div>
+            <div class="agent-id">FBI Hostage Negotiator</div>
+          </div>
+        </div>
+        <p class="agent-specialty">Tactical Empathy, Labeling ("Parece que..."), Mirroring, Accusation Audit, Calibrated Questions. Ex-negociador-chefe de reféns do FBI. Negociacao aplicada a copy de objecoes e fechamento.</p>
+        <div class="agent-tags">
+          <span class="tag">tactical empathy</span>
+          <span class="tag">labeling</span>
+          <span class="tag">objection handling</span>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="card-top">
+          <div class="agent-icon">🧲</div>
+          <div>
+            <div class="agent-name">Oren Klaff</div>
+            <div class="agent-id">Pitch Anything</div>
+          </div>
+        </div>
+        <p class="agent-specialty">STRONG Method, Frame Control (quem controla o frame controla a venda), Crocodile Brain Theory, Status Alignment. $400M+ em deals fechados. Neurociencia do pitch aplicada a copy.</p>
+        <div class="agent-tags">
+          <span class="tag">STRONG method</span>
+          <span class="tag">frame control</span>
+          <span class="tag">pitch dynamics</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== FRAMEWORKS SCROLLING BAR ===== -->
+  <section class="framework-bar">
+    <h2>25+ Frameworks Integrados</h2>
+    <div class="scroll-track">
+      <div class="fw-chip">AIDA <span class="fw-author">Classic</span></div>
+      <div class="fw-chip">PAS <span class="fw-author">Kennedy</span></div>
+      <div class="fw-chip">RMBC <span class="fw-author">Georgi</span></div>
+      <div class="fw-chip">Hook-Story-Offer <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">Value Equation <span class="fw-author">Hormozi</span></div>
+      <div class="fw-chip">7 Principles <span class="fw-author">Cialdini</span></div>
+      <div class="fw-chip">Slippery Slide <span class="fw-author">Sugarman</span></div>
+      <div class="fw-chip">STRONG Method <span class="fw-author">Klaff</span></div>
+      <div class="fw-chip">Soap Opera Sequence <span class="fw-author">Chaperon</span></div>
+      <div class="fw-chip">E5 Method <span class="fw-author">Todd Brown</span></div>
+      <div class="fw-chip">Perfect Webinar <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">16-Word Letter <span class="fw-author">Evaldo</span></div>
+      <div class="fw-chip">One Sentence <span class="fw-author">Warren</span></div>
+      <div class="fw-chip">Tactical Empathy <span class="fw-author">Voss</span></div>
+      <div class="fw-chip">CopyTHINKING <span class="fw-author">Deutsch</span></div>
+      <div class="fw-chip">Message Mining <span class="fw-author">Wiebe</span></div>
+      <div class="fw-chip">USP Framework <span class="fw-author">Reeves</span></div>
+      <div class="fw-chip">Star-Story-Solution <span class="fw-author">Halbert</span></div>
+      <div class="fw-chip">Epiphany Bridge <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">CLOSER <span class="fw-author">Hormozi</span></div>
+      <div class="fw-chip">Persuasion Eq. <span class="fw-author">Bencivenga</span></div>
+      <div class="fw-chip">Fascination Method <span class="fw-author">Lampropoulos</span></div>
+      <div class="fw-chip">Frame Control <span class="fw-author">Klaff</span></div>
+      <div class="fw-chip">PASTOR <span class="fw-author">Warren</span></div>
+      <div class="fw-chip">Magnetic Marketing <span class="fw-author">Kennedy</span></div>
+      <!-- Duplicate set for seamless loop -->
+      <div class="fw-chip">AIDA <span class="fw-author">Classic</span></div>
+      <div class="fw-chip">PAS <span class="fw-author">Kennedy</span></div>
+      <div class="fw-chip">RMBC <span class="fw-author">Georgi</span></div>
+      <div class="fw-chip">Hook-Story-Offer <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">Value Equation <span class="fw-author">Hormozi</span></div>
+      <div class="fw-chip">7 Principles <span class="fw-author">Cialdini</span></div>
+      <div class="fw-chip">Slippery Slide <span class="fw-author">Sugarman</span></div>
+      <div class="fw-chip">STRONG Method <span class="fw-author">Klaff</span></div>
+      <div class="fw-chip">Soap Opera Sequence <span class="fw-author">Chaperon</span></div>
+      <div class="fw-chip">E5 Method <span class="fw-author">Todd Brown</span></div>
+      <div class="fw-chip">Perfect Webinar <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">16-Word Letter <span class="fw-author">Evaldo</span></div>
+      <div class="fw-chip">One Sentence <span class="fw-author">Warren</span></div>
+      <div class="fw-chip">Tactical Empathy <span class="fw-author">Voss</span></div>
+      <div class="fw-chip">CopyTHINKING <span class="fw-author">Deutsch</span></div>
+      <div class="fw-chip">Message Mining <span class="fw-author">Wiebe</span></div>
+      <div class="fw-chip">USP Framework <span class="fw-author">Reeves</span></div>
+      <div class="fw-chip">Star-Story-Solution <span class="fw-author">Halbert</span></div>
+      <div class="fw-chip">Epiphany Bridge <span class="fw-author">Brunson</span></div>
+      <div class="fw-chip">CLOSER <span class="fw-author">Hormozi</span></div>
+      <div class="fw-chip">Persuasion Eq. <span class="fw-author">Bencivenga</span></div>
+      <div class="fw-chip">Fascination Method <span class="fw-author">Lampropoulos</span></div>
+      <div class="fw-chip">Frame Control <span class="fw-author">Klaff</span></div>
+      <div class="fw-chip">PASTOR <span class="fw-author">Warren</span></div>
+      <div class="fw-chip">Magnetic Marketing <span class="fw-author">Kennedy</span></div>
+    </div>
+  </section>
+
+  <!-- ===== NUMBERS ===== -->
+  <section class="numbers-section">
+    <h2>Numeros do <span style="color:var(--accent)">Copy Master</span></h2>
+    <div class="numbers-grid">
+      <div class="number-card">
+        <div class="num">33</div>
+        <div class="label">Agentes de Elite</div>
+      </div>
+      <div class="number-card">
+        <div class="num">15</div>
+        <div class="label">Tasks Executaveis</div>
+      </div>
+      <div class="number-card">
+        <div class="num">4</div>
+        <div class="label">Workflows</div>
+      </div>
+      <div class="number-card">
+        <div class="num">27</div>
+        <div class="label">Dominios de Routing</div>
+      </div>
+      <div class="number-card">
+        <div class="num">100+</div>
+        <div class="label">Swipe Files Reais</div>
+      </div>
+      <div class="number-card">
+        <div class="num">25+</div>
+        <div class="label">Frameworks</div>
+      </div>
+      <div class="number-card">
+        <div class="num">35</div>
+        <div class="label">Livros Referencia</div>
+      </div>
+      <div class="number-card">
+        <div class="num">30</div>
+        <div class="label">Gatilhos Psicologicos</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="logo">COPY MASTER v2.0</div>
+    <p style="margin-top:0.5rem">Synkra AIOS &mdash; O melhor squad de copywriting do planeta.</p>
+    <p style="margin-top:0.25rem">Built with Rafa &times; Claude &mdash; 2026</p>
+  </footer>
+
+</body>
+</html>

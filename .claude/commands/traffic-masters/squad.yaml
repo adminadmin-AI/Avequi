@@ -1,0 +1,59 @@
+name: traffic-masters
+version: "1.0.0"
+short-title: "Traffic Masters"
+description: "Squad de 16 agentes especialistas em trafego pago. Facebook, YouTube, Google Ads, media buying, creative analysis, scaling, tracking."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "traffic-masters"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - traffic
+  - ads
+  - facebook
+  - google
+  - youtube
+  - media-buying
+  - creative
+  - scaling
+  - tracking
+
+components:
+  agents:
+    - traffic-chief.md
+    - molly-pittman.md
+    - ralph-burns.md
+    - depesh-mandalia.md
+    - nicholas-kusmich.md
+    - tom-breeze.md
+    - kasim-aslam.md
+    - pedro-sobral.md
+    - ad-midas.md
+    - media-buyer.md
+    - performance-analyst.md
+    - creative-analyst.md
+    - scale-optimizer.md
+    - pixel-specialist.md
+    - ads-analyst.md
+    - fiscal.md
+  tasks:
+    - analyze-performance.md
+    - audit-ad-account.md
+    - create-ad-creative.md
+    - create-ad-strategy.md
+    - diagnose.md
+    - manage-budget.md
+    - review.md
+    - scale-campaign.md
+    - setup-tracking.md
+  workflows:
+    - wf-account-audit.yaml
+    - wf-campaign-launch.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

@@ -1,0 +1,97 @@
+workflow:
+  id: wf-copy-review-cycle
+  name: "Ciclo de Revisão de Copy"
+  version: "1.0.0"
+  description: |
+    Ciclo iterativo de escrita-crítica-revisão. Um especialista produz o copy,
+    o Copy Chief faz a crítica, e o especialista revisa com base no feedback.
+    Máximo de 3 iterações antes de escalação ou aprovação forçada.
+  trigger: "*copy-review-cycle"
+  entry_agent: copy-chief
+  estimated_duration: "20-45 minutes"
+  type: iterative
+  sequence:
+    - agent: "{specialist}"
+      action: write-draft
+      creates: draft_copy
+    - agent: copy-chief
+      action: critique
+      creates: critique_report
+    - agent: "{specialist}"
+      action: revise
+      creates: revised_copy
+    - agent: copy-chief
+      action: final-review
+      creates: final_verdict
+
+config:
+  max_iterations: 3
+  pass_threshold: 60
+  elite_threshold: 80
+
+phases:
+  - id: phase_0
+    name: "Initial Production"
+    agent: "{specialist}"
+    task: "{matched_task}"
+    description: "Specialist writes the initial draft using the appropriate task (write-headline.md, write-sales-letter.md, etc.). Task is selected based on the copy type requested."
+    outputs:
+      - draft_copy: "markdown"
+      - iteration: "number"
+    checkpoint:
+      gate: "Draft complete with all required sections"
+      veto: "Draft incomplete or missing critical elements"
+
+  - id: phase_1
+    name: "Chief Critique"
+    agent: copy-chief
+    task: critique-copy.md
+    depends_on: [phase_0]
+    description: "Copy Chief performs 8-point critique. Assigns scores, identifies the fatal flaw, and provides prioritized fix list with rewrite examples."
+    outputs:
+      - critique_report: "markdown"
+      - composite_score: "number"
+      - verdict: "string"
+      - fix_list: "list"
+    checkpoint:
+      gate: "Score >= 60% — approved for delivery"
+      veto: "Score < 40% after iteration 3 — escalate"
+
+  - id: phase_2
+    name: "Specialist Revision"
+    agent: "{specialist}"
+    task: "{matched_task}"
+    depends_on: [phase_1]
+    condition: "verdict != 'Elite' AND verdict != 'Strong' AND iteration < max_iterations"
+    description: "Specialist revises the copy addressing all items in the prioritized fix list. Focus on the fatal flaw first, then quick wins, then remaining items."
+    outputs:
+      - revised_copy: "markdown"
+      - changes_made: "list"
+    checkpoint:
+      gate: "All priority 1 fixes addressed"
+      veto: "Fatal flaw not addressed in revision"
+
+  - id: phase_3
+    name: "Final Review"
+    agent: copy-chief
+    task: critique-copy.md
+    depends_on: [phase_2]
+    description: "Copy Chief performs final critique. If score improved and passes threshold, approve. If not improved after max iterations, escalate with documented issues."
+    outputs:
+      - final_critique: "markdown"
+      - final_verdict: "string"
+    checkpoint:
+      gate: "Score >= 60% OR max iterations reached with documented exceptions"
+      veto: "Score decreased between iterations — investigate root cause"
+
+iteration_rules:
+  on_pass: "Deliver final copy with critique report"
+  on_fail_under_max: "Return to phase_2 with updated fix list"
+  on_max_reached: "Approve with documented concerns OR escalate to user"
+  score_regression: "If score drops between iterations, halt and reassess approach"
+
+completion_criteria:
+  - "Copy achieves Strong or Elite verdict"
+  - "OR max iterations reached with all priority 1 fixes addressed"
+  - "Critique report delivered with every iteration documented"
+  - "Final copy marked as approved or escalated"

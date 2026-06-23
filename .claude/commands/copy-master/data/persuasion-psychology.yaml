@@ -1,0 +1,471 @@
+# Persuasion Psychology Reference: Copy Master Squad
+# Deep reference on persuasion science for all agents
+# Sources: Cialdini, Warren, Sugarman, Voss, Klaff, behavioral economics
+
+cialdini_7_principles:
+  source: "Influence (1984) + Pre-Suasion (2016) — Robert Cialdini"
+
+  reciprocity:
+    definition: "People feel obligated to return favors, gifts, and concessions. The desire to repay is hardwired and often disproportionate"
+    mechanism: "When you give something of value first — even unsolicited — the recipient feels psychologically indebted"
+    copy_applications:
+      - "Lead magnets — give a genuinely valuable free resource before asking for anything"
+      - "Free content marketing — blog posts, videos, tools that solve real problems"
+      - "Free trials and samples — let them experience the value before paying"
+      - "Unexpected bonuses — add surprise bonuses after purchase to generate referrals"
+      - "Concession technique — start with a larger request, then 'concede' to your real ask"
+    examples:
+      - "Hare Krishnas giving flowers before asking for donations increased donations 300%"
+      - "Free PDF guides that generate 40%+ email opt-in rates"
+      - "Reciprocity-driven referral programs (Dropbox: give storage, get storage)"
+
+  commitment_consistency:
+    definition: "Once people commit to something (especially publicly), they feel internal pressure to behave consistently with that commitment"
+    mechanism: "Small initial commitments create a self-image that drives larger consistent actions — the 'foot in the door' effect"
+    copy_applications:
+      - "Micro-commitments — quizzes, surveys, 'yes ladders' before the big ask"
+      - "Free + shipping offers — paying even $1 creates buyer identity"
+      - "Public declarations — 'Share your goal in the comments' locks them in"
+      - "Progressive disclosure — small opt-in → email series → small purchase → core offer"
+      - "Identity-based copy — 'You're the kind of person who...' leverages consistency"
+    examples:
+      - "POW soldiers in Korea — small written statements led to full ideological shifts"
+      - "Quiz funnels that ask 5-7 questions before revealing the product achieve 3x conversion"
+      - "'I'm in' buttons vs 'Submit' buttons — the identity commitment increases conversion"
+
+  social_proof:
+    definition: "People look to others to determine correct behavior, especially in ambiguous situations. What others do serves as a mental shortcut"
+    mechanism: "When uncertain, we default to the behavior of similar others — the more similar and numerous, the stronger the effect"
+    copy_applications:
+      - "Testimonials — especially from people who match the target avatar exactly"
+      - "Numbers — '50,000+ customers' creates herd safety"
+      - "Real-time proof — 'John from Austin just purchased 3 minutes ago'"
+      - "Case studies — detailed before/after stories with specific metrics"
+      - "User-generated content — real customers sharing real results"
+      - "Waiting lists — 'Join 2,347 people waiting for access'"
+    examples:
+      - "Canned laughter increases humor ratings by 15-20% even when people know it's fake"
+      - "Hotel towel reuse signs citing '75% of guests in this room' outperformed generic appeals by 33%"
+      - "Amazon's 'Customers who bought this also bought' drives 35% of revenue"
+
+  authority:
+    definition: "People defer to experts and authority figures — titles, uniforms, credentials, and trappings of expertise trigger automatic compliance"
+    mechanism: "Authority serves as a cognitive shortcut — if an expert says it, it must be true. We follow authority even against our own judgment"
+    copy_applications:
+      - "Credentials — 'As seen in Forbes, Inc, WSJ'"
+      - "Expert endorsements — doctors, PhDs, industry leaders"
+      - "Data and research citations — specific studies, statistics, peer-reviewed findings"
+      - "Published authorship — books, articles, patents"
+      - "Association — logos of prestigious clients, universities, media outlets"
+      - "Specificity as authority — detailed technical knowledge signals expertise"
+    examples:
+      - "Milgram's experiment — 65% delivered maximum 'shock' when instructed by authority figure"
+      - "Adding 'Dr.' to a testimonial increases believability by 40%+"
+      - "'Featured in' media logos increase landing page conversion 20-30%"
+
+  liking:
+    definition: "People prefer to say yes to people they like — similarity, compliments, familiarity, and physical attractiveness increase compliance"
+    mechanism: "Liking is driven by: physical attractiveness, similarity, compliments, contact/cooperation, and association with positive things"
+    copy_applications:
+      - "Personal stories that create relatability — 'I was just like you'"
+      - "Humor — makes the writer/brand likeable and memorable"
+      - "Compliments — 'You're clearly someone who takes X seriously'"
+      - "Shared values and identity — 'We believe...' statements"
+      - "Conversational tone — write like a friend, not a corporation"
+      - "Attractive design — visual aesthetics create positive association"
+    examples:
+      - "Tupperware parties — buying from friends generates 5x more revenue than retail"
+      - "Mirroring language patterns increases rapport and compliance by 25%"
+      - "Politicians who smile more get 10% more votes on average"
+
+  scarcity:
+    definition: "People want more of what they can have less of — limited availability increases perceived value and urgency to act"
+    mechanism: "Loss aversion (losing something feels 2x worse than gaining it) combined with reactance (we want what we can't have) creates powerful urgency"
+    copy_applications:
+      - "Limited time — 'Offer expires Friday at midnight'"
+      - "Limited quantity — 'Only 47 spots remaining'"
+      - "Disappearing bonuses — 'Order in the next 24 hours to get...'"
+      - "Exclusive access — 'By invitation only' or 'Application required'"
+      - "Price increases — 'Price goes up Monday'"
+      - "Information scarcity — 'This page is coming down soon'"
+    examples:
+      - "Worchel cookie experiment — cookies from a nearly empty jar rated 40% more desirable than identical cookies from a full jar"
+      - "Booking.com — 'Only 2 rooms left at this price' increases conversion 20%+"
+      - "Black Friday scarcity drives $9B+ in online sales in a single day"
+
+  unity:
+    definition: "People are more influenced by those they see as 'one of us' — shared identity, tribe, and belonging create deep influence that transcends the other six principles"
+    mechanism: "Shared identity ('we') creates willingness to sacrifice for the group. It goes beyond liking — it's about being the same kind"
+    copy_applications:
+      - "Tribal language — 'We are the kind of people who...'"
+      - "Shared enemy — unite against a common adversary (the industry, the old way)"
+      - "Inside language — jargon and terminology that signals membership"
+      - "Origin story — 'I came from the same place you are now'"
+      - "Movement building — create an identity people want to join"
+      - "Us vs. Them framing — position your audience against a clearly defined 'them'"
+    examples:
+      - "Apple's 'Think Different' created a tribe identity, not just a customer base"
+      - "CrossFit's community identity drives 90%+ retention through tribal belonging"
+      - "Political movements — shared identity is more powerful than policy positions"
+
+blair_warren_5_triggers:
+  source: "The One Sentence Persuasion Course (2013) — Blair Warren"
+  core_principle: "People will do anything for those who encourage their dreams, justify their failures, allay their fears, confirm their suspicions, and throw rocks at their enemies"
+
+  encourage_dreams:
+    definition: "Validate and amplify the other person's aspirations — don't dismiss, diminish, or redirect their dreams"
+    mechanism: "Most people have had their dreams dismissed by family, friends, and society. When someone believes in their dream, the bond is immediate and deep"
+    copy_applications:
+      - "Open with their aspiration — 'You want to build a 7-figure business while working 20 hours a week. That's not crazy — that's exactly what we help people do'"
+      - "Future pace the dream — 'Imagine waking up 6 months from now...'"
+      - "Validate the ambition — 'Most people will tell you that's impossible. They're wrong'"
+      - "Use in VSL openings to create instant rapport and trust"
+    examples:
+      - "Weight Watchers shifting from 'diet' to 'living your best life' — encouraging the dream, not fixing the problem"
+      - "Tesla — encouraging the dream of sustainable luxury, not selling electric cars"
+
+  justify_failures:
+    definition: "Remove blame for their past failures — it wasn't their fault, it was the method, the information, or the system that failed them"
+    mechanism: "People carry guilt and shame about past failures. Removing that burden creates profound gratitude and loyalty"
+    copy_applications:
+      - "'It's not your fault you're still struggling with X — the methods you were taught were fundamentally flawed'"
+      - "'You didn't fail — the system failed you'"
+      - "'The reason your last attempt didn't work has nothing to do with your effort...'"
+      - "Use after identifying with their struggle to create the belief shift"
+    examples:
+      - "Every diet product ever: 'It's not about willpower — it's about biology'"
+      - "SaaS: 'Spreadsheets weren't designed for this. That's why it was so hard'"
+
+  allay_fears:
+    definition: "Name their specific fears and provide evidence or logic that dissolves them"
+    mechanism: "Unnamed fears are more powerful than named fears. When you name the fear, you shrink it. When you provide a counter, you eliminate it"
+    copy_applications:
+      - "'You might be thinking this sounds too good to be true. Here's why it's not...'"
+      - "'I know you're worried about X. Let me show you why that won't happen'"
+      - "Accusation audits — list every fear before they raise it"
+      - "Guarantees and risk reversal — 'If you don't see results in 60 days, you pay nothing'"
+    examples:
+      - "Zappos 365-day return policy — allaying the fear of buying shoes online"
+      - "Domino's '30 minutes or it's free' — allaying the fear of cold pizza delivery"
+
+  confirm_suspicions:
+    definition: "Validate what they've secretly believed but couldn't prove — 'You were right all along'"
+    mechanism: "Everyone has unvalidated beliefs about why things aren't working. Confirming these creates instant trust because you 'get it' when nobody else does"
+    copy_applications:
+      - "'You've always suspected that [common practice] doesn't really work. You were right'"
+      - "'That feeling you have that something is off? Trust it. Here's what's really going on'"
+      - "'The experts have been lying to you about X. Here's the proof'"
+      - "Use in conspiracy-style leads and contrarian positioning"
+    examples:
+      - "Dollar Shave Club confirming the suspicion that razor prices are a scam"
+      - "Organic food marketing confirming suspicions about pesticides and big agriculture"
+
+  throw_rocks_at_enemies:
+    definition: "Identify a common enemy and attack it publicly — unite your audience against a shared adversary"
+    mechanism: "Shared enemies create stronger bonds than shared interests. The more specific and vivid the enemy, the stronger the tribal connection"
+    copy_applications:
+      - "'The $60 billion diet industry doesn't want you to know this'"
+      - "'While Wall Street gets rich, regular Americans get left behind'"
+      - "'The old way of doing marketing — the way the gurus taught you — is dead'"
+      - "Enemies can be: industries, ideologies, practices, specific companies, or 'the old way'"
+    examples:
+      - "Apple's 'Mac vs. PC' — Microsoft was the enemy"
+      - "CrossFit vs. 'globo gyms' — created fierce loyalty through enemy identification"
+      - "Every challenger brand ever — Pepsi vs. Coke, Avis vs. Hertz, Dollar Shave vs. Gillette"
+
+sugarman_30_triggers:
+  source: "Triggers (1999) / The Adweek Copywriting Handbook (2006) — Joe Sugarman"
+
+  - trigger: "Consistency"
+    description: "Once a person takes a position, they feel compelled to remain consistent with it"
+    copy_use: "Get a small commitment early (quiz, free trial, email opt-in) — they'll stay consistent with the buyer identity"
+
+  - trigger: "Product Nature"
+    description: "Each product has an inherent nature — a unique personality and character that must be understood before writing"
+    copy_use: "Study the product deeply before writing. The copy should emerge from the product's true nature, not imposed from outside"
+
+  - trigger: "Prospect Nature"
+    description: "Understanding who the buyer is at an emotional and psychological level determines every copy decision"
+    copy_use: "Research the buyer's fears, desires, language, and beliefs. Write to the person, not the demographic"
+
+  - trigger: "Fad/Trend"
+    description: "People want to be part of what's current — trends create urgency through cultural momentum"
+    copy_use: "Position your product as part of a larger movement or trend. 'The X revolution' or 'Join the movement'"
+
+  - trigger: "Timing"
+    description: "The same message at different times produces radically different results"
+    copy_use: "Launch when the market is hungry. Tie offers to cultural moments, seasons, news events, or personal timing (back to school, new year)"
+
+  - trigger: "Linking"
+    description: "Connect your product to something the prospect already knows, likes, or values"
+    copy_use: "Analogies and metaphors — 'It's like Netflix for learning' or 'The iPhone of fitness trackers'"
+
+  - trigger: "Storytelling"
+    description: "Stories bypass the critical faculty and engage emotion — the most powerful sales tool ever discovered"
+    copy_use: "Every product has a story. The origin story, the customer story, the discovery story — find and tell it"
+
+  - trigger: "Authority"
+    description: "People respect and follow recognized experts and institutions"
+    copy_use: "Cite credentials, publish research, associate with recognized names, demonstrate deep expertise in the copy itself"
+
+  - trigger: "Desire to Belong"
+    description: "Humans have a primal need to belong to a group — to be accepted and included"
+    copy_use: "Create community around your product. 'Join 50,000 smart marketers' or 'Welcome to the tribe'"
+
+  - trigger: "Desire to Collect"
+    description: "People love collecting — sets, series, editions, levels create ongoing engagement"
+    copy_use: "Create product ecosystems, series, levels, or editions. 'Volume 1 of 12' or 'Level 2 Certification'"
+
+  - trigger: "Curiosity"
+    description: "An open loop in the mind demands closure — curiosity is one of the most powerful human drives"
+    copy_use: "Fascination bullets, open loops, cliffhangers, 'but that's not all' transitions, subject lines that create gaps"
+
+  - trigger: "Sense of Urgency"
+    description: "Without a reason to act now, people default to 'later' which means 'never'"
+    copy_use: "Deadlines, limited quantities, price increases, disappearing bonuses — give them a reason why now matters"
+
+  - trigger: "Fear"
+    description: "Fear of loss is more motivating than hope of gain — by a factor of 2x according to Kahneman"
+    copy_use: "Paint the cost of inaction. 'What will your life look like in 5 years if nothing changes?' or 'Don't miss out'"
+
+  - trigger: "Instant Gratification"
+    description: "People want results now, not later — the desire for immediate reward is hardwired"
+    copy_use: "Emphasize speed of delivery and results. 'Instant access' — 'See results in 48 hours' — 'Download now'"
+
+  - trigger: "Exclusivity"
+    description: "People want what others can't have — exclusivity creates perceived value and status"
+    copy_use: "'By invitation only' — 'Limited to 100 members' — 'Application required' — 'Not for everyone'"
+
+  - trigger: "Simplicity"
+    description: "People gravitate toward simple solutions — complexity creates doubt and paralysis"
+    copy_use: "Make the mechanism sound simple. '3 steps' — 'One simple trick' — 'Just press play' — Remove perceived complexity"
+
+  - trigger: "Relationships"
+    description: "Strong relationships between buyer and seller create loyalty that transcends logic"
+    copy_use: "Personal emails, behind-the-scenes content, vulnerability, responsiveness — act like a person, not a company"
+
+  - trigger: "Guilt"
+    description: "People act to relieve guilt — giving triggers reciprocity guilt, not acting triggers self-guilt"
+    copy_use: "Free value creates reciprocity guilt. 'I gave you everything for free — the least you can do is check out my offer'"
+
+  - trigger: "Specificity"
+    description: "Specific claims are more believable than general claims — '97.3%' beats 'almost all'"
+    copy_use: "Use exact numbers, names, dates, and details. 'Increased revenue by $47,233 in 63 days' not 'dramatically increased revenue'"
+
+  - trigger: "Familiarity"
+    description: "People trust what they recognize — the mere exposure effect means repeated contact increases liking"
+    copy_use: "Consistent brand exposure, retargeting, email frequency, social media presence — be in their world repeatedly"
+
+  - trigger: "Hope"
+    description: "Hope is the ultimate human motivator — people will buy anything that gives them hope for a better future"
+    copy_use: "Paint the possibility. 'Imagine if...' — 'What would your life look like if...' — 'For the first time, it's actually possible'"
+
+  - trigger: "Greed"
+    description: "The desire to get more than expected — deals, bargains, and disproportionate value trigger greed"
+    copy_use: "Value stacking, bonus offers, 'total value: $4,997 — yours today for $297', bulk discounts, BOGO"
+
+  - trigger: "Credibility"
+    description: "Everything in the copy must be believable — a single incredible claim destroys trust in everything else"
+    copy_use: "Damaging admissions, specific limitations, honest comparisons, 'Who this is NOT for' sections"
+
+  - trigger: "Satisfaction Conviction"
+    description: "The buyer must believe they will be satisfied — this goes beyond features to emotional certainty"
+    copy_use: "Guarantees, trial periods, money-back policies, 'keep everything even if you cancel' — eliminate purchase anxiety"
+
+  - trigger: "Mental Engagement"
+    description: "The mind that is engaged is the mind that buys — passive readers don't convert"
+    copy_use: "Questions, fill-in-the-blank, quizzes, calculators, 'imagine yourself...' — force mental participation"
+
+  - trigger: "Honesty"
+    description: "Transparency and honesty are persuasive because they're rare — admitting flaws builds trust"
+    copy_use: "Damaging admissions, limitations, 'Who this is NOT for', honest comparisons, Avis 'We Try Harder' approach"
+
+  - trigger: "Proof of Value"
+    description: "Demonstrated value is more persuasive than claimed value — show, don't tell"
+    copy_use: "Free samples, demo videos, case studies with screenshots, live demonstrations, public metrics"
+
+  - trigger: "Emotion"
+    description: "People buy on emotion and justify with logic — the emotional case must be made before the logical one"
+    copy_use: "Lead with emotion (story, pain, desire). Follow with logic (data, comparison, ROI). Close with emotion (future pacing)"
+
+  - trigger: "Involvement"
+    description: "Physical and mental involvement in the buying process increases commitment to purchase"
+    copy_use: "Quizzes, configurators, 'choose your plan', interactive elements, 'pick your color', customization options"
+
+  - trigger: "Rhyme"
+    description: "Rhyming phrases are perceived as more truthful — the 'Keats heuristic' (beauty = truth)"
+    copy_use: "'If it doesn't fit, you must acquit' — rhyming taglines, memorable slogans, alliterative phrases"
+
+voss_negotiation_tools:
+  source: "Never Split the Difference (2016) — Chris Voss"
+
+  tactical_empathy:
+    definition: "Understanding the feelings and mindset of another in the moment, and hearing what is behind those feelings — then using that understanding to influence"
+    copy_application: "Open copy by demonstrating you understand their exact emotional state — 'I know what it feels like to stare at your bank account at 3am and feel that knot in your stomach'"
+    technique: "Name their reality before offering your solution. The more precisely you describe their feelings, the more they trust you"
+
+  labeling:
+    definition: "Identifying and verbalizing the other person's emotion — 'It seems like...', 'It sounds like...', 'It looks like...'"
+    copy_application: "Use labeling in email subject lines and copy leads — 'It sounds like you've tried everything to grow your business and nothing's working.' Forces the reader to think 'that's right'"
+    technique: "Begin labels with 'It seems like' or 'It sounds like' — never 'I think' (makes it about you). The goal is a 'that's right' response"
+
+  mirroring:
+    definition: "Repeating the last 1-3 critical words the other person said — triggers elaboration and creates rapport"
+    copy_application: "In sales scripts and chatbot sequences, mirror the prospect's exact language. In copy, use voice-of-customer data to mirror their words back to them"
+    technique: "In written copy: use their exact phrases from reviews, surveys, and support tickets. In calls: repeat their last 3 words as a question"
+
+  accusation_audit:
+    definition: "Proactively listing every negative thing the other party might think about you or your offer — before they say it"
+    copy_application: "In sales pages: 'You're probably thinking this is just another course that won't work. You're thinking I'm going to charge thousands. You're thinking this sounds too good to be true. I get it. Here's why this is different...'"
+    technique: "List 3-5 specific objections/fears. Be MORE negative than they would be. This disarms resistance and creates trust through transparency"
+
+  calibrated_questions:
+    definition: "'How' and 'What' questions that give the illusion of control while actually guiding the conversation"
+    copy_application: "In CTAs and transitions: 'What would it be worth to you to solve this problem forever?' — 'How would your life change if you never worried about X again?'"
+    technique: "Never ask 'Why' (triggers defensiveness). Use 'How' and 'What' to create ownership and engagement"
+
+  thats_right:
+    definition: "The moment when the other person says 'That's right' — indicating you've accurately summarized their situation and they feel truly understood"
+    copy_application: "In copy, the 'that's right' moment happens when the reader nods in recognition. Achieve it by describing their situation so accurately they feel known"
+    technique: "Summarize their problem, their feelings, their failed attempts, and their desire — when they think 'that's exactly right,' they're yours"
+
+  loss_aversion_framing:
+    definition: "Framing the conversation around what they stand to lose, not just what they might gain"
+    copy_application: "'Every day you wait, you're losing $X in potential revenue' is more powerful than 'You could earn $X more'"
+    technique: "Quantify the cost of inaction. Make the status quo feel more expensive than the purchase"
+
+klaff_frame_types:
+  source: "Pitch Anything (2011) / Flip the Script (2019) — Oren Klaff"
+
+  power_frame:
+    definition: "The frame of authority and status — the person with the highest status controls the interaction"
+    how_to_set: "Establish your authority early without bragging. Demonstrate competence through specificity. Use status signals (credentials, past clients, selective acceptance)"
+    copy_application: "Agency copy: 'We turned down $2M in projects last year because they weren't the right fit' — flips the power dynamic. The seller becomes the selector"
+    collision_strategy: "When a prospect tries to assert power (making you wait, name-dropping), use a small defiance or humor to break their frame — then reset your own"
+
+  time_frame:
+    definition: "Whoever controls the clock controls the deal — urgency creates focus and prevents analysis paralysis"
+    how_to_set: "Set clear time boundaries. 'I have 15 minutes for this call.' 'This offer closes Friday.' 'We only onboard 3 clients per month'"
+    copy_application: "Landing pages with countdown timers, 'Doors close' deadlines, 'We accept applications until X date' — time pressure forces decisions"
+    collision_strategy: "If someone tries to slow you down ('Let me think about it'), acknowledge and compress — 'Totally understand. Most people who think about it for more than 48 hours find the moment has passed'"
+
+  analyst_frame:
+    definition: "The frame of cold logic and data — used by analytical types to delay decisions and maintain control through questions"
+    how_to_set: "When someone tries to pull you into an analyst frame (asking for ROI spreadsheets, competitive analysis), break the frame with intrigue — 'I can show you all the data, but first let me show you something you've never seen before'"
+    copy_application: "In copy targeted at analytical buyers: provide enough data to satisfy the logical brain, but always return to emotion. Data opens the door; emotion closes the deal"
+    collision_strategy: "Use a 'hot cognition' — an emotionally compelling story or demonstration — to break through the cold analytical frame"
+
+  prize_frame:
+    definition: "Position yourself as the prize being won, not the seller pursuing the buyer — flip the dynamic entirely"
+    how_to_set: "'We're selective about who we work with.' 'Not everyone qualifies.' 'We interview potential clients to ensure mutual fit.' Application-based selling"
+    copy_application: "High-ticket offers: 'Apply for a spot' vs 'Buy now.' 'We're looking for 5 serious [type of person]' vs 'Anyone can join.' Makes the buyer chase"
+    collision_strategy: "If someone acts like they're doing you a favor by considering your offer, withdrawal creates desire — 'It sounds like this might not be the right time for you' triggers loss aversion"
+
+  moral_authority_frame:
+    definition: "The frame of being right — having the moral high ground in a discussion or pitch"
+    how_to_set: "Position your offer as aligned with a higher principle — fairness, transparency, access, truth. 'We believe everyone deserves access to X'"
+    copy_application: "Mission-driven copy: 'We built this because we were tired of seeing X industry take advantage of people.' Creates an ethical obligation to support you"
+    collision_strategy: "When someone questions your motives or pricing, respond with your mission — 'Our mission is X. This pricing ensures we can continue to serve'"
+
+cognitive_biases:
+  source: "Kahneman, Tversky, Ariely, and behavioral economics research"
+
+  anchoring:
+    definition: "The first number or piece of information encountered disproportionately influences all subsequent judgments"
+    copy_application: "Show the high price first. 'The total value is $12,497. Your investment today: $997.' The anchor makes the actual price feel like a steal"
+    strength: "Affects even experts who know about it — one of the most robust cognitive biases"
+
+  loss_aversion:
+    definition: "Losing something feels approximately 2x worse than gaining the equivalent thing feels good"
+    copy_application: "Frame as loss prevention: 'You're losing $X every day you wait' is 2x more motivating than 'You could gain $X.' Also: 'Don't miss out' > 'Get in now'"
+    strength: "Universal and deeply rooted — drives insurance purchases, risk avoidance, and FOMO"
+
+  social_proof_bias:
+    definition: "In ambiguous situations, people assume the actions of others reflect the correct behavior"
+    copy_application: "Testimonials, user counts, real-time purchase notifications, waiting lists, 'Most popular' labels, celebrity endorsements"
+    strength: "Increases with similarity of the proof source to the reader, and with uncertainty"
+
+  scarcity_bias:
+    definition: "People assign more value to opportunities that are less available — want more of what we can have less of"
+    copy_application: "Limited time, limited quantity, exclusive access, disappearing bonuses, 'Only X remaining,' waitlists"
+    strength: "Most powerful when scarcity is new (recently became scarce) and when there's competition for the scarce resource"
+
+  bandwagon_effect:
+    definition: "The tendency to adopt beliefs and behaviors in proportion to the number of others who have done so"
+    copy_application: "'Join 100,000+ marketers who already...' — numbers create momentum. Show the wave and invite them to ride it"
+    strength: "Increases with group size and perceived similarity to the adopters"
+
+  framing_effect:
+    definition: "The same information presented differently produces different decisions — 90% fat-free vs. 10% fat"
+    copy_application: "Frame everything in the most favorable light. '$3.27/day' vs '$1,197/year.' '90% success rate' vs '10% failure rate.' 'Investment' vs 'cost'"
+    strength: "Affects decisions even when people are shown both frames — the order and emphasis matter"
+
+  endowment_effect:
+    definition: "People overvalue things they already possess — once they own it (even mentally), they won't want to give it up"
+    copy_application: "Free trials, virtual ownership ('Your account is ready'), future pacing ('Imagine you already have this'), keep-it guarantees"
+    strength: "Increases with duration of ownership and emotional attachment to the item"
+
+  decoy_effect:
+    definition: "When choosing between two options, a third (inferior) option can make one of the original options look dramatically better"
+    copy_application: "Three-tier pricing: Basic $29, Pro $99, Enterprise $97 (decoy makes Pro look like the obvious choice). The Economist's famous print+digital bundle"
+    strength: "Works even when people are aware of the manipulation — the comparison is automatic"
+
+  zero_risk_bias:
+    definition: "People strongly prefer completely eliminating risk over reducing it — even when reduction has higher expected value"
+    copy_application: "Unconditional guarantees outperform conditional ones. 'Full refund, no questions asked' > '80% refund if you complete the modules.' Zero risk beats low risk"
+    strength: "Drives guarantee design — the simpler and more absolute the guarantee, the more powerful"
+
+  hyperbolic_discounting:
+    definition: "People strongly prefer immediate rewards over future rewards, even when the future reward is objectively larger"
+    copy_application: "Emphasize immediate benefits: 'Instant access' — 'See results today' — 'Download now.' Front-load the value delivery"
+    strength: "Universal — explains why payment plans work (small pain now vs. large pain later)"
+
+  status_quo_bias:
+    definition: "People prefer the current state of affairs — the default option wins unless there's a compelling reason to change"
+    copy_application: "Make the cost of NOT changing vivid and painful. Show that the status quo is actively harmful, not neutral. 'Every day you stay with your current system, you're losing...'"
+    strength: "Very strong — most marketing fails because it doesn't overcome status quo bias"
+
+  confirmation_bias:
+    definition: "People seek and interpret information that confirms their existing beliefs — and ignore contradicting evidence"
+    copy_application: "Start by confirming what they already believe (Blair Warren's 'confirm their suspicions'). Then redirect. Never lead with information that contradicts their worldview"
+    strength: "Strongest with deeply held beliefs — political, health, financial decisions"
+
+  halo_effect:
+    definition: "A positive impression in one area creates positive impressions in all other areas — and vice versa"
+    copy_application: "Lead with your strongest proof point. If your design is beautiful, it creates a halo for product quality. If you have a famous client, mention it first"
+    strength: "First impressions create halos that are extremely difficult to reverse"
+
+  ikea_effect:
+    definition: "People assign disproportionately high value to things they helped create — even if the creation was minimal"
+    copy_application: "Customization, personalization, quizzes that 'build your plan,' configurators, 'Choose your own adventure' experiences"
+    strength: "Works even with trivial contribution — quiz results feel more valuable because the user 'participated'"
+
+  recency_bias:
+    definition: "Recent events are weighted more heavily than older events in judgment and decision-making"
+    copy_application: "Use current testimonials, recent results, latest data. 'This month alone, 47 clients...' beats 'Over the past 10 years...'"
+    strength: "Especially strong in volatile markets (financial, health) where things change rapidly"
+
+  peak_end_rule:
+    definition: "People judge experiences based on the peak moment and the end moment — not the overall average"
+    copy_application: "Design the buying experience with a clear peak (the reveal, the breakthrough moment) and a strong end (onboarding, welcome, first win). Post-purchase experience matters enormously"
+    strength: "Explains why a perfect close and onboarding can overcome a mediocre middle"
+
+  dunning_kruger_effect:
+    definition: "People with low competence overestimate their ability, while people with high competence underestimate theirs"
+    copy_application: "For beginners: don't tell them they're wrong — validate their effort while redirecting to your method. For experts: challenge them — 'You probably think you know X, but...'"
+    strength: "Determines how you position educational content — beginners need encouragement, experts need challenge"
+
+  sunk_cost_fallacy:
+    definition: "People continue investing in something because of past investment, even when it no longer makes rational sense"
+    copy_application: "In retention copy: 'You've already invested 6 months and $X — don't lose that progress by quitting now.' In sales: 'You've already spent $X on Y that didn't work — this protects that investment'"
+    strength: "Increases with size of prior investment (time, money, emotion)"
+
+  availability_heuristic:
+    definition: "People judge probability based on how easily examples come to mind — vivid, recent, or emotional examples feel more likely"
+    copy_application: "Use vivid, specific stories rather than statistics. 'Sarah lost 47 lbs' is more persuasive than '94% of users lose weight' because stories are available in memory"
+    strength: "Stories beat statistics almost every time because stories are more easily recalled"
+
+  paradox_of_choice:
+    definition: "Too many options create decision paralysis — fewer options lead to more purchases and higher satisfaction"
+    copy_application: "Limit to 3 options maximum (good/better/best). Remove unnecessary choices. One CTA per page. Simplify the decision"
+    strength: "Especially strong in digital environments where infinite options are one click away"

@@ -1,0 +1,111 @@
+# Analytics Setup Workflow
+# Goals > Metrics > Dashboards > Reporting > Optimization
+# Version: 1.0.0
+
+workflow:
+  id: wf-analytics-setup
+  name: "Configuração de Analytics"
+  version: "1.0.0"
+  trigger: "*analytics-setup"
+  entry_agent: data-chief
+  description: "Configuração completa da infraestrutura de analytics, desde objetivos de negócio até dashboards otimizados. Este é um workflow de configuração única que estabelece a base de mensuração."
+  estimated_duration: "4-8 hours"
+  type: sequential
+  sequence:
+    - agent: avinash-kaushik
+      action: define-goals
+      creates: goals_metrics
+    - agent: avinash-kaushik
+      action: build-dashboards
+      creates: dashboards
+    - agent: peter-fader
+      action: setup-clv
+      creates: clv_model
+    - agent: sean-ellis
+      action: setup-growth
+      creates: growth_metrics
+
+
+inputs:
+  - name: business
+    required: true
+    description: "Business description and objectives"
+  - name: channels
+    required: true
+    description: "Active digital channels to measure"
+  - name: tools
+    required: false
+    description: "Existing analytics tools (GA4, Mixpanel, Amplitude, etc.)"
+  - name: team
+    required: false
+    description: "Who will use the dashboards and reports"
+
+
+phases:
+  - id: phase_1_goals
+    name: "Goals"
+    agent: avinash-kaushik
+    task: analyze-data.md
+    depends_on: []
+    description: "Define business questions and map to See-Think-Do-Care framework"
+    checkpoint:
+      gate: "3-5 business questions defined, each mapped to STDC stage"
+      veto: "data-chief rejects if questions are vanity-driven"
+      required_output: "Business questions with STDC mapping"
+
+  - id: phase_2_metrics
+    name: "Metrics"
+    agent: avinash-kaushik
+    task: analyze-data.md
+    depends_on: [phase_1_goals]
+    description: "Select KPIs using DMMM, define OMTM, apply So What test"
+    checkpoint:
+      gate: "Max 15 KPIs selected, each passes the So What test"
+      veto: "data-chief rejects if any metric lacks a decision it drives"
+      required_output: "DMMM framework with objectives, goals, KPIs, targets"
+
+  - id: phase_3_dashboards
+    name: "Dashboards"
+    agent: avinash-kaushik
+    task: analyze-data.md
+    depends_on: [phase_2_metrics]
+    description: "Design dashboards with STDC structure, Actions row, and benchmarks"
+    checkpoint:
+      gate: "Dashboard is max 1 page per audience, every metric annotated"
+      veto: "data-chief rejects dashboards without the Actions row"
+      required_output: "Dashboard design document with wireframes"
+
+  - id: phase_4_reporting
+    name: "Reporting"
+    agent: peter-fader
+    task: optimize-retention.md
+    depends_on: [phase_3_dashboards]
+    description: "Add customer-centric metrics, cohort analysis, and CLV tracking"
+    checkpoint:
+      gate: "Cohort analysis structure defined, CLV segments mapped"
+      veto: "data-chief rejects if retention metrics are missing"
+      required_output: "Reporting framework with customer-centric layer"
+
+  - id: phase_5_optimization
+    name: "Optimization"
+    agent: sean-ellis
+    task: measure-growth.md
+    depends_on: [phase_4_reporting]
+    description: "Define the growth experiment framework that will use these analytics"
+    checkpoint:
+      gate: "Experiment tracking integrated with analytics, ICE template ready"
+      veto: "data-chief rejects if experiments can't be measured with current setup"
+      required_output: "Growth experiment framework connected to analytics"
+
+completion_criteria:
+  - "Business questions defined and mapped to STDC"
+  - "Max 15 KPIs selected with DMMM framework"
+  - "Dashboards designed with Actions row"
+  - "Customer-centric reporting layer added"
+  - "Growth experiment framework integrated"
+  - "Tracking plan documented with data sources and events"
+
+error_handling:
+  tool_gap: "Document missing tools and recommend alternatives. Proceed with available tools."
+  data_gap: "Identify unmeasurable metrics, prioritize gap-closing, design proxy metrics."
+  escalation: "If business objectives are unclear after Phase 1, escalate to data-chief for stakeholder alignment."

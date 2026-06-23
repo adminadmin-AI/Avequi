@@ -1,0 +1,121 @@
+# Brand Narrative Workflow
+# Complete brand storytelling ecosystem
+
+workflow:
+  id: wf-brand-narrative
+  name: "Sistema de Narrativa de Marca"
+  trigger: "*brand-narrative"
+  entry_agent: story-chief
+  estimated_duration: "2-4 hours"
+  description: |
+    Construir um ecossistema completo de narrativa de marca: história de origem, histórias de clientes,
+    visão de futuro, narrativa cultural e materiais prontos para apresentação.
+    Direciona através de especialistas em storytelling de marca, narrativa pessoal e apresentação.
+
+  type: sequential
+  sequence:
+    - agent: park-howell
+      action: build-narrative
+      creates: brand_story
+    - agent: kindra-hall
+      action: build-narrative
+      creates: customer_stories
+    - agent: marshall-ganz
+      action: write-manifesto
+      creates: movement_narrative
+    - agent: nancy-duarte
+      action: create-presentation
+      creates: presentation
+
+phases:
+  - id: phase_1_brand_story
+    name: "Core Brand Story"
+    agent: park-howell
+    task: build-narrative.md
+    depends_on: []
+    description: "Define the brand's And-But-Therefore narrative and core identity story"
+    checkpoint:
+      gate: "Brand ABT defined with clear identity, conflict, and resolution"
+      veto: "HALT if brand values are undefined — must clarify before storytelling"
+    outputs:
+      - brand_abt
+      - brand_identity_narrative
+      - core_values_expressed
+
+  - id: phase_2_origin
+    name: "Origin Story"
+    agent: marshall-ganz
+    task: write-manifesto.md
+    depends_on: [phase_1_brand_story]
+    description: "Craft the founder/brand origin story using Story of Self"
+    checkpoint:
+      gate: "Origin story has authentic personal moment and clear values expression"
+      veto: "HALT if origin story is generic or lacks emotional truth"
+    outputs:
+      - origin_story
+      - founder_narrative
+
+  - id: phase_3_customer_stories
+    name: "Customer Stories"
+    agent: kindra-hall
+    task: build-narrative.md
+    depends_on: [phase_1_brand_story]
+    description: "Build the four essential brand stories: Value, Founder, Purpose, Customer"
+    checkpoint:
+      gate: "All four story types drafted with specific, relatable examples"
+      veto: "HALT if stories lack specificity — generic stories do not stick"
+    outputs:
+      - value_story
+      - founder_story
+      - purpose_story
+      - customer_story
+
+  - id: phase_4_future_vision
+    name: "Future Vision Narrative"
+    agent: nancy-duarte
+    task: create-presentation.md
+    depends_on: [phase_1_brand_story]
+    description: "Create the 'What Could Be' narrative — the future the brand is building"
+    checkpoint:
+      gate: "Future vision is vivid, specific, and emotionally compelling"
+      veto: "HALT if vision is vague or disconnected from brand values"
+    outputs:
+      - future_vision
+      - sparkline_structure
+
+  - id: phase_5_culture_narrative
+    name: "Culture Narrative"
+    agent: marshall-ganz
+    task: write-manifesto.md
+    depends_on: [phase_2_origin, phase_3_customer_stories]
+    description: "Weave origin and customer stories into a movement manifesto"
+    checkpoint:
+      gate: "Culture narrative creates sense of belonging and collective identity"
+      veto: "HALT if narrative excludes rather than includes"
+    outputs:
+      - culture_manifesto
+      - story_of_us
+
+  - id: phase_6_presentations
+    name: "Presentation Materials"
+    agent: nancy-duarte
+    task: create-presentation.md
+    depends_on: [phase_4_future_vision, phase_5_culture_narrative]
+    support_agents: [oren-klaff]
+    description: "Package all narratives into presentation-ready formats"
+    checkpoint:
+      gate: "Pitch deck and keynote narratives complete with sparkline structures"
+      veto: "HALT if presentations lack clear call to action"
+    outputs:
+      - investor_pitch
+      - keynote_narrative
+      - sales_deck
+      - brand_presentation
+
+completion_criteria:
+  - "Core brand ABT narrative defined"
+  - "Origin story crafted with authentic emotional truth"
+  - "Four essential brand stories completed (Value, Founder, Purpose, Customer)"
+  - "Future vision narrative is vivid and compelling"
+  - "Culture manifesto creates belonging and identity"
+  - "Presentation materials ready with sparkline structures and clear CTAs"

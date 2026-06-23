@@ -1,0 +1,117 @@
+name: brand-squad
+version: "1.0.0"
+short-title: "Brand Squad"
+description: "O squad definitivo de estratégia de marca — 10 pensadores lendários de branding clonados como agentes de IA, mais 4 especialistas funcionais e 1 orquestrador. Cobre brand equity, posicionamento, identidade, arquitetura e crescimento."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "brand-squad"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - branding
+  - brand-strategy
+  - positioning
+  - identity
+  - naming
+  - archetype
+  - storybrand
+  - brand-equity
+  - brand-architecture
+  - luxury
+
+components:
+  agents:
+    # Tier 0 — Orchestrator
+    - brand-chief.md
+    # Tier 1 — Brand Strategy & Equity
+    - david-aaker.md
+    - kevin-keller.md
+    - jean-noel-kapferer.md
+    # Tier 1 — Positioning & Differentiation
+    - al-ries.md
+    - byron-sharp.md
+    - marty-neumeier.md
+    # Tier 1 — Brand Building & Communication
+    - donald-miller.md
+    - denise-yohn.md
+    - emily-heyward.md
+    # Tier 1 — Brand Identity & Expression
+    - alina-wheeler.md
+    - archetype-consultant.md
+    - naming-strategist.md
+    # Tier 2 — Specialized Support
+    - domain-scout.md
+    - miller-sticky-brand.md
+  tasks:
+    # Brand Analysis
+    - audit-brand.md
+    - diagnose.md
+    - review.md
+    # Brand Creation
+    - create-positioning.md
+    - generate-names.md
+    - build-identity.md
+    - create-brand-story.md
+    - design-architecture.md
+    - map-archetype.md
+  workflows:
+    - wf-brand-creation.yaml
+    - wf-rebrand.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend
+
+routing_matrix:
+  brand_equity:
+    primary: david-aaker
+    secondary: kevin-keller
+    triggers: ["brand equity", "brand value", "brand loyalty", "brand awareness", "brand associations"]
+  brand_identity:
+    primary: jean-noel-kapferer
+    secondary: alina-wheeler
+    triggers: ["brand identity", "identity prism", "brand DNA", "brand personality", "brand culture"]
+  positioning:
+    primary: al-ries
+    secondary: marty-neumeier
+    triggers: ["positioning", "category", "focus", "differentiation", "own a word"]
+  evidence_based:
+    primary: byron-sharp
+    secondary: kevin-keller
+    triggers: ["how brands grow", "mental availability", "physical availability", "distinctive assets"]
+  messaging:
+    primary: donald-miller
+    secondary: miller-sticky-brand
+    triggers: ["StoryBrand", "messaging", "one-liner", "brand script", "website copy"]
+  visual_identity:
+    primary: alina-wheeler
+    secondary: archetype-consultant
+    triggers: ["logo", "visual identity", "brand guidelines", "design system", "touchpoints"]
+  brand_culture:
+    primary: denise-yohn
+    secondary: donald-miller
+    triggers: ["brand culture", "employer brand", "internal brand", "fusion"]
+  startup_brand:
+    primary: emily-heyward
+    secondary: marty-neumeier
+    triggers: ["startup brand", "DTC brand", "launch brand", "new brand"]
+  luxury_brand:
+    primary: jean-noel-kapferer
+    secondary: david-aaker
+    triggers: ["luxury", "premium", "prestige", "luxury strategy"]
+  naming:
+    primary: naming-strategist
+    secondary: domain-scout
+    triggers: ["naming", "brand name", "rename", "name generation", "domain"]
+  archetype:
+    primary: archetype-consultant
+    secondary: jean-noel-kapferer
+    triggers: ["archetype", "brand personality", "brand character", "Jung"]
+  brand_architecture:
+    primary: david-aaker
+    secondary: kevin-keller
+    triggers: ["brand architecture", "sub-brands", "branded house", "house of brands", "portfolio"]

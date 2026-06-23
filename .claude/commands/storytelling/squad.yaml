@@ -1,0 +1,52 @@
+name: storytelling
+version: "1.0.0"
+short-title: "Storytelling Squad"
+description: "Squad de 12 mestres do storytelling. Mitologia, screenwriting, narrativa pessoal, business storytelling, improviso, pitching, movimentos sociais."
+author: "Synkra AIOS"
+license: MIT
+slashPrefix: "storytelling"
+
+aios:
+  minVersion: "4.0.0"
+  type: squad
+
+tags:
+  - storytelling
+  - narrative
+  - screenplay
+  - presentation
+  - pitch
+  - improv
+  - brand-story
+
+components:
+  agents:
+    - story-chief.md
+    - joseph-campbell.md
+    - dan-harmon.md
+    - blake-snyder.md
+    - shawn-coyne.md
+    - matthew-dicks.md
+    - kindra-hall.md
+    - nancy-duarte.md
+    - park-howell.md
+    - keith-johnstone.md
+    - oren-klaff.md
+    - marshall-ganz.md
+  tasks:
+    - analyze-story.md
+    - build-narrative.md
+    - create-pitch.md
+    - create-presentation.md
+    - diagnose.md
+    - review.md
+    - unblock-creative.md
+    - write-manifesto.md
+  workflows:
+    - wf-brand-narrative.yaml
+    - wf-story-development.yaml
+  checklists:
+    - output-quality.md
+
+config:
+  extends: extend

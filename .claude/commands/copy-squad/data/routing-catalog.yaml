@@ -1,0 +1,106 @@
+# Routing Catalog: Copy Squad
+# Maps keywords to specialist agents for fast routing
+# Referenced by: tasks/diagnose.md
+
+domains:
+  headline:
+    keywords: [headline, subject line, hook, attention, awareness levels, opening, pre-head]
+    primary_agent: eugene-schwartz
+    secondary_agent: gary-halbert
+    description: "Headline writing — Schwartz's 5 awareness levels determine the approach"
+
+  sales_letter:
+    keywords: [sales letter, long-form, direct mail, letter, long copy, sales page, magalog]
+    primary_agent: gary-halbert
+    secondary_agent: john-carlton
+    description: "Sales letters and long-form copy — Halbert for emotional storytelling, Carlton for casual long-form"
+
+  email_sequence:
+    keywords: [email sequence, autoresponder, soap opera, nurture, drip, follow-up, email series]
+    primary_agent: andre-chaperon
+    secondary_agent: ben-settle
+    description: "Email sequences — Chaperon for soap opera sequences, Settle for daily engagement"
+
+  vsl:
+    keywords: [VSL, video sales letter, video script, video copy, RMBC]
+    primary_agent: stefan-georgi
+    secondary_agent: jon-benson
+    description: "Video sales letters — Georgi's RMBC method, Benson invented the VSL format"
+
+  webinar_script:
+    keywords: [webinar, webinar script, perfect webinar, presentation, pitch deck]
+    primary_agent: russell-brunson
+    secondary_agent: todd-brown
+    description: "Webinar scripts — Brunson's Perfect Webinar framework"
+
+  offer_creation:
+    keywords: [offer, irresistible offer, guarantee, bonus, stack, risk reversal, pricing]
+    primary_agent: dan-kennedy
+    secondary_agent: joe-sugarman
+    description: "Offer creation — Kennedy for no-BS offer structure, Sugarman for psychological triggers"
+
+  funnel_copy:
+    keywords: [funnel, landing page, opt-in, tripwire, upsell, downsell, order form, checkout]
+    primary_agent: russell-brunson
+    secondary_agent: frank-kern
+    description: "Funnel copy — Brunson for framework funnels, Kern for behavioral sequences"
+
+  big_idea:
+    keywords: [big idea, campaign concept, unique mechanism, E5 method, angle, hook concept]
+    primary_agent: todd-brown
+    secondary_agent: eugene-schwartz
+    description: "Big idea and campaign concepts — Brown's E5 Method for big idea extraction"
+
+  bullet_points:
+    keywords: [bullets, fascinations, bullet points, teasers, curiosity, power bullets]
+    primary_agent: gary-bencivenga
+    secondary_agent: clayton-makepeace
+    description: "Bullet points and fascinations — master bullet writers"
+
+  daily_emails:
+    keywords: [daily email, engagement, newsletter, daily content, email marketing, anti-guru]
+    primary_agent: ben-settle
+    secondary_agent: dan-koe
+    description: "Daily emails and engagement — Settle for anti-guru daily emails, Koe for personal brand"
+
+  classic_mail:
+    keywords: [classic letter, direct mail, mail order, empathy letter, print, magalog opening]
+    primary_agent: robert-collier
+    secondary_agent: jim-rutz
+    description: "Classic sales letters and direct mail — Collier for empathy letters, Rutz for magalog openings"
+
+  financial_health_copy:
+    keywords: [financial copy, health copy, supplement, investment, newsletter promo, alternative health]
+    primary_agent: clayton-makepeace
+    secondary_agent: parris-lampropoulos
+    description: "Financial and health direct response — the two kings of the niche"
+
+  brand_copy:
+    keywords: [brand copy, premium copy, elegant, sophisticated, institutional, brand voice]
+    primary_agent: david-ogilvy
+    secondary_agent: david-deutsch
+    description: "Brand and premium copy — Ogilvy for brand elegance, Deutsch for sophisticated persuasion"
+
+  ad_copy:
+    keywords: [ad copy, paid ads, Facebook ad, Google ad, display ad, PPC, short copy, ad creative]
+    primary_agent: dan-kennedy
+    secondary_agent: frank-kern
+    description: "Ad copy for paid media — Kennedy for direct response ads, Kern for digital ads"
+
+  launch_copy:
+    keywords: [launch, product launch, launch sequence, pre-launch, cart open, cart close]
+    primary_agent: frank-kern
+    secondary_agent: russell-brunson
+    description: "Launch copy — Kern's behavioral dynamic response, Brunson's launch sequences"
+
+  personal_brand_copy:
+    keywords: [personal brand, one-person business, creator copy, thought leader, authority]
+    primary_agent: dan-koe
+    secondary_agent: ry-schwartz
+    description: "Personal brand copy — Koe for one-person business, Schwartz for awareness-based emails"
+
+  copy_review:
+    keywords: [copy review, critique, feedback, analyze copy, improve copy, rewrite, audit]
+    primary_agent: copy-chief
+    secondary_agent: eugene-schwartz
+    description: "Copy review and critique — Chief reviews holistically, Schwartz validates awareness positioning"

@@ -1,0 +1,77 @@
+# ═══════════════════════════════════════════════════════════════════
+# Routing Catalog: Storytelling Squad
+# Version: 1.0.0
+# ═══════════════════════════════════════════════════════════════════
+
+domains:
+  hero_journey:
+    keywords: [hero's journey, monomyth, mythic structure, archetypes, mythology, collective unconscious, call to adventure]
+    primary_agent: joseph-campbell
+    secondary_agent: dan-harmon
+    description: "Universal mythic patterns, monomyth structure, archetypes, and cross-cultural narrative patterns"
+
+  story_structure:
+    keywords: [beat sheet, story structure, screenplay, plot points, three acts, save the cat, plot architecture]
+    primary_agent: blake-snyder
+    secondary_agent: shawn-coyne
+    description: "Plot architecture, beat sheets, act structure, turning points, and screenplay formatting"
+
+  story_editing:
+    keywords: [story grid, editing, genre, obligatory scenes, value shift, scene analysis, conventions]
+    primary_agent: shawn-coyne
+    secondary_agent: blake-snyder
+    description: "Story Grid methodology, genre conventions, scene-level analysis, editorial diagnostics"
+
+  tv_episodic:
+    keywords: [TV writing, episode structure, story circle, series, sitcom, pilot, writers room, episodic]
+    primary_agent: dan-harmon
+    secondary_agent: blake-snyder
+    description: "Television and episodic writing, Story Circle, series structure, and writers room dynamics"
+
+  presentations:
+    keywords: [presentation, slides, keynote, pitch deck, data storytelling, TED talk, sparkline, visual narrative]
+    primary_agent: nancy-duarte
+    secondary_agent: park-howell
+    description: "Presentation design, data storytelling, visual narrative, keynote crafting"
+
+  brand_storytelling:
+    keywords: [brand story, business narrative, ABT, marketing story, content marketing, brand identity, and but therefore]
+    primary_agent: park-howell
+    secondary_agent: kindra-hall
+    description: "Brand narrative strategy, ABT framework, business storytelling, content marketing"
+
+  personal_stories:
+    keywords: [personal narrative, memoir, vulnerability, Moth, true stories, 5-second moment, homework for life]
+    primary_agent: matthew-dicks
+    secondary_agent: kindra-hall
+    description: "Personal storytelling, true narrative from lived experience, vulnerability, transformation moments"
+
+  sales_stories:
+    keywords: [sales story, customer story, founder story, value story, stories that stick, persuasion narrative]
+    primary_agent: kindra-hall
+    secondary_agent: oren-klaff
+    description: "Sales and business stories, the four essential stories, customer and founder narratives"
+
+  improvisation:
+    keywords: [improv, spontaneity, status, yes and, Theatresports, creative blocks, unblocking, free association]
+    primary_agent: keith-johnstone
+    secondary_agent: matthew-dicks
+    description: "Improvisation techniques, spontaneity, status dynamics, creative unblocking"
+
+  pitching:
+    keywords: [pitch, frame control, investor pitch, deal, neurofinance, persuasion, STRONG method, crocodile brain]
+    primary_agent: oren-klaff
+    secondary_agent: nancy-duarte
+    description: "Pitch methodology, frame control, investor presentations, neurofinance-based persuasion"
+
+  social_movements:
+    keywords: [public narrative, organizing, movement, Story of Self, activism, collective action, Story of Us, Story of Now]
+    primary_agent: marshall-ganz
+    secondary_agent: joseph-campbell
+    description: "Public narrative for social change, community organizing, movement building"
+
+  general_storytelling:
+    keywords: [storytelling, narrative, story, how to tell a story, narrative craft, writing]
+    primary_agent: story-chief
+    secondary_agent: joseph-campbell
+    description: "General storytelling guidance, cross-domain narrative questions, framework selection"
