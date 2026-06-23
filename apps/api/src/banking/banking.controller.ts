@@ -36,11 +36,11 @@ import { CreateCreditLimitDto } from './dto/create-credit-limit.dto';
 import { StatementQueryDto } from './dto/statement-query.dto';
 import { CreateFraudRuleDto } from './dto/create-fraud-rule.dto';
 import { CheckFraudDto } from './dto/check-fraud.dto';
+import { SkipThrottle } from '@nestjs/throttler';
 import { BoletoStatus } from '../../generated/prisma';
-
-// Decorator stubs — will be provided by common/decorators
-declare const Roles: (...roles: string[]) => MethodDecorator & ClassDecorator;
-declare const CurrentUser: () => ParameterDecorator;
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 interface AuthUser {
   userId: string;
@@ -297,6 +297,8 @@ export class BankingController {
   }
 
   @Post('pix/webhook')
+  @Public()
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Receber notificação de pagamento Pix (sem autenticação JWT — valida x-pix-signature)',

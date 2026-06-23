@@ -9,8 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { FiscalService } from './fiscal.service';
 
 @ApiTags('Fiscal')
@@ -20,6 +22,8 @@ export class FiscalController {
 
   /** S08.04 — Webhook da Focus NFe (sem autenticação JWT — autenticado por secret no header) */
   @Post('webhook')
+  @Public()
+  @SkipThrottle()
   @HttpCode(200)
   @ApiOperation({ summary: 'Webhook de retorno assíncrono da Focus NFe' })
   async webhook(@Body() body: Record<string, unknown>) {

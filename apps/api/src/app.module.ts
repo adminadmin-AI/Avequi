@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
@@ -81,6 +83,13 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
       },
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 60,
+      },
+    ]),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     PrismaModule,
@@ -119,6 +128,12 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     BankingModule,
     BpmModule,
     AnalyticsBiModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
