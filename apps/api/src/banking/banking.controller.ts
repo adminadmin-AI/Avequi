@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   HttpCode,
+  HttpException,
   HttpStatus,
   Headers,
 } from '@nestjs/common';
@@ -36,11 +37,13 @@ import { CreateCreditLimitDto } from './dto/create-credit-limit.dto';
 import { StatementQueryDto } from './dto/statement-query.dto';
 import { CreateFraudRuleDto } from './dto/create-fraud-rule.dto';
 import { CheckFraudDto } from './dto/check-fraud.dto';
+import { SkipThrottle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { BoletoStatus } from '../../generated/prisma';
-
-// Decorator stubs — will be provided by common/decorators
-declare const Roles: (...roles: string[]) => MethodDecorator & ClassDecorator;
-declare const CurrentUser: () => ParameterDecorator;
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 interface AuthUser {
   userId: string;
@@ -62,6 +65,7 @@ export class BankingController {
     private readonly creditLimitService: CreditLimitService,
     private readonly fraudDetectionService: FraudDetectionService,
     private readonly bankingReportService: BankingReportService,
+    private readonly config: ConfigService,
   ) {}
 
   // ─── Bank Accounts ────────────────────────────────────────────────────────
@@ -297,16 +301,32 @@ export class BankingController {
   }
 
   @Post('pix/webhook')
+  @Public()
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Receber notificação de pagamento Pix (sem autenticação JWT — valida x-pix-signature)',
   })
   async pixWebhook(
     @Body() body: { txId: string; paidAmount: number; e2eId: string; companyId: string },
-    @Headers('x-pix-signature') _signature: string,
+    @Headers('x-pix-signature') signature: string,
   ) {
-    // In production: validate HMAC/signature from bank before processing
-    // For now: accept and mark as paid
+    const secret = this.config.get<string>('PIX_WEBHOOK_SECRET');
+    if (!secret) {
+      throw new HttpException('Pix webhook secret not configured', HttpStatus.UNAUTHORIZED);
+    }
+    if (!signature) {
+      throw new HttpException('Missing x-pix-signature header', HttpStatus.UNAUTHORIZED);
+    }
+    const expected = createHmac('sha256', secret)
+      .update(JSON.stringify(body))
+      .digest('hex');
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(signature, 'utf8');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new HttpException('Invalid Pix webhook signature', HttpStatus.UNAUTHORIZED);
+    }
+
     return this.pixService.markAsPaid(
       body.companyId,
       body.txId,

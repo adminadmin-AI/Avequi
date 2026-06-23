@@ -1,8 +1,15 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import * as Joi from 'joi';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { CompanyGuard } from './common/guards/company.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
@@ -45,6 +52,27 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
+      validationSchema: Joi.object({
+        DATABASE_URL: Joi.string().uri().required(),
+        DIRECT_URL: Joi.string().uri().required(),
+        JWT_SECRET: Joi.string().min(32).required(),
+        JWT_EXPIRY: Joi.string().default('1h'),
+        REDIS_URL: Joi.string().uri().required(),
+        API_PORT: Joi.number().default(3001),
+        API_PREFIX: Joi.string().default('api'),
+        WEB_URL: Joi.string().uri().default('http://localhost:3000'),
+        NODE_ENV: Joi.string()
+          .valid('development', 'production', 'test')
+          .default('development'),
+        FOCUS_NFE_TOKEN: Joi.string().optional(),
+        FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
+        BANK_ENCRYPTION_KEY: Joi.string().optional(),
+        PIX_WEBHOOK_SECRET: Joi.string().optional(),
+      }),
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
     }),
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
@@ -60,6 +88,13 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
       },
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 60,
+      },
+    ]),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     PrismaModule,
@@ -98,6 +133,28 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     BankingModule,
     BpmModule,
     AnalyticsBiModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CompanyGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
   ],
 })
 export class AppModule {}

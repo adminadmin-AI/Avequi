@@ -144,6 +144,12 @@ export class PurchaseService {
         `Pedido não pode ser aprovado pois está com status ${po.status}`,
       );
     }
+    if (po.createdById === userId) {
+      throw new ForbiddenException(
+        'O criador do pedido de compra não pode ser o aprovador (segregação de funções)',
+      );
+    }
+
     const itemCount = await this.prisma.pOItem.count({ where: { purchaseOrderId: id } });
     if (itemCount === 0) {
       throw new BadRequestException('Pedido sem itens não pode ser aprovado');
