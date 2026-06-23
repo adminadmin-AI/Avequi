@@ -13,10 +13,32 @@ const mockPrisma = {
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  payment: {
+    create: jest.fn(),
   },
   auditLog: {
     create: jest.fn(),
   },
+  financialCategory: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  costCenter: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  bankAccount: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
+  $transaction: jest.fn(),
 };
 
 const baseEntry = {
@@ -27,6 +49,8 @@ const baseEntry = {
   amount: 300,
   dueDate: new Date('2026-05-28'),
   salesOrderId: 'so-1',
+  payments: [],
+  paymentNote: null,
 };
 
 describe('FinanceService', () => {
@@ -133,50 +157,210 @@ describe('FinanceService', () => {
     });
   });
 
-  // ─── S09.05: Baixa de pagamento ──────────────────────────────────────────
+  // ─── S09.05: Pagamento parcial e total ───────────────────────────────────
 
   describe('pay', () => {
-    const dto = { paidAt: '2026-04-28', paidAmount: 300, paymentNote: 'PIX' };
+    const fullPayDto = {
+      paidAt: '2026-04-28',
+      paidAmount: 300,
+      method: 'PIX' as any,
+      paymentNote: 'Pix recebido',
+    };
 
-    it('deve registrar pagamento em lançamento OPEN', async () => {
+    it('deve registrar pagamento total em lançamento OPEN', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue(baseEntry);
-      mockPrisma.financialEntry.update.mockResolvedValue({
-        ...baseEntry,
-        status: FinancialEntryStatus.PAID,
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'pay-1' },
+        { ...baseEntry, status: FinancialEntryStatus.PAID },
+        {},
+      ]);
+
+      const result = await service.pay('fe-1', 'co-1', fullPayDto);
+
+      expect(result.status).toBe(FinancialEntryStatus.PAID);
+      expect(result.totalPaid).toBe(300);
+      expect(result.remaining).toBe(0);
+    });
+
+    it('deve registrar pagamento parcial e marcar PARTIALLY_PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(baseEntry);
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'pay-1' },
+        { ...baseEntry, status: FinancialEntryStatus.PARTIALLY_PAID },
+        {},
+      ]);
+
+      const result = await service.pay('fe-1', 'co-1', {
+        paidAt: '2026-04-28',
+        paidAmount: 100,
+        method: 'BOLETO' as any,
       });
 
-      await service.pay('fe-1', 'co-1', dto);
+      expect(result.status).toBe(FinancialEntryStatus.PARTIALLY_PAID);
+      expect(result.totalPaid).toBe(100);
+      expect(result.remaining).toBe(200);
+    });
 
-      expect(mockPrisma.financialEntry.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: FinancialEntryStatus.PAID,
-            paidAmount: 300,
-            paymentNote: 'PIX',
-          }),
+    it('deve fechar entry como PAID no último pagamento parcial', async () => {
+      const entryWithPayments = {
+        ...baseEntry,
+        status: FinancialEntryStatus.PARTIALLY_PAID,
+        payments: [{ id: 'pay-1', amount: 200 }],
+      };
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(entryWithPayments);
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'pay-2' },
+        { ...baseEntry, status: FinancialEntryStatus.PAID },
+        {},
+      ]);
+
+      const result = await service.pay('fe-1', 'co-1', {
+        paidAt: '2026-05-10',
+        paidAmount: 100,
+        method: 'PIX' as any,
+      });
+
+      expect(result.status).toBe(FinancialEntryStatus.PAID);
+      expect(result.totalPaid).toBe(300);
+      expect(result.remaining).toBe(0);
+    });
+
+    it('deve aceitar pagamento em lançamento OVERDUE', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.OVERDUE,
+      });
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'pay-1' },
+        {},
+        {},
+      ]);
+
+      await expect(service.pay('fe-1', 'co-1', fullPayDto)).resolves.toBeDefined();
+    });
+
+    it('deve rejeitar pagamento acima do saldo devedor', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        payments: [{ id: 'pay-1', amount: 250 }],
+      });
+
+      await expect(
+        service.pay('fe-1', 'co-1', {
+          paidAt: '2026-05-10',
+          paidAmount: 100,
+          method: 'PIX' as any,
         }),
-      );
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar NotFoundException para lançamento inexistente', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
-      await expect(service.pay('fe-x', 'co-1', dto)).rejects.toThrow(NotFoundException);
+      await expect(service.pay('fe-x', 'co-1', fullPayDto)).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar BadRequestException para lançamento já PAID', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue({
         ...baseEntry,
         status: FinancialEntryStatus.PAID,
+        payments: [],
       });
-      await expect(service.pay('fe-1', 'co-1', dto)).rejects.toThrow(BadRequestException);
+      await expect(service.pay('fe-1', 'co-1', fullPayDto)).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar BadRequestException para lançamento CANCELLED', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue({
         ...baseEntry,
         status: FinancialEntryStatus.CANCELLED,
+        payments: [],
       });
-      await expect(service.pay('fe-1', 'co-1', dto)).rejects.toThrow(BadRequestException);
+      await expect(service.pay('fe-1', 'co-1', fullPayDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── Parcelamento ────────────────────────────────────────────────────────
+
+  describe('createInstallments', () => {
+    const installDto = {
+      numberOfInstallments: 3,
+      intervalDays: 30,
+      firstDueDate: '2026-06-01',
+    };
+
+    it('deve gerar N parcelas com valores corretos', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        installments: [],
+        description: 'Venda reboque',
+        purchaseOrderId: null,
+      });
+
+      const createdInstallments = [
+        { id: 'inst-1', amount: 100 },
+        { id: 'inst-2', amount: 100 },
+        { id: 'inst-3', amount: 100 },
+      ];
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        // Simulate transaction callback
+        const tx = {
+          financialEntry: {
+            create: jest.fn().mockResolvedValueOnce(createdInstallments[0])
+              .mockResolvedValueOnce(createdInstallments[1])
+              .mockResolvedValueOnce(createdInstallments[2]),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          auditLog: { create: jest.fn().mockResolvedValue({}) },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.createInstallments('fe-1', 'co-1', installDto);
+
+      expect(result).toHaveLength(3);
+    });
+
+    it('deve rejeitar se já foi parcelado', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        installments: [{ id: 'inst-1' }],
+      });
+
+      await expect(
+        service.createInstallments('fe-1', 'co-1', installDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve rejeitar se entry está PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.PAID,
+        installments: [],
+      });
+
+      await expect(
+        service.createInstallments('fe-1', 'co-1', installDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve rejeitar se entry está CANCELLED', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.CANCELLED,
+        installments: [],
+      });
+
+      await expect(
+        service.createInstallments('fe-1', 'co-1', installDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar NotFoundException para entry inexistente', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createInstallments('fe-x', 'co-1', installDto),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -219,6 +403,14 @@ describe('FinanceService', () => {
       });
       await expect(service.cancel('fe-1', 'co-1')).rejects.toThrow(BadRequestException);
     });
+
+    it('deve lançar BadRequestException para lançamento PARTIALLY_PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.PARTIALLY_PAID,
+      });
+      await expect(service.cancel('fe-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ─── Listagem ─────────────────────────────────────────────────────────────
@@ -253,6 +445,151 @@ describe('FinanceService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ─── Categorias gerenciais ───────────────────────────────────────────────
+
+  describe('createCategory', () => {
+    it('deve criar categoria raiz', async () => {
+      mockPrisma.financialCategory.create.mockResolvedValue({ id: 'cat-1', name: 'Receitas', code: 'REC' });
+
+      const result = await service.createCategory('co-1', {
+        name: 'Receitas',
+        code: 'REC',
+        type: 'REVENUE',
+      });
+
+      expect(result.name).toBe('Receitas');
+      expect(mockPrisma.financialCategory.create).toHaveBeenCalled();
+    });
+
+    it('deve criar subcategoria com parentId', async () => {
+      mockPrisma.financialCategory.findFirst.mockResolvedValue({ id: 'cat-1' });
+      mockPrisma.financialCategory.create.mockResolvedValue({ id: 'cat-2', name: 'Receita Operacional', parentId: 'cat-1' });
+
+      const result = await service.createCategory('co-1', {
+        name: 'Receita Operacional',
+        code: 'REC-OP',
+        type: 'REVENUE',
+        parentId: 'cat-1',
+      });
+
+      expect(result.parentId).toBe('cat-1');
+    });
+
+    it('deve rejeitar subcategoria com parentId inexistente', async () => {
+      mockPrisma.financialCategory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createCategory('co-1', { name: 'Sub', type: 'EXPENSE', parentId: 'bad-id' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllCategories', () => {
+    it('deve retornar apenas categorias raiz com children', async () => {
+      mockPrisma.financialCategory.findMany.mockResolvedValue([
+        { id: 'cat-1', name: 'Receitas', parentId: null, children: [{ id: 'cat-2', name: 'Receita Op' }] },
+        { id: 'cat-2', name: 'Receita Op', parentId: 'cat-1', children: [] },
+      ]);
+
+      const result = await service.findAllCategories('co-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Receitas');
+    });
+  });
+
+  // ─── Centros de custo ────────────────────────────────────────────────────
+
+  describe('createCostCenter', () => {
+    it('deve criar centro de custo raiz', async () => {
+      mockPrisma.costCenter.create.mockResolvedValue({ id: 'cc-1', name: 'Fábrica', code: 'FAB' });
+
+      const result = await service.createCostCenter('co-1', { name: 'Fábrica', code: 'FAB' });
+
+      expect(result.name).toBe('Fábrica');
+    });
+
+    it('deve criar sub-centro com parentId', async () => {
+      mockPrisma.costCenter.findFirst.mockResolvedValue({ id: 'cc-1' });
+      mockPrisma.costCenter.create.mockResolvedValue({ id: 'cc-2', name: 'Corte', parentId: 'cc-1' });
+
+      const result = await service.createCostCenter('co-1', { name: 'Corte', code: 'FAB-COR', parentId: 'cc-1' });
+
+      expect(result.parentId).toBe('cc-1');
+    });
+
+    it('deve rejeitar sub-centro com parentId inexistente', async () => {
+      mockPrisma.costCenter.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createCostCenter('co-1', { name: 'Sub', parentId: 'bad-id' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllCostCenters', () => {
+    it('deve retornar apenas centros raiz com children', async () => {
+      mockPrisma.costCenter.findMany.mockResolvedValue([
+        { id: 'cc-1', name: 'Fábrica', parentId: null, children: [{ id: 'cc-2', name: 'Corte' }] },
+        { id: 'cc-2', name: 'Corte', parentId: 'cc-1', children: [] },
+      ]);
+
+      const result = await service.findAllCostCenters('co-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Fábrica');
+    });
+  });
+
+  // ─── Extrato bancário e saldo consolidado ────────────────────────────────
+
+  describe('getBankStatement', () => {
+    it('deve retornar extrato com pagamentos da conta', async () => {
+      mockPrisma.bankAccount.findFirst.mockResolvedValue({
+        id: 'ba-1', name: 'Banco do Brasil', bank: 'BB', balance: 10000,
+      });
+      (mockPrisma as any).payment = { findMany: jest.fn() };
+      (mockPrisma as any).payment.findMany.mockResolvedValue([
+        {
+          id: 'pay-1',
+          amount: 500,
+          paidAt: new Date('2026-06-10'),
+          method: 'PIX',
+          reference: 'txid-123',
+          financialEntry: { id: 'fe-1', type: 'RECEIVABLE', description: 'Venda', amount: 500 },
+        },
+      ]);
+
+      const result = await service.getBankStatement('ba-1', 'co-1', {});
+
+      expect(result.bankAccount.currentBalance).toBe(10000);
+      expect(result.payments).toHaveLength(1);
+      expect(result.payments[0].direction).toBe('IN');
+    });
+
+    it('deve lançar NotFoundException para conta inexistente', async () => {
+      mockPrisma.bankAccount.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getBankStatement('bad-id', 'co-1', {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getConsolidatedBalance', () => {
+    it('deve retornar saldo total de todas as contas ativas', async () => {
+      mockPrisma.bankAccount.findMany.mockResolvedValue([
+        { id: 'ba-1', name: 'BB', bank: 'BB', balance: 5000 },
+        { id: 'ba-2', name: 'Itaú', bank: 'Itaú', balance: 3000 },
+      ]);
+
+      const result = await service.getConsolidatedBalance('co-1');
+
+      expect(result.totalBalance).toBe(8000);
+      expect(result.accounts).toHaveLength(2);
     });
   });
 });

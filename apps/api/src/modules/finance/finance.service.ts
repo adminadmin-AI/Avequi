@@ -4,6 +4,10 @@ import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateInstallmentsDto } from './dto/create-installments.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCostCenterDto } from './dto/create-cost-center.dto';
+import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
 @Injectable()
 export class FinanceService {
@@ -101,40 +105,230 @@ export class FinanceService {
     this.logger.log(`PAYABLE criado: ${entry.id} — GR ${params.goodsReceiptId} — R$ ${params.amount}`);
   }
 
-  // ─── S09.05: Registrar baixa de pagamento ────────────────────────────────
+  // ─── Lançamento manual (avulso) ────────────────────────────────────────────
 
-  async pay(id: string, companyId: string, dto: PayEntryDto): Promise<void> {
+  async createManualEntry(companyId: string, dto: CreateManualEntryDto) {
+    const recurrence = dto.recurrence ?? 'NONE';
+    const count = recurrence !== 'NONE' ? (dto.recurrenceCount ?? 6) : 1;
+
+    const entries = Array.from({ length: count }, (_, i) => {
+      const dueDate = new Date(dto.dueDate);
+      if (recurrence === 'MONTHLY') dueDate.setMonth(dueDate.getMonth() + i);
+      else if (recurrence === 'WEEKLY') dueDate.setDate(dueDate.getDate() + i * 7);
+
+      return {
+        companyId,
+        type: dto.type as FinancialEntryType,
+        status: FinancialEntryStatus.OPEN,
+        amount: dto.amount,
+        dueDate,
+        description: count > 1 ? `${dto.description} (${i + 1}/${count})` : dto.description,
+        source: 'MANUAL' as const,
+        categoryId: dto.categoryId ?? null,
+        attachmentUrl: dto.attachmentUrl ?? null,
+      };
+    });
+
+    const created = await this.prisma.$transaction(
+      entries.map((data) => this.prisma.financialEntry.create({ data })),
+    );
+
+    // Cost center split if provided
+    if (dto.costCenterId) {
+      await this.prisma.$transaction(
+        created.map((entry) =>
+          this.prisma.entryCostCenterSplit.create({
+            data: {
+              entryId: entry.id,
+              costCenterId: dto.costCenterId!,
+              percentage: 100,
+              amount: dto.amount,
+            },
+          }),
+        ),
+      );
+    }
+
+    this.logger.log(`Manual entries criados: ${created.length} — ${dto.description}`);
+    return created;
+  }
+
+  // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
+
+  async pay(id: string, companyId: string, dto: PayEntryDto) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId },
+      include: { payments: true },
     });
 
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
-    if (entry.status !== FinancialEntryStatus.OPEN) {
+
+    const payableStatuses: FinancialEntryStatus[] = [
+      FinancialEntryStatus.OPEN,
+      FinancialEntryStatus.OVERDUE,
+      FinancialEntryStatus.PARTIALLY_PAID,
+    ];
+    if (!payableStatuses.includes(entry.status)) {
       throw new BadRequestException(
         `Lançamento não pode ser baixado. Status atual: ${entry.status}`,
       );
     }
 
-    await this.prisma.financialEntry.update({
-      where: { id },
-      data: {
-        status: FinancialEntryStatus.PAID,
-        paidAt: new Date(dto.paidAt),
-        paidAmount: dto.paidAmount,
-        paymentNote: dto.paymentNote ?? null,
-      },
+    const previouslyPaid = entry.payments.reduce(
+      (sum, p) => sum + Number(p.amount),
+      0,
+    );
+    const totalAmount = Number(entry.amount);
+    const remaining = totalAmount - previouslyPaid;
+
+    if (dto.paidAmount > remaining + 0.01) {
+      throw new BadRequestException(
+        `Valor excede saldo devedor. Restante: R$ ${remaining.toFixed(2)}`,
+      );
+    }
+
+    const newTotalPaid = previouslyPaid + dto.paidAmount;
+    const isFullyPaid = newTotalPaid >= totalAmount - 0.01;
+    const newStatus = isFullyPaid
+      ? FinancialEntryStatus.PAID
+      : FinancialEntryStatus.PARTIALLY_PAID;
+
+    // Build transaction operations
+    const operations: any[] = [
+      this.prisma.payment.create({
+        data: {
+          financialEntryId: id,
+          amount: dto.paidAmount,
+          paidAt: new Date(dto.paidAt),
+          method: dto.method,
+          bankAccountId: dto.bankAccountId ?? null,
+          reference: dto.reference ?? null,
+        },
+      }),
+      this.prisma.financialEntry.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          paidAt: isFullyPaid ? new Date(dto.paidAt) : null,
+          paidAmount: newTotalPaid,
+          paymentNote: dto.paymentNote ?? entry.paymentNote,
+        },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FinancialEntry',
+          action: isFullyPaid ? 'PAY_FULL' : 'PAY_PARTIAL',
+          payload: {
+            id,
+            paymentAmount: dto.paidAmount,
+            totalPaid: newTotalPaid,
+            remaining: totalAmount - newTotalPaid,
+            method: dto.method,
+          },
+        },
+      }),
+    ];
+
+    // Update BankAccount balance if linked
+    if (dto.bankAccountId) {
+      const balanceChange = entry.type === FinancialEntryType.RECEIVABLE
+        ? dto.paidAmount    // Recebível → credita
+        : -dto.paidAmount;  // Pagável → debita
+
+      operations.push(
+        this.prisma.bankAccount.update({
+          where: { id: dto.bankAccountId },
+          data: { balance: { increment: balanceChange } },
+        }),
+      );
+    }
+
+    const [payment] = await this.prisma.$transaction(operations);
+
+    this.logger.log(
+      `FinancialEntry ${id} → ${newStatus} — pagamento R$ ${dto.paidAmount} (total pago: R$ ${newTotalPaid.toFixed(2)})`,
+    );
+
+    return {
+      paymentId: payment.id,
+      status: newStatus,
+      totalPaid: newTotalPaid,
+      remaining: totalAmount - newTotalPaid,
+    };
+  }
+
+  // ─── Parcelamento de títulos ─────────────────────────────────────────────
+
+  async createInstallments(id: string, companyId: string, dto: CreateInstallmentsDto) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId },
+      include: { installments: true },
     });
 
-    await this.prisma.auditLog.create({
-      data: {
-        companyId,
-        entity: 'FinancialEntry',
-        action: 'PAY',
-        payload: { id, paidAt: dto.paidAt, paidAmount: dto.paidAmount },
-      },
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
+
+    if (entry.installments.length > 0) {
+      throw new BadRequestException('Lançamento já foi parcelado');
+    }
+
+    if (entry.status === FinancialEntryStatus.PAID || entry.status === FinancialEntryStatus.CANCELLED) {
+      throw new BadRequestException(`Lançamento com status ${entry.status} não pode ser parcelado`);
+    }
+
+    const totalAmount = Number(entry.amount);
+    const installmentAmount = Math.floor((totalAmount / dto.numberOfInstallments) * 100) / 100;
+    const lastInstallmentAmount = +(totalAmount - installmentAmount * (dto.numberOfInstallments - 1)).toFixed(2);
+
+    const installmentsData = Array.from({ length: dto.numberOfInstallments }, (_, i) => {
+      const dueDate = new Date(dto.firstDueDate);
+      dueDate.setDate(dueDate.getDate() + i * dto.intervalDays);
+
+      return {
+        companyId: entry.companyId,
+        type: entry.type,
+        status: FinancialEntryStatus.OPEN,
+        amount: i === dto.numberOfInstallments - 1 ? lastInstallmentAmount : installmentAmount,
+        dueDate,
+        description: `${entry.description ?? 'Parcela'} (${i + 1}/${dto.numberOfInstallments})`,
+        parentEntryId: entry.id,
+        salesOrderId: null as string | null,
+        purchaseOrderId: entry.purchaseOrderId,
+        goodsReceiptId: null as string | null,
+      };
     });
 
-    this.logger.log(`FinancialEntry ${id} → PAID — R$ ${dto.paidAmount}`);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const installments = await Promise.all(
+        installmentsData.map((data) => tx.financialEntry.create({ data })),
+      );
+
+      await tx.financialEntry.update({
+        where: { id },
+        data: { status: FinancialEntryStatus.CANCELLED },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FinancialEntry',
+          action: 'CREATE_INSTALLMENTS',
+          payload: {
+            parentId: id,
+            numberOfInstallments: dto.numberOfInstallments,
+            installmentIds: installments.map((i) => i.id),
+          },
+        },
+      });
+
+      return installments;
+    });
+
+    this.logger.log(
+      `FinancialEntry ${id} parcelado em ${dto.numberOfInstallments}x — IDs: ${created.map((i) => i.id).join(', ')}`,
+    );
+
+    return created;
   }
 
   // ─── Cancelar lançamento (preserva histórico, não deleta) ────────────────
@@ -150,6 +344,9 @@ export class FinanceService {
     }
     if (entry.status === FinancialEntryStatus.CANCELLED) {
       throw new BadRequestException('Lançamento já está cancelado');
+    }
+    if (entry.status === FinancialEntryStatus.PARTIALLY_PAID) {
+      throw new BadRequestException('Lançamento parcialmente pago não pode ser cancelado. Estorne os pagamentos primeiro');
     }
 
     await this.prisma.financialEntry.update({
@@ -212,6 +409,8 @@ export class FinanceService {
         purchaseOrder: { include: { supplier: true } },
         goodsReceipt: { include: { items: { include: { product: true } } } },
         fiscalDocument: true,
+        payments: { orderBy: { paidAt: 'asc' } },
+        installments: { orderBy: { dueDate: 'asc' } },
       },
     });
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
@@ -327,6 +526,319 @@ export class FinanceService {
       netBalance: totalReceivable - totalPayable,
       entries: rows.map((r) => ({ ...r, amount: Number(r.amount) })),
     };
+  }
+
+  // ─── DRE gerencial ────────────────────────────────────────────────────────
+
+  async getDre(companyId: string, filters: { from?: string; to?: string; costCenterId?: string } = {}) {
+    const where: any = {
+      companyId,
+      status: FinancialEntryStatus.PAID,
+    };
+    if (filters.from || filters.to) {
+      where.paidAt = {};
+      if (filters.from) where.paidAt.gte = new Date(filters.from);
+      if (filters.to) where.paidAt.lte = new Date(filters.to);
+    }
+    if (filters.costCenterId) {
+      where.costCenterSplits = { some: { costCenterId: filters.costCenterId } };
+    }
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where,
+      select: {
+        type: true,
+        amount: true,
+        status: true,
+        categoryId: true,
+        category: { select: { code: true, name: true, type: true, dreCode: true } },
+      },
+    });
+
+    let receitaBruta = 0;
+    let deducoes = 0;
+    let cpv = 0;
+    let despesasOp = 0;
+    const byCategory: Record<string, { code: string; name: string; dreCode: string | null; total: number }> = {};
+
+    for (const e of entries) {
+      const amount = Number(e.amount);
+      const catCode = e.category?.code ?? 'SEM-CAT';
+      const catName = e.category?.name ?? 'Sem Categoria';
+      const dreCode = e.category?.dreCode ?? null;
+
+      if (!byCategory[catCode]) {
+        byCategory[catCode] = { code: catCode, name: catName, dreCode, total: 0 };
+      }
+      byCategory[catCode].total += amount;
+
+      if (e.type === FinancialEntryType.RECEIVABLE) {
+        receitaBruta += amount;
+      } else {
+        // Classify by dreCode prefix
+        if (dreCode?.startsWith('2')) cpv += amount;
+        else if (dreCode?.startsWith('3')) despesasOp += amount;
+        else deducoes += amount;
+      }
+    }
+
+    const receitaLiquida = receitaBruta - deducoes;
+    const lucroBruto = receitaLiquida - cpv;
+    const resultadoOperacional = lucroBruto - despesasOp;
+
+    return {
+      period: { from: filters.from ?? null, to: filters.to ?? null },
+      receitaBruta,
+      deducoes,
+      receitaLiquida,
+      cpv,
+      lucroBruto,
+      despesasOperacionais: despesasOp,
+      resultadoOperacional,
+      margemBruta: receitaBruta > 0 ? +(lucroBruto / receitaBruta * 100).toFixed(2) : 0,
+      margemOperacional: receitaBruta > 0 ? +(resultadoOperacional / receitaBruta * 100).toFixed(2) : 0,
+      detalhamento: Object.values(byCategory).sort((a, b) => (a.dreCode ?? '').localeCompare(b.dreCode ?? '')),
+    };
+  }
+
+  // ─── Fluxo de caixa projetado dia-a-dia ────────────────────────────────────
+
+  async getCashFlowProjection(companyId: string, filters: { days?: number; bankAccountId?: string } = {}) {
+    const days = filters.days ?? 30;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = this.addDays(today, days);
+
+    // Get current balance
+    const accountWhere: any = { companyId, active: true };
+    if (filters.bankAccountId) accountWhere.id = filters.bankAccountId;
+
+    const accounts = await this.prisma.bankAccount.findMany({
+      where: accountWhere,
+      select: { balance: true },
+    });
+    const currentBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+
+    // Get open/overdue/partially_paid entries in the period
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.OVERDUE, FinancialEntryStatus.PARTIALLY_PAID] },
+        dueDate: { gte: today, lte: endDate },
+      },
+      select: { type: true, amount: true, paidAmount: true, dueDate: true, description: true },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    // Build day-by-day projection
+    const projection: Array<{
+      date: string;
+      receivable: number;
+      payable: number;
+      netFlow: number;
+      projectedBalance: number;
+      alert: boolean;
+    }> = [];
+
+    let runningBalance = currentBalance;
+
+    for (let i = 0; i <= days; i++) {
+      const date = this.addDays(today, i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      let dayReceivable = 0;
+      let dayPayable = 0;
+
+      for (const e of entries) {
+        const entryDate = new Date(e.dueDate);
+        entryDate.setHours(0, 0, 0, 0);
+        if (entryDate.getTime() === date.getTime()) {
+          const remaining = Number(e.amount) - Number(e.paidAmount ?? 0);
+          if (e.type === FinancialEntryType.RECEIVABLE) dayReceivable += remaining;
+          else dayPayable += remaining;
+        }
+      }
+
+      const netFlow = dayReceivable - dayPayable;
+      runningBalance += netFlow;
+
+      projection.push({
+        date: dateStr,
+        receivable: +dayReceivable.toFixed(2),
+        payable: +dayPayable.toFixed(2),
+        netFlow: +netFlow.toFixed(2),
+        projectedBalance: +runningBalance.toFixed(2),
+        alert: runningBalance < 0,
+      });
+    }
+
+    const alertDays = projection.filter((d) => d.alert);
+
+    return {
+      currentBalance,
+      days,
+      alertDaysCount: alertDays.length,
+      firstAlertDate: alertDays.length > 0 ? alertDays[0].date : null,
+      projection,
+    };
+  }
+
+  // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
+
+  async getBankStatement(
+    bankAccountId: string,
+    companyId: string,
+    filters: { from?: string; to?: string } = {},
+  ) {
+    const account = await this.prisma.bankAccount.findFirst({
+      where: { id: bankAccountId, companyId },
+    });
+    if (!account) throw new NotFoundException(`Conta bancária ${bankAccountId} não encontrada`);
+
+    const where: any = { bankAccountId };
+    if (filters.from || filters.to) {
+      where.paidAt = {};
+      if (filters.from) where.paidAt.gte = new Date(filters.from);
+      if (filters.to) where.paidAt.lte = new Date(filters.to);
+    }
+
+    const payments = await this.prisma.payment.findMany({
+      where,
+      include: {
+        financialEntry: {
+          select: { id: true, type: true, description: true, amount: true },
+        },
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+
+    return {
+      bankAccount: {
+        id: account.id,
+        name: account.name,
+        bank: account.bank,
+        currentBalance: Number(account.balance),
+      },
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: p.financialEntry.type,
+        direction: p.financialEntry.type === FinancialEntryType.RECEIVABLE ? 'IN' : 'OUT',
+        entryDescription: p.financialEntry.description,
+      })),
+    };
+  }
+
+  async getConsolidatedBalance(companyId: string) {
+    const accounts = await this.prisma.bankAccount.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, bank: true, balance: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+
+    return {
+      totalBalance,
+      accounts: accounts.map((a) => ({
+        ...a,
+        balance: Number(a.balance),
+      })),
+    };
+  }
+
+  // ─── Categorias gerenciais ─────────────────────────────────────────────────
+
+  async createCategory(companyId: string, dto: CreateCategoryDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.financialCategory.findFirst({
+        where: { id: dto.parentId, companyId },
+      });
+      if (!parent) throw new NotFoundException(`Categoria pai ${dto.parentId} não encontrada`);
+    }
+
+    return this.prisma.financialCategory.create({
+      data: { companyId, ...dto },
+    });
+  }
+
+  async findAllCategories(companyId: string) {
+    const categories = await this.prisma.financialCategory.findMany({
+      where: { companyId, isActive: true },
+      include: { children: { where: { isActive: true } } },
+      orderBy: { code: 'asc' },
+    });
+
+    // Return only root categories (parentId === null) with children nested
+    return categories.filter((c) => !c.parentId);
+  }
+
+  async updateCategory(id: string, companyId: string, dto: Partial<CreateCategoryDto>) {
+    const category = await this.prisma.financialCategory.findFirst({ where: { id, companyId } });
+    if (!category) throw new NotFoundException(`Categoria ${id} não encontrada`);
+
+    return this.prisma.financialCategory.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateCategory(id: string, companyId: string) {
+    const category = await this.prisma.financialCategory.findFirst({ where: { id, companyId } });
+    if (!category) throw new NotFoundException(`Categoria ${id} não encontrada`);
+
+    return this.prisma.financialCategory.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  // ─── Centros de custo ─────────────────────────────────────────────────────
+
+  async createCostCenter(companyId: string, dto: CreateCostCenterDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.costCenter.findFirst({
+        where: { id: dto.parentId, companyId },
+      });
+      if (!parent) throw new NotFoundException(`Centro de custo pai ${dto.parentId} não encontrado`);
+    }
+
+    return this.prisma.costCenter.create({
+      data: { companyId, ...dto },
+    });
+  }
+
+  async findAllCostCenters(companyId: string) {
+    const centers = await this.prisma.costCenter.findMany({
+      where: { companyId, isActive: true },
+      include: { children: { where: { isActive: true } } },
+      orderBy: { code: 'asc' },
+    });
+
+    return centers.filter((c) => !c.parentId);
+  }
+
+  async updateCostCenter(id: string, companyId: string, dto: Partial<CreateCostCenterDto>) {
+    const center = await this.prisma.costCenter.findFirst({ where: { id, companyId } });
+    if (!center) throw new NotFoundException(`Centro de custo ${id} não encontrado`);
+
+    return this.prisma.costCenter.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateCostCenter(id: string, companyId: string) {
+    const center = await this.prisma.costCenter.findFirst({ where: { id, companyId } });
+    if (!center) throw new NotFoundException(`Centro de custo ${id} não encontrado`);
+
+    return this.prisma.costCenter.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 
   // ─── Util ─────────────────────────────────────────────────────────────────

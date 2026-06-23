@@ -266,6 +266,110 @@ async function main() {
     }
   }
 
+  // ─── Categorias financeiras gerenciais ────────────────────────────────────
+
+  const categoryGroups = [
+    {
+      code: 'REC', name: 'Receitas', type: 'REVENUE' as const, dreCode: '1',
+      children: [
+        { code: 'REC-OP', name: 'Receita Operacional', type: 'REVENUE' as const, dreCode: '1.1' },
+        { code: 'REC-FIN', name: 'Receitas Financeiras', type: 'REVENUE' as const, dreCode: '1.2' },
+        { code: 'REC-OUT', name: 'Outras Receitas', type: 'REVENUE' as const, dreCode: '1.3' },
+      ],
+    },
+    {
+      code: 'CPV', name: 'Custos de Produção', type: 'EXPENSE' as const, dreCode: '2',
+      children: [
+        { code: 'CPV-MP', name: 'Matéria-Prima', type: 'EXPENSE' as const, dreCode: '2.1' },
+        { code: 'CPV-MOD', name: 'Mão de Obra Direta', type: 'EXPENSE' as const, dreCode: '2.2' },
+        { code: 'CPV-CIF', name: 'Custos Indiretos Fabricação', type: 'EXPENSE' as const, dreCode: '2.3' },
+      ],
+    },
+    {
+      code: 'DESP', name: 'Despesas Operacionais', type: 'EXPENSE' as const, dreCode: '3',
+      children: [
+        { code: 'DESP-ADM', name: 'Despesas Administrativas', type: 'EXPENSE' as const, dreCode: '3.1' },
+        { code: 'DESP-COM', name: 'Despesas Comerciais', type: 'EXPENSE' as const, dreCode: '3.2' },
+        { code: 'DESP-RH', name: 'Folha de Pagamento', type: 'EXPENSE' as const, dreCode: '3.3' },
+        { code: 'DESP-FIN', name: 'Despesas Financeiras', type: 'EXPENSE' as const, dreCode: '3.4' },
+        { code: 'DESP-TRIB', name: 'Impostos e Taxas', type: 'EXPENSE' as const, dreCode: '3.5' },
+      ],
+    },
+  ];
+
+  for (const group of categoryGroups) {
+    const parent = await prisma.financialCategory.upsert({
+      where: { companyId_code: { companyId: matriz.id, code: group.code } },
+      update: {},
+      create: { companyId: matriz.id, code: group.code, name: group.name, type: group.type, dreCode: group.dreCode },
+    });
+
+    for (const child of group.children) {
+      await prisma.financialCategory.upsert({
+        where: { companyId_code: { companyId: matriz.id, code: child.code } },
+        update: {},
+        create: { companyId: matriz.id, code: child.code, name: child.name, type: child.type, dreCode: child.dreCode, parentId: parent.id },
+      });
+    }
+  }
+
+  // ─── Centros de custo hierárquicos — GDR (14 setores) ────────────────────
+
+  const costCenterGroups = [
+    {
+      code: 'FAB', name: 'Fábrica',
+      children: [
+        { code: 'FAB-COR', name: 'Corte' },
+        { code: 'FAB-SOL', name: 'Solda' },
+        { code: 'FAB-CAL', name: 'Caldeiraria' },
+        { code: 'FAB-USI', name: 'Usinagem' },
+        { code: 'FAB-JIT', name: 'Jateamento' },
+        { code: 'FAB-PIN', name: 'Pintura' },
+        { code: 'FAB-MON', name: 'Montagem' },
+        { code: 'FAB-ELE', name: 'Elétrica' },
+        { code: 'FAB-HID', name: 'Hidráulica' },
+        { code: 'FAB-ACA', name: 'Acabamento' },
+        { code: 'FAB-INS', name: 'Inspeção/Qualidade' },
+        { code: 'FAB-EXP', name: 'Expedição' },
+        { code: 'FAB-MNT', name: 'Manutenção' },
+        { code: 'FAB-ALM', name: 'Almoxarifado' },
+      ],
+    },
+    {
+      code: 'LOJA-CAS', name: 'Loja Cascavel',
+      children: [],
+    },
+    {
+      code: 'LOJA-GUA', name: 'Loja Guarapuava',
+      children: [],
+    },
+    {
+      code: 'ADM', name: 'Administrativo',
+      children: [
+        { code: 'ADM-FIN', name: 'Financeiro' },
+        { code: 'ADM-RH', name: 'RH' },
+        { code: 'ADM-COM', name: 'Comercial' },
+        { code: 'ADM-DIR', name: 'Diretoria' },
+      ],
+    },
+  ];
+
+  for (const group of costCenterGroups) {
+    const parent = await prisma.costCenter.upsert({
+      where: { id: `seed-cc-${group.code}` },
+      update: {},
+      create: { id: `seed-cc-${group.code}`, companyId: matriz.id, code: group.code, name: group.name },
+    });
+
+    for (const child of group.children) {
+      await prisma.costCenter.upsert({
+        where: { id: `seed-cc-${child.code}` },
+        update: {},
+        create: { id: `seed-cc-${child.code}`, companyId: matriz.id, code: child.code, name: child.name, parentId: parent.id },
+      });
+    }
+  }
+
   console.log('✅ Seed concluído');
 }
 

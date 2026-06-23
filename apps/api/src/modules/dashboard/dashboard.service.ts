@@ -56,8 +56,8 @@ export class DashboardService {
         _count: { id: true },
       }),
 
-      // Faturamento este mês (soma de SaleItems de OVs INVOICED)
-      this.prisma.saleItem.aggregate({
+      // Faturamento este mês (itens de OVs INVOICED)
+      this.prisma.saleItem.findMany({
         where: {
           salesOrder: {
             companyId,
@@ -65,11 +65,11 @@ export class DashboardService {
             invoicedAt: { gte: startOfMonth },
           },
         },
-        _sum: { quantity: true, unitPrice: true },
+        select: { quantity: true, unitPrice: true },
       }),
 
       // Faturamento mês anterior
-      this.prisma.saleItem.aggregate({
+      this.prisma.saleItem.findMany({
         where: {
           salesOrder: {
             companyId,
@@ -77,7 +77,7 @@ export class DashboardService {
             invoicedAt: { gte: startOfLastMonth, lte: endOfLastMonth },
           },
         },
-        _sum: { quantity: true, unitPrice: true },
+        select: { quantity: true, unitPrice: true },
       }),
 
       // Recebíveis abertos
@@ -131,7 +131,6 @@ export class DashboardService {
     const toStatusMap = (rows: { status: string; _count: { id: number } }[]) =>
       Object.fromEntries(rows.map((r) => [r.status, r._count.id]));
 
-    // Receita = sum(qty × unitPrice) — aproximação; idealmente seria sum(subtotal)
     const revenueThisMonth = this.calcRevenue(invoicedThisMonth);
     const revenueLastMonth = this.calcRevenue(invoicedLastMonth);
     const revenueGrowth =
@@ -169,10 +168,11 @@ export class DashboardService {
     };
   }
 
-  private calcRevenue(agg: { _sum: { quantity: unknown; unitPrice: unknown } }): number {
-    // Sem subtotal armazenado — retornamos 0 (calculado no painel de vendas com query dedicada)
-    // Aqui usamos apenas o count como proxy; o painel /dashboard/sales tem o valor real
-    return 0;
+  private calcRevenue(items: { quantity: any; unitPrice: any }[]): number {
+    return items.reduce(
+      (acc, i) => acc + Number(i.quantity) * Number(i.unitPrice),
+      0,
+    );
   }
 
   // ─── S21.02: Painel de Vendas ─────────────────────────────────────────────

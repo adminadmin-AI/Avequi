@@ -16,6 +16,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { FinanceService } from './finance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateInstallmentsDto } from './dto/create-installments.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCostCenterDto } from './dto/create-cost-center.dto';
+import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -40,6 +44,44 @@ export class FinanceController {
     @Query('dueDateTo') dueDateTo?: string,
   ) {
     return this.financeService.findAll(req.user.companyId, { type, status, dueDateFrom, dueDateTo });
+  }
+
+  @Post('entries/manual')
+  @ApiOperation({ summary: 'Criar lançamento manual (avulso)' })
+  createManualEntry(
+    @Body() dto: CreateManualEntryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createManualEntry(req.user.companyId, dto);
+  }
+
+  @Get('reports/dre')
+  @ApiOperation({ summary: 'DRE gerencial por período' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'costCenterId', required: false })
+  getDre(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('costCenterId') costCenterId?: string,
+  ) {
+    return this.financeService.getDre(req.user.companyId, { from, to, costCenterId });
+  }
+
+  @Get('cash-flow/projection')
+  @ApiOperation({ summary: 'Fluxo de caixa projetado dia-a-dia' })
+  @ApiQuery({ name: 'days', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  getCashFlowProjection(
+    @Request() req: { user: { companyId: string } },
+    @Query('days') days?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowProjection(req.user.companyId, {
+      days: days ? parseInt(days, 10) : undefined,
+      bankAccountId,
+    });
   }
 
   @Get('cashflow')
@@ -68,6 +110,16 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.pay(id, req.user.companyId, dto);
+  }
+
+  @Post(':id/installments')
+  @ApiOperation({ summary: 'Parcelar lançamento em N parcelas' })
+  createInstallments(
+    @Param('id') id: string,
+    @Body() dto: CreateInstallmentsDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createInstallments(id, req.user.companyId, dto);
   }
 
   @Patch(':id/cancel')
@@ -110,5 +162,96 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.deactivateBankAccount(id, req.user.companyId);
+  }
+
+  @Get('bank-accounts/consolidated')
+  @ApiOperation({ summary: 'Saldo consolidado de todas as contas' })
+  getConsolidatedBalance(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.getConsolidatedBalance(req.user.companyId);
+  }
+
+  @Get('bank-accounts/:id/statement')
+  @ApiOperation({ summary: 'Extrato por conta bancária' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  getBankStatement(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.financeService.getBankStatement(id, req.user.companyId, { from, to });
+  }
+
+  // ─── Categorias gerenciais ───────────────────────────────────────────────
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Criar categoria financeira' })
+  createCategory(
+    @Body() dto: CreateCategoryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createCategory(req.user.companyId, dto);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Listar categorias hierárquicas' })
+  findAllCategories(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.findAllCategories(req.user.companyId);
+  }
+
+  @Patch('categories/:id')
+  @ApiOperation({ summary: 'Atualizar categoria' })
+  updateCategory(
+    @Param('id') id: string,
+    @Body() dto: CreateCategoryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.updateCategory(id, req.user.companyId, dto);
+  }
+
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'Desativar categoria' })
+  deactivateCategory(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.deactivateCategory(id, req.user.companyId);
+  }
+
+  // ─── Centros de custo ────────────────────────────────────────────────────
+
+  @Post('cost-centers')
+  @ApiOperation({ summary: 'Criar centro de custo' })
+  createCostCenter(
+    @Body() dto: CreateCostCenterDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createCostCenter(req.user.companyId, dto);
+  }
+
+  @Get('cost-centers')
+  @ApiOperation({ summary: 'Listar centros de custo hierárquicos' })
+  findAllCostCenters(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.findAllCostCenters(req.user.companyId);
+  }
+
+  @Patch('cost-centers/:id')
+  @ApiOperation({ summary: 'Atualizar centro de custo' })
+  updateCostCenter(
+    @Param('id') id: string,
+    @Body() dto: CreateCostCenterDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.updateCostCenter(id, req.user.companyId, dto);
+  }
+
+  @Delete('cost-centers/:id')
+  @ApiOperation({ summary: 'Desativar centro de custo' })
+  deactivateCostCenter(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.deactivateCostCenter(id, req.user.companyId);
   }
 }

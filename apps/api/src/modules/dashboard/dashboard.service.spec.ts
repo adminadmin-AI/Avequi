@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 const mockPrisma = {
   salesOrder: { groupBy: jest.fn(), findMany: jest.fn() },
-  saleItem: { aggregate: jest.fn(), groupBy: jest.fn() },
+  saleItem: { aggregate: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   financialEntry: { groupBy: jest.fn(), aggregate: jest.fn(), findMany: jest.fn() },
   productionOrder: { groupBy: jest.fn(), findMany: jest.fn() },
   stockBalance: { groupBy: jest.fn(), count: jest.fn(), aggregate: jest.fn() },
@@ -38,7 +38,14 @@ describe('DashboardService', () => {
         { status: 'INVOICED', _count: { id: 10 } },
         { status: 'DRAFT', _count: { id: 3 } },
       ]);
-      mockPrisma.saleItem.aggregate.mockResolvedValue({ _sum: { quantity: 5, unitPrice: 100 } });
+      mockPrisma.saleItem.findMany
+        .mockResolvedValueOnce([
+          { quantity: 2, unitPrice: 1000 },
+          { quantity: 3, unitPrice: 500 },
+        ])
+        .mockResolvedValueOnce([
+          { quantity: 1, unitPrice: 800 },
+        ]);
       mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 5000 }, _count: { id: 2 } });
       mockPrisma.productionOrder.groupBy.mockResolvedValue([
         { status: 'IN_PROGRESS', _count: { id: 4 } },
@@ -54,6 +61,9 @@ describe('DashboardService', () => {
       expect(result).toHaveProperty('stock');
       expect(result).toHaveProperty('purchases');
       expect(result.sales.byStatus).toHaveProperty('INVOICED', 10);
+      expect(result.sales.revenueThisMonth).toBe(3500); // 2*1000 + 3*500
+      expect(result.sales.revenueLastMonth).toBe(800);  // 1*800
+      expect(result.sales.revenueGrowthPct).toBe(338);   // ((3500-800)/800)*100
       expect(result.production.byStatus).toHaveProperty('IN_PROGRESS', 4);
       expect(result.stock.totalPositions).toBe(80);
       expect(result.purchases.pendingOrders).toBe(5);
