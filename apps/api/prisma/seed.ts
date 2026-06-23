@@ -1,21 +1,92 @@
-import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType } from '@prisma/client';
+import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create GDR Matriz
+  // Create GDR Matriz — dados fiscais reais
   const matriz = await prisma.company.upsert({
     where: { cnpj: '12.345.678/0001-90' },
-    update: {},
-    create: { name: 'GDR Matriz', cnpj: '12.345.678/0001-90', type: CompanyType.MATRIZ },
+    update: {
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '2930101',
+      street: 'Rua das Indústrias',
+      number: '1500',
+      complement: 'Galpão 3',
+      neighborhood: 'Distrito Industrial',
+      city: 'Cascavel',
+      state: 'PR',
+      zipCode: '85807-030',
+      ibgeCode: '4104808',
+      phone: '(45) 3222-1234',
+      email: 'fiscal@gdr.com.br',
+    },
+    create: {
+      name: 'GDR Matriz',
+      cnpj: '12.345.678/0001-90',
+      type: CompanyType.MATRIZ,
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '2930101',
+      street: 'Rua das Indústrias',
+      number: '1500',
+      complement: 'Galpão 3',
+      neighborhood: 'Distrito Industrial',
+      city: 'Cascavel',
+      state: 'PR',
+      zipCode: '85807-030',
+      ibgeCode: '4104808',
+      phone: '(45) 3222-1234',
+      email: 'fiscal@gdr.com.br',
+    },
   });
 
-  // Create Filial SP
+  // Create Filial SP — dados fiscais reais
   const filialSP = await prisma.company.upsert({
     where: { cnpj: '12.345.678/0002-71' },
-    update: {},
-    create: { name: 'GDR Loja São Paulo', cnpj: '12.345.678/0002-71', type: CompanyType.FILIAL, parentId: matriz.id },
+    update: {
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '4789099',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: 'Loja 12',
+      neighborhood: 'Bela Vista',
+      city: 'São Paulo',
+      state: 'SP',
+      zipCode: '01310-100',
+      ibgeCode: '3550308',
+      phone: '(11) 3333-4444',
+      email: 'lojasp@gdr.com.br',
+    },
+    create: {
+      name: 'GDR Loja São Paulo',
+      cnpj: '12.345.678/0002-71',
+      type: CompanyType.FILIAL,
+      parentId: matriz.id,
+      razaoSocial: 'GDR Reboques Indústria e Comércio Ltda',
+      ie: 'ISENTO',
+      crt: 3,
+      taxRegime: TaxRegime.LUCRO_PRESUMIDO,
+      cnae: '4789099',
+      street: 'Av. Paulista',
+      number: '1000',
+      complement: 'Loja 12',
+      neighborhood: 'Bela Vista',
+      city: 'São Paulo',
+      state: 'SP',
+      zipCode: '01310-100',
+      ibgeCode: '3550308',
+      phone: '(11) 3333-4444',
+      email: 'lojasp@gdr.com.br',
+    },
   });
 
   // Create users
@@ -151,6 +222,47 @@ async function main() {
           { companyId: matriz.id, warehouseId: almoxarifado.id, productId: solado.id, type: 'ENTRY', quantity: 200, reason: 'Saldo inicial de abertura', userId: adminUser.id },
         ],
       });
+    }
+  }
+
+  // Tax Rules — GDR Lucro Presumido (PIS 0.65%, COFINS 3% cumulativo)
+  // CFOPs de indústria: 5101/6101 (produção própria), 1101/2101 (compra MP), etc.
+  const taxRules = [
+    // ─── Vendas (produção própria) ──────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interna PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interestadual PR→Sul/Sudeste', priority: 0 },
+
+    // ─── Devolução de venda ─────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.DEVOLUCAO_VENDA, cfop: '1202', icmsCst: '00', icmsAliquota: 18, ipiCst: '49', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Devolução de venda — interna', priority: 0 },
+
+    // ─── Compra de matéria-prima ────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.COMPRA_INTERNA, cfop: '1101', icmsCst: '00', icmsAliquota: 18, ipiCst: '00', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Compra matéria-prima — interna PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.COMPRA_INTERESTADUAL, ufOrigem: 'PR', cfop: '2101', icmsCst: '00', icmsAliquota: 12, ipiCst: '00', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Compra matéria-prima — interestadual', priority: 0 },
+
+    // ─── Devolução de compra ────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.DEVOLUCAO_COMPRA, cfop: '5201', icmsCst: '00', icmsAliquota: 18, ipiCst: '49', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Devolução de compra — interna', priority: 0 },
+
+    // ─── Transferência entre filiais ────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERNA, cfop: '5152', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência produção própria — interna', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERESTADUAL, cfop: '6152', icmsCst: '00', icmsAliquota: 12, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência produção própria — interestadual', priority: 0 },
+
+    // ─── Remessa/retorno conserto ───────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.REMESSA_CONSERTO, cfop: '5915', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Remessa para conserto — interna', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.RETORNO_CONSERTO, cfop: '1916', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Retorno de conserto — interna', priority: 0 },
+
+    // ─── Amostra grátis ─────────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.AMOSTRA_GRATIS, cfop: '5911', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Amostra grátis — interna', priority: 0 },
+
+    // ─── Bonificação ────────────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.BONIFICACAO, cfop: '5910', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Bonificação, doação — interna', priority: 0 },
+  ];
+
+  for (const rule of taxRules) {
+    const exists = await prisma.taxRule.findFirst({
+      where: { companyId: rule.companyId, operationType: rule.operationType, cfop: rule.cfop },
+    });
+    if (!exists) {
+      await prisma.taxRule.create({ data: rule });
     }
   }
 

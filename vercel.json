@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npx turbo run build --filter=@gdr-erp/web",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs"
+}

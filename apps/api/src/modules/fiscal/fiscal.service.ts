@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FiscalClientService } from './fiscal-client.service';
+import { TaxCalculationService } from '../tax/tax-calculation.service';
+import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import {
   buildNFCePayload,
   buildNFePayload,
@@ -11,6 +14,8 @@ import {
   FiscalPayloadInput,
 } from './fiscal-mapper';
 
+const CANCEL_DEADLINE_HOURS = 24;
+
 @Injectable()
 export class FiscalService {
   private readonly logger = new Logger(FiscalService.name);
@@ -18,6 +23,8 @@ export class FiscalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: FiscalClientService,
+    private readonly taxCalc: TaxCalculationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ─── S08.03: Emitir NF para venda confirmada ──────────────────────────────
@@ -83,15 +90,53 @@ export class FiscalService {
       },
     });
 
-    // Montar payload
-    const items: FiscalItem[] = order.items.map((i) => ({
-      sku: i.product.sku,
-      name: i.product.name,
-      ncm: i.product.ncm ?? '00000000',
-      quantity: Number(i.quantity),
-      unitPrice: Number(i.unitPrice),
-      unit: i.product.unit,
-    }));
+    // Montar payload com cálculo tributário
+    const isInterstate = order.customer?.state && order.company.state !== order.customer.state;
+    const operationType = isInterstate
+      ? 'VENDA_INTERESTADUAL' as any
+      : 'VENDA_INTERNA' as any;
+
+    const items: FiscalItem[] = [];
+    for (const i of order.items) {
+      const itemValue = Number(i.quantity) * Number(i.unitPrice);
+      const taxResult = await this.taxCalc.calculateTaxes({
+        companyId: order.companyId,
+        operationType,
+        ncm: i.product.ncm ?? undefined,
+        productType: i.product.type,
+        ufOrigem: order.company.state ?? 'SP',
+        ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
+        itemValue,
+      });
+
+      items.push({
+        sku: i.product.sku,
+        name: i.product.name,
+        ncm: i.product.ncm ?? '00000000',
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+        unit: i.product.unit,
+        tax: {
+          cfop: taxResult.cfop,
+          icmsCst: taxResult.icms.cst,
+          icmsBase: taxResult.icms.baseCalculo,
+          icmsAliquota: taxResult.icms.aliquota,
+          icmsValor: taxResult.icms.valor,
+          ipiCst: taxResult.ipi.cst,
+          ipiBase: taxResult.ipi.baseCalculo,
+          ipiAliquota: taxResult.ipi.aliquota,
+          ipiValor: taxResult.ipi.valor,
+          pisCst: taxResult.pis.cst,
+          pisBase: taxResult.pis.baseCalculo,
+          pisAliquota: taxResult.pis.aliquota,
+          pisValor: taxResult.pis.valor,
+          cofinsCst: taxResult.cofins.cst,
+          cofinsBase: taxResult.cofins.baseCalculo,
+          cofinsAliquota: taxResult.cofins.aliquota,
+          cofinsValor: taxResult.cofins.valor,
+        },
+      });
+    }
 
     const totalValue = calcTotalValue(items);
 
@@ -99,10 +144,18 @@ export class FiscalService {
       ref,
       emitter: {
         cnpj: order.company.cnpj,
-        name: order.company.name,
-        address: 'Endereço não cadastrado',
-        city: 'Cidade',
-        state: 'SP',
+        name: order.company.razaoSocial ?? order.company.name,
+        ie: order.company.ie ?? undefined,
+        crt: order.company.crt ?? undefined,
+        address: order.company.street ?? 'Endereço não cadastrado',
+        number: order.company.number ?? undefined,
+        complement: order.company.complement ?? undefined,
+        neighborhood: order.company.neighborhood ?? undefined,
+        city: order.company.city ?? 'Cidade',
+        state: order.company.state ?? 'SP',
+        zipCode: order.company.zipCode ?? undefined,
+        ibgeCode: order.company.ibgeCode ?? undefined,
+        phone: order.company.phone ?? undefined,
       },
       recipient: order.customer
         ? {
@@ -114,6 +167,9 @@ export class FiscalService {
       items,
       totalValue,
     };
+
+    // Persistir itens + impostos detalhados (#166)
+    await this.persistFiscalItems(fiscalDoc.id, items, order.items);
 
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
@@ -234,14 +290,37 @@ export class FiscalService {
       },
     });
 
-    const items: FiscalItem[] = transfer.items.map((i) => ({
-      sku: i.product.sku,
-      name: i.product.name,
-      ncm: i.product.ncm ?? '00000000',
-      quantity: Number(i.quantity),
-      unitPrice: Number(i.product.avgCost ?? i.product.costPrice ?? 0),
-      unit: String(i.unit),
-    }));
+    const transferOpType = 'TRANSFERENCIA_INTERNA' as any;
+
+    const items: FiscalItem[] = [];
+    for (const i of transfer.items) {
+      const unitPrice = Number(i.product.avgCost ?? i.product.costPrice ?? 0);
+      const itemValue = Number(i.quantity) * unitPrice;
+      const taxResult = await this.taxCalc.calculateTaxes({
+        companyId: transfer.companyId,
+        operationType: transferOpType,
+        ncm: i.product.ncm ?? undefined,
+        productType: i.product.type,
+        ufOrigem: transfer.company.state ?? 'SP',
+        ufDestino: transfer.company.state ?? 'SP',
+        itemValue,
+      });
+      items.push({
+        sku: i.product.sku,
+        name: i.product.name,
+        ncm: i.product.ncm ?? '00000000',
+        quantity: Number(i.quantity),
+        unitPrice,
+        unit: String(i.unit),
+        tax: {
+          cfop: taxResult.cfop,
+          icmsCst: taxResult.icms.cst, icmsBase: taxResult.icms.baseCalculo, icmsAliquota: taxResult.icms.aliquota, icmsValor: taxResult.icms.valor,
+          ipiCst: taxResult.ipi.cst, ipiBase: taxResult.ipi.baseCalculo, ipiAliquota: taxResult.ipi.aliquota, ipiValor: taxResult.ipi.valor,
+          pisCst: taxResult.pis.cst, pisBase: taxResult.pis.baseCalculo, pisAliquota: taxResult.pis.aliquota, pisValor: taxResult.pis.valor,
+          cofinsCst: taxResult.cofins.cst, cofinsBase: taxResult.cofins.baseCalculo, cofinsAliquota: taxResult.cofins.aliquota, cofinsValor: taxResult.cofins.valor,
+        },
+      });
+    }
 
     const totalValue = calcTotalValue(items);
 
@@ -249,10 +328,18 @@ export class FiscalService {
       ref,
       emitter: {
         cnpj: transfer.company.cnpj,
-        name: transfer.company.name,
-        address: 'Endereço não cadastrado',
-        city: 'Cidade',
-        state: 'SP',
+        name: transfer.company.razaoSocial ?? transfer.company.name,
+        ie: transfer.company.ie ?? undefined,
+        crt: transfer.company.crt ?? undefined,
+        address: transfer.company.street ?? 'Endereço não cadastrado',
+        number: transfer.company.number ?? undefined,
+        complement: transfer.company.complement ?? undefined,
+        neighborhood: transfer.company.neighborhood ?? undefined,
+        city: transfer.company.city ?? 'Cidade',
+        state: transfer.company.state ?? 'SP',
+        zipCode: transfer.company.zipCode ?? undefined,
+        ibgeCode: transfer.company.ibgeCode ?? undefined,
+        phone: transfer.company.phone ?? undefined,
       },
       recipient: {
         name: transfer.toWarehouse.name,
@@ -262,9 +349,174 @@ export class FiscalService {
       totalValue,
     };
 
+    // Persistir itens + impostos (#166)
+    await this.persistFiscalItems(fiscalDoc.id, items, transfer.items);
+
     const payload = buildTransferNFePayload(input);
     const response = await this.client.emitNFe(ref, payload);
     await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
+  // ─── Cancelamento de NF-e (#164) ──────────────────────────────────────────
+
+  async cancel(id: string, companyId: string, justificativa: string): Promise<void> {
+    const doc = await this.prisma.fiscalDocument.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
+
+    if (doc.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException(
+        `Somente documentos AUTHORIZED podem ser cancelados. Status atual: ${doc.status}`,
+      );
+    }
+
+    // Validar prazo de 24h
+    const hoursElapsed = (Date.now() - doc.createdAt.getTime()) / (1000 * 60 * 60);
+    if (hoursElapsed > CANCEL_DEADLINE_HOURS) {
+      throw new UnprocessableEntityException(
+        `Prazo de ${CANCEL_DEADLINE_HOURS}h para cancelamento expirado (${Math.floor(hoursElapsed)}h desde a emissão). Use Carta de Correção.`,
+      );
+    }
+
+    // Chamar Focus NFe para cancelamento
+    const response = await this.client.cancelNFe(doc.focusRef, justificativa);
+
+    if (response.status === 'cancelado') {
+      await this.prisma.fiscalDocument.update({
+        where: { id },
+        data: {
+          status: FiscalStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationJustification: justificativa,
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalDocument',
+          action: 'CANCEL',
+          payload: { fiscalDocumentId: id, justificativa },
+        },
+      });
+
+      // Emitir evento para reversão de estoque e financeiro
+      this.eventEmitter.emit(
+        FISCAL_CANCELLED_EVENT,
+        new FiscalCancelledEvent(companyId, id, doc.salesOrderId, doc.storeTransferId),
+      );
+
+      this.logger.log(`NF-e ${id} cancelada com sucesso`);
+    } else {
+      // Rejeição do cancelamento pela SEFAZ
+      await this.prisma.fiscalDocument.update({
+        where: { id },
+        data: {
+          lastError: response.motivo ?? 'Erro ao cancelar na SEFAZ',
+        },
+      });
+
+      throw new BadRequestException(
+        `Cancelamento rejeitado pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`,
+      );
+    }
+  }
+
+  // ─── CC-e — Carta de Correção (#165) ──────────────────────────────────────
+
+  async correction(id: string, companyId: string, correcao: string): Promise<{ sequenceNumber: number; protocol?: string }> {
+    const doc = await this.prisma.fiscalDocument.findFirst({
+      where: { id, companyId },
+      include: { corrections: { orderBy: { sequenceNumber: 'desc' }, take: 1 } },
+    });
+
+    if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
+
+    if (doc.status === FiscalStatus.CANCELLED) {
+      throw new UnprocessableEntityException('Não é possível emitir CC-e para documento cancelado');
+    }
+    if (doc.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException(`CC-e só pode ser emitida para documentos AUTHORIZED. Status atual: ${doc.status}`);
+    }
+
+    const lastSeq = doc.corrections[0]?.sequenceNumber ?? 0;
+    if (lastSeq >= 20) {
+      throw new UnprocessableEntityException('Limite de 20 CC-e por documento atingido (regra SEFAZ)');
+    }
+
+    const sequenceNumber = lastSeq + 1;
+    const response = await this.client.sendCCe(doc.focusRef, correcao);
+
+    const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
+
+    if (response.status === 'autorizado' || response.status === 'processando_autorizacao') {
+      const correction = await this.prisma.fiscalCorrection.create({
+        data: { fiscalDocumentId: id, sequenceNumber, correctionText: correcao, protocol },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalCorrection',
+          action: 'CCE',
+          payload: { fiscalDocumentId: id, sequenceNumber, correctionId: correction.id },
+        },
+      });
+
+      return { sequenceNumber, protocol: protocol ?? undefined };
+    }
+
+    throw new BadRequestException(`CC-e rejeitada pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`);
+  }
+
+  // ─── Inutilização (#165) ────────────────────────────────────────────────
+
+  async voidRange(companyId: string, serie: string, numberStart: number, numberEnd: number, justificativa: string): Promise<{ protocol?: string }> {
+    if (numberEnd < numberStart) {
+      throw new BadRequestException('Número final deve ser >= número inicial');
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+
+    const response = await this.client.voidRange({
+      cnpj: company.cnpj.replace(/\D/g, ''),
+      serie,
+      numero_inicial: numberStart,
+      numero_final: numberEnd,
+      justificativa,
+    });
+
+    const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
+
+    if (response.status === 'autorizado' || response.status === 'processando_autorizacao') {
+      await this.prisma.fiscalVoidRange.create({
+        data: {
+          companyId,
+          serie,
+          numberStart,
+          numberEnd,
+          justification: justificativa,
+          protocol,
+          year: new Date().getFullYear(),
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalVoidRange',
+          action: 'VOID',
+          payload: { serie, numberStart, numberEnd },
+        },
+      });
+
+      return { protocol: protocol ?? undefined };
+    }
+
+    throw new BadRequestException(`Inutilização rejeitada pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`);
   }
 
   // ─── Consultas ────────────────────────────────────────────────────────────
@@ -284,6 +536,59 @@ export class FiscalService {
     });
     if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
     return doc;
+  }
+
+  // ─── Privado: persiste itens + impostos detalhados (#166) ────────────────
+
+  private async persistFiscalItems(
+    fiscalDocumentId: string,
+    fiscalItems: FiscalItem[],
+    orderItems: Array<{ product: any; quantity: any; unitPrice?: any; unit?: any }>,
+  ): Promise<void> {
+    for (let i = 0; i < fiscalItems.length; i++) {
+      const fi = fiscalItems[i];
+      const oi = orderItems[i];
+      const totalPrice = Number(fi.quantity) * Number(fi.unitPrice);
+
+      const docItem = await this.prisma.fiscalDocumentItem.create({
+        data: {
+          fiscalDocumentId,
+          productId: oi?.product?.id ?? null,
+          productCode: fi.sku,
+          productName: fi.name,
+          ncm: fi.ncm,
+          cfop: fi.tax?.cfop ?? null,
+          unit: fi.unit,
+          quantity: fi.quantity,
+          unitPrice: fi.unitPrice,
+          totalPrice,
+        },
+      });
+
+      if (fi.tax) {
+        await this.prisma.fiscalDocumentItemTax.create({
+          data: {
+            fiscalDocumentItemId: docItem.id,
+            cstIcms: fi.tax.icmsCst,
+            baseIcms: fi.tax.icmsBase,
+            aliquotaIcms: fi.tax.icmsAliquota,
+            valorIcms: fi.tax.icmsValor,
+            cstIpi: fi.tax.ipiCst,
+            baseIpi: fi.tax.ipiBase,
+            aliquotaIpi: fi.tax.ipiAliquota,
+            valorIpi: fi.tax.ipiValor,
+            cstPis: fi.tax.pisCst,
+            basePis: fi.tax.pisBase,
+            aliquotaPis: fi.tax.pisAliquota,
+            valorPis: fi.tax.pisValor,
+            cstCofins: fi.tax.cofinsCst,
+            baseCofins: fi.tax.cofinsBase,
+            aliquotaCofins: fi.tax.cofinsAliquota,
+            valorCofins: fi.tax.cofinsValor,
+          },
+        });
+      }
+    }
   }
 
   // ─── Privado: aplica resposta da Focus ───────────────────────────────────

@@ -10,6 +10,12 @@ datasource db {
 
 // ─── Empresa / Tenant ─────────────────────────────────────────────────────────
 
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -18,6 +24,27 @@ model Company {
   parentId  String?
   parent    Company?  @relation("branches", fields: [parentId], references: [id])
   branches  Company[] @relation("branches")
+
+  // ── Dados fiscais ──
+  razaoSocial  String?
+  ie           String?   // Inscrição Estadual
+  im           String?   // Inscrição Municipal
+  crt          Int?      // Código Regime Tributário: 1=SN, 2=SN-ExSub, 3=Normal
+  taxRegime    TaxRegime?
+  suframa      String?
+  cnae         String?   // CNAE principal
+
+  // ── Endereço ──
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?   // UF (2 letras)
+  zipCode      String?   // CEP
+  ibgeCode     String?   // Código IBGE do município
+  phone        String?
+  email        String?
   users     User[]
   auditLogs AuditLog[]
   products  Product[]
@@ -93,6 +120,8 @@ model Company {
   dimensionDefinitions DimensionDefinition[]
   reportSchedules      ReportSchedule[]
   analyticsQueryLogs   AnalyticsQueryLog[]
+  taxRules             TaxRule[]
+  fiscalVoidRanges     FiscalVoidRange[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -102,6 +131,59 @@ model Company {
 enum CompanyType {
   MATRIZ
   FILIAL
+}
+
+// ─── Motor Tributário ─────────────────────────────────────────────────────────
+
+enum TaxOperationType {
+  VENDA_INTERNA
+  VENDA_INTERESTADUAL
+  DEVOLUCAO_VENDA
+  TRANSFERENCIA_INTERNA
+  TRANSFERENCIA_INTERESTADUAL
+  COMPRA_INTERNA
+  COMPRA_INTERESTADUAL
+  DEVOLUCAO_COMPRA
+  REMESSA_CONSERTO
+  RETORNO_CONSERTO
+  AMOSTRA_GRATIS
+  BONIFICACAO
+  INDUSTRIALIZACAO
+}
+
+model TaxRule {
+  id               String           @id @default(cuid())
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  operationType    TaxOperationType
+  ncm              String?          // Regra por NCM (nullable = regra geral)
+  productType      ProductType?     // Regra por tipo de produto (nullable = qualquer)
+  ufOrigem         String?          // UF origem (nullable = qualquer)
+  ufDestino        String?          // UF destino (nullable = qualquer)
+  cfop             String           // Ex: 5101, 6101, 5152
+  // ICMS
+  icmsCst          String           // Ex: 00, 10, 20, 40, 41, 60
+  icmsAliquota     Decimal          @default(0) @db.Decimal(5, 2)
+  icmsBaseReducao  Decimal          @default(100) @db.Decimal(5, 2) // % da base (100 = sem redução)
+  // IPI
+  ipiCst           String           @default("99") // Ex: 00, 49, 50, 99
+  ipiAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  // PIS
+  pisCst           String           @default("01") // Ex: 01, 06, 07, 49
+  pisAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  // COFINS
+  cofinsCst        String           @default("01") // Ex: 01, 06, 07, 49
+  cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
+  // Meta
+  description      String?
+  priority         Int              @default(0) // Maior = mais específica
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino])
+  @@index([companyId, operationType])
+  @@map("gdr_tax_rules")
 }
 
 // ─── Usuário ──────────────────────────────────────────────────────────────────
@@ -668,21 +750,56 @@ model FiscalDocument {
   rejectionReason  String?
   retryCount       Int                @default(0)
   lastError        String?
+  cancelledAt              DateTime?
+  cancellationJustification String?
   financialEntry   FinancialEntry?
   items            FiscalDocumentItem[]
+  corrections      FiscalCorrection[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@map("gdr_fiscal_documents")
 }
 
+model FiscalCorrection {
+  id               String         @id @default(cuid())
+  fiscalDocumentId String
+  fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id])
+  sequenceNumber   Int            // 1 a 20 (máximo SEFAZ)
+  correctionText   String
+  protocol         String?        // protocolo retornado pela SEFAZ
+  createdAt        DateTime       @default(now())
+
+  @@unique([fiscalDocumentId, sequenceNumber])
+  @@index([fiscalDocumentId])
+  @@map("gdr_fiscal_corrections")
+}
+
+model FiscalVoidRange {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  serie         String   // série da NF-e (ex: "1")
+  numberStart   Int      // número inicial
+  numberEnd     Int      // número final
+  justification String
+  protocol      String?  // protocolo retornado pela SEFAZ
+  year          Int      // ano fiscal
+  createdAt     DateTime @default(now())
+
+  @@index([companyId])
+  @@map("gdr_fiscal_void_ranges")
+}
+
 model FiscalDocumentItem {
   id               String         @id @default(cuid())
   fiscalDocumentId String
   fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
+  productId        String?
   productCode      String?
   productName      String
   ncm              String?
+  cest             String?        // Código Especificador de Substituição Tributária
   cfop             String?
   unit             String?
   quantity         Decimal        @db.Decimal(14, 4)
@@ -711,6 +828,10 @@ model FiscalDocumentItemTax {
   basePis              Decimal?           @db.Decimal(14, 4)
   aliquotaPis          Decimal?           @db.Decimal(14, 4)
   valorPis             Decimal?           @db.Decimal(14, 4)
+  cstCofins            String?
+  baseCofins           Decimal?           @db.Decimal(14, 4)
+  aliquotaCofins       Decimal?           @db.Decimal(14, 4)
+  valorCofins          Decimal?           @db.Decimal(14, 4)
 
   @@map("gdr_fiscal_document_item_taxes")
 }

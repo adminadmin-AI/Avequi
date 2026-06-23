@@ -43,6 +43,7 @@ import { QuotationModule } from './modules/quotation/quotation.module';
 import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { BatchModule } from './modules/batch/batch.module';
+import { TaxModule } from './modules/tax/tax.module';
 import { BankingModule } from './banking/banking.module';
 import { BpmModule } from './bpm/bpm.module';
 import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.module';
@@ -130,6 +131,7 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     InboundNfeModule,
     CapacityModule,
     BatchModule,
+    TaxModule,
     BankingModule,
     BpmModule,
     AnalyticsBiModule,

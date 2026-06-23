@@ -16,6 +16,9 @@ import { timingSafeEqual } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { FiscalService } from './fiscal.service';
+import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
+import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
+import { VoidRangeFiscalDto } from './dto/void-range-fiscal.dto';
 
 @ApiTags('Fiscal')
 @ApiBearerAuth()
@@ -54,6 +57,43 @@ export class FiscalController {
 
     await this.fiscalService.handleWebhook(body);
     return { ok: true };
+  }
+
+  /** #164 — Cancelar NF-e autorizada (prazo de 24h) */
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cancelar documento fiscal autorizado (prazo de 24h)' })
+  async cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    await this.fiscalService.cancel(id, user.companyId, dto.justificativa);
+    return { ok: true, message: 'Documento fiscal cancelado com sucesso' };
+  }
+
+  /** #165 — CC-e (Carta de Correção) */
+  @Post(':id/correction')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Emitir Carta de Correção (CC-e) para NF-e autorizada' })
+  async correction(
+    @Param('id') id: string,
+    @Body() dto: CorrectionFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.fiscalService.correction(id, user.companyId, dto.correcao);
+    return { ok: true, ...result };
+  }
+
+  /** #165 — Inutilização de faixa de numeração */
+  @Post('void-range')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Inutilizar faixa de numeração de NF-e' })
+  async voidRange(@Body() dto: VoidRangeFiscalDto, @CurrentUser() user: any) {
+    const result = await this.fiscalService.voidRange(
+      user.companyId, dto.serie, dto.numberStart, dto.numberEnd, dto.justificativa,
+    );
+    return { ok: true, ...result };
   }
 
   /** S08.05 — Reprocessar documento rejeitado ou em erro */
