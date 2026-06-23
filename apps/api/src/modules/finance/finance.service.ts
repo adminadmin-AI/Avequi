@@ -144,7 +144,8 @@ export class FinanceService {
       ? FinancialEntryStatus.PAID
       : FinancialEntryStatus.PARTIALLY_PAID;
 
-    const [payment] = await this.prisma.$transaction([
+    // Build transaction operations
+    const operations: any[] = [
       this.prisma.payment.create({
         data: {
           financialEntryId: id,
@@ -178,7 +179,23 @@ export class FinanceService {
           },
         },
       }),
-    ]);
+    ];
+
+    // Update BankAccount balance if linked
+    if (dto.bankAccountId) {
+      const balanceChange = entry.type === FinancialEntryType.RECEIVABLE
+        ? dto.paidAmount    // Recebível → credita
+        : -dto.paidAmount;  // Pagável → debita
+
+      operations.push(
+        this.prisma.bankAccount.update({
+          where: { id: dto.bankAccountId },
+          data: { balance: { increment: balanceChange } },
+        }),
+      );
+    }
+
+    const [payment] = await this.prisma.$transaction(operations);
 
     this.logger.log(
       `FinancialEntry ${id} → ${newStatus} — pagamento R$ ${dto.paidAmount} (total pago: R$ ${newTotalPaid.toFixed(2)})`,
@@ -459,6 +476,73 @@ export class FinanceService {
       totalPayable,
       netBalance: totalReceivable - totalPayable,
       entries: rows.map((r) => ({ ...r, amount: Number(r.amount) })),
+    };
+  }
+
+  // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
+
+  async getBankStatement(
+    bankAccountId: string,
+    companyId: string,
+    filters: { from?: string; to?: string } = {},
+  ) {
+    const account = await this.prisma.bankAccount.findFirst({
+      where: { id: bankAccountId, companyId },
+    });
+    if (!account) throw new NotFoundException(`Conta bancária ${bankAccountId} não encontrada`);
+
+    const where: any = { bankAccountId };
+    if (filters.from || filters.to) {
+      where.paidAt = {};
+      if (filters.from) where.paidAt.gte = new Date(filters.from);
+      if (filters.to) where.paidAt.lte = new Date(filters.to);
+    }
+
+    const payments = await this.prisma.payment.findMany({
+      where,
+      include: {
+        financialEntry: {
+          select: { id: true, type: true, description: true, amount: true },
+        },
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+
+    return {
+      bankAccount: {
+        id: account.id,
+        name: account.name,
+        bank: account.bank,
+        currentBalance: Number(account.balance),
+      },
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: p.financialEntry.type,
+        direction: p.financialEntry.type === FinancialEntryType.RECEIVABLE ? 'IN' : 'OUT',
+        entryDescription: p.financialEntry.description,
+      })),
+    };
+  }
+
+  async getConsolidatedBalance(companyId: string) {
+    const accounts = await this.prisma.bankAccount.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, bank: true, balance: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+
+    return {
+      totalBalance,
+      accounts: accounts.map((a) => ({
+        ...a,
+        balance: Number(a.balance),
+      })),
     };
   }
 

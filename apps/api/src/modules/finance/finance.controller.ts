@@ -125,6 +125,25 @@ export class FinanceController {
     return this.financeService.deactivateBankAccount(id, req.user.companyId);
   }
 
+  @Get('bank-accounts/consolidated')
+  @ApiOperation({ summary: 'Saldo consolidado de todas as contas' })
+  getConsolidatedBalance(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.getConsolidatedBalance(req.user.companyId);
+  }
+
+  @Get('bank-accounts/:id/statement')
+  @ApiOperation({ summary: 'Extrato por conta bancária' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  getBankStatement(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.financeService.getBankStatement(id, req.user.companyId, { from, to });
+  }
+
   // ─── Categorias gerenciais ───────────────────────────────────────────────
 
   @Post('categories')

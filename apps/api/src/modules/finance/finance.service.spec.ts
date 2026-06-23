@@ -33,6 +33,11 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  bankAccount: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -536,6 +541,55 @@ describe('FinanceService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Fábrica');
+    });
+  });
+
+  // ─── Extrato bancário e saldo consolidado ────────────────────────────────
+
+  describe('getBankStatement', () => {
+    it('deve retornar extrato com pagamentos da conta', async () => {
+      mockPrisma.bankAccount.findFirst.mockResolvedValue({
+        id: 'ba-1', name: 'Banco do Brasil', bank: 'BB', balance: 10000,
+      });
+      (mockPrisma as any).payment = { findMany: jest.fn() };
+      (mockPrisma as any).payment.findMany.mockResolvedValue([
+        {
+          id: 'pay-1',
+          amount: 500,
+          paidAt: new Date('2026-06-10'),
+          method: 'PIX',
+          reference: 'txid-123',
+          financialEntry: { id: 'fe-1', type: 'RECEIVABLE', description: 'Venda', amount: 500 },
+        },
+      ]);
+
+      const result = await service.getBankStatement('ba-1', 'co-1', {});
+
+      expect(result.bankAccount.currentBalance).toBe(10000);
+      expect(result.payments).toHaveLength(1);
+      expect(result.payments[0].direction).toBe('IN');
+    });
+
+    it('deve lançar NotFoundException para conta inexistente', async () => {
+      mockPrisma.bankAccount.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getBankStatement('bad-id', 'co-1', {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getConsolidatedBalance', () => {
+    it('deve retornar saldo total de todas as contas ativas', async () => {
+      mockPrisma.bankAccount.findMany.mockResolvedValue([
+        { id: 'ba-1', name: 'BB', bank: 'BB', balance: 5000 },
+        { id: 'ba-2', name: 'Itaú', bank: 'Itaú', balance: 3000 },
+      ]);
+
+      const result = await service.getConsolidatedBalance('co-1');
+
+      expect(result.totalBalance).toBe(8000);
+      expect(result.accounts).toHaveLength(2);
     });
   });
 });
