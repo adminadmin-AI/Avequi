@@ -21,9 +21,9 @@ export interface TaxResult {
   totalTributos: number;
 }
 
-/** Regra padrão quando nenhuma TaxRule específica é encontrada */
+/** Regra padrão quando nenhuma TaxRule específica é encontrada (indústria = produção própria) */
 const FALLBACK_RULE = {
-  cfop: '5102',
+  cfop: '5101',
   icmsCst: '00',
   icmsAliquota: new Prisma.Decimal(18),
   icmsBaseReducao: new Prisma.Decimal(100),

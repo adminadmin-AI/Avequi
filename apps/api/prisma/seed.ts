@@ -226,11 +226,35 @@ async function main() {
   }
 
   // Tax Rules — GDR Lucro Presumido (PIS 0.65%, COFINS 3% cumulativo)
+  // CFOPs de indústria: 5101/6101 (produção própria), 1101/2101 (compra MP), etc.
   const taxRules = [
-    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda interna — industrialização PR', priority: 0 },
-    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda interestadual PR→Sul/Sudeste', priority: 0 },
-    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERNA, cfop: '5152', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência interna', priority: 0 },
-    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERESTADUAL, cfop: '6152', icmsCst: '00', icmsAliquota: 12, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência interestadual', priority: 0 },
+    // ─── Vendas (produção própria) ──────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interna PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interestadual PR→Sul/Sudeste', priority: 0 },
+
+    // ─── Devolução de venda ─────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.DEVOLUCAO_VENDA, cfop: '1202', icmsCst: '00', icmsAliquota: 18, ipiCst: '49', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Devolução de venda — interna', priority: 0 },
+
+    // ─── Compra de matéria-prima ────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.COMPRA_INTERNA, cfop: '1101', icmsCst: '00', icmsAliquota: 18, ipiCst: '00', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Compra matéria-prima — interna PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.COMPRA_INTERESTADUAL, ufOrigem: 'PR', cfop: '2101', icmsCst: '00', icmsAliquota: 12, ipiCst: '00', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Compra matéria-prima — interestadual', priority: 0 },
+
+    // ─── Devolução de compra ────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.DEVOLUCAO_COMPRA, cfop: '5201', icmsCst: '00', icmsAliquota: 18, ipiCst: '49', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Devolução de compra — interna', priority: 0 },
+
+    // ─── Transferência entre filiais ────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERNA, cfop: '5152', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência produção própria — interna', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERESTADUAL, cfop: '6152', icmsCst: '00', icmsAliquota: 12, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência produção própria — interestadual', priority: 0 },
+
+    // ─── Remessa/retorno conserto ───────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.REMESSA_CONSERTO, cfop: '5915', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Remessa para conserto — interna', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.RETORNO_CONSERTO, cfop: '1916', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Retorno de conserto — interna', priority: 0 },
+
+    // ─── Amostra grátis ─────────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.AMOSTRA_GRATIS, cfop: '5911', icmsCst: '41', icmsAliquota: 0, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Amostra grátis — interna', priority: 0 },
+
+    // ─── Bonificação ────────────────────────────────────────────────────────
+    { companyId: matriz.id, operationType: TaxOperationType.BONIFICACAO, cfop: '5910', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Bonificação, doação — interna', priority: 0 },
   ];
 
   for (const rule of taxRules) {

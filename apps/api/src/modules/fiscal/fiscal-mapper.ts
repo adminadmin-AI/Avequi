@@ -1,13 +1,13 @@
 /**
  * Mapeador de payload para a API Focus NFe.
  *
- * Regras de CFOP utilizadas (PRD GDR):
- *   5102 — Venda de mercadoria adquirida ou recebida de terceiros — operação dentro do estado
- *   6102 — Venda de mercadoria adquirida ou recebida de terceiros — operação interestadual
+ * CFOPs padrão (GDR = indústria — produção própria):
+ *   5101 — Venda de produção própria — operação dentro do estado
+ *   6101 — Venda de produção própria — operação interestadual
  *   5152 — Transferência de produção própria — operação dentro do estado
  *   6152 — Transferência de produção própria — operação interestadual
  *
- * A escolha de NF-e vs NFC-e segue o tipo do documento solicitado.
+ * O CFOP real vem de TaxRule via item.tax.cfop. Os defaults acima são fallbacks.
  * Esta função é pura (sem efeitos colaterais) para facilitar testes unitários.
  */
 
@@ -132,7 +132,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
         cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
       },
     }),
-    items: input.items.map((item, idx) => mapItemToPayload(item, idx, '5102')),
+    items: input.items.map((item, idx) => mapItemToPayload(item, idx, '5101')),
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
@@ -145,10 +145,10 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
 /** Payload NF-e (nota fiscal eletrônica — saída para pessoa jurídica ou interestadual) */
 export function buildNFePayload(input: FiscalPayloadInput): Record<string, unknown> {
   const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
-  const cfop = isInterstate ? '6102' : '5102';
+  const cfop = isInterstate ? '6101' : '5101';
 
   return {
-    natureza_operacao: 'VENDA DE PRODUTO',
+    natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
     forma_pagamento: 0,
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
