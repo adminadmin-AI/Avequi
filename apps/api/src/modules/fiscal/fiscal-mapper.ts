@@ -11,6 +11,26 @@
  * Esta função é pura (sem efeitos colaterais) para facilitar testes unitários.
  */
 
+export interface FiscalItemTax {
+  cfop: string;
+  icmsCst: string;
+  icmsBase: number;
+  icmsAliquota: number;
+  icmsValor: number;
+  ipiCst: string;
+  ipiBase: number;
+  ipiAliquota: number;
+  ipiValor: number;
+  pisCst: string;
+  pisBase: number;
+  pisAliquota: number;
+  pisValor: number;
+  cofinsCst: string;
+  cofinsBase: number;
+  cofinsAliquota: number;
+  cofinsValor: number;
+}
+
 export interface FiscalItem {
   sku: string;
   name: string;
@@ -18,6 +38,7 @@ export interface FiscalItem {
   quantity: number;
   unitPrice: number;
   unit: string;
+  tax?: FiscalItemTax;
 }
 
 export interface FiscalEmitter {
@@ -51,6 +72,40 @@ export interface FiscalPayloadInput {
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
 }
 
+function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
+  const t = item.tax;
+  return {
+    numero_item: idx + 1,
+    codigo_produto: item.sku,
+    descricao: item.name,
+    cfop: t?.cfop ?? defaultCfop,
+    unidade_comercial: item.unit,
+    quantidade_comercial: item.quantity,
+    valor_unitario_comercial: item.unitPrice,
+    valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
+    codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
+    icms_origem: 0,
+    icms_situacao_tributaria: t?.icmsCst ?? '00',
+    ...(t && {
+      icms_base_calculo: t.icmsBase,
+      icms_aliquota: t.icmsAliquota,
+      icms_valor: t.icmsValor,
+      ipi_situacao_tributaria: t.ipiCst,
+      ipi_base_calculo: t.ipiBase,
+      ipi_aliquota: t.ipiAliquota,
+      ipi_valor: t.ipiValor,
+      pis_situacao_tributaria: t.pisCst,
+      pis_base_calculo: t.pisBase,
+      pis_aliquota: t.pisAliquota,
+      pis_valor: t.pisValor,
+      cofins_situacao_tributaria: t.cofinsCst,
+      cofins_base_calculo: t.cofinsBase,
+      cofins_aliquota: t.cofinsAliquota,
+      cofins_valor: t.cofinsValor,
+    }),
+  };
+}
+
 /** Payload NFC-e (cupom fiscal eletrônico — consumidor final) */
 export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unknown> {
   return {
@@ -77,19 +132,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
         cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
       },
     }),
-    items: input.items.map((item, idx) => ({
-      numero_item: idx + 1,
-      codigo_produto: item.sku,
-      descricao: item.name,
-      cfop: '5102',
-      unidade_comercial: item.unit,
-      quantidade_comercial: item.quantity,
-      valor_unitario_comercial: item.unitPrice,
-      valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
-      codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
-      icms_origem: 0,
-      icms_situacao_tributaria: '102',
-    })),
+    items: input.items.map((item, idx) => mapItemToPayload(item, idx, '5102')),
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
@@ -129,19 +172,7 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
       }),
       ...(input.recipient?.state && { uf: input.recipient.state }),
     },
-    items: input.items.map((item, idx) => ({
-      numero_item: idx + 1,
-      codigo_produto: item.sku,
-      descricao: item.name,
-      cfop,
-      unidade_comercial: item.unit,
-      quantidade_comercial: item.quantity,
-      valor_unitario_comercial: item.unitPrice,
-      valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
-      codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
-      icms_origem: 0,
-      icms_situacao_tributaria: '102',
-    })),
+    items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
@@ -188,19 +219,7 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
       }),
       ...(input.recipient?.state && { uf: input.recipient.state }),
     },
-    items: input.items.map((item, idx) => ({
-      numero_item: idx + 1,
-      codigo_produto: item.sku,
-      descricao: item.name,
-      cfop,
-      unidade_comercial: item.unit,
-      quantidade_comercial: item.quantity,
-      valor_unitario_comercial: item.unitPrice,
-      valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
-      codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
-      icms_origem: 0,
-      icms_situacao_tributaria: '102',
-    })),
+    items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
     formas_pagamento: [{ forma_pagamento: '99', valor: input.totalValue }],
   };
 }

@@ -120,6 +120,7 @@ model Company {
   dimensionDefinitions DimensionDefinition[]
   reportSchedules      ReportSchedule[]
   analyticsQueryLogs   AnalyticsQueryLog[]
+  taxRules             TaxRule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -129,6 +130,54 @@ model Company {
 enum CompanyType {
   MATRIZ
   FILIAL
+}
+
+// ─── Motor Tributário ─────────────────────────────────────────────────────────
+
+enum TaxOperationType {
+  VENDA_INTERNA
+  VENDA_INTERESTADUAL
+  DEVOLUCAO_VENDA
+  TRANSFERENCIA_INTERNA
+  TRANSFERENCIA_INTERESTADUAL
+  COMPRA_INTERNA
+  COMPRA_INTERESTADUAL
+  INDUSTRIALIZACAO
+}
+
+model TaxRule {
+  id               String           @id @default(cuid())
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  operationType    TaxOperationType
+  ncm              String?          // Regra por NCM (nullable = regra geral)
+  productType      ProductType?     // Regra por tipo de produto (nullable = qualquer)
+  ufOrigem         String?          // UF origem (nullable = qualquer)
+  ufDestino        String?          // UF destino (nullable = qualquer)
+  cfop             String           // Ex: 5101, 6101, 5152
+  // ICMS
+  icmsCst          String           // Ex: 00, 10, 20, 40, 41, 60
+  icmsAliquota     Decimal          @default(0) @db.Decimal(5, 2)
+  icmsBaseReducao  Decimal          @default(100) @db.Decimal(5, 2) // % da base (100 = sem redução)
+  // IPI
+  ipiCst           String           @default("99") // Ex: 00, 49, 50, 99
+  ipiAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  // PIS
+  pisCst           String           @default("01") // Ex: 01, 06, 07, 49
+  pisAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  // COFINS
+  cofinsCst        String           @default("01") // Ex: 01, 06, 07, 49
+  cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
+  // Meta
+  description      String?
+  priority         Int              @default(0) // Maior = mais específica
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino])
+  @@index([companyId, operationType])
+  @@map("gdr_tax_rules")
 }
 
 // ─── Usuário ──────────────────────────────────────────────────────────────────

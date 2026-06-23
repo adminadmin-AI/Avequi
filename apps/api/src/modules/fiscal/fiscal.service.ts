@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FiscalClientService } from './fiscal-client.service';
+import { TaxCalculationService } from '../tax/tax-calculation.service';
 import {
   buildNFCePayload,
   buildNFePayload,
@@ -18,6 +19,7 @@ export class FiscalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: FiscalClientService,
+    private readonly taxCalc: TaxCalculationService,
   ) {}
 
   // ─── S08.03: Emitir NF para venda confirmada ──────────────────────────────
@@ -83,15 +85,53 @@ export class FiscalService {
       },
     });
 
-    // Montar payload
-    const items: FiscalItem[] = order.items.map((i) => ({
-      sku: i.product.sku,
-      name: i.product.name,
-      ncm: i.product.ncm ?? '00000000',
-      quantity: Number(i.quantity),
-      unitPrice: Number(i.unitPrice),
-      unit: i.product.unit,
-    }));
+    // Montar payload com cálculo tributário
+    const isInterstate = order.customer?.state && order.company.state !== order.customer.state;
+    const operationType = isInterstate
+      ? 'VENDA_INTERESTADUAL' as any
+      : 'VENDA_INTERNA' as any;
+
+    const items: FiscalItem[] = [];
+    for (const i of order.items) {
+      const itemValue = Number(i.quantity) * Number(i.unitPrice);
+      const taxResult = await this.taxCalc.calculateTaxes({
+        companyId: order.companyId,
+        operationType,
+        ncm: i.product.ncm ?? undefined,
+        productType: i.product.type,
+        ufOrigem: order.company.state ?? 'SP',
+        ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
+        itemValue,
+      });
+
+      items.push({
+        sku: i.product.sku,
+        name: i.product.name,
+        ncm: i.product.ncm ?? '00000000',
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+        unit: i.product.unit,
+        tax: {
+          cfop: taxResult.cfop,
+          icmsCst: taxResult.icms.cst,
+          icmsBase: taxResult.icms.baseCalculo,
+          icmsAliquota: taxResult.icms.aliquota,
+          icmsValor: taxResult.icms.valor,
+          ipiCst: taxResult.ipi.cst,
+          ipiBase: taxResult.ipi.baseCalculo,
+          ipiAliquota: taxResult.ipi.aliquota,
+          ipiValor: taxResult.ipi.valor,
+          pisCst: taxResult.pis.cst,
+          pisBase: taxResult.pis.baseCalculo,
+          pisAliquota: taxResult.pis.aliquota,
+          pisValor: taxResult.pis.valor,
+          cofinsCst: taxResult.cofins.cst,
+          cofinsBase: taxResult.cofins.baseCalculo,
+          cofinsAliquota: taxResult.cofins.aliquota,
+          cofinsValor: taxResult.cofins.valor,
+        },
+      });
+    }
 
     const totalValue = calcTotalValue(items);
 
@@ -242,14 +282,37 @@ export class FiscalService {
       },
     });
 
-    const items: FiscalItem[] = transfer.items.map((i) => ({
-      sku: i.product.sku,
-      name: i.product.name,
-      ncm: i.product.ncm ?? '00000000',
-      quantity: Number(i.quantity),
-      unitPrice: Number(i.product.avgCost ?? i.product.costPrice ?? 0),
-      unit: String(i.unit),
-    }));
+    const transferOpType = 'TRANSFERENCIA_INTERNA' as any;
+
+    const items: FiscalItem[] = [];
+    for (const i of transfer.items) {
+      const unitPrice = Number(i.product.avgCost ?? i.product.costPrice ?? 0);
+      const itemValue = Number(i.quantity) * unitPrice;
+      const taxResult = await this.taxCalc.calculateTaxes({
+        companyId: transfer.companyId,
+        operationType: transferOpType,
+        ncm: i.product.ncm ?? undefined,
+        productType: i.product.type,
+        ufOrigem: transfer.company.state ?? 'SP',
+        ufDestino: transfer.company.state ?? 'SP',
+        itemValue,
+      });
+      items.push({
+        sku: i.product.sku,
+        name: i.product.name,
+        ncm: i.product.ncm ?? '00000000',
+        quantity: Number(i.quantity),
+        unitPrice,
+        unit: String(i.unit),
+        tax: {
+          cfop: taxResult.cfop,
+          icmsCst: taxResult.icms.cst, icmsBase: taxResult.icms.baseCalculo, icmsAliquota: taxResult.icms.aliquota, icmsValor: taxResult.icms.valor,
+          ipiCst: taxResult.ipi.cst, ipiBase: taxResult.ipi.baseCalculo, ipiAliquota: taxResult.ipi.aliquota, ipiValor: taxResult.ipi.valor,
+          pisCst: taxResult.pis.cst, pisBase: taxResult.pis.baseCalculo, pisAliquota: taxResult.pis.aliquota, pisValor: taxResult.pis.valor,
+          cofinsCst: taxResult.cofins.cst, cofinsBase: taxResult.cofins.baseCalculo, cofinsAliquota: taxResult.cofins.aliquota, cofinsValor: taxResult.cofins.valor,
+        },
+      });
+    }
 
     const totalValue = calcTotalValue(items);
 

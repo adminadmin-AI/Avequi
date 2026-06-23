@@ -4,6 +4,7 @@ import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
 import { FiscalService } from './fiscal.service';
 import { FiscalClientService } from './fiscal-client.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TaxCalculationService } from '../tax/tax-calculation.service';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -29,14 +30,25 @@ const mockClient = {
   getStatus: jest.fn(),
 };
 
+const mockTaxCalc = {
+  calculateTaxes: jest.fn().mockResolvedValue({
+    cfop: '5101',
+    icms: { cst: '00', baseCalculo: 300, aliquota: 18, valor: 54 },
+    ipi: { cst: '50', baseCalculo: 300, aliquota: 5, valor: 15 },
+    pis: { cst: '01', baseCalculo: 300, aliquota: 0.65, valor: 1.95 },
+    cofins: { cst: '01', baseCalculo: 300, aliquota: 3, valor: 9 },
+    totalTributos: 79.95,
+  }),
+};
+
 const baseOrder = {
   id: 'so-1',
   companyId: 'co-1',
   customer: null,
-  company: { cnpj: '12.345.678/0001-90', name: 'GDR Indústria Ltda' },
+  company: { cnpj: '12.345.678/0001-90', name: 'GDR Indústria Ltda', razaoSocial: 'GDR Ltda', ie: 'ISENTO', crt: 3, street: 'Rua A', number: '1', complement: null, neighborhood: 'Centro', city: 'Cascavel', state: 'PR', zipCode: '85807-030', ibgeCode: '4104808', phone: '4532221234' },
   items: [
     {
-      product: { sku: 'COD001', name: 'Produto A', ncm: '61099000', unit: 'UN' },
+      product: { sku: 'COD001', name: 'Produto A', ncm: '61099000', unit: 'UN', type: 'FINISHED_GOOD' },
       quantity: '2',
       unitPrice: '150',
     },
@@ -62,6 +74,7 @@ describe('FiscalService', () => {
         FiscalService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FiscalClientService, useValue: mockClient },
+        { provide: TaxCalculationService, useValue: mockTaxCalc },
       ],
     }).compile();
 

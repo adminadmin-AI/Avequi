@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime } from '@prisma/client';
+import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -222,6 +222,23 @@ async function main() {
           { companyId: matriz.id, warehouseId: almoxarifado.id, productId: solado.id, type: 'ENTRY', quantity: 200, reason: 'Saldo inicial de abertura', userId: adminUser.id },
         ],
       });
+    }
+  }
+
+  // Tax Rules — GDR Lucro Presumido (PIS 0.65%, COFINS 3% cumulativo)
+  const taxRules = [
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda interna — industrialização PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda interestadual PR→Sul/Sudeste', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERNA, cfop: '5152', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência interna', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.TRANSFERENCIA_INTERESTADUAL, cfop: '6152', icmsCst: '00', icmsAliquota: 12, ipiCst: '99', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Transferência interestadual', priority: 0 },
+  ];
+
+  for (const rule of taxRules) {
+    const exists = await prisma.taxRule.findFirst({
+      where: { companyId: rule.companyId, operationType: rule.operationType, cfop: rule.cfop },
+    });
+    if (!exists) {
+      await prisma.taxRule.create({ data: rule });
     }
   }
 
