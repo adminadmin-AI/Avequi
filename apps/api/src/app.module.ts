@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
+import * as Joi from 'joi';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
@@ -45,6 +46,26 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
+      validationSchema: Joi.object({
+        DATABASE_URL: Joi.string().uri().required(),
+        DIRECT_URL: Joi.string().uri().required(),
+        JWT_SECRET: Joi.string().min(32).required(),
+        JWT_EXPIRY: Joi.string().default('1h'),
+        REDIS_URL: Joi.string().uri().required(),
+        API_PORT: Joi.number().default(3001),
+        API_PREFIX: Joi.string().default('api'),
+        WEB_URL: Joi.string().uri().default('http://localhost:3000'),
+        NODE_ENV: Joi.string()
+          .valid('development', 'production', 'test')
+          .default('development'),
+        FOCUS_NFE_TOKEN: Joi.string().optional(),
+        FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
+        BANK_ENCRYPTION_KEY: Joi.string().optional(),
+      }),
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
     }),
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
