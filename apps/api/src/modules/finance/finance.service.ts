@@ -4,6 +4,7 @@ import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateInstallmentsDto } from './dto/create-installments.dto';
 
 @Injectable()
 export class FinanceService {
@@ -101,40 +102,165 @@ export class FinanceService {
     this.logger.log(`PAYABLE criado: ${entry.id} — GR ${params.goodsReceiptId} — R$ ${params.amount}`);
   }
 
-  // ─── S09.05: Registrar baixa de pagamento ────────────────────────────────
+  // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
 
-  async pay(id: string, companyId: string, dto: PayEntryDto): Promise<void> {
+  async pay(id: string, companyId: string, dto: PayEntryDto) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId },
+      include: { payments: true },
     });
 
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
-    if (entry.status !== FinancialEntryStatus.OPEN) {
+
+    const payableStatuses: FinancialEntryStatus[] = [
+      FinancialEntryStatus.OPEN,
+      FinancialEntryStatus.OVERDUE,
+      FinancialEntryStatus.PARTIALLY_PAID,
+    ];
+    if (!payableStatuses.includes(entry.status)) {
       throw new BadRequestException(
         `Lançamento não pode ser baixado. Status atual: ${entry.status}`,
       );
     }
 
-    await this.prisma.financialEntry.update({
-      where: { id },
-      data: {
-        status: FinancialEntryStatus.PAID,
-        paidAt: new Date(dto.paidAt),
-        paidAmount: dto.paidAmount,
-        paymentNote: dto.paymentNote ?? null,
-      },
+    const previouslyPaid = entry.payments.reduce(
+      (sum, p) => sum + Number(p.amount),
+      0,
+    );
+    const totalAmount = Number(entry.amount);
+    const remaining = totalAmount - previouslyPaid;
+
+    if (dto.paidAmount > remaining + 0.01) {
+      throw new BadRequestException(
+        `Valor excede saldo devedor. Restante: R$ ${remaining.toFixed(2)}`,
+      );
+    }
+
+    const newTotalPaid = previouslyPaid + dto.paidAmount;
+    const isFullyPaid = newTotalPaid >= totalAmount - 0.01;
+    const newStatus = isFullyPaid
+      ? FinancialEntryStatus.PAID
+      : FinancialEntryStatus.PARTIALLY_PAID;
+
+    const [payment] = await this.prisma.$transaction([
+      this.prisma.payment.create({
+        data: {
+          financialEntryId: id,
+          amount: dto.paidAmount,
+          paidAt: new Date(dto.paidAt),
+          method: dto.method,
+          bankAccountId: dto.bankAccountId ?? null,
+          reference: dto.reference ?? null,
+        },
+      }),
+      this.prisma.financialEntry.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          paidAt: isFullyPaid ? new Date(dto.paidAt) : null,
+          paidAmount: newTotalPaid,
+          paymentNote: dto.paymentNote ?? entry.paymentNote,
+        },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FinancialEntry',
+          action: isFullyPaid ? 'PAY_FULL' : 'PAY_PARTIAL',
+          payload: {
+            id,
+            paymentAmount: dto.paidAmount,
+            totalPaid: newTotalPaid,
+            remaining: totalAmount - newTotalPaid,
+            method: dto.method,
+          },
+        },
+      }),
+    ]);
+
+    this.logger.log(
+      `FinancialEntry ${id} → ${newStatus} — pagamento R$ ${dto.paidAmount} (total pago: R$ ${newTotalPaid.toFixed(2)})`,
+    );
+
+    return {
+      paymentId: payment.id,
+      status: newStatus,
+      totalPaid: newTotalPaid,
+      remaining: totalAmount - newTotalPaid,
+    };
+  }
+
+  // ─── Parcelamento de títulos ─────────────────────────────────────────────
+
+  async createInstallments(id: string, companyId: string, dto: CreateInstallmentsDto) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId },
+      include: { installments: true },
     });
 
-    await this.prisma.auditLog.create({
-      data: {
-        companyId,
-        entity: 'FinancialEntry',
-        action: 'PAY',
-        payload: { id, paidAt: dto.paidAt, paidAmount: dto.paidAmount },
-      },
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
+
+    if (entry.installments.length > 0) {
+      throw new BadRequestException('Lançamento já foi parcelado');
+    }
+
+    if (entry.status === FinancialEntryStatus.PAID || entry.status === FinancialEntryStatus.CANCELLED) {
+      throw new BadRequestException(`Lançamento com status ${entry.status} não pode ser parcelado`);
+    }
+
+    const totalAmount = Number(entry.amount);
+    const installmentAmount = Math.floor((totalAmount / dto.numberOfInstallments) * 100) / 100;
+    const lastInstallmentAmount = +(totalAmount - installmentAmount * (dto.numberOfInstallments - 1)).toFixed(2);
+
+    const installmentsData = Array.from({ length: dto.numberOfInstallments }, (_, i) => {
+      const dueDate = new Date(dto.firstDueDate);
+      dueDate.setDate(dueDate.getDate() + i * dto.intervalDays);
+
+      return {
+        companyId: entry.companyId,
+        type: entry.type,
+        status: FinancialEntryStatus.OPEN,
+        amount: i === dto.numberOfInstallments - 1 ? lastInstallmentAmount : installmentAmount,
+        dueDate,
+        description: `${entry.description ?? 'Parcela'} (${i + 1}/${dto.numberOfInstallments})`,
+        parentEntryId: entry.id,
+        salesOrderId: null as string | null,
+        purchaseOrderId: entry.purchaseOrderId,
+        goodsReceiptId: null as string | null,
+      };
     });
 
-    this.logger.log(`FinancialEntry ${id} → PAID — R$ ${dto.paidAmount}`);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const installments = await Promise.all(
+        installmentsData.map((data) => tx.financialEntry.create({ data })),
+      );
+
+      await tx.financialEntry.update({
+        where: { id },
+        data: { status: FinancialEntryStatus.CANCELLED },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FinancialEntry',
+          action: 'CREATE_INSTALLMENTS',
+          payload: {
+            parentId: id,
+            numberOfInstallments: dto.numberOfInstallments,
+            installmentIds: installments.map((i) => i.id),
+          },
+        },
+      });
+
+      return installments;
+    });
+
+    this.logger.log(
+      `FinancialEntry ${id} parcelado em ${dto.numberOfInstallments}x — IDs: ${created.map((i) => i.id).join(', ')}`,
+    );
+
+    return created;
   }
 
   // ─── Cancelar lançamento (preserva histórico, não deleta) ────────────────
@@ -150,6 +276,9 @@ export class FinanceService {
     }
     if (entry.status === FinancialEntryStatus.CANCELLED) {
       throw new BadRequestException('Lançamento já está cancelado');
+    }
+    if (entry.status === FinancialEntryStatus.PARTIALLY_PAID) {
+      throw new BadRequestException('Lançamento parcialmente pago não pode ser cancelado. Estorne os pagamentos primeiro');
     }
 
     await this.prisma.financialEntry.update({
@@ -212,6 +341,8 @@ export class FinanceService {
         purchaseOrder: { include: { supplier: true } },
         goodsReceipt: { include: { items: { include: { product: true } } } },
         fiscalDocument: true,
+        payments: { orderBy: { paidAt: 'asc' } },
+        installments: { orderBy: { dueDate: 'asc' } },
       },
     });
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);

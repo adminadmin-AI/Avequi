@@ -846,8 +846,18 @@ enum FinancialEntryType {
 enum FinancialEntryStatus {
   OPEN
   OVERDUE
+  PARTIALLY_PAID
   PAID
   CANCELLED
+}
+
+enum PaymentMethod {
+  BOLETO
+  PIX
+  TED
+  DINHEIRO
+  CARTAO
+  CHEQUE
 }
 
 model FinancialEntry {
@@ -870,6 +880,10 @@ model FinancialEntry {
   paidAt           DateTime?
   paidAmount       Decimal?             @db.Decimal(14, 4)
   paymentNote      String?
+  parentEntryId    String?
+  parentEntry      FinancialEntry?      @relation("Installments", fields: [parentEntryId], references: [id])
+  installments     FinancialEntry[]     @relation("Installments")
+  payments         Payment[]
   costCenterSplits EntryCostCenterSplit[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -877,7 +891,25 @@ model FinancialEntry {
   @@index([companyId])
   @@index([type, status])
   @@index([dueDate])
+  @@index([parentEntryId])
   @@map("gdr_financial_entries")
+}
+
+model Payment {
+  id               String             @id @default(cuid())
+  financialEntryId String
+  financialEntry   FinancialEntry     @relation(fields: [financialEntryId], references: [id])
+  amount           Decimal            @db.Decimal(14, 4)
+  paidAt           DateTime
+  method           PaymentMethod
+  bankAccountId    String?
+  bankAccount      BankAccount?       @relation(fields: [bankAccountId], references: [id])
+  reference        String?
+  createdAt        DateTime           @default(now())
+
+  @@index([financialEntryId])
+  @@index([bankAccountId])
+  @@map("gdr_payments")
 }
 
 model EntryCostCenterSplit {
@@ -907,6 +939,7 @@ model BankAccount {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  payments            Payment[]
   payables            Payable[]
   receivables         Receivable[]
   boletos             Boleto[]

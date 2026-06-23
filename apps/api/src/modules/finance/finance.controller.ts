@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { FinanceService } from './finance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateInstallmentsDto } from './dto/create-installments.dto';
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -68,6 +69,16 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.pay(id, req.user.companyId, dto);
+  }
+
+  @Post(':id/installments')
+  @ApiOperation({ summary: 'Parcelar lançamento em N parcelas' })
+  createInstallments(
+    @Param('id') id: string,
+    @Body() dto: CreateInstallmentsDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createInstallments(id, req.user.companyId, dto);
   }
 
   @Patch(':id/cancel')
