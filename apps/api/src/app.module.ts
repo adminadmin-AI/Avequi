@@ -67,6 +67,7 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
         FOCUS_NFE_TOKEN: Joi.string().optional(),
         FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
         BANK_ENCRYPTION_KEY: Joi.string().optional(),
+        PIX_WEBHOOK_SECRET: Joi.string().optional(),
       }),
       validationOptions: {
         abortEarly: false,
