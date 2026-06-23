@@ -670,6 +670,8 @@ enum SalesOrderStatus {
   DRAFT
   RESERVED
   CONFIRMED
+  AWAITING_PICKING
+  READY_TO_INVOICE
   INVOICED
   RETURNED
   CANCELLED
@@ -688,6 +690,7 @@ model SalesOrder {
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
+  pickedAt    DateTime?
   invoicedAt  DateTime?
   returnedAt  DateTime?
   cancelledAt DateTime?

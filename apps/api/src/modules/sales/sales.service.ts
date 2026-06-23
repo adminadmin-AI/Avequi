@@ -8,6 +8,7 @@ import { SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
+import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
 
 @Injectable()
@@ -126,12 +127,14 @@ export class SalesService {
     });
   }
 
-  // ─── S07.04a: Confirmar venda (RESERVED → CONFIRMED) — sem movimento ──────
-  //   Confirmação é aprovação comercial. A saída física só ocorre no faturamento.
+  // ─── S07.04a: Confirmar venda (RESERVED → AWAITING_PICKING) ────────────────
+  //   Confirmação comercial. Dispara criação de PickingOrder via evento.
+  //   Picking deve ser concluído antes do faturamento.
 
   async confirmOrder(id: string, companyId: string, userId?: string) {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, companyId },
+      include: { items: true },
     });
 
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -144,7 +147,7 @@ export class SalesService {
 
     const confirmed = await this.prisma.salesOrder.update({
       where: { id },
-      data: { status: SalesOrderStatus.CONFIRMED, confirmedAt: new Date() },
+      data: { status: SalesOrderStatus.AWAITING_PICKING, confirmedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
 
@@ -158,24 +161,69 @@ export class SalesService {
       },
     });
 
+    // Emitir após commit — WMS ouve para criar PickingOrder
+    this.eventEmitter.emit(
+      SALE_CONFIRMED_EVENT,
+      new SaleConfirmedEvent(
+        confirmed.companyId,
+        userId,
+        confirmed.id,
+        confirmed.warehouseId,
+        (confirmed.items as any[]).map((i) => ({
+          productId: i.productId,
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+        })),
+      ),
+    );
+
     return confirmed;
   }
 
-  // ─── S07.04b: Faturar venda (CONFIRMED → INVOICED) — baixa estoque ────────
-  //   Gera StockMovement EXIT e emite evento para fiscal e financeiro.
+  // ─── S07.04a2: Marcar como pronto para faturar (AWAITING_PICKING → READY_TO_INVOICE)
+  //   Chamado pelo listener quando PickingOrder.status = DONE.
+
+  async markReadyToInvoice(salesOrderId: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: salesOrderId },
+    });
+
+    if (!order) throw new NotFoundException(`Venda ${salesOrderId} não encontrada`);
+    if (order.status !== SalesOrderStatus.AWAITING_PICKING) {
+      throw new BadRequestException(
+        `Venda não pode ser marcada como pronta. Status atual: ${order.status}`,
+      );
+    }
+
+    return this.prisma.salesOrder.update({
+      where: { id: salesOrderId },
+      data: { status: SalesOrderStatus.READY_TO_INVOICE, pickedAt: new Date() },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+  }
+
+  // ─── S07.04b: Faturar venda (READY_TO_INVOICE → INVOICED) — baixa estoque ──
+  //   Picking deve estar concluído. Gera StockMovement EXIT e emite evento para fiscal e financeiro.
 
   async invoiceOrder(id: string, companyId: string, userId?: string) {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true },
+        include: { items: true, pickingOrder: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
-      if (order.status !== SalesOrderStatus.CONFIRMED) {
+      if (order.status !== SalesOrderStatus.READY_TO_INVOICE) {
         throw new BadRequestException(
           `Venda não pode ser faturada. Status atual: ${order.status}. ` +
-            `Apenas vendas CONFIRMADAS podem ser faturadas.`,
+            `Apenas vendas com picking concluído (READY_TO_INVOICE) podem ser faturadas.`,
+        );
+      }
+
+      // Validação de segurança: picking deve estar DONE
+      if (!order.pickingOrder || order.pickingOrder.status !== 'DONE') {
+        throw new BadRequestException(
+          'Picking não concluído. Conclua todas as tarefas de picking antes de faturar.',
         );
       }
 
@@ -334,7 +382,9 @@ export class SalesService {
 
       const needsStockRevert =
         order.status === SalesOrderStatus.RESERVED ||
-        order.status === SalesOrderStatus.CONFIRMED;
+        order.status === SalesOrderStatus.CONFIRMED ||
+        order.status === SalesOrderStatus.AWAITING_PICKING ||
+        order.status === SalesOrderStatus.READY_TO_INVOICE;
 
       if (needsStockRevert) {
         for (const item of order.items) {

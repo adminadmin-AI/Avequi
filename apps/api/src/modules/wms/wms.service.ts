@@ -4,9 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoodsReceivedEvent } from '../stock/events/goods-received.event';
-import { SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
+import { SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
+import { SALE_PICKED_EVENT, SalePickedEvent } from '../sales/events/sale-picked.event';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
 import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
@@ -17,7 +19,10 @@ import { RecordCountDto } from './dto/record-count.dto';
 export class WmsService {
   private readonly logger = new Logger(WmsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ─── S17.01: Criar endereço físico ────────────────────────────────────────
 
@@ -221,9 +226,9 @@ export class WmsService {
     });
   }
 
-  // ─── S18.01: Criar PickingOrder (chamado pelo listener SaleInvoiced) ────────
+  // ─── S18.01: Criar PickingOrder (chamado pelo listener SaleConfirmed) ───────
 
-  async createPickingOrder(event: SaleInvoicedEvent) {
+  async createPickingOrder(event: SaleConfirmedEvent) {
     const warehouse = await this.prisma.warehouse.findUnique({
       where: { id: event.warehouseId },
       select: { wmsEnabled: true },
@@ -376,11 +381,22 @@ export class WmsService {
       });
 
       if (pendingCount === 0) {
-        await tx.pickingOrder.update({
+        const doneOrder = await tx.pickingOrder.update({
           where: { id: orderId },
           data: { status: 'DONE' },
         });
         this.logger.log(`Picking Order ${orderId} concluída — todas as tarefas confirmadas`);
+
+        // Emitir evento para atualizar SalesOrder → READY_TO_INVOICE
+        this.eventEmitter.emit(
+          SALE_PICKED_EVENT,
+          new SalePickedEvent(
+            companyId,
+            doneOrder.salesOrderId,
+            orderId,
+            doneOrder.warehouseId,
+          ),
+        );
       } else {
         await tx.pickingOrder.update({
           where: { id: orderId },

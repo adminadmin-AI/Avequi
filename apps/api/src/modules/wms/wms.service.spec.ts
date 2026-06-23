@@ -1,7 +1,10 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WmsService } from './wms.service';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const mockEventEmitter = { emit: jest.fn() };
 
 const mockPrisma = {
   location: {
@@ -72,6 +75,7 @@ describe('WmsService', () => {
       providers: [
         WmsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -461,7 +465,7 @@ describe('WmsService', () => {
       },
       pickingOrder: {
         findUnique: jest.fn().mockResolvedValue({ warehouseId: 'w1' }),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue({ id: orderId, salesOrderId: 'so-1', warehouseId: 'w1', status: 'DONE' }),
       },
       location: {
         findFirst: jest.fn().mockResolvedValue({ id: 'loc1', warehouseId: 'w1', code: 'A-01', isActive: true }),
