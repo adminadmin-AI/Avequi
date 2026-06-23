@@ -21,6 +21,18 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  financialCategory: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  costCenter: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -428,6 +440,102 @@ describe('FinanceService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ─── Categorias gerenciais ───────────────────────────────────────────────
+
+  describe('createCategory', () => {
+    it('deve criar categoria raiz', async () => {
+      mockPrisma.financialCategory.create.mockResolvedValue({ id: 'cat-1', name: 'Receitas', code: 'REC' });
+
+      const result = await service.createCategory('co-1', {
+        name: 'Receitas',
+        code: 'REC',
+        type: 'REVENUE',
+      });
+
+      expect(result.name).toBe('Receitas');
+      expect(mockPrisma.financialCategory.create).toHaveBeenCalled();
+    });
+
+    it('deve criar subcategoria com parentId', async () => {
+      mockPrisma.financialCategory.findFirst.mockResolvedValue({ id: 'cat-1' });
+      mockPrisma.financialCategory.create.mockResolvedValue({ id: 'cat-2', name: 'Receita Operacional', parentId: 'cat-1' });
+
+      const result = await service.createCategory('co-1', {
+        name: 'Receita Operacional',
+        code: 'REC-OP',
+        type: 'REVENUE',
+        parentId: 'cat-1',
+      });
+
+      expect(result.parentId).toBe('cat-1');
+    });
+
+    it('deve rejeitar subcategoria com parentId inexistente', async () => {
+      mockPrisma.financialCategory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createCategory('co-1', { name: 'Sub', type: 'EXPENSE', parentId: 'bad-id' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllCategories', () => {
+    it('deve retornar apenas categorias raiz com children', async () => {
+      mockPrisma.financialCategory.findMany.mockResolvedValue([
+        { id: 'cat-1', name: 'Receitas', parentId: null, children: [{ id: 'cat-2', name: 'Receita Op' }] },
+        { id: 'cat-2', name: 'Receita Op', parentId: 'cat-1', children: [] },
+      ]);
+
+      const result = await service.findAllCategories('co-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Receitas');
+    });
+  });
+
+  // ─── Centros de custo ────────────────────────────────────────────────────
+
+  describe('createCostCenter', () => {
+    it('deve criar centro de custo raiz', async () => {
+      mockPrisma.costCenter.create.mockResolvedValue({ id: 'cc-1', name: 'Fábrica', code: 'FAB' });
+
+      const result = await service.createCostCenter('co-1', { name: 'Fábrica', code: 'FAB' });
+
+      expect(result.name).toBe('Fábrica');
+    });
+
+    it('deve criar sub-centro com parentId', async () => {
+      mockPrisma.costCenter.findFirst.mockResolvedValue({ id: 'cc-1' });
+      mockPrisma.costCenter.create.mockResolvedValue({ id: 'cc-2', name: 'Corte', parentId: 'cc-1' });
+
+      const result = await service.createCostCenter('co-1', { name: 'Corte', code: 'FAB-COR', parentId: 'cc-1' });
+
+      expect(result.parentId).toBe('cc-1');
+    });
+
+    it('deve rejeitar sub-centro com parentId inexistente', async () => {
+      mockPrisma.costCenter.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createCostCenter('co-1', { name: 'Sub', parentId: 'bad-id' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllCostCenters', () => {
+    it('deve retornar apenas centros raiz com children', async () => {
+      mockPrisma.costCenter.findMany.mockResolvedValue([
+        { id: 'cc-1', name: 'Fábrica', parentId: null, children: [{ id: 'cc-2', name: 'Corte' }] },
+        { id: 'cc-2', name: 'Corte', parentId: 'cc-1', children: [] },
+      ]);
+
+      const result = await service.findAllCostCenters('co-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Fábrica');
     });
   });
 });

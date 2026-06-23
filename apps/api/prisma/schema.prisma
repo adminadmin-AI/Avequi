@@ -877,6 +877,8 @@ model FinancialEntry {
   goodsReceipt     GoodsReceipt?        @relation(fields: [goodsReceiptId], references: [id])
   fiscalDocumentId String?              @unique
   fiscalDocument   FiscalDocument?      @relation(fields: [fiscalDocumentId], references: [id])
+  categoryId       String?
+  category         FinancialCategory?   @relation(fields: [categoryId], references: [id])
   paidAt           DateTime?
   paidAmount       Decimal?             @db.Decimal(14, 4)
   paymentNote      String?
@@ -1845,6 +1847,7 @@ model FinancialCategory {
   isActive  Boolean               @default(true)
   legacyId  String?
 
+  entries     FinancialEntry[]
   payables    Payable[]
   receivables Receivable[]
 
@@ -1863,6 +1866,9 @@ model CostCenter {
   name      String
   code      String?
   isActive  Boolean @default(true)
+  parentId  String?
+  parent    CostCenter?  @relation("CostCenterHierarchy", fields: [parentId], references: [id])
+  children  CostCenter[] @relation("CostCenterHierarchy")
   legacyId  String?
 
   payableAllocations    PayableAllocation[]
@@ -1871,6 +1877,7 @@ model CostCenter {
 
   createdAt DateTime @default(now())
 
+  @@index([parentId])
   @@map("gdr_cost_centers")
 }
 

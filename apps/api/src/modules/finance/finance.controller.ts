@@ -17,6 +17,8 @@ import { FinanceService } from './finance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -121,5 +123,77 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.deactivateBankAccount(id, req.user.companyId);
+  }
+
+  // ─── Categorias gerenciais ───────────────────────────────────────────────
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Criar categoria financeira' })
+  createCategory(
+    @Body() dto: CreateCategoryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createCategory(req.user.companyId, dto);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Listar categorias hierárquicas' })
+  findAllCategories(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.findAllCategories(req.user.companyId);
+  }
+
+  @Patch('categories/:id')
+  @ApiOperation({ summary: 'Atualizar categoria' })
+  updateCategory(
+    @Param('id') id: string,
+    @Body() dto: CreateCategoryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.updateCategory(id, req.user.companyId, dto);
+  }
+
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'Desativar categoria' })
+  deactivateCategory(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.deactivateCategory(id, req.user.companyId);
+  }
+
+  // ─── Centros de custo ────────────────────────────────────────────────────
+
+  @Post('cost-centers')
+  @ApiOperation({ summary: 'Criar centro de custo' })
+  createCostCenter(
+    @Body() dto: CreateCostCenterDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.createCostCenter(req.user.companyId, dto);
+  }
+
+  @Get('cost-centers')
+  @ApiOperation({ summary: 'Listar centros de custo hierárquicos' })
+  findAllCostCenters(@Request() req: { user: { companyId: string } }) {
+    return this.financeService.findAllCostCenters(req.user.companyId);
+  }
+
+  @Patch('cost-centers/:id')
+  @ApiOperation({ summary: 'Atualizar centro de custo' })
+  updateCostCenter(
+    @Param('id') id: string,
+    @Body() dto: CreateCostCenterDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.updateCostCenter(id, req.user.companyId, dto);
+  }
+
+  @Delete('cost-centers/:id')
+  @ApiOperation({ summary: 'Desativar centro de custo' })
+  deactivateCostCenter(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.deactivateCostCenter(id, req.user.companyId);
   }
 }

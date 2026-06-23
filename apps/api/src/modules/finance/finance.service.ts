@@ -5,6 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 
 @Injectable()
 export class FinanceService {
@@ -458,6 +460,97 @@ export class FinanceService {
       netBalance: totalReceivable - totalPayable,
       entries: rows.map((r) => ({ ...r, amount: Number(r.amount) })),
     };
+  }
+
+  // ─── Categorias gerenciais ─────────────────────────────────────────────────
+
+  async createCategory(companyId: string, dto: CreateCategoryDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.financialCategory.findFirst({
+        where: { id: dto.parentId, companyId },
+      });
+      if (!parent) throw new NotFoundException(`Categoria pai ${dto.parentId} não encontrada`);
+    }
+
+    return this.prisma.financialCategory.create({
+      data: { companyId, ...dto },
+    });
+  }
+
+  async findAllCategories(companyId: string) {
+    const categories = await this.prisma.financialCategory.findMany({
+      where: { companyId, isActive: true },
+      include: { children: { where: { isActive: true } } },
+      orderBy: { code: 'asc' },
+    });
+
+    // Return only root categories (parentId === null) with children nested
+    return categories.filter((c) => !c.parentId);
+  }
+
+  async updateCategory(id: string, companyId: string, dto: Partial<CreateCategoryDto>) {
+    const category = await this.prisma.financialCategory.findFirst({ where: { id, companyId } });
+    if (!category) throw new NotFoundException(`Categoria ${id} não encontrada`);
+
+    return this.prisma.financialCategory.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateCategory(id: string, companyId: string) {
+    const category = await this.prisma.financialCategory.findFirst({ where: { id, companyId } });
+    if (!category) throw new NotFoundException(`Categoria ${id} não encontrada`);
+
+    return this.prisma.financialCategory.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  // ─── Centros de custo ─────────────────────────────────────────────────────
+
+  async createCostCenter(companyId: string, dto: CreateCostCenterDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.costCenter.findFirst({
+        where: { id: dto.parentId, companyId },
+      });
+      if (!parent) throw new NotFoundException(`Centro de custo pai ${dto.parentId} não encontrado`);
+    }
+
+    return this.prisma.costCenter.create({
+      data: { companyId, ...dto },
+    });
+  }
+
+  async findAllCostCenters(companyId: string) {
+    const centers = await this.prisma.costCenter.findMany({
+      where: { companyId, isActive: true },
+      include: { children: { where: { isActive: true } } },
+      orderBy: { code: 'asc' },
+    });
+
+    return centers.filter((c) => !c.parentId);
+  }
+
+  async updateCostCenter(id: string, companyId: string, dto: Partial<CreateCostCenterDto>) {
+    const center = await this.prisma.costCenter.findFirst({ where: { id, companyId } });
+    if (!center) throw new NotFoundException(`Centro de custo ${id} não encontrado`);
+
+    return this.prisma.costCenter.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deactivateCostCenter(id: string, companyId: string) {
+    const center = await this.prisma.costCenter.findFirst({ where: { id, companyId } });
+    if (!center) throw new NotFoundException(`Centro de custo ${id} não encontrado`);
+
+    return this.prisma.costCenter.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 
   // ─── Util ─────────────────────────────────────────────────────────────────
