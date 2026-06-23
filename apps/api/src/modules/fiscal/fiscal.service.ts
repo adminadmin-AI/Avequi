@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FiscalClientService } from './fiscal-client.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
+import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import {
   buildNFCePayload,
   buildNFePayload,
@@ -12,6 +14,8 @@ import {
   FiscalPayloadInput,
 } from './fiscal-mapper';
 
+const CANCEL_DEADLINE_HOURS = 24;
+
 @Injectable()
 export class FiscalService {
   private readonly logger = new Logger(FiscalService.name);
@@ -20,6 +24,7 @@ export class FiscalService {
     private readonly prisma: PrismaService,
     private readonly client: FiscalClientService,
     private readonly taxCalc: TaxCalculationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ─── S08.03: Emitir NF para venda confirmada ──────────────────────────────
@@ -344,6 +349,73 @@ export class FiscalService {
     const payload = buildTransferNFePayload(input);
     const response = await this.client.emitNFe(ref, payload);
     await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
+  // ─── Cancelamento de NF-e (#164) ──────────────────────────────────────────
+
+  async cancel(id: string, companyId: string, justificativa: string): Promise<void> {
+    const doc = await this.prisma.fiscalDocument.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
+
+    if (doc.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException(
+        `Somente documentos AUTHORIZED podem ser cancelados. Status atual: ${doc.status}`,
+      );
+    }
+
+    // Validar prazo de 24h
+    const hoursElapsed = (Date.now() - doc.createdAt.getTime()) / (1000 * 60 * 60);
+    if (hoursElapsed > CANCEL_DEADLINE_HOURS) {
+      throw new UnprocessableEntityException(
+        `Prazo de ${CANCEL_DEADLINE_HOURS}h para cancelamento expirado (${Math.floor(hoursElapsed)}h desde a emissão). Use Carta de Correção.`,
+      );
+    }
+
+    // Chamar Focus NFe para cancelamento
+    const response = await this.client.cancelNFe(doc.focusRef, justificativa);
+
+    if (response.status === 'cancelado') {
+      await this.prisma.fiscalDocument.update({
+        where: { id },
+        data: {
+          status: FiscalStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationJustification: justificativa,
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalDocument',
+          action: 'CANCEL',
+          payload: { fiscalDocumentId: id, justificativa },
+        },
+      });
+
+      // Emitir evento para reversão de estoque e financeiro
+      this.eventEmitter.emit(
+        FISCAL_CANCELLED_EVENT,
+        new FiscalCancelledEvent(companyId, id, doc.salesOrderId, doc.storeTransferId),
+      );
+
+      this.logger.log(`NF-e ${id} cancelada com sucesso`);
+    } else {
+      // Rejeição do cancelamento pela SEFAZ
+      await this.prisma.fiscalDocument.update({
+        where: { id },
+        data: {
+          lastError: response.motivo ?? 'Erro ao cancelar na SEFAZ',
+        },
+      });
+
+      throw new BadRequestException(
+        `Cancelamento rejeitado pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`,
+      );
+    }
   }
 
   // ─── Consultas ────────────────────────────────────────────────────────────

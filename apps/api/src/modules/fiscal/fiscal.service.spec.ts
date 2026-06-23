@@ -1,10 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FiscalService } from './fiscal.service';
 import { FiscalClientService } from './fiscal-client.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
+import { FISCAL_CANCELLED_EVENT } from './events/fiscal-cancelled.event';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +29,12 @@ const mockPrisma = {
 const mockClient = {
   emitNFCe: jest.fn(),
   emitNFe: jest.fn(),
+  cancelNFe: jest.fn(),
   getStatus: jest.fn(),
+};
+
+const mockEventEmitter = {
+  emit: jest.fn(),
 };
 
 const mockTaxCalc = {
@@ -75,6 +82,7 @@ describe('FiscalService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FiscalClientService, useValue: mockClient },
         { provide: TaxCalculationService, useValue: mockTaxCalc },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -282,6 +290,126 @@ describe('FiscalService', () => {
 
       await expect(service.retry('fd-1', 'co-1')).resolves.not.toThrow();
       expect(mockClient.emitNFCe).toHaveBeenCalled();
+    });
+  });
+
+  // ─── #164: Cancelamento de NF-e ──────────────────────────────────────────
+
+  describe('cancel', () => {
+    const authorizedDoc = {
+      ...baseFiscalDoc,
+      status: FiscalStatus.AUTHORIZED,
+      createdAt: new Date(), // dentro do prazo de 24h
+      salesOrderId: 'so-1',
+      storeTransferId: null,
+    };
+
+    it('deve cancelar NF-e autorizada dentro do prazo de 24h', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedDoc);
+      mockClient.cancelNFe.mockResolvedValue({ status: 'cancelado' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({
+        ...authorizedDoc,
+        status: FiscalStatus.CANCELLED,
+      });
+
+      await service.cancel('fd-1', 'co-1', 'Erro no valor do produto informado na nota');
+
+      expect(mockClient.cancelNFe).toHaveBeenCalledWith(
+        'GDR-SO-so-1',
+        'Erro no valor do produto informado na nota',
+      );
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: FiscalStatus.CANCELLED,
+            cancellationJustification: 'Erro no valor do produto informado na nota',
+          }),
+        }),
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        FISCAL_CANCELLED_EVENT,
+        expect.objectContaining({
+          companyId: 'co-1',
+          fiscalDocumentId: 'fd-1',
+          salesOrderId: 'so-1',
+        }),
+      );
+    });
+
+    it('deve rejeitar cancelamento fora do prazo de 24h (422)', async () => {
+      const expiredDoc = {
+        ...authorizedDoc,
+        createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000), // 25h atrás
+      };
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(expiredDoc);
+
+      await expect(
+        service.cancel('fd-1', 'co-1', 'Justificativa de cancelamento tardio'),
+      ).rejects.toThrow(UnprocessableEntityException);
+
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+    });
+
+    it('deve rejeitar cancelamento de documento não autorizado (400)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.PENDING,
+      });
+
+      await expect(
+        service.cancel('fd-1', 'co-1', 'Tentando cancelar doc pendente'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar NotFoundException para documento inexistente', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.cancel('fd-x', 'co-1', 'Documento não existe na base'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar BadRequestException quando SEFAZ rejeita o cancelamento', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedDoc);
+      mockClient.cancelNFe.mockResolvedValue({
+        status: 'erro',
+        motivo: 'NF-e já está cancelada na base da SEFAZ',
+      });
+
+      await expect(
+        service.cancel('fd-1', 'co-1', 'Cancelamento rejeitado pela SEFAZ'),
+      ).rejects.toThrow(BadRequestException);
+
+      // Deve salvar o lastError
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lastError: 'NF-e já está cancelada na base da SEFAZ',
+          }),
+        }),
+      );
+      // Não deve emitir evento de reversão
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('deve criar audit log ao cancelar com sucesso', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedDoc);
+      mockClient.cancelNFe.mockResolvedValue({ status: 'cancelado' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({
+        ...authorizedDoc,
+        status: FiscalStatus.CANCELLED,
+      });
+
+      await service.cancel('fd-1', 'co-1', 'Cancelamento com audit log');
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          companyId: 'co-1',
+          entity: 'FiscalDocument',
+          action: 'CANCEL',
+          payload: expect.objectContaining({ fiscalDocumentId: 'fd-1' }),
+        }),
+      });
     });
   });
 });

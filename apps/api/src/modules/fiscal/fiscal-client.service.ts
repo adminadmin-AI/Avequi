@@ -37,6 +37,22 @@ export class FiscalClientService {
     return this.post(`/v2/nfe?ref=${ref}`, payload);
   }
 
+  /** Cancelar NF-e/NFC-e na SEFAZ via Focus NFe */
+  async cancelNFe(ref: string, justificativa: string): Promise<FocusEmissionResponse> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.delete<FocusEmissionResponse>(`${this.baseUrl}/v2/nfe/${ref}`, {
+          auth: { username: this.token, password: '' },
+          data: { justificativa },
+        }),
+      );
+      this.logger.log(`Focus NFe cancel response: status=${data.status} ref=${ref}`);
+      return data;
+    } catch (err) {
+      return this.handleError(err);
+    }
+  }
+
   /** Consultar status de um documento já enviado */
   async getStatus(type: 'nfe' | 'nfce', ref: string): Promise<FocusEmissionResponse> {
     try {

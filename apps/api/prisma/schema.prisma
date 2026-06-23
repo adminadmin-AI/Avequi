@@ -749,6 +749,8 @@ model FiscalDocument {
   rejectionReason  String?
   retryCount       Int                @default(0)
   lastError        String?
+  cancelledAt              DateTime?
+  cancellationJustification String?
   financialEntry   FinancialEntry?
   items            FiscalDocumentItem[]
   createdAt        DateTime           @default(now())
