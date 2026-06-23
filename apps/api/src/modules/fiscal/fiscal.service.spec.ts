@@ -24,12 +24,23 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  fiscalCorrection: {
+    create: jest.fn(),
+  },
+  fiscalVoidRange: {
+    create: jest.fn(),
+  },
+  company: {
+    findUnique: jest.fn(),
+  },
 };
 
 const mockClient = {
   emitNFCe: jest.fn(),
   emitNFe: jest.fn(),
   cancelNFe: jest.fn(),
+  sendCCe: jest.fn(),
+  voidRange: jest.fn(),
   getStatus: jest.fn(),
 };
 
@@ -410,6 +421,84 @@ describe('FiscalService', () => {
           payload: expect.objectContaining({ fiscalDocumentId: 'fd-1' }),
         }),
       });
+    });
+  });
+
+  // ─── #165: CC-e (Carta de Correção) ────────────────────────────────────
+
+  describe('correction', () => {
+    const authorizedDoc = {
+      ...baseFiscalDoc,
+      status: FiscalStatus.AUTHORIZED,
+      focusRef: 'GDR-SO-so-1',
+      corrections: [],
+    };
+
+    it('deve emitir CC-e para documento autorizado', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedDoc);
+      mockClient.sendCCe.mockResolvedValue({ status: 'autorizado', chave_nfe: 'PROT-123' });
+      mockPrisma.fiscalCorrection.create.mockResolvedValue({ id: 'corr-1', sequenceNumber: 1 });
+
+      const result = await service.correction('fd-1', 'co-1', 'Correção do endereço de entrega do cliente');
+
+      expect(result.sequenceNumber).toBe(1);
+      expect(result.protocol).toBe('PROT-123');
+      expect(mockClient.sendCCe).toHaveBeenCalledWith('GDR-SO-so-1', 'Correção do endereço de entrega do cliente');
+    });
+
+    it('deve rejeitar CC-e para documento cancelado (422)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...authorizedDoc,
+        status: FiscalStatus.CANCELLED,
+        corrections: [],
+      });
+
+      await expect(
+        service.correction('fd-1', 'co-1', 'Correção em nota cancelada'),
+      ).rejects.toThrow('cancelado');
+    });
+
+    it('deve rejeitar CC-e quando limite de 20 atingido', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...authorizedDoc,
+        corrections: [{ sequenceNumber: 20 }],
+      });
+
+      await expect(
+        service.correction('fd-1', 'co-1', 'Correção número 21 não permitida'),
+      ).rejects.toThrow('20');
+    });
+  });
+
+  // ─── #165: Inutilização ────────────────────────────────────────────────
+
+  describe('voidRange', () => {
+    it('deve inutilizar faixa com sucesso', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12.345.678/0001-90' });
+      mockClient.voidRange.mockResolvedValue({ status: 'autorizado', ref: 'PROT-VOID' });
+      mockPrisma.fiscalVoidRange.create.mockResolvedValue({ id: 'vr-1' });
+
+      const result = await service.voidRange('co-1', '1', 101, 104, 'Gap de numeração no sistema fiscal');
+
+      expect(mockClient.voidRange).toHaveBeenCalledWith(
+        expect.objectContaining({ cnpj: '12345678000190', serie: '1', numero_inicial: 101, numero_final: 104 }),
+      );
+      expect(result.protocol).toBe('PROT-VOID');
+    });
+
+    it('deve rejeitar quando número final < inicial', async () => {
+      await expect(
+        service.voidRange('co-1', '1', 105, 101, 'Faixa invertida no sistema'),
+      ).rejects.toThrow('>=');
+    });
+
+    it('deve lançar erro quando SEFAZ rejeita inutilização', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12345678000190' });
+      mockClient.voidRange.mockResolvedValue({ status: 'erro', motivo: 'Número já utilizado' });
+
+      await expect(
+        service.voidRange('co-1', '1', 100, 100, 'Tentativa de inutilizar número já usado'),
+      ).rejects.toThrow('Número já utilizado');
     });
   });
 });

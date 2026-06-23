@@ -418,6 +418,101 @@ export class FiscalService {
     }
   }
 
+  // ─── CC-e — Carta de Correção (#165) ──────────────────────────────────────
+
+  async correction(id: string, companyId: string, correcao: string): Promise<{ sequenceNumber: number; protocol?: string }> {
+    const doc = await this.prisma.fiscalDocument.findFirst({
+      where: { id, companyId },
+      include: { corrections: { orderBy: { sequenceNumber: 'desc' }, take: 1 } },
+    });
+
+    if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
+
+    if (doc.status === FiscalStatus.CANCELLED) {
+      throw new UnprocessableEntityException('Não é possível emitir CC-e para documento cancelado');
+    }
+    if (doc.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException(`CC-e só pode ser emitida para documentos AUTHORIZED. Status atual: ${doc.status}`);
+    }
+
+    const lastSeq = doc.corrections[0]?.sequenceNumber ?? 0;
+    if (lastSeq >= 20) {
+      throw new UnprocessableEntityException('Limite de 20 CC-e por documento atingido (regra SEFAZ)');
+    }
+
+    const sequenceNumber = lastSeq + 1;
+    const response = await this.client.sendCCe(doc.focusRef, correcao);
+
+    const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
+
+    if (response.status === 'autorizado' || response.status === 'processando_autorizacao') {
+      const correction = await this.prisma.fiscalCorrection.create({
+        data: { fiscalDocumentId: id, sequenceNumber, correctionText: correcao, protocol },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalCorrection',
+          action: 'CCE',
+          payload: { fiscalDocumentId: id, sequenceNumber, correctionId: correction.id },
+        },
+      });
+
+      return { sequenceNumber, protocol: protocol ?? undefined };
+    }
+
+    throw new BadRequestException(`CC-e rejeitada pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`);
+  }
+
+  // ─── Inutilização (#165) ────────────────────────────────────────────────
+
+  async voidRange(companyId: string, serie: string, numberStart: number, numberEnd: number, justificativa: string): Promise<{ protocol?: string }> {
+    if (numberEnd < numberStart) {
+      throw new BadRequestException('Número final deve ser >= número inicial');
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+
+    const response = await this.client.voidRange({
+      cnpj: company.cnpj.replace(/\D/g, ''),
+      serie,
+      numero_inicial: numberStart,
+      numero_final: numberEnd,
+      justificativa,
+    });
+
+    const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
+
+    if (response.status === 'autorizado' || response.status === 'processando_autorizacao') {
+      await this.prisma.fiscalVoidRange.create({
+        data: {
+          companyId,
+          serie,
+          numberStart,
+          numberEnd,
+          justification: justificativa,
+          protocol,
+          year: new Date().getFullYear(),
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FiscalVoidRange',
+          action: 'VOID',
+          payload: { serie, numberStart, numberEnd },
+        },
+      });
+
+      return { protocol: protocol ?? undefined };
+    }
+
+    throw new BadRequestException(`Inutilização rejeitada pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`);
+  }
+
   // ─── Consultas ────────────────────────────────────────────────────────────
 
   async findAll(companyId: string) {
