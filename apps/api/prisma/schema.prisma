@@ -122,6 +122,7 @@ model Company {
   analyticsQueryLogs   AnalyticsQueryLog[]
   taxRules             TaxRule[]
   fiscalVoidRanges     FiscalVoidRange[]
+  threeWayMatches      ThreeWayMatch[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -226,6 +227,7 @@ model User {
   quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
   inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
   batchEvents               BatchEvent[]        @relation("BatchEventUser")
+  matchResolutions          ThreeWayMatch[]     @relation("MatchResolvedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -607,6 +609,7 @@ model PurchaseOrder {
   payables             Payable[]
   convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
   inboundNfes          InboundNfe[]
+  threeWayMatches      ThreeWayMatch[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -644,6 +647,7 @@ model GoodsReceipt {
   receivingOrder   ReceivingOrder?
   inspections      Inspection[]
   inboundNfe       InboundNfe?
+  threeWayMatches  ThreeWayMatch[]
   createdAt        DateTime      @default(now())
 
   @@map("gdr_goods_receipts")
@@ -662,6 +666,39 @@ model GRItem {
   divergenceReason String?
 
   @@map("gdr_gr_items")
+}
+
+// ─── 3-Way Match ──────────────────────────────────────────────────────────────
+
+enum ThreeWayMatchResult {
+  FULL_MATCH
+  PARTIAL_MATCH
+  MISMATCH
+}
+
+model ThreeWayMatch {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId  String
+  goodsReceipt    GoodsReceipt        @relation(fields: [goodsReceiptId], references: [id])
+  inboundNfeId    String?
+  inboundNfe      InboundNfe?         @relation(fields: [inboundNfeId], references: [id])
+  result          ThreeWayMatchResult
+  qtyTolerance    Decimal             @default(0) @db.Decimal(5, 2)
+  priceTolerance  Decimal             @default(2) @db.Decimal(5, 2)
+  details         Json                // Array of per-item match details
+  resolvedById    String?
+  resolvedBy      User?               @relation("MatchResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([companyId, result])
+  @@index([purchaseOrderId])
+  @@map("gdr_three_way_matches")
 }
 
 // ─── Vendas ───────────────────────────────────────────────────────────────────
@@ -1732,6 +1769,7 @@ model InboundNfe {
   importedById    String?
   importedBy      User?            @relation("InboundNfeImportedBy", fields: [importedById], references: [id])
   importedAt      DateTime?
+  threeWayMatches ThreeWayMatch[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

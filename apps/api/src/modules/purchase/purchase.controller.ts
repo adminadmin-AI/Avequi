@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PurchaseRequestStatus } from '@prisma/client';
 import { PurchaseService } from './purchase.service';
+import { ThreeWayMatchService } from './three-way-match.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
@@ -21,7 +22,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiBearerAuth()
 @Controller('purchase')
 export class PurchaseController {
-  constructor(private readonly purchaseService: PurchaseService) {}
+  constructor(
+    private readonly purchaseService: PurchaseService,
+    private readonly matchService: ThreeWayMatchService,
+  ) {}
 
   // ─── Pedidos de Compra ────────────────────────────────────────────────────
 
@@ -86,6 +90,28 @@ export class PurchaseController {
     @Query('purchaseOrderId') purchaseOrderId?: string,
   ) {
     return this.purchaseService.findReceipts(user.companyId, purchaseOrderId);
+  }
+
+  // ─── 3-Way Match ─────────────────────────────────────────────────────────
+
+  @Get('orders/:id/match-status')
+  @ApiOperation({ summary: '3-Way Match: status PO × GR × NF-e' })
+  matchStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.matchService.getMatchStatus(id, user.companyId);
+  }
+
+  @Post('orders/:id/match')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  @ApiOperation({ summary: '3-Way Match: salvar resultado do match' })
+  saveMatch(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.matchService.saveMatch(id, user.companyId);
+  }
+
+  @Post('matches/:id/resolve')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: '3-Way Match: aprovar exceção de divergência' })
+  resolveMatch(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.matchService.resolveMatch(id, user.companyId, user?.id);
   }
 
   // ─── Solicitações de Compra (S05.07) ─────────────────────────────────────
