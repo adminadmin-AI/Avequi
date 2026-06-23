@@ -8,5 +8,21 @@
 }
 
 body {
-  @apply bg-white text-slate-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Tabular numerals for data/money columns */
+.tabular-nums {
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+}
+
+/* Brand gradient — 135deg Indigo -> Teal (brandbook) */
+.bg-brand-gradient {
+  background-image: linear-gradient(135deg, #3d2ce6 0%, #00c2a8 100%);
+}
+
+/* Focus ring (WCAG AA — 3px offset, brand color) */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
 }
