@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError('');
     try {
       await login(email, password);
-      router.push('/dashboard');
+      router.push('/app');
     } catch (err: any) {
       setError(err.message ?? 'Credenciais inválidas');
     } finally {
