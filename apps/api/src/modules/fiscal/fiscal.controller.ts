@@ -5,17 +5,15 @@ import {
   HttpCode,
   Param,
   Post,
-  Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { FiscalService } from './fiscal.service';
 
 @ApiTags('Fiscal')
+@ApiBearerAuth()
 @Controller('fiscal')
 export class FiscalController {
   constructor(private readonly fiscalService: FiscalService) {}
@@ -33,27 +31,21 @@ export class FiscalController {
 
   /** S08.05 — Reprocessar documento rejeitado ou em erro */
   @Post(':id/retry')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Reprocessar documento fiscal rejeitado' })
   async retry(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.fiscalService.retry(id, user?.companyId);
+    await this.fiscalService.retry(id, user.companyId);
     return { ok: true };
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar documentos fiscais da empresa' })
-  findAll(@Query('companyId') companyId: string) {
-    return this.fiscalService.findAll(companyId);
+  findAll(@CurrentUser() user: any) {
+    return this.fiscalService.findAll(user.companyId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Detalhe do documento fiscal' })
-  findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
-    return this.fiscalService.findOne(id, companyId);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.fiscalService.findOne(id, user.companyId);
   }
 }

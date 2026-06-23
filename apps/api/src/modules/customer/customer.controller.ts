@@ -6,25 +6,16 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('customers')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('customers')
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
@@ -38,24 +29,22 @@ export class CustomerController {
 
   @Get()
   @ApiOperation({ summary: 'Listar clientes' })
-  @ApiQuery({ name: 'companyId', required: true })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'type', required: false })
   @ApiQuery({ name: 'isActive', required: false })
   findAll(
-    @Query('companyId') companyId: string,
+    @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('type') type?: string,
     @Query('isActive') isActive?: string,
   ) {
-    return this.customerService.findAll(companyId, { search, type, isActive });
+    return this.customerService.findAll(user.companyId, { search, type, isActive });
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar cliente por ID' })
-  @ApiQuery({ name: 'companyId', required: true })
-  findOne(@Param('id') id: string, @Query('companyId') companyId: string) {
-    return this.customerService.findOne(id, companyId);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.customerService.findOne(id, user.companyId);
   }
 
   @Patch(':id')
