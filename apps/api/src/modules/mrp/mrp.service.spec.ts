@@ -13,6 +13,8 @@ const mockPrisma = {
   bomVersion: { findMany: jest.fn(), findFirst: jest.fn() },
   stockBalance: { findMany: jest.fn() },
   product: { findMany: jest.fn() },
+  salesOrder: { findMany: jest.fn() },
+  pOItem: { findMany: jest.fn() },
   purchaseOrder: { create: jest.fn() },
   productionOrder: { create: jest.fn() },
   warehouse: { findFirst: jest.fn() },
@@ -63,8 +65,10 @@ describe('MrpService', () => {
 
     service = module.get<MrpService>(MrpService);
     jest.clearAllMocks();
-    // Default: product.findMany retorna array vazio (sem dados de lotização)
+    // Defaults para novos queries (#181, #183)
     mockPrisma.product.findMany.mockResolvedValue([]);
+    mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+    mockPrisma.pOItem.findMany.mockResolvedValue([]);
   });
 
   // ─── run ─────────────────────────────────────────────────────────────────
@@ -343,6 +347,83 @@ describe('MrpService', () => {
       const result = await service.calculateRequirements('co-1', 30);
       const raw = result.find((r) => r.productId === 'p-raw');
       expect(Number(raw?.netQty)).toBe(0); // sem ajuste, estoque suficiente
+    });
+  });
+
+  // ─── calculateRequirements — pedidos firmes + lead time (#183) ────────────
+
+  describe('calculateRequirements — firm orders & lead time (#183)', () => {
+    it('deve incluir SalesOrders CONFIRMED como demanda firme', async () => {
+      // Sem forecasts mas com pedido firme
+      mockPrisma.demandForecast.findMany.mockResolvedValue([]);
+      mockPrisma.salesOrder.findMany.mockResolvedValue([
+        {
+          id: 'so-1',
+          status: 'CONFIRMED',
+          items: [{ productId: 'p-raw', quantity: '15' }],
+        },
+      ]);
+      mockPrisma.bomVersion.findMany.mockResolvedValue([]);
+      mockPrisma.stockBalance.findMany.mockResolvedValue([]);
+
+      const result = await service.calculateRequirements('co-1', 30);
+      const raw = result.find((r) => r.productId === 'p-raw');
+      expect(Number(raw?.grossQty)).toBe(15);
+      expect(Number(raw?.netQty)).toBe(15);
+    });
+
+    it('deve somar demanda de forecast + pedidos firmes', async () => {
+      mockPrisma.demandForecast.findMany.mockResolvedValue([
+        { productId: 'p-raw', quantity: '10', product: { id: 'p-raw', type: 'RAW_MATERIAL', minOrderQty: null, orderMultiple: null, minProductionQty: null, productionMultiple: null, leadTimeDays: 0 } },
+      ]);
+      mockPrisma.salesOrder.findMany.mockResolvedValue([
+        { id: 'so-1', status: 'CONFIRMED', items: [{ productId: 'p-raw', quantity: '5' }] },
+      ]);
+      mockPrisma.bomVersion.findMany.mockResolvedValue([]);
+      mockPrisma.stockBalance.findMany.mockResolvedValue([]);
+
+      const result = await service.calculateRequirements('co-1', 30);
+      const raw = result.find((r) => r.productId === 'p-raw');
+      expect(Number(raw?.grossQty)).toBe(15); // 10 + 5
+    });
+
+    it('PO pendente deve reduzir necessidade líquida', async () => {
+      mockPrisma.demandForecast.findMany.mockResolvedValue([
+        { productId: 'p-raw', quantity: '100', product: { id: 'p-raw', type: 'RAW_MATERIAL', minOrderQty: null, orderMultiple: null, minProductionQty: null, productionMultiple: null, leadTimeDays: 0 } },
+      ]);
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      mockPrisma.bomVersion.findMany.mockResolvedValue([]);
+      mockPrisma.stockBalance.findMany.mockResolvedValue([
+        { productId: 'p-raw', available: '20', inTransit: '10' },
+      ]);
+      // PO pendente com 30 unidades
+      mockPrisma.pOItem.findMany.mockResolvedValue([
+        { productId: 'p-raw', quantity: '30' },
+      ]);
+
+      const result = await service.calculateRequirements('co-1', 30);
+      const raw = result.find((r) => r.productId === 'p-raw');
+      // supply = 20 (available) + 10 (inTransit) + 30 (PO) = 60
+      expect(Number(raw?.netQty)).toBe(40); // 100 - 60
+    });
+
+    it('lead time offset: suggestedDate deve antecipar pela leadTimeDays', async () => {
+      mockPrisma.demandForecast.findMany.mockResolvedValue([
+        { productId: 'p-raw', quantity: '10', product: { id: 'p-raw', type: 'RAW_MATERIAL', minOrderQty: null, orderMultiple: null, minProductionQty: null, productionMultiple: null, leadTimeDays: 10 } },
+      ]);
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      mockPrisma.bomVersion.findMany.mockResolvedValue([]);
+      mockPrisma.stockBalance.findMany.mockResolvedValue([]);
+
+      const result = await service.calculateRequirements('co-1', 30);
+      const raw = result.find((r) => r.productId === 'p-raw');
+
+      // suggestedDate deve ser ~20 dias no futuro (30 - 10)
+      const now = new Date();
+      const expectedDate = new Date();
+      expectedDate.setDate(now.getDate() + 20); // 30 horizonte - 10 lead time
+      const diffDays = Math.round((raw!.suggestedDate!.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      expect(diffDays).toBe(20);
     });
   });
 

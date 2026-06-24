@@ -95,12 +95,28 @@ export class MrpService {
             orderMultiple: true,
             minProductionQty: true,
             productionMultiple: true,
+            leadTimeDays: true,
           },
         },
       },
     });
 
-    if (forecasts.length === 0) return [];
+    // 2b. Busca pedidos firmes (OVs confirmadas) como demanda (#183)
+    const horizonEnd = new Date();
+    horizonEnd.setDate(horizonEnd.getDate() + horizonDays);
+    const firmOrders = await this.prisma.salesOrder.findMany({
+      where: {
+        companyId,
+        status: { in: ['CONFIRMED', 'AWAITING_PICKING', 'READY_TO_INVOICE'] },
+      },
+      include: {
+        items: {
+          select: { productId: true, quantity: true },
+        },
+      },
+    });
+
+    if (forecasts.length === 0 && firmOrders.length === 0) return [];
 
     // 3. Agrega demanda bruta por produto + coleta dados de lotização
     const demandMap = new Map<string, number>();
@@ -109,6 +125,7 @@ export class MrpService {
       orderMultiple: number | null;
       minProductionQty: number | null;
       productionMultiple: number | null;
+      leadTimeDays: number;
     }>();
     for (const f of forecasts) {
       const prev = demandMap.get(f.productId) ?? 0;
@@ -119,7 +136,16 @@ export class MrpService {
           orderMultiple: f.product.orderMultiple ? Number(f.product.orderMultiple) : null,
           minProductionQty: f.product.minProductionQty ? Number(f.product.minProductionQty) : null,
           productionMultiple: f.product.productionMultiple ? Number(f.product.productionMultiple) : null,
+          leadTimeDays: f.product.leadTimeDays ?? 0,
         });
+      }
+    }
+
+    // 3b. Agrega demanda de pedidos firmes (#183)
+    for (const order of firmOrders) {
+      for (const item of order.items) {
+        const prev = demandMap.get(item.productId) ?? 0;
+        demandMap.set(item.productId, prev + Number(item.quantity));
       }
     }
 
@@ -159,6 +185,7 @@ export class MrpService {
           orderMultiple: true,
           minProductionQty: true,
           productionMultiple: true,
+          leadTimeDays: true,
         },
       });
       for (const p of products) {
@@ -167,22 +194,36 @@ export class MrpService {
           orderMultiple: p.orderMultiple ? Number(p.orderMultiple) : null,
           minProductionQty: p.minProductionQty ? Number(p.minProductionQty) : null,
           productionMultiple: p.productionMultiple ? Number(p.productionMultiple) : null,
+          leadTimeDays: p.leadTimeDays ?? 0,
         });
       }
     }
 
     const stockBalances = await this.prisma.stockBalance.findMany({
       where: { companyId, productId: { in: productIds } },
-      select: { productId: true, available: true },
+      select: { productId: true, available: true, inTransit: true },
     });
     const stockMap = new Map<string, number>();
     for (const sb of stockBalances) {
       const prev = stockMap.get(sb.productId) ?? 0;
-      stockMap.set(sb.productId, prev + Number(sb.available));
+      stockMap.set(sb.productId, prev + Number(sb.available) + Number(sb.inTransit ?? 0));
+    }
+
+    // 6c. Busca POs pendentes como supply adicional (#183)
+    const pendingPOs = await this.prisma.pOItem.findMany({
+      where: {
+        purchaseOrder: { companyId, status: { in: ['DRAFT', 'SENT', 'CONFIRMED'] } },
+        productId: { in: productIds },
+      },
+      select: { productId: true, quantity: true },
+    });
+    for (const poi of pendingPOs) {
+      const prev = stockMap.get(poi.productId) ?? 0;
+      stockMap.set(poi.productId, prev + Number(poi.quantity));
     }
 
     // 7. Determina tipo de sugestão e calcula necessidade líquida
-    const suggestedDate = this.suggestedDate(horizonDays);
+    const defaultSuggestedDate = this.suggestedDate(horizonDays);
     const results: SuggestionInput[] = [];
 
     for (const [productId, { grossQty, level }] of componentDemand.entries()) {
@@ -191,20 +232,26 @@ export class MrpService {
       const hasBom = bomByProduct.has(productId);
       const type = hasBom ? 'PRODUCTION' : 'PURCHASE';
 
-      // Aplica lote mínimo e múltiplo (#181)
-      if (netQty > 0) {
-        const lot = lotSizingMap.get(productId);
-        if (lot) {
-          const minQty = type === 'PURCHASE' ? lot.minOrderQty : lot.minProductionQty;
-          const multiple = type === 'PURCHASE' ? lot.orderMultiple : lot.productionMultiple;
+      // Aplica lote mínimo e múltiplo (#181) + lead time (#183)
+      const lot = lotSizingMap.get(productId);
+      if (netQty > 0 && lot) {
+        const minQty = type === 'PURCHASE' ? lot.minOrderQty : lot.minProductionQty;
+        const multiple = type === 'PURCHASE' ? lot.orderMultiple : lot.productionMultiple;
 
-          if (minQty && netQty < minQty) {
-            netQty = minQty;
-          }
-          if (multiple && multiple > 0) {
-            netQty = Math.ceil(netQty / multiple) * multiple;
-          }
+        if (minQty && netQty < minQty) {
+          netQty = minQty;
         }
+        if (multiple && multiple > 0) {
+          netQty = Math.ceil(netQty / multiple) * multiple;
+        }
+      }
+
+      // Lead time offset: suggestedDate = requiredDate - leadTimeDays (#183)
+      const leadTimeDays = lot?.leadTimeDays ?? 0;
+      let suggestedDate = defaultSuggestedDate;
+      if (leadTimeDays > 0) {
+        suggestedDate = new Date(defaultSuggestedDate);
+        suggestedDate.setDate(suggestedDate.getDate() - leadTimeDays);
       }
 
       results.push({
