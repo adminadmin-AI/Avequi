@@ -24,6 +24,15 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  financialEntry: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  fiscalDocument: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -288,6 +297,8 @@ describe('SalesService', () => {
       });
       mockPrisma.stockBalance.update.mockResolvedValue({});
       mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
       const returnedOrder = { ...baseOrder, status: SalesOrderStatus.RETURNED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(returnedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
@@ -305,6 +316,135 @@ describe('SalesService', () => {
           data: expect.objectContaining({ type: 'ENTRY', quantity: 5 }),
         }),
       );
+    });
+
+    it('deve cancelar CR (conta a receber) vinculada (#178)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.INVOICED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        id: 'fe-1',
+        status: 'OPEN',
+        salesOrderId: 'so-1',
+      });
+      mockPrisma.financialEntry.update.mockResolvedValue({});
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.RETURNED,
+        items: [],
+        customer: null,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+
+      expect(mockPrisma.financialEntry.update).toHaveBeenCalledWith({
+        where: { id: 'fe-1' },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    it('não deve cancelar CR já paga (requer crédito manual)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.INVOICED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        id: 'fe-1',
+        status: 'PAID',
+        salesOrderId: 'so-1',
+      });
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.RETURNED,
+        items: [],
+        customer: null,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+
+      // CR PAID não é cancelada — apenas logado
+      expect(mockPrisma.financialEntry.update).not.toHaveBeenCalled();
+    });
+
+    it('deve cancelar NF-e autorizada dentro do prazo de 24h (#178)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.INVOICED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.RETURNED,
+        items: [],
+        customer: null,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+      // NF-e emitida há 2h (dentro do prazo)
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        id: 'nfe-1',
+        status: 'AUTHORIZED',
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({});
+      mockPrisma.financialEntry.updateMany.mockResolvedValue({});
+
+      await service.returnOrder(
+        'so-1',
+        'co-1',
+        { reason: 'Defeito', justificativa: 'Devolução por defeito de fabricação confirmado' },
+        'user-1',
+      );
+
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith({
+        where: { id: 'nfe-1' },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+          cancellationJustification: 'Devolução por defeito de fabricação confirmado',
+        }),
+      });
+    });
+
+    it('não deve cancelar NF-e quando prazo de 24h expirado (#178)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.INVOICED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.RETURNED,
+        items: [],
+        customer: null,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+      // NF-e emitida há 48h (fora do prazo)
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        id: 'nfe-1',
+        status: 'AUTHORIZED',
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      });
+
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+
+      // NF-e não é cancelada quando fora do prazo
+      expect(mockPrisma.fiscalDocument.update).not.toHaveBeenCalled();
     });
   });
 

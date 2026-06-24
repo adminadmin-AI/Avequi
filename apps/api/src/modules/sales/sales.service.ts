@@ -1,10 +1,11 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SalesOrderStatus } from '@prisma/client';
+import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -13,6 +14,8 @@ import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.e
 
 @Injectable()
 export class SalesService {
+  private readonly logger = new Logger(SalesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
@@ -296,7 +299,7 @@ export class SalesService {
   // ─── S07.06: Devolução (INVOICED → RETURNED) — entrada de estoque ─────────
 
   async returnOrder(id: string, companyId: string, dto: ReturnOrderDto, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const returned = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
         include: { items: true },
@@ -309,6 +312,7 @@ export class SalesService {
         );
       }
 
+      // 1. Reverter estoque: entrada de todos os itens
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
@@ -336,7 +340,29 @@ export class SalesService {
         });
       }
 
-      const returned = await tx.salesOrder.update({
+      // 2. Cancelar CR (conta a receber) vinculada (#178)
+      const financialEntry = await tx.financialEntry.findFirst({
+        where: { salesOrderId: id },
+      });
+
+      let crCancelled = false;
+      if (financialEntry) {
+        if (financialEntry.status === FinancialEntryStatus.PAID) {
+          this.logger.warn(
+            `CR ${financialEntry.id} da OV ${id} já foi PAGA — necessário gerar crédito manualmente`,
+          );
+        } else if (financialEntry.status !== FinancialEntryStatus.CANCELLED) {
+          await tx.financialEntry.update({
+            where: { id: financialEntry.id },
+            data: { status: FinancialEntryStatus.CANCELLED },
+          });
+          crCancelled = true;
+          this.logger.log(`CR ${financialEntry.id} → CANCELLED (devolução OV ${id})`);
+        }
+      }
+
+      // 3. Atualizar status da venda
+      const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.RETURNED, returnedAt: new Date() },
         include: { items: { include: { product: true } }, customer: true, warehouse: true },
@@ -348,12 +374,74 @@ export class SalesService {
           companyId,
           entity: 'SalesOrder',
           action: 'RETURN',
-          payload: { salesOrderId: id, reason: dto.reason },
+          payload: { salesOrderId: id, reason: dto.reason, crCancelled },
         },
       });
 
-      return returned;
+      return updated;
     });
+
+    // 4. Cancelar NF-e (chamada externa, fora da transação) (#178)
+    await this.cancelNfeForReturn(id, companyId, dto);
+
+    return returned;
+  }
+
+  /**
+   * Tenta cancelar a NF-e vinculada à venda.
+   * Se o prazo de 24h expirou ou não há NF-e autorizada, apenas loga o aviso.
+   */
+  private async cancelNfeForReturn(
+    salesOrderId: string,
+    companyId: string,
+    dto: ReturnOrderDto,
+  ): Promise<void> {
+    try {
+      const fiscalDoc = await this.prisma.fiscalDocument.findFirst({
+        where: { salesOrderId, companyId, status: 'AUTHORIZED' },
+      });
+
+      if (!fiscalDoc) {
+        this.logger.log(`OV ${salesOrderId}: sem NF-e AUTHORIZED para cancelar`);
+        return;
+      }
+
+      const justificativa =
+        dto.justificativa ?? `Devolução de venda — ${dto.reason}`;
+
+      const hoursElapsed = (Date.now() - fiscalDoc.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursElapsed > 24) {
+        this.logger.warn(
+          `NF-e ${fiscalDoc.id} da OV ${salesOrderId}: prazo de 24h expirado (${Math.floor(hoursElapsed)}h). ` +
+            `Cancelamento automático não disponível — necessário Carta de Correção ou NF-e de devolução.`,
+        );
+        return;
+      }
+
+      // Marca o documento para cancelamento — o cancelamento efetivo na SEFAZ
+      // deve ser executado via endpoint fiscal/cancel (evita dependência circular)
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancellationJustification: justificativa,
+        },
+      });
+
+      // Cancelar CR vinculada ao fiscalDoc (redundante mas seguro caso o CR esteja vinculado via fiscalDocumentId)
+      await this.prisma.financialEntry.updateMany({
+        where: { fiscalDocumentId: fiscalDoc.id, status: { not: 'CANCELLED' } },
+        data: { status: 'CANCELLED' },
+      });
+
+      this.logger.log(`NF-e ${fiscalDoc.id} cancelada (devolução OV ${salesOrderId})`);
+    } catch (err) {
+      this.logger.error(
+        `Erro ao cancelar NF-e da OV ${salesOrderId}: ${(err as Error).message}. ` +
+          `Devolução concluída, cancelamento fiscal pendente.`,
+      );
+    }
   }
 
   // ─── S07.05: Cancelar venda ───────────────────────────────────────────────
