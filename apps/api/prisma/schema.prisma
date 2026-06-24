@@ -123,6 +123,11 @@ model Company {
   taxRules             TaxRule[]
   fiscalVoidRanges     FiscalVoidRange[]
   threeWayMatches      ThreeWayMatch[]
+  // Fase 5
+  priceTables          PriceTable[]
+  commissionRules      CommissionRule[]
+  commissions          Commission[]
+  rfqs                 RequestForQuotation[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -228,6 +233,9 @@ model User {
   inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
   batchEvents               BatchEvent[]        @relation("BatchEventUser")
   matchResolutions          ThreeWayMatch[]     @relation("MatchResolvedBy")
+  commissionRules           CommissionRule[]    @relation("CommissionRuleUser")
+  commissions               Commission[]       @relation("CommissionUser")
+  rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -339,6 +347,8 @@ model Product {
   nonConformances           NonConformance[]     @relation("NcrProduct")
   serialNumbers             SerialNumber[]       @relation("SerialProduct")
   quotationItems            QuotationItem[]      @relation("QuotationItemProduct")
+  priceTableItems           PriceTableItem[]
+  rfqItems                  RfqItem[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -364,6 +374,7 @@ model Supplier {
   portalTokens         SupplierToken[]
   batches              Batch[]               @relation("BatchSupplier")
   payables             Payable[]
+  rfqQuotes            RfqQuote[]
   createdAt            DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -396,6 +407,7 @@ model Customer {
   receivables  Receivable[]
   ddaMandates  DdaMandate[]
   creditLimits CreditLimit[]
+  priceTables  PriceTable[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -586,6 +598,7 @@ model SupplierPriceHistory {
 enum PurchaseOrderStatus {
   DRAFT
   APPROVED
+  PARTIALLY_RECEIVED
   RECEIVED
   CANCELLED
 }
@@ -612,6 +625,7 @@ model PurchaseOrder {
   inboundNfes          InboundNfe[]
   threeWayMatches      ThreeWayMatch[]
   mrpSuggestions       MrpSuggestion[]     @relation("MrpConvertedPO")
+  rfqQuotes            RfqQuote[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -627,6 +641,7 @@ model POItem {
   quantity        Decimal       @db.Decimal(14, 4)
   unitCost        Decimal       @db.Decimal(14, 4)
   unit            UnitOfMeasure @default(UN)
+  receivedQuantity Decimal      @default(0) @db.Decimal(14, 4)
   grItems         GRItem[]
 
   @@map("gdr_po_items")
@@ -707,6 +722,7 @@ model ThreeWayMatch {
 
 enum SalesOrderStatus {
   DRAFT
+  CREDIT_HOLD
   RESERVED
   CONFIRMED
   AWAITING_PICKING
@@ -740,6 +756,7 @@ model SalesOrder {
   serialNumbers    SerialNumber[]
   quotation        Quotation?
   receivable       Receivable?
+  commissions      Commission[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -1977,6 +1994,7 @@ model Payable {
 
   allocations    PayableAllocation[]
   paymentEntries PaymentEntry[]
+  commissions    Commission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2940,4 +2958,173 @@ model AnalyticsQueryLog {
 
   @@index([companyId, createdAt])
   @@map("gdr_analytics_query_logs")
+}
+
+// ─── Fase 5: Tabela de Preços (#189) ─────────────────────────────────────────
+
+enum PriceTableType {
+  STANDARD
+  PROMOTIONAL
+  CUSTOMER_SPECIFIC
+}
+
+model PriceTable {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  name       String
+  type       PriceTableType @default(STANDARD)
+  validFrom  DateTime
+  validTo    DateTime?
+  isDefault  Boolean        @default(false)
+  isActive   Boolean        @default(true)
+  customerId String?
+  customer   Customer?      @relation(fields: [customerId], references: [id])
+  items      PriceTableItem[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([companyId, isActive])
+  @@index([customerId])
+  @@map("gdr_price_tables")
+}
+
+model PriceTableItem {
+  id              String     @id @default(cuid())
+  priceTableId    String
+  priceTable      PriceTable @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product    @relation(fields: [productId], references: [id])
+  unitPrice       Decimal    @db.Decimal(14, 4)
+  minQuantity     Decimal?   @db.Decimal(14, 4)
+  discountPercent Decimal?   @db.Decimal(5, 2)
+
+  @@unique([priceTableId, productId, minQuantity])
+  @@map("gdr_price_table_items")
+}
+
+// ─── Fase 5: Comissões (#191) ────────────────────────────────────────────────
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model CommissionRule {
+  id                String    @id @default(cuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id])
+  userId            String
+  user              User      @relation("CommissionRuleUser", fields: [userId], references: [id])
+  productCategoryId String?
+  percentRate       Decimal   @db.Decimal(5, 2)
+  fixedAmount       Decimal?  @db.Decimal(14, 4)
+  validFrom         DateTime
+  validTo           DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([companyId, userId])
+  @@map("gdr_commission_rules")
+}
+
+model Commission {
+  id           String           @id @default(cuid())
+  companyId    String
+  company      Company          @relation(fields: [companyId], references: [id])
+  userId       String
+  user         User             @relation("CommissionUser", fields: [userId], references: [id])
+  salesOrderId String
+  salesOrder   SalesOrder       @relation(fields: [salesOrderId], references: [id])
+  amount       Decimal          @db.Decimal(14, 4)
+  status       CommissionStatus @default(PENDING)
+  payableId    String?
+  payable      Payable?         @relation(fields: [payableId], references: [id])
+  calculatedAt DateTime         @default(now())
+  approvedAt   DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([companyId, userId])
+  @@index([salesOrderId])
+  @@map("gdr_commissions")
+}
+
+// ─── Fase 5: RFQ — Cotação de Compras (#192) ────────────────────────────────
+
+enum RfqStatus {
+  DRAFT
+  SENT
+  QUOTED
+  AWARDED
+  CANCELLED
+}
+
+model RequestForQuotation {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  title      String
+  status     RfqStatus @default(DRAFT)
+  deadline   DateTime?
+  notes      String?
+  createdById String?
+  createdBy  User?     @relation("RfqCreatedBy", fields: [createdById], references: [id])
+  items      RfqItem[]
+  quotes     RfqQuote[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_rfqs")
+}
+
+model RfqItem {
+  id        String              @id @default(cuid())
+  rfqId     String
+  rfq       RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product             @relation(fields: [productId], references: [id])
+  quantity  Decimal             @db.Decimal(14, 4)
+  specs     String?
+  quoteItems RfqQuoteItem[]
+
+  @@map("gdr_rfq_items")
+}
+
+model RfqQuote {
+  id           String              @id @default(cuid())
+  rfqId        String
+  rfq          RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  totalAmount  Decimal?            @db.Decimal(14, 4)
+  deliveryDays Int?
+  paymentTerms String?
+  validUntil   DateTime?
+  isAwarded    Boolean             @default(false)
+  purchaseOrderId String?
+  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  items        RfqQuoteItem[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([rfqId, supplierId])
+  @@map("gdr_rfq_quotes")
+}
+
+model RfqQuoteItem {
+  id         String   @id @default(cuid())
+  quoteId    String
+  quote      RfqQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqItemId  String
+  rfqItem    RfqItem  @relation(fields: [rfqItemId], references: [id])
+  unitPrice  Decimal  @db.Decimal(14, 4)
+  quantity   Decimal  @db.Decimal(14, 4)
+
+  @@map("gdr_rfq_quote_items")
 }

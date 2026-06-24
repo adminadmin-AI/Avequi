@@ -21,6 +21,7 @@ const mockPrisma = {
   pOItem: {
     count: jest.fn(),
     findMany: jest.fn(),
+    update: jest.fn(),
   },
   goodsReceipt: {
     create: jest.fn(),
@@ -68,7 +69,7 @@ const basePO = {
   supplierId: 'sup-1',
   status: PurchaseOrderStatus.DRAFT,
   items: [
-    { id: 'poi-1', productId: 'p-1', quantity: 10, unitCost: 5 },
+    { id: 'poi-1', productId: 'p-1', quantity: 10, unitCost: 5, receivedQuantity: 0 },
   ],
 };
 
@@ -89,6 +90,11 @@ describe('PurchaseService', () => {
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
     // S17: default sem WMS para não quebrar testes existentes
     mockPrisma.warehouse.findUnique.mockResolvedValue({ wmsEnabled: false });
+    // #190: defaults for partial receiving
+    mockPrisma.pOItem.update.mockResolvedValue({});
+    mockPrisma.pOItem.findMany.mockResolvedValue([
+      { id: 'poi-1', quantity: 10, receivedQuantity: 10 },
+    ]);
   });
 
   // ─── approvePO ────────────────────────────────────────────────────────────
@@ -197,7 +203,7 @@ describe('PurchaseService', () => {
           { purchaseOrderId: 'po-1', warehouseId: 'wh-1', items: [] },
           'user-1',
         ),
-      ).rejects.toThrow(/APROVADOS/);
+      ).rejects.toThrow(/APROVADOS|PARCIALMENTE/);
     });
 
     it('deve rejeitar recebimento de PO cancelada', async () => {
@@ -404,6 +410,150 @@ describe('PurchaseService', () => {
 
       expect(result).toEqual(receipt);
       expect(mockPrisma.goodsReceipt.create).toHaveBeenCalled();
+    });
+  });
+
+  // ─── #190: Recebimento parcial ─────────────────────────────────────────────
+
+  describe('createReceipt — partial receiving (#190)', () => {
+    const approvedPO = {
+      ...basePO,
+      status: PurchaseOrderStatus.APPROVED,
+      items: [
+        { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 0 },
+      ],
+    };
+
+    const setupReceiptMocks = () => {
+      const receipt = {
+        id: 'gr-p1',
+        companyId: 'co-1',
+        purchaseOrderId: 'po-1',
+        warehouseId: 'wh-1',
+        items: [],
+        warehouse: {},
+      };
+      mockPrisma.goodsReceipt.create.mockResolvedValue(receipt);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ id: 'bal-1', available: 0 });
+      mockPrisma.stockBalance.aggregate.mockResolvedValue({ _sum: { available: 0 } });
+      mockPrisma.product.findUnique.mockResolvedValue({ avgCost: null, costPrice: null });
+      mockPrisma.product.update.mockResolvedValue({});
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPrisma.auditLog.create.mockResolvedValue({});
+      return receipt;
+    };
+
+    it('PO 100 un, recebe 60 → PARTIALLY_RECEIVED', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(approvedPO);
+      setupReceiptMocks();
+      // After receiving 60, only 60 of 100 received
+      mockPrisma.pOItem.findMany.mockResolvedValue([
+        { id: 'poi-1', quantity: 100, receivedQuantity: 60 },
+      ]);
+
+      await service.createReceipt(
+        {
+          purchaseOrderId: 'po-1',
+          warehouseId: 'wh-1',
+          items: [{ poItemId: 'poi-1', qtyReceived: 60, divergenceReason: 'Entrega parcial' }],
+        },
+        'user-1',
+      );
+
+      // receivedQuantity incrementado
+      expect(mockPrisma.pOItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'poi-1' },
+          data: { receivedQuantity: { increment: 60 } },
+        }),
+      );
+
+      // Status → PARTIALLY_RECEIVED
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: 'PARTIALLY_RECEIVED' },
+        }),
+      );
+    });
+
+    it('PO parcialmente recebida (60/100), recebe mais 40 → RECEIVED', async () => {
+      const partialPO = {
+        ...approvedPO,
+        status: 'PARTIALLY_RECEIVED' as PurchaseOrderStatus,
+        items: [
+          { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 60 },
+        ],
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+      setupReceiptMocks();
+      // After receiving 40 more, 100 of 100 received
+      mockPrisma.pOItem.findMany.mockResolvedValue([
+        { id: 'poi-1', quantity: 100, receivedQuantity: 100 },
+      ]);
+
+      await service.createReceipt(
+        {
+          purchaseOrderId: 'po-1',
+          warehouseId: 'wh-1',
+          items: [{ poItemId: 'poi-1', qtyReceived: 40 }],
+        },
+        'user-1',
+      );
+
+      // Status → RECEIVED (fully received)
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: PurchaseOrderStatus.RECEIVED },
+        }),
+      );
+    });
+
+    it('deve rejeitar recebimento acima do pendente', async () => {
+      const partialPO = {
+        ...approvedPO,
+        status: 'PARTIALLY_RECEIVED' as PurchaseOrderStatus,
+        items: [
+          { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 80 },
+        ],
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+
+      await expect(
+        service.createReceipt(
+          {
+            purchaseOrderId: 'po-1',
+            warehouseId: 'wh-1',
+            items: [{ poItemId: 'poi-1', qtyReceived: 30 }],
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(/excede o pendente/);
+    });
+  });
+
+  // ─── getReceivingStatus (#190) ────────────────────────────────────────────
+
+  describe('getReceivingStatus', () => {
+    it('deve retornar status de recebimento por item', async () => {
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'co-1',
+        status: 'PARTIALLY_RECEIVED',
+        items: [
+          { id: 'poi-1', product: { id: 'p-1', name: 'Aço', sku: 'ACO-01' }, quantity: 100, receivedQuantity: 60 },
+          { id: 'poi-2', product: { id: 'p-2', name: 'Parafuso', sku: 'PAR-01' }, quantity: 50, receivedQuantity: 50 },
+        ],
+      });
+
+      const result = await service.getReceivingStatus('po-1', 'co-1');
+      expect(result.allFullyReceived).toBe(false);
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0].pendingQty).toBe(40);
+      expect(result.items[0].fullyReceived).toBe(false);
+      expect(result.items[1].pendingQty).toBe(0);
+      expect(result.items[1].fullyReceived).toBe(true);
     });
   });
 

@@ -92,6 +92,12 @@ export class PurchaseController {
     return this.purchaseService.findReceipts(user.companyId, purchaseOrderId);
   }
 
+  @Get('orders/:id/receiving-status')
+  @ApiOperation({ summary: 'Status de recebimento parcial da PO (#190)' })
+  getReceivingStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.purchaseService.getReceivingStatus(id, user.companyId);
+  }
+
   // ─── 3-Way Match ─────────────────────────────────────────────────────────
 
   @Get('orders/:id/match-status')
