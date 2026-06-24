@@ -86,16 +86,41 @@ export class MrpService {
     // 2. Busca todas as previsões de demanda no horizonte
     const forecasts = await this.prisma.demandForecast.findMany({
       where: { companyId, period: { in: periods } },
-      include: { product: { select: { id: true, type: true } } },
+      include: {
+        product: {
+          select: {
+            id: true,
+            type: true,
+            minOrderQty: true,
+            orderMultiple: true,
+            minProductionQty: true,
+            productionMultiple: true,
+          },
+        },
+      },
     });
 
     if (forecasts.length === 0) return [];
 
-    // 3. Agrega demanda bruta por produto
+    // 3. Agrega demanda bruta por produto + coleta dados de lotização
     const demandMap = new Map<string, number>();
+    const lotSizingMap = new Map<string, {
+      minOrderQty: number | null;
+      orderMultiple: number | null;
+      minProductionQty: number | null;
+      productionMultiple: number | null;
+    }>();
     for (const f of forecasts) {
       const prev = demandMap.get(f.productId) ?? 0;
       demandMap.set(f.productId, prev + Number(f.quantity));
+      if (!lotSizingMap.has(f.productId)) {
+        lotSizingMap.set(f.productId, {
+          minOrderQty: f.product.minOrderQty ? Number(f.product.minOrderQty) : null,
+          orderMultiple: f.product.orderMultiple ? Number(f.product.orderMultiple) : null,
+          minProductionQty: f.product.minProductionQty ? Number(f.product.minProductionQty) : null,
+          productionMultiple: f.product.productionMultiple ? Number(f.product.productionMultiple) : null,
+        });
+      }
     }
 
     // 4. Carrega BOMs ativos (com items e componentes)
@@ -122,6 +147,30 @@ export class MrpService {
 
     // 6. Busca estoque disponível para todos os produtos relevantes
     const productIds = Array.from(componentDemand.keys());
+
+    // 6a. Busca dados de lotização de componentes que não vieram dos forecasts
+    const missingLotIds = productIds.filter((id) => !lotSizingMap.has(id));
+    if (missingLotIds.length > 0) {
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: missingLotIds } },
+        select: {
+          id: true,
+          minOrderQty: true,
+          orderMultiple: true,
+          minProductionQty: true,
+          productionMultiple: true,
+        },
+      });
+      for (const p of products) {
+        lotSizingMap.set(p.id, {
+          minOrderQty: p.minOrderQty ? Number(p.minOrderQty) : null,
+          orderMultiple: p.orderMultiple ? Number(p.orderMultiple) : null,
+          minProductionQty: p.minProductionQty ? Number(p.minProductionQty) : null,
+          productionMultiple: p.productionMultiple ? Number(p.productionMultiple) : null,
+        });
+      }
+    }
+
     const stockBalances = await this.prisma.stockBalance.findMany({
       where: { companyId, productId: { in: productIds } },
       select: { productId: true, available: true },
@@ -138,9 +187,25 @@ export class MrpService {
 
     for (const [productId, { grossQty, level }] of componentDemand.entries()) {
       const stockOnHand = stockMap.get(productId) ?? 0;
-      const netQty = Math.max(0, grossQty - stockOnHand);
+      let netQty = Math.max(0, grossQty - stockOnHand);
       const hasBom = bomByProduct.has(productId);
       const type = hasBom ? 'PRODUCTION' : 'PURCHASE';
+
+      // Aplica lote mínimo e múltiplo (#181)
+      if (netQty > 0) {
+        const lot = lotSizingMap.get(productId);
+        if (lot) {
+          const minQty = type === 'PURCHASE' ? lot.minOrderQty : lot.minProductionQty;
+          const multiple = type === 'PURCHASE' ? lot.orderMultiple : lot.productionMultiple;
+
+          if (minQty && netQty < minQty) {
+            netQty = minQty;
+          }
+          if (multiple && multiple > 0) {
+            netQty = Math.ceil(netQty / multiple) * multiple;
+          }
+        }
+      }
 
       results.push({
         productId,
