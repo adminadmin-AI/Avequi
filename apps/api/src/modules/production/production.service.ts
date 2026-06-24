@@ -367,7 +367,46 @@ export class ProductionService {
         });
       }
 
-      // ─── 4. Dar entrada no produto acabado ────────────────────────────────
+      // ─── 4. Inspeção final ou entrada direta (#185) ──────────────────────
+      const requiresInspection = order.product.requiresFinalInspection === true;
+
+      if (requiresInspection) {
+        // Produto requer inspeção: OP fica em PENDING_INSPECTION, sem entrada no estoque
+        const updated = await tx.productionOrder.update({
+          where: { id },
+          data: {
+            status: 'PENDING_INSPECTION' as ProductionOrderStatus,
+            producedQty: finalQty,
+          },
+          include: ORDER_INCLUDE,
+        });
+
+        // Criar registro de inspeção
+        await tx.inspection.create({
+          data: {
+            companyId,
+            type: 'FINAL',
+            status: 'PENDING',
+            productionOrderId: id,
+            notes: `Inspeção final automática — ${finalQty} un produzidas`,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId,
+            companyId,
+            entity: 'ProductionOrder',
+            action: 'PENDING_INSPECTION',
+            payload: { id, plannedQty, producedQty: finalQty, totalCost, costPerUnit },
+          },
+        });
+
+        this.logger.log(`OP ${id} aguardando inspeção final — ${finalQty}/${plannedQty}`);
+        return { ...updated, _meta: null }; // Sem evento de produção completa até aprovação
+      }
+
+      // ─── 4b. Entrada direta no estoque (sem inspeção) ─────────────────────
       if (paBalance) {
         await tx.stockBalance.update({
           where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
@@ -770,5 +809,120 @@ export class ProductionService {
       costPerUnit: Number(cost.costPerUnit),
       breakdown: cost.breakdown,
     };
+  }
+
+  // ─── Aprovar inspeção final (#185) ────────────────────────────────────────
+
+  async approveInspection(id: string, companyId: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.productionOrder.findFirst({
+        where: { id, companyId },
+        include: { product: true },
+      });
+
+      if (!order) throw new NotFoundException(`OP ${id} não encontrada`);
+      if (order.status !== ('PENDING_INSPECTION' as ProductionOrderStatus)) {
+        throw new BadRequestException(`OP não está aguardando inspeção. Status: ${order.status}`);
+      }
+
+      const finalQty = Number(order.producedQty);
+
+      // Entrada no estoque PA
+      const paBalance = await tx.stockBalance.findUnique({
+        where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
+      });
+
+      if (paBalance) {
+        await tx.stockBalance.update({
+          where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
+          data: { available: { increment: finalQty } },
+        });
+      } else {
+        await tx.stockBalance.create({
+          data: { companyId, warehouseId: order.warehouseId, productId: order.productId, available: finalQty, reserved: 0 },
+        });
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          companyId, warehouseId: order.warehouseId, productId: order.productId,
+          type: 'ENTRY', quantity: finalQty,
+          reason: 'Entrada de Produto Acabado (pós-inspeção)',
+          reference: `OP:${id}`, userId,
+        },
+      });
+
+      // Atualizar inspeção
+      await tx.inspection.updateMany({
+        where: { productionOrderId: id, status: 'PENDING' },
+        data: { status: 'PASSED', finishedAt: new Date(), inspectedById: userId ?? null },
+      });
+
+      const updated = await tx.productionOrder.update({
+        where: { id },
+        data: { status: ProductionOrderStatus.DONE, completedAt: new Date() },
+        include: ORDER_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: { userId, companyId, entity: 'ProductionOrder', action: 'INSPECTION_APPROVED', payload: { id, producedQty: finalQty } },
+      });
+
+      this.logger.log(`OP ${id} inspeção aprovada — ${finalQty} un entram no estoque`);
+
+      // Emitir evento de produção completa
+      this.eventEmitter.emit(
+        PRODUCTION_COMPLETED_EVENT,
+        new ProductionCompletedEvent(companyId, id, order.productId, order.warehouseId, finalQty, userId),
+      );
+
+      return updated;
+    });
+  }
+
+  // ─── Rejeitar inspeção final (#185) ───────────────────────────────────────
+
+  async rejectInspection(id: string, companyId: string, reason: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.productionOrder.findFirst({ where: { id, companyId } });
+
+      if (!order) throw new NotFoundException(`OP ${id} não encontrada`);
+      if (order.status !== ('PENDING_INSPECTION' as ProductionOrderStatus)) {
+        throw new BadRequestException(`OP não está aguardando inspeção. Status: ${order.status}`);
+      }
+
+      // Atualizar inspeção para FAILED
+      await tx.inspection.updateMany({
+        where: { productionOrderId: id, status: 'PENDING' },
+        data: { status: 'FAILED', finishedAt: new Date(), inspectedById: userId ?? null, notes: reason },
+      });
+
+      // Criar NCR (Non-Conformance Report)
+      await tx.nonConformance.create({
+        data: {
+          companyId,
+          productionOrderId: id,
+          productId: order.productId,
+          description: reason,
+          severity: 'MAJOR',
+          status: 'OPEN',
+          reportedById: userId ?? null,
+        },
+      });
+
+      // OP fica CANCELLED (bloqueada)
+      const updated = await tx.productionOrder.update({
+        where: { id },
+        data: { status: ProductionOrderStatus.CANCELLED },
+        include: ORDER_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: { userId, companyId, entity: 'ProductionOrder', action: 'INSPECTION_REJECTED', payload: { id, reason } },
+      });
+
+      this.logger.log(`OP ${id} inspeção rejeitada — NCR criado: ${reason}`);
+      return updated;
+    });
   }
 }

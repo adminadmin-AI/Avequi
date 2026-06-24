@@ -15,6 +15,8 @@ const mockTx = {
   stockBalance: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   stockMovement: { create: jest.fn() },
   product: { update: jest.fn() },
+  inspection: { create: jest.fn(), updateMany: jest.fn() },
+  nonConformance: { create: jest.fn() },
   auditLog: { create: jest.fn() },
 };
 
@@ -92,6 +94,9 @@ describe('ProductionService', () => {
     mockTx.productionLog.findMany.mockResolvedValue([]);
     mockTx.workCenter.findMany.mockResolvedValue([]);
     mockTx.product.update.mockResolvedValue({});
+    mockTx.inspection.create.mockResolvedValue({});
+    mockTx.inspection.updateMany.mockResolvedValue({});
+    mockTx.nonConformance.create.mockResolvedValue({});
   });
 
   // ─── create ───────────────────────────────────────────────────────────────
@@ -698,6 +703,77 @@ describe('ProductionService', () => {
       expect(result.byReason).toHaveLength(2);
       expect(result.byReason[0].reason).toBe('Trinca');
       expect(result.byReason[0].scrap).toBe(3);
+    });
+  });
+
+  // ─── inspeção final (#185) ──────────────────────────────────────────────
+
+  describe('complete — inspection (#185)', () => {
+    it('deve ir para PENDING_INSPECTION quando produto requer inspeção', async () => {
+      const orderWithInspection = {
+        ...baseOrder,
+        status: 'IN_PROGRESS',
+        product: { ...product, requiresFinalInspection: true },
+      };
+      mockTx.productionOrder.findFirst.mockResolvedValue(orderWithInspection);
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' });
+      mockTx.productionOrder.update.mockResolvedValue({ ...orderWithInspection, status: 'PENDING_INSPECTION', producedQty: '5' });
+
+      const result = await service.complete('op-1', 'co-1', undefined, 'u-1');
+
+      expect(mockTx.productionOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PENDING_INSPECTION' }),
+        }),
+      );
+      expect(mockTx.inspection.create).toHaveBeenCalled();
+      // Não deve criar stockMovement de ENTRY
+      expect(mockTx.stockMovement.create).toHaveBeenCalledTimes(2); // só EXIT dos componentes
+    });
+  });
+
+  describe('approveInspection (#185)', () => {
+    it('deve dar entrada no estoque e mudar status para DONE', async () => {
+      const pendingOrder = { ...baseOrder, status: 'PENDING_INSPECTION', producedQty: '5', product };
+      mockTx.productionOrder.findFirst.mockResolvedValue(pendingOrder);
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' });
+      mockTx.stockBalance.update.mockResolvedValue({});
+      mockTx.productionOrder.update.mockResolvedValue({ ...pendingOrder, status: 'DONE' });
+
+      const result = await service.approveInspection('op-1', 'co-1', 'u-1');
+
+      expect(mockTx.stockBalance.update).toHaveBeenCalled();
+      expect(mockTx.stockMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ type: 'ENTRY', quantity: 5 }) }),
+      );
+      expect(mockTx.inspection.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PASSED' }) }),
+      );
+    });
+  });
+
+  describe('rejectInspection (#185)', () => {
+    it('deve criar NCR e cancelar OP', async () => {
+      const pendingOrder = { ...baseOrder, status: 'PENDING_INSPECTION', producedQty: '5' };
+      mockTx.productionOrder.findFirst.mockResolvedValue(pendingOrder);
+      mockTx.productionOrder.update.mockResolvedValue({ ...pendingOrder, status: 'CANCELLED' });
+
+      await service.rejectInspection('op-1', 'co-1', 'Defeito visual', 'u-1');
+
+      expect(mockTx.inspection.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+      );
+      expect(mockTx.nonConformance.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ description: 'Defeito visual', severity: 'MAJOR' }) }),
+      );
+      expect(mockTx.productionOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+      );
+    });
+
+    it('deve lançar BadRequest se OP não está PENDING_INSPECTION', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue({ ...baseOrder, status: 'DONE' });
+      await expect(service.rejectInspection('op-1', 'co-1', 'teste')).rejects.toThrow(BadRequestException);
     });
   });
 
