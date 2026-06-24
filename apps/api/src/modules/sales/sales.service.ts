@@ -282,6 +282,7 @@ export class SalesService {
         invoiced.id,
         invoiced.warehouseId,
         (invoiced.items as any[]).map((i) => ({
+          saleItemId: i.id,
           productId: i.productId,
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),

@@ -4,10 +4,15 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProductionOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { CreateProductionLogDto } from './dto/create-log.dto';
+import {
+  PRODUCTION_COMPLETED_EVENT,
+  ProductionCompletedEvent,
+} from './events/production-completed.event';
 
 const ORDER_INCLUDE = {
   product: { select: { id: true, sku: true, name: true, unit: true } },
@@ -34,7 +39,10 @@ interface CostBreakdownItem {
 export class ProductionService {
   private readonly logger = new Logger(ProductionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ─── S13.01: Criar Ordem de Produção ─────────────────────────────────────
 
@@ -208,7 +216,7 @@ export class ProductionService {
   //   • Atualização do avgCost do produto acabado (CMPC)
 
   async complete(id: string, companyId: string, producedQty?: number, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.productionOrder.findFirst({
         where: { id, companyId },
         include: {
@@ -380,8 +388,25 @@ export class ProductionService {
         `OP ${id} encerrada — produzido: ${finalQty}/${plannedQty} × ${order.product.sku}` +
           ` | custo: R$ ${totalCost.toFixed(2)} (R$ ${costPerUnit.toFixed(4)}/un)`,
       );
-      return updated;
+      return { ...updated, _meta: { finalQty, warehouseId: order.warehouseId, productId: order.productId } };
     });
+
+    // Emite evento após commit da transação
+    if (result._meta) {
+      this.eventEmitter.emit(
+        PRODUCTION_COMPLETED_EVENT,
+        new ProductionCompletedEvent(
+          companyId,
+          id,
+          result._meta.productId,
+          result._meta.warehouseId,
+          result._meta.finalQty,
+          userId,
+        ),
+      );
+    }
+
+    return result;
   }
 
   // ─── S13.07: Cancelar (DRAFT|RELEASED|IN_PROGRESS → CANCELLED) ───────────

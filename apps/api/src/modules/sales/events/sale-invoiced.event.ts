@@ -7,6 +7,7 @@ export class SaleInvoicedEvent {
     public readonly salesOrderId: string,
     public readonly warehouseId: string,
     public readonly items: Array<{
+      saleItemId: string;
       productId: string;
       quantity: number;
       unitPrice: number;
