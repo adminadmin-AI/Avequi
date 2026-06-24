@@ -610,6 +610,7 @@ model PurchaseOrder {
   convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
   inboundNfes          InboundNfe[]
   threeWayMatches      ThreeWayMatch[]
+  mrpSuggestions       MrpSuggestion[]     @relation("MrpConvertedPO")
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -1083,6 +1084,12 @@ enum MrpSuggestionType {
   PRODUCTION
 }
 
+enum MrpSuggestionStatus {
+  PENDING
+  CONVERTED
+  DISMISSED
+}
+
 model MrpRun {
   id           String        @id @default(cuid())
   companyId    String
@@ -1101,19 +1108,23 @@ model MrpRun {
 }
 
 model MrpSuggestion {
-  id            String             @id @default(cuid())
+  id            String                @id @default(cuid())
   mrpRunId      String
-  mrpRun        MrpRun             @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
+  mrpRun        MrpRun                @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
   productId     String
-  product       Product            @relation(fields: [productId], references: [id])
+  product       Product               @relation(fields: [productId], references: [id])
   type          MrpSuggestionType
-  grossQty      Decimal            @db.Decimal(14, 4)  // demanda bruta do período
-  stockOnHand   Decimal            @db.Decimal(14, 4)  // estoque disponível atual
-  netQty        Decimal            @db.Decimal(14, 4)  // necessidade líquida (gross - stock)
-  bomLevel      Int                @default(0)         // 0=produto final, 1+=componente
+  status        MrpSuggestionStatus   @default(PENDING)
+  grossQty      Decimal               @db.Decimal(14, 4)
+  stockOnHand   Decimal               @db.Decimal(14, 4)
+  netQty        Decimal               @db.Decimal(14, 4)
+  bomLevel      Int                   @default(0)
   suggestedDate DateTime?
   notes         String?
-  createdAt     DateTime           @default(now())
+  convertedPoId String?
+  convertedPo   PurchaseOrder?        @relation("MrpConvertedPO", fields: [convertedPoId], references: [id])
+  convertedAt   DateTime?
+  createdAt     DateTime              @default(now())
 
   @@index([mrpRunId])
   @@index([productId])
