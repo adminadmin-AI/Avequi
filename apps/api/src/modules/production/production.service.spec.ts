@@ -10,6 +10,8 @@ const mockTx = {
   productionOrder: { findFirst: jest.fn(), update: jest.fn() },
   productionOrderItem: { update: jest.fn() },
   productionCost: { create: jest.fn() },
+  productionLog: { findMany: jest.fn() },
+  workCenter: { findMany: jest.fn() },
   stockBalance: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   stockMovement: { create: jest.fn() },
   product: { update: jest.fn() },
@@ -87,6 +89,8 @@ describe('ProductionService', () => {
     mockTx.stockMovement.create.mockResolvedValue({});
     mockTx.productionOrderItem.update.mockResolvedValue({});
     mockTx.productionCost.create.mockResolvedValue({});
+    mockTx.productionLog.findMany.mockResolvedValue([]);
+    mockTx.workCenter.findMany.mockResolvedValue([]);
     mockTx.product.update.mockResolvedValue({});
   });
 
@@ -340,6 +344,68 @@ describe('ProductionService', () => {
     it('deve lançar BadRequest para status diferente de IN_PROGRESS', async () => {
       mockTx.productionOrder.findFirst.mockResolvedValue({ ...baseOrder, status: 'RELEASED' });
       await expect(service.complete('op-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── complete — custo MOD (#182) ────────────────────────────────────────
+
+  describe('complete — labor cost (#182)', () => {
+    const inProgressOrder = { ...baseOrder, status: 'IN_PROGRESS' };
+
+    it('deve calcular custo MOD somando hoursWorked × costPerHour por WorkCenter', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' });
+      mockTx.stockBalance.create.mockResolvedValue({});
+      mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '5' });
+
+      // Logs com horas por WorkCenter
+      mockTx.productionLog.findMany.mockResolvedValue([
+        { workCenter: 'CORTE', hoursWorked: '2.0' },
+        { workCenter: 'CORTE', hoursWorked: '1.5' },
+        { workCenter: 'SOLDA', hoursWorked: '3.0' },
+      ]);
+      // WorkCenter custos
+      mockTx.workCenter.findMany.mockResolvedValue([
+        { code: 'CORTE', costPerHour: '50.00' },
+        { code: 'SOLDA', costPerHour: '80.00' },
+      ]);
+
+      await service.complete('op-1', 'co-1', undefined, 'u-1');
+
+      // laborCost = (3.5h × R$50) + (3h × R$80) = 175 + 240 = 415
+      // materialCost = 10×5 + 20×3 = 110
+      // totalCost = 110 + 415 = 525
+      expect(mockTx.productionCost.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            materialCost: 110,
+            laborCost: 415,
+            totalCost: 525,
+            costPerUnit: 105, // 525/5
+          }),
+        }),
+      );
+    });
+
+    it('deve manter laborCost=0 quando logs não têm hoursWorked', async () => {
+      mockTx.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockTx.stockBalance.findUnique.mockResolvedValue({ available: '0' });
+      mockTx.stockBalance.create.mockResolvedValue({});
+      mockTx.productionOrder.update.mockResolvedValue({ ...inProgressOrder, status: 'DONE', producedQty: '5' });
+      mockTx.productionLog.findMany.mockResolvedValue([
+        { workCenter: null, hoursWorked: null },
+      ]);
+
+      await service.complete('op-1', 'co-1', undefined, 'u-1');
+
+      expect(mockTx.productionCost.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            laborCost: 0,
+            totalCost: 110,
+          }),
+        }),
+      );
     });
   });
 

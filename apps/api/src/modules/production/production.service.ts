@@ -297,18 +297,53 @@ export class ProductionService {
         });
       }
 
-      // ─── 2. Registrar custo da OP ─────────────────────────────────────────
-      const totalCost = materialCost; // laborCost = 0 (custo/hora no roteiro não implementado ainda)
+      // ─── 2. Calcular custo MOD (#182) ─────────────────────────────────────
+      const logs = await tx.productionLog.findMany({
+        where: { productionOrderId: id },
+        select: { workCenter: true, hoursWorked: true },
+      });
+
+      let laborCost = 0;
+      const laborBreakdown: { workCenter: string; hours: number; costPerHour: number; cost: number }[] = [];
+
+      // Agregar horas por workCenter
+      const hoursByWc = new Map<string, number>();
+      for (const log of logs) {
+        if (log.hoursWorked && log.workCenter) {
+          const wc = log.workCenter;
+          hoursByWc.set(wc, (hoursByWc.get(wc) ?? 0) + Number(log.hoursWorked));
+        }
+      }
+
+      // Buscar costPerHour de cada WorkCenter usado
+      if (hoursByWc.size > 0) {
+        const wcCodes = Array.from(hoursByWc.keys());
+        const workCenters = await tx.workCenter.findMany({
+          where: { companyId, code: { in: wcCodes } },
+          select: { code: true, costPerHour: true },
+        });
+        const wcCostMap = new Map(workCenters.map((wc: any) => [wc.code, Number(wc.costPerHour)]));
+
+        for (const [wcCode, hours] of hoursByWc.entries()) {
+          const cph = wcCostMap.get(wcCode) ?? 0;
+          const cost = hours * cph;
+          laborCost += cost;
+          laborBreakdown.push({ workCenter: wcCode, hours, costPerHour: cph, cost });
+        }
+      }
+
+      // ─── 2b. Registrar custo da OP ────────────────────────────────────────
+      const totalCost = materialCost + laborCost;
       const costPerUnit = finalQty > 0 ? totalCost / finalQty : 0;
 
       await tx.productionCost.create({
         data: {
           productionOrderId: id,
           materialCost,
-          laborCost: 0,
+          laborCost,
           totalCost,
           costPerUnit,
-          breakdown: breakdown as object[],
+          breakdown: { material: breakdown, labor: laborBreakdown } as object,
         },
       });
 
