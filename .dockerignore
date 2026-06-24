@@ -1,0 +1,14 @@
+# Mantém o build context do Docker enxuto (usado por apps/api/Dockerfile).
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+.git
+.github
+**/.env
+**/.env.*
+**/*.log
+**/coverage
+dashboards
+*.md

@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# render.yaml — Blueprint do RENDER para o BACKEND (apps/api) do Avequi ERP
+#
+# 📌 PRO TIME: este arquivo NÃO faz nada sozinho. Ele só é lido quando alguém
+#    cria um Blueprint no Render apontando pra este repo. É 100% aditivo —
+#    não afeta o dev local nem nenhum deploy existente. Contexto em /DEPLOY.md.
+#
+# ▶️ COMO USAR (dev de backend, conta Render própria — free):
+#    1. Render Dashboard → New → Blueprint → conectar o repo adminadmin-AI/Avequi
+#    2. O Render lê este arquivo e cria o serviço "avequi-api"
+#    3. Preencher os segredos marcados com `sync: false` no painel (ver abaixo)
+#
+# 🧩 SERVIÇOS EXTERNOS (todos free):
+#    • Banco:  Supabase  → DATABASE_URL (pooler) + DIRECT_URL (conexão direta)
+#    • Redis:  Upstash   → REDIS_URL  (OBRIGATÓRIO — Bull/filas)
+#
+# ⚠️ HEADS-UP REDIS: o app hoje parseia só host/port de REDIS_URL
+#    (apps/api/src/app.module.ts ~linha 80). Redis gerenciado (Upstash/Railway)
+#    usa senha + TLS (rediss://). Provavelmente vai precisar passar password+tls
+#    pro BullModule, OU simplificar pra usar a URL inteira no ioredis.
+#    (Detalhado em /DEPLOY.md — é ajuste do backend, não mexi no código.)
+#
+# 📝 NOTA: healthCheckPath foi omitido de propósito (não há rota /health
+#    confirmada). O Render cai no modo de detecção de porta. Se houver/criar
+#    um endpoint de health, adicione `healthCheckPath: /api/health`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: avequi-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: api
+      # Segredos — preencher no painel do Render (nunca commitar):
+      - key: WEB_URL            # URL do frontend na Vercel (CORS)
+        sync: false
+      - key: DATABASE_URL       # Supabase — pooler (porta 6543/5432)
+        sync: false
+      - key: DIRECT_URL         # Supabase — conexão direta (migrations)
+        sync: false
+      - key: REDIS_URL          # Upstash — OBRIGATÓRIO (Bull)
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      # Demais conforme apps/api/.env (Focus NFe, BANK_ENCRYPTION_KEY, etc.):
+      # - key: FOCUS_NFE_TOKEN
+      #   sync: false
+      # - key: BANK_ENCRYPTION_KEY
+      #   sync: false
