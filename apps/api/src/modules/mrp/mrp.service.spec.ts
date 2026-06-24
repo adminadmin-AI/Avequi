@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MrpService } from './mrp.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,10 +8,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 const mockPrisma = {
   systemParameter: { findUnique: jest.fn() },
   mrpRun: { create: jest.fn(), update: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
-  mrpSuggestion: { createMany: jest.fn() },
+  mrpSuggestion: { createMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   demandForecast: { findMany: jest.fn() },
-  bomVersion: { findMany: jest.fn() },
+  bomVersion: { findMany: jest.fn(), findFirst: jest.fn() },
   stockBalance: { findMany: jest.fn() },
+  purchaseOrder: { create: jest.fn() },
+  productionOrder: { create: jest.fn() },
+  warehouse: { findFirst: jest.fn() },
 };
 
 // Produtos base
@@ -277,6 +280,162 @@ describe('MrpService', () => {
       const result = await service.findGaps('run-1', 'co-1');
       expect(result.suggestions).toHaveLength(2);
       expect(result.suggestions.every((s) => Number(s.netQty) > 0)).toBe(true);
+    });
+  });
+
+  // ─── convertSuggestion (#179) ─────────────────────────────────────────────
+
+  describe('convertSuggestion', () => {
+    const baseSuggestion = {
+      id: 'sug-1',
+      productId: 'p-1',
+      netQty: '50',
+      suggestedDate: new Date('2026-07-01'),
+      mrpRun: { companyId: 'co-1' },
+      product: { id: 'p-1', name: 'Parafuso M10', supplierId: 'sup-1' },
+      type: 'PURCHASE',
+      status: 'PENDING',
+    };
+
+    it('deve converter sugestão PURCHASE em PurchaseOrder DRAFT', async () => {
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue({ ...baseSuggestion });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({
+        id: 'po-1',
+        supplierId: 'sup-1',
+        status: 'DRAFT',
+        items: [{ productId: 'p-1', quantity: '50' }],
+        supplier: { id: 'sup-1', name: 'Fornecedor X' },
+      });
+      mockPrisma.mrpSuggestion.update.mockResolvedValue({});
+
+      const result = await service.convertSuggestion('sug-1', 'co-1');
+
+      expect(result.type).toBe('PURCHASE');
+      expect(result.purchaseOrderId).toBe('po-1');
+      expect(mockPrisma.purchaseOrder.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            companyId: 'co-1',
+            supplierId: 'sup-1',
+            status: 'DRAFT',
+          }),
+        }),
+      );
+      expect(mockPrisma.mrpSuggestion.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sug-1' },
+          data: expect.objectContaining({ status: 'CONVERTED', convertedPoId: 'po-1' }),
+        }),
+      );
+    });
+
+    it('deve converter sugestão PRODUCTION em ProductionOrder DRAFT com itens de BOM', async () => {
+      const prodSuggestion = {
+        ...baseSuggestion,
+        id: 'sug-2',
+        type: 'PRODUCTION',
+        product: { id: 'p-1', name: 'Reboque 5T', supplierId: null },
+      };
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue(prodSuggestion);
+      mockPrisma.bomVersion.findFirst.mockResolvedValue({
+        id: 'bom-1',
+        items: [
+          { componentId: 'c-1', quantity: '2' },
+          { componentId: 'c-2', quantity: '5' },
+        ],
+      });
+      mockPrisma.warehouse.findFirst.mockResolvedValue({ id: 'wh-1' });
+      mockPrisma.productionOrder.create.mockResolvedValue({
+        id: 'op-1',
+        status: 'DRAFT',
+        items: [],
+        product: { id: 'p-1', name: 'Reboque 5T' },
+      });
+      mockPrisma.mrpSuggestion.update.mockResolvedValue({});
+
+      const result = await service.convertSuggestion('sug-2', 'co-1');
+
+      expect(result.type).toBe('PRODUCTION');
+      expect(result.productionOrderId).toBe('op-1');
+      expect(mockPrisma.productionOrder.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            companyId: 'co-1',
+            productId: 'p-1',
+            warehouseId: 'wh-1',
+            status: 'DRAFT',
+          }),
+        }),
+      );
+    });
+
+    it('deve lançar NotFoundException para sugestão inexistente', async () => {
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue(null);
+
+      await expect(service.convertSuggestion('sug-x', 'co-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('deve lançar BadRequestException para sugestão já convertida', async () => {
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue({
+        ...baseSuggestion,
+        status: 'CONVERTED',
+      });
+
+      await expect(service.convertSuggestion('sug-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequestException quando PURCHASE sem fornecedor', async () => {
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue({
+        ...baseSuggestion,
+        product: { id: 'p-1', name: 'Sem Fornecedor', supplierId: null },
+      });
+
+      await expect(service.convertSuggestion('sug-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequestException quando netQty <= 0', async () => {
+      mockPrisma.mrpSuggestion.findFirst.mockResolvedValue({
+        ...baseSuggestion,
+        netQty: '0',
+      });
+
+      await expect(service.convertSuggestion('sug-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── convertBatch (#179) ──────────────────────────────────────────────────
+
+  describe('convertBatch', () => {
+    it('deve converter múltiplas sugestões e coletar erros', async () => {
+      // sug-ok: converte com sucesso
+      mockPrisma.mrpSuggestion.findFirst
+        .mockResolvedValueOnce({
+          id: 'sug-ok',
+          productId: 'p-1',
+          netQty: '10',
+          type: 'PURCHASE',
+          status: 'PENDING',
+          suggestedDate: null,
+          mrpRun: { companyId: 'co-1' },
+          product: { id: 'p-1', name: 'Prod A', supplierId: 'sup-1' },
+        })
+        // sug-fail: não encontrada
+        .mockResolvedValueOnce(null);
+
+      mockPrisma.purchaseOrder.create.mockResolvedValue({
+        id: 'po-1',
+        items: [],
+        supplier: { id: 'sup-1' },
+      });
+      mockPrisma.mrpSuggestion.update.mockResolvedValue({});
+
+      const result = await service.convertBatch(['sug-ok', 'sug-fail'], 'co-1');
+
+      expect(result.total).toBe(2);
+      expect(result.successCount).toBe(1);
+      expect(result.converted).toHaveLength(1);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].suggestionId).toBe('sug-fail');
     });
   });
 });

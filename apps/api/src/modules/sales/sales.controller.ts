@@ -55,13 +55,13 @@ export class SalesController {
   }
 
   @Patch(':id/confirm')
-  @ApiOperation({ summary: 'Confirmar venda comercialmente (RESERVED → CONFIRMED)' })
+  @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.confirmOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/invoice')
-  @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (CONFIRMED → INVOICED)' })
+  @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (READY_TO_INVOICE → INVOICED)' })
   invoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.invoiceOrder(id, user.companyId, user?.id);
   }

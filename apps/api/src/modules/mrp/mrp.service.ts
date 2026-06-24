@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -265,5 +265,137 @@ export class MrpService {
       ...run,
       suggestions: run.suggestions.filter((s) => Number(s.netQty) > 0),
     };
+  }
+
+  // ─── S12.05: Converter sugestão individual em PO ou OP (#179) ────────────
+
+  async convertSuggestion(suggestionId: string, companyId: string) {
+    const suggestion = await this.prisma.mrpSuggestion.findFirst({
+      where: { id: suggestionId },
+      include: {
+        mrpRun: { select: { companyId: true } },
+        product: { select: { id: true, name: true, supplierId: true } },
+      },
+    });
+
+    if (!suggestion) throw new NotFoundException(`Sugestão ${suggestionId} não encontrada`);
+    if (suggestion.mrpRun.companyId !== companyId) {
+      throw new NotFoundException(`Sugestão ${suggestionId} não encontrada`);
+    }
+    if ((suggestion as any).status === 'CONVERTED') {
+      throw new BadRequestException('Sugestão já convertida');
+    }
+
+    const netQty = Number(suggestion.netQty);
+    if (netQty <= 0) {
+      throw new BadRequestException('Sugestão sem necessidade líquida (netQty <= 0)');
+    }
+
+    if (suggestion.type === 'PURCHASE') {
+      return this.convertToPO(suggestion, companyId);
+    } else {
+      return this.convertToOP(suggestion, companyId);
+    }
+  }
+
+  private async convertToPO(suggestion: any, companyId: string) {
+    const supplierId = suggestion.product.supplierId;
+    if (!supplierId) {
+      throw new BadRequestException(
+        `Produto ${suggestion.product.name} não tem fornecedor preferencial cadastrado`,
+      );
+    }
+
+    const po = await this.prisma.purchaseOrder.create({
+      data: {
+        companyId,
+        supplierId,
+        status: 'DRAFT',
+        expectedAt: suggestion.suggestedDate ?? undefined,
+        notes: `Gerado pelo MRP — sugestão ${suggestion.id}`,
+        items: {
+          create: [{
+            productId: suggestion.productId,
+            quantity: suggestion.netQty,
+            unitCost: suggestion.product.costPrice ?? suggestion.product.avgCost ?? 0,
+          }],
+        },
+      },
+      include: { items: true, supplier: true },
+    });
+
+    await this.prisma.mrpSuggestion.update({
+      where: { id: suggestion.id },
+      data: { status: 'CONVERTED', convertedPoId: po.id, convertedAt: new Date() },
+    });
+
+    this.logger.log(`MRP sugestão ${suggestion.id} → PO ${po.id} (PURCHASE)`);
+    return { type: 'PURCHASE', suggestion: suggestion.id, purchaseOrderId: po.id, purchaseOrder: po };
+  }
+
+  private async convertToOP(suggestion: any, companyId: string) {
+    // Buscar BOM ativa para o produto
+    const bom = await this.prisma.bomVersion.findFirst({
+      where: { productId: suggestion.productId, isActive: true },
+      include: { items: true },
+    });
+
+    // Buscar warehouse padrão
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: { companyId, isActive: true },
+      select: { id: true },
+    });
+
+    if (!warehouse) {
+      throw new BadRequestException('Nenhum armazém ativo encontrado');
+    }
+
+    const op = await this.prisma.productionOrder.create({
+      data: {
+        companyId,
+        productId: suggestion.productId,
+        warehouseId: warehouse.id,
+        mrpSuggestionId: suggestion.id,
+        plannedQty: suggestion.netQty,
+        status: 'DRAFT',
+        scheduledStart: suggestion.suggestedDate ?? undefined,
+        notes: `Gerado pelo MRP — sugestão ${suggestion.id}`,
+        items: bom
+          ? {
+              create: bom.items.map((bi: any) => ({
+                componentId: bi.componentId,
+                plannedQty: Number(bi.quantity) * Number(suggestion.netQty),
+              })),
+            }
+          : undefined,
+      },
+      include: { items: true, product: true },
+    });
+
+    await this.prisma.mrpSuggestion.update({
+      where: { id: suggestion.id },
+      data: { status: 'CONVERTED', convertedAt: new Date() },
+    });
+
+    this.logger.log(`MRP sugestão ${suggestion.id} → OP ${op.id} (PRODUCTION)`);
+    return { type: 'PRODUCTION', suggestion: suggestion.id, productionOrderId: op.id, productionOrder: op };
+  }
+
+  // ─── S12.06: Converter batch de sugestões (#179) ─────────────────────────
+
+  async convertBatch(suggestionIds: string[], companyId: string) {
+    const results = [];
+    const errors = [];
+
+    for (const id of suggestionIds) {
+      try {
+        const result = await this.convertSuggestion(id, companyId);
+        results.push(result);
+      } catch (err) {
+        errors.push({ suggestionId: id, error: (err as Error).message });
+      }
+    }
+
+    return { converted: results, errors, total: suggestionIds.length, successCount: results.length };
   }
 }

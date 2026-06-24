@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { ProductionController } from './production.controller';
 import { ProductionService } from './production.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, EventEmitterModule],
   controllers: [ProductionController],
   providers: [ProductionService],
   exports: [ProductionService],

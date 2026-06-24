@@ -1,17 +1,21 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SalesOrderStatus } from '@prisma/client';
+import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
+import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
 
 @Injectable()
 export class SalesService {
+  private readonly logger = new Logger(SalesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
@@ -126,12 +130,14 @@ export class SalesService {
     });
   }
 
-  // ─── S07.04a: Confirmar venda (RESERVED → CONFIRMED) — sem movimento ──────
-  //   Confirmação é aprovação comercial. A saída física só ocorre no faturamento.
+  // ─── S07.04a: Confirmar venda (RESERVED → AWAITING_PICKING) ────────────────
+  //   Confirmação comercial. Dispara criação de PickingOrder via evento.
+  //   Picking deve ser concluído antes do faturamento.
 
   async confirmOrder(id: string, companyId: string, userId?: string) {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, companyId },
+      include: { items: true },
     });
 
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -144,7 +150,7 @@ export class SalesService {
 
     const confirmed = await this.prisma.salesOrder.update({
       where: { id },
-      data: { status: SalesOrderStatus.CONFIRMED, confirmedAt: new Date() },
+      data: { status: SalesOrderStatus.AWAITING_PICKING, confirmedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
 
@@ -158,24 +164,69 @@ export class SalesService {
       },
     });
 
+    // Emitir após commit — WMS ouve para criar PickingOrder
+    this.eventEmitter.emit(
+      SALE_CONFIRMED_EVENT,
+      new SaleConfirmedEvent(
+        confirmed.companyId,
+        userId,
+        confirmed.id,
+        confirmed.warehouseId,
+        (confirmed.items as any[]).map((i) => ({
+          productId: i.productId,
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+        })),
+      ),
+    );
+
     return confirmed;
   }
 
-  // ─── S07.04b: Faturar venda (CONFIRMED → INVOICED) — baixa estoque ────────
-  //   Gera StockMovement EXIT e emite evento para fiscal e financeiro.
+  // ─── S07.04a2: Marcar como pronto para faturar (AWAITING_PICKING → READY_TO_INVOICE)
+  //   Chamado pelo listener quando PickingOrder.status = DONE.
+
+  async markReadyToInvoice(salesOrderId: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: salesOrderId },
+    });
+
+    if (!order) throw new NotFoundException(`Venda ${salesOrderId} não encontrada`);
+    if (order.status !== SalesOrderStatus.AWAITING_PICKING) {
+      throw new BadRequestException(
+        `Venda não pode ser marcada como pronta. Status atual: ${order.status}`,
+      );
+    }
+
+    return this.prisma.salesOrder.update({
+      where: { id: salesOrderId },
+      data: { status: SalesOrderStatus.READY_TO_INVOICE, pickedAt: new Date() },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+  }
+
+  // ─── S07.04b: Faturar venda (READY_TO_INVOICE → INVOICED) — baixa estoque ──
+  //   Picking deve estar concluído. Gera StockMovement EXIT e emite evento para fiscal e financeiro.
 
   async invoiceOrder(id: string, companyId: string, userId?: string) {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true },
+        include: { items: true, pickingOrder: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
-      if (order.status !== SalesOrderStatus.CONFIRMED) {
+      if (order.status !== SalesOrderStatus.READY_TO_INVOICE) {
         throw new BadRequestException(
           `Venda não pode ser faturada. Status atual: ${order.status}. ` +
-            `Apenas vendas CONFIRMADAS podem ser faturadas.`,
+            `Apenas vendas com picking concluído (READY_TO_INVOICE) podem ser faturadas.`,
+        );
+      }
+
+      // Validação de segurança: picking deve estar DONE
+      if (!order.pickingOrder || order.pickingOrder.status !== 'DONE') {
+        throw new BadRequestException(
+          'Picking não concluído. Conclua todas as tarefas de picking antes de faturar.',
         );
       }
 
@@ -234,6 +285,7 @@ export class SalesService {
         invoiced.id,
         invoiced.warehouseId,
         (invoiced.items as any[]).map((i) => ({
+          saleItemId: i.id,
           productId: i.productId,
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),
@@ -247,7 +299,7 @@ export class SalesService {
   // ─── S07.06: Devolução (INVOICED → RETURNED) — entrada de estoque ─────────
 
   async returnOrder(id: string, companyId: string, dto: ReturnOrderDto, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const returned = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
         include: { items: true },
@@ -260,6 +312,7 @@ export class SalesService {
         );
       }
 
+      // 1. Reverter estoque: entrada de todos os itens
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
@@ -287,7 +340,29 @@ export class SalesService {
         });
       }
 
-      const returned = await tx.salesOrder.update({
+      // 2. Cancelar CR (conta a receber) vinculada (#178)
+      const financialEntry = await tx.financialEntry.findFirst({
+        where: { salesOrderId: id },
+      });
+
+      let crCancelled = false;
+      if (financialEntry) {
+        if (financialEntry.status === FinancialEntryStatus.PAID) {
+          this.logger.warn(
+            `CR ${financialEntry.id} da OV ${id} já foi PAGA — necessário gerar crédito manualmente`,
+          );
+        } else if (financialEntry.status !== FinancialEntryStatus.CANCELLED) {
+          await tx.financialEntry.update({
+            where: { id: financialEntry.id },
+            data: { status: FinancialEntryStatus.CANCELLED },
+          });
+          crCancelled = true;
+          this.logger.log(`CR ${financialEntry.id} → CANCELLED (devolução OV ${id})`);
+        }
+      }
+
+      // 3. Atualizar status da venda
+      const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.RETURNED, returnedAt: new Date() },
         include: { items: { include: { product: true } }, customer: true, warehouse: true },
@@ -299,12 +374,74 @@ export class SalesService {
           companyId,
           entity: 'SalesOrder',
           action: 'RETURN',
-          payload: { salesOrderId: id, reason: dto.reason },
+          payload: { salesOrderId: id, reason: dto.reason, crCancelled },
         },
       });
 
-      return returned;
+      return updated;
     });
+
+    // 4. Cancelar NF-e (chamada externa, fora da transação) (#178)
+    await this.cancelNfeForReturn(id, companyId, dto);
+
+    return returned;
+  }
+
+  /**
+   * Tenta cancelar a NF-e vinculada à venda.
+   * Se o prazo de 24h expirou ou não há NF-e autorizada, apenas loga o aviso.
+   */
+  private async cancelNfeForReturn(
+    salesOrderId: string,
+    companyId: string,
+    dto: ReturnOrderDto,
+  ): Promise<void> {
+    try {
+      const fiscalDoc = await this.prisma.fiscalDocument.findFirst({
+        where: { salesOrderId, companyId, status: 'AUTHORIZED' },
+      });
+
+      if (!fiscalDoc) {
+        this.logger.log(`OV ${salesOrderId}: sem NF-e AUTHORIZED para cancelar`);
+        return;
+      }
+
+      const justificativa =
+        dto.justificativa ?? `Devolução de venda — ${dto.reason}`;
+
+      const hoursElapsed = (Date.now() - fiscalDoc.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursElapsed > 24) {
+        this.logger.warn(
+          `NF-e ${fiscalDoc.id} da OV ${salesOrderId}: prazo de 24h expirado (${Math.floor(hoursElapsed)}h). ` +
+            `Cancelamento automático não disponível — necessário Carta de Correção ou NF-e de devolução.`,
+        );
+        return;
+      }
+
+      // Marca o documento para cancelamento — o cancelamento efetivo na SEFAZ
+      // deve ser executado via endpoint fiscal/cancel (evita dependência circular)
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancellationJustification: justificativa,
+        },
+      });
+
+      // Cancelar CR vinculada ao fiscalDoc (redundante mas seguro caso o CR esteja vinculado via fiscalDocumentId)
+      await this.prisma.financialEntry.updateMany({
+        where: { fiscalDocumentId: fiscalDoc.id, status: { not: 'CANCELLED' } },
+        data: { status: 'CANCELLED' },
+      });
+
+      this.logger.log(`NF-e ${fiscalDoc.id} cancelada (devolução OV ${salesOrderId})`);
+    } catch (err) {
+      this.logger.error(
+        `Erro ao cancelar NF-e da OV ${salesOrderId}: ${(err as Error).message}. ` +
+          `Devolução concluída, cancelamento fiscal pendente.`,
+      );
+    }
   }
 
   // ─── S07.05: Cancelar venda ───────────────────────────────────────────────
@@ -334,7 +471,9 @@ export class SalesService {
 
       const needsStockRevert =
         order.status === SalesOrderStatus.RESERVED ||
-        order.status === SalesOrderStatus.CONFIRMED;
+        order.status === SalesOrderStatus.CONFIRMED ||
+        order.status === SalesOrderStatus.AWAITING_PICKING ||
+        order.status === SalesOrderStatus.READY_TO_INVOICE;
 
       if (needsStockRevert) {
         for (const item of order.items) {

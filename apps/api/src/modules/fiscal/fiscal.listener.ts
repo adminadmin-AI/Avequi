@@ -59,33 +59,43 @@ export class FiscalListener {
     }
 
     // Reverter movimentação de estoque vinculada à venda
+    // Guard: se a venda já está RETURNED, o estoque já foi revertido pelo returnOrder (#178)
     if (event.salesOrderId) {
-      const movements = await this.prisma.stockMovement.findMany({
-        where: {
-          companyId: event.companyId,
-          reason: { contains: event.salesOrderId },
-          type: 'EXIT',
-        },
+      const salesOrder = await this.prisma.salesOrder.findFirst({
+        where: { id: event.salesOrderId },
+        select: { status: true },
       });
-      for (const mov of movements) {
-        // Criar movimento de entrada reversa
-        await this.prisma.stockMovement.create({
-          data: {
-            companyId: mov.companyId,
-            warehouseId: mov.warehouseId,
-            productId: mov.productId,
-            type: 'ENTRY',
-            quantity: mov.quantity,
-            reason: `Reversão por cancelamento NF-e — doc=${event.fiscalDocumentId}`,
-            userId: mov.userId,
+
+      if (salesOrder?.status === 'RETURNED') {
+        this.logger.log(
+          `OV ${event.salesOrderId} já está RETURNED — estoque já revertido, pulando reversão fiscal`,
+        );
+      } else {
+        const movements = await this.prisma.stockMovement.findMany({
+          where: {
+            companyId: event.companyId,
+            reason: { contains: event.salesOrderId },
+            type: 'EXIT',
           },
         });
-        // Atualizar saldo do estoque
-        await this.prisma.stockBalance.updateMany({
-          where: { warehouseId: mov.warehouseId, productId: mov.productId },
-          data: { available: { increment: Number(mov.quantity) } },
-        });
-        this.logger.log(`StockMovement reverso criado para product=${mov.productId} qty=${mov.quantity}`);
+        for (const mov of movements) {
+          await this.prisma.stockMovement.create({
+            data: {
+              companyId: mov.companyId,
+              warehouseId: mov.warehouseId,
+              productId: mov.productId,
+              type: 'ENTRY',
+              quantity: mov.quantity,
+              reason: `Reversão por cancelamento NF-e — doc=${event.fiscalDocumentId}`,
+              userId: mov.userId,
+            },
+          });
+          await this.prisma.stockBalance.updateMany({
+            where: { warehouseId: mov.warehouseId, productId: mov.productId },
+            data: { available: { increment: Number(mov.quantity) } },
+          });
+          this.logger.log(`StockMovement reverso criado para product=${mov.productId} qty=${mov.quantity}`);
+        }
       }
     }
   }

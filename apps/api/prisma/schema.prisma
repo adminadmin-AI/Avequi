@@ -122,6 +122,7 @@ model Company {
   analyticsQueryLogs   AnalyticsQueryLog[]
   taxRules             TaxRule[]
   fiscalVoidRanges     FiscalVoidRange[]
+  threeWayMatches      ThreeWayMatch[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -226,6 +227,7 @@ model User {
   quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
   inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
   batchEvents               BatchEvent[]        @relation("BatchEventUser")
+  matchResolutions          ThreeWayMatch[]     @relation("MatchResolvedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -313,6 +315,7 @@ model Product {
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
   minStock    Decimal        @default(0) @db.Decimal(14, 4)
+  tracksSerial Boolean       @default(false)
   isActive    Boolean        @default(true)
   batches        Batch[]       @relation("BatchProduct")
   boms           BomVersion[]  @relation("ProductBoms")
@@ -607,6 +610,8 @@ model PurchaseOrder {
   payables             Payable[]
   convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
   inboundNfes          InboundNfe[]
+  threeWayMatches      ThreeWayMatch[]
+  mrpSuggestions       MrpSuggestion[]     @relation("MrpConvertedPO")
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -644,6 +649,7 @@ model GoodsReceipt {
   receivingOrder   ReceivingOrder?
   inspections      Inspection[]
   inboundNfe       InboundNfe?
+  threeWayMatches  ThreeWayMatch[]
   createdAt        DateTime      @default(now())
 
   @@map("gdr_goods_receipts")
@@ -664,12 +670,47 @@ model GRItem {
   @@map("gdr_gr_items")
 }
 
+// ─── 3-Way Match ──────────────────────────────────────────────────────────────
+
+enum ThreeWayMatchResult {
+  FULL_MATCH
+  PARTIAL_MATCH
+  MISMATCH
+}
+
+model ThreeWayMatch {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId  String
+  goodsReceipt    GoodsReceipt        @relation(fields: [goodsReceiptId], references: [id])
+  inboundNfeId    String?
+  inboundNfe      InboundNfe?         @relation(fields: [inboundNfeId], references: [id])
+  result          ThreeWayMatchResult
+  qtyTolerance    Decimal             @default(0) @db.Decimal(5, 2)
+  priceTolerance  Decimal             @default(2) @db.Decimal(5, 2)
+  details         Json                // Array of per-item match details
+  resolvedById    String?
+  resolvedBy      User?               @relation("MatchResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([companyId, result])
+  @@index([purchaseOrderId])
+  @@map("gdr_three_way_matches")
+}
+
 // ─── Vendas ───────────────────────────────────────────────────────────────────
 
 enum SalesOrderStatus {
   DRAFT
   RESERVED
   CONFIRMED
+  AWAITING_PICKING
+  READY_TO_INVOICE
   INVOICED
   RETURNED
   CANCELLED
@@ -688,6 +729,7 @@ model SalesOrder {
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
+  pickedAt    DateTime?
   invoicedAt  DateTime?
   returnedAt  DateTime?
   cancelledAt DateTime?
@@ -705,14 +747,16 @@ model SalesOrder {
 }
 
 model SaleItem {
-  id           String        @id @default(cuid())
-  salesOrderId String
-  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId    String
-  product      Product       @relation(fields: [productId], references: [id])
-  quantity     Decimal       @db.Decimal(14, 4)
-  unitPrice    Decimal       @db.Decimal(14, 4)
-  unit         UnitOfMeasure @default(UN)
+  id             String        @id @default(cuid())
+  salesOrderId   String
+  salesOrder     SalesOrder    @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product       @relation(fields: [productId], references: [id])
+  quantity       Decimal       @db.Decimal(14, 4)
+  unitPrice      Decimal       @db.Decimal(14, 4)
+  unit           UnitOfMeasure @default(UN)
+  serialNumberId String?
+  serialNumber   SerialNumber? @relation("SaleItemSerial", fields: [serialNumberId], references: [id])
 
   @@map("gdr_sale_items")
 }
@@ -1043,6 +1087,12 @@ enum MrpSuggestionType {
   PRODUCTION
 }
 
+enum MrpSuggestionStatus {
+  PENDING
+  CONVERTED
+  DISMISSED
+}
+
 model MrpRun {
   id           String        @id @default(cuid())
   companyId    String
@@ -1061,19 +1111,23 @@ model MrpRun {
 }
 
 model MrpSuggestion {
-  id            String             @id @default(cuid())
+  id            String                @id @default(cuid())
   mrpRunId      String
-  mrpRun        MrpRun             @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
+  mrpRun        MrpRun                @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
   productId     String
-  product       Product            @relation(fields: [productId], references: [id])
+  product       Product               @relation(fields: [productId], references: [id])
   type          MrpSuggestionType
-  grossQty      Decimal            @db.Decimal(14, 4)  // demanda bruta do período
-  stockOnHand   Decimal            @db.Decimal(14, 4)  // estoque disponível atual
-  netQty        Decimal            @db.Decimal(14, 4)  // necessidade líquida (gross - stock)
-  bomLevel      Int                @default(0)         // 0=produto final, 1+=componente
+  status        MrpSuggestionStatus   @default(PENDING)
+  grossQty      Decimal               @db.Decimal(14, 4)
+  stockOnHand   Decimal               @db.Decimal(14, 4)
+  netQty        Decimal               @db.Decimal(14, 4)
+  bomLevel      Int                   @default(0)
   suggestedDate DateTime?
   notes         String?
-  createdAt     DateTime           @default(now())
+  convertedPoId String?
+  convertedPo   PurchaseOrder?        @relation("MrpConvertedPO", fields: [convertedPoId], references: [id])
+  convertedAt   DateTime?
+  createdAt     DateTime              @default(now())
 
   @@index([mrpRunId])
   @@index([productId])
@@ -1550,6 +1604,7 @@ model SerialNumber {
   engravingOperator  String?          @map("engraving_operator")
   observations       String?
   createdAt          DateTime         @default(now()) @map("created_at")
+  saleItems          SaleItem[]       @relation("SaleItemSerial")
 
   @@index([companyId, status])
   @@index([productId, status])
@@ -1729,6 +1784,7 @@ model InboundNfe {
   importedById    String?
   importedBy      User?            @relation("InboundNfeImportedBy", fields: [importedById], references: [id])
   importedAt      DateTime?
+  threeWayMatches ThreeWayMatch[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

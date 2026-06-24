@@ -9,12 +9,15 @@ import { SerialService } from './serial.service';
 const mockPrisma = {
   serialNumber: {
     create: jest.fn(),
+    createMany: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
     groupBy: jest.fn(),
     count: jest.fn(),
   },
+  product: { findFirst: jest.fn() },
+  saleItem: { update: jest.fn() },
 };
 
 describe('SerialService', () => {
@@ -262,6 +265,109 @@ describe('SerialService', () => {
       expect(result.byStatus.IN_PRODUCTION).toBe(0);
       expect(result.byStatus.TRANSFERRED).toBe(0);
       expect(Array.isArray(result.recentlyProduced)).toBe(true);
+    });
+  });
+
+  // ─── generateForProduction (#176) ─────────────────────────────────────────
+
+  describe('generateForProduction', () => {
+    it('should generate serials for product with tracksSerial=true', async () => {
+      mockPrisma.product.findFirst.mockResolvedValue({ tracksSerial: true, sku: 'REB-3E' });
+      mockPrisma.serialNumber.findFirst.mockResolvedValue(null); // no existing serials
+      mockPrisma.serialNumber.createMany.mockResolvedValue({ count: 3 });
+
+      const result = await service.generateForProduction(
+        'company-1', 'op-1', 'p-1', 'wh-1', 3,
+      );
+
+      expect(result.generated).toBe(3);
+      expect(result.serials).toHaveLength(3);
+      expect(result.serials[0]).toMatch(/^REB-3E-\d{4}-000001$/);
+      expect(result.serials[2]).toMatch(/^REB-3E-\d{4}-000003$/);
+      expect(mockPrisma.serialNumber.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            companyId: 'company-1',
+            productId: 'p-1',
+            warehouseId: 'wh-1',
+            productionOrderId: 'op-1',
+            status: 'IN_STOCK',
+          }),
+        ]),
+      });
+    });
+
+    it('should continue sequence from last existing serial', async () => {
+      const year = new Date().getFullYear();
+      mockPrisma.product.findFirst.mockResolvedValue({ tracksSerial: true, sku: 'REB-3E' });
+      mockPrisma.serialNumber.findFirst.mockResolvedValue({ serial: `REB-3E-${year}-000042` });
+      mockPrisma.serialNumber.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.generateForProduction(
+        'company-1', 'op-2', 'p-1', 'wh-1', 2,
+      );
+
+      expect(result.serials[0]).toBe(`REB-3E-${year}-000043`);
+      expect(result.serials[1]).toBe(`REB-3E-${year}-000044`);
+    });
+
+    it('should skip generation for product with tracksSerial=false', async () => {
+      mockPrisma.product.findFirst.mockResolvedValue({ tracksSerial: false, sku: 'MP001' });
+
+      const result = await service.generateForProduction(
+        'company-1', 'op-1', 'p-1', 'wh-1', 5,
+      );
+
+      expect(result.generated).toBe(0);
+      expect(result.serials).toHaveLength(0);
+      expect(mockPrisma.serialNumber.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── assignForSale (#176) ─────────────────────────────────────────────────
+
+  describe('assignForSale', () => {
+    it('should assign available serials to sale items', async () => {
+      mockPrisma.product.findFirst.mockResolvedValue({ tracksSerial: true });
+      mockPrisma.serialNumber.findMany.mockResolvedValue([
+        { id: 'sn-1', serial: 'REB-3E-2026-000001' },
+      ]);
+      mockPrisma.serialNumber.update.mockResolvedValue({});
+      mockPrisma.saleItem.update.mockResolvedValue({});
+
+      const result = await service.assignForSale(
+        'company-1',
+        'so-1',
+        [{ saleItemId: 'si-1', productId: 'p-1', quantity: 1 }],
+      );
+
+      expect(result.assigned).toBe(1);
+      expect(result.details[0].serial).toBe('REB-3E-2026-000001');
+      expect(mockPrisma.serialNumber.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sn-1' },
+          data: expect.objectContaining({ salesOrderId: 'so-1', status: 'SOLD' }),
+        }),
+      );
+      expect(mockPrisma.saleItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'si-1' },
+          data: { serialNumberId: 'sn-1' },
+        }),
+      );
+    });
+
+    it('should skip non-serial products', async () => {
+      mockPrisma.product.findFirst.mockResolvedValue({ tracksSerial: false });
+
+      const result = await service.assignForSale(
+        'company-1',
+        'so-1',
+        [{ saleItemId: 'si-1', productId: 'p-mp', quantity: 10 }],
+      );
+
+      expect(result.assigned).toBe(0);
+      expect(mockPrisma.serialNumber.findMany).not.toHaveBeenCalled();
     });
   });
 });
