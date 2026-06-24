@@ -29,6 +29,17 @@ export class ProductionController {
     return this.productionService.create(dto, req.user.sub);
   }
 
+  // GET /production/metrics/scrap — métricas de refugo (#184)
+  @Get('metrics/scrap')
+  getScrapMetrics(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('workCenterId') workCenterId?: string,
+  ) {
+    return this.productionService.getScrapMetrics(req.user.companyId, { from, to, workCenterId });
+  }
+
   // GET /production?status=DRAFT
   @Get()
   findAll(
@@ -119,5 +130,24 @@ export class ProductionController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.productionService.getCost(id, req.user.companyId);
+  }
+
+  // PATCH /production/:id/approve-inspection — aprovar inspeção final (#185)
+  @Patch(':id/approve-inspection')
+  approveInspection(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string; sub: string } },
+  ) {
+    return this.productionService.approveInspection(id, req.user.companyId, req.user.sub);
+  }
+
+  // PATCH /production/:id/reject-inspection — rejeitar inspeção final (#185)
+  @Patch(':id/reject-inspection')
+  rejectInspection(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string; sub: string } },
+    @Body('reason') reason: string,
+  ) {
+    return this.productionService.rejectInspection(id, req.user.companyId, reason, req.user.sub);
   }
 }

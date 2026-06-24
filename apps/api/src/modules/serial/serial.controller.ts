@@ -20,6 +20,15 @@ import { SerialService } from './serial.service';
 export class SerialController {
   constructor(private readonly serialService: SerialService) {}
 
+  // GET /serial/batch/:batchId/affected — recall reverso (#186)
+  @Get('batch/:batchId/affected')
+  getAffectedSerials(
+    @Param('batchId') batchId: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.serialService.getAffectedSerials(batchId, req.user.companyId);
+  }
+
   // GET /serial?status=&productId=&warehouseId=&search=
   @Get()
   list(
@@ -117,4 +126,23 @@ export class SerialController {
   ) {
     return this.serialService.scrap(id, req.user.companyId, reason);
   }
+
+  // GET /serial/:id/components — listar componentes de um chassi (#186)
+  @Get(':id/components')
+  getComponents(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.serialService.getComponents(id, req.user.companyId);
+  }
+
+  // GET /serial/:id/tree — árvore completa componente → lote → fornecedor (#186)
+  @Get(':id/tree')
+  getComponentTree(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.serialService.getComponentTree(id, req.user.companyId);
+  }
+
 }

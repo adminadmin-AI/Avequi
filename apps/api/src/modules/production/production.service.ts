@@ -297,18 +297,53 @@ export class ProductionService {
         });
       }
 
-      // ─── 2. Registrar custo da OP ─────────────────────────────────────────
-      const totalCost = materialCost; // laborCost = 0 (custo/hora no roteiro não implementado ainda)
+      // ─── 2. Calcular custo MOD (#182) ─────────────────────────────────────
+      const logs = await tx.productionLog.findMany({
+        where: { productionOrderId: id },
+        select: { workCenter: true, hoursWorked: true },
+      });
+
+      let laborCost = 0;
+      const laborBreakdown: { workCenter: string; hours: number; costPerHour: number; cost: number }[] = [];
+
+      // Agregar horas por workCenter
+      const hoursByWc = new Map<string, number>();
+      for (const log of logs) {
+        if (log.hoursWorked && log.workCenter) {
+          const wc = log.workCenter;
+          hoursByWc.set(wc, (hoursByWc.get(wc) ?? 0) + Number(log.hoursWorked));
+        }
+      }
+
+      // Buscar costPerHour de cada WorkCenter usado
+      if (hoursByWc.size > 0) {
+        const wcCodes = Array.from(hoursByWc.keys());
+        const workCenters = await tx.workCenter.findMany({
+          where: { companyId, code: { in: wcCodes } },
+          select: { code: true, costPerHour: true },
+        });
+        const wcCostMap = new Map(workCenters.map((wc: any) => [wc.code, Number(wc.costPerHour)]));
+
+        for (const [wcCode, hours] of hoursByWc.entries()) {
+          const cph = wcCostMap.get(wcCode) ?? 0;
+          const cost = hours * cph;
+          laborCost += cost;
+          laborBreakdown.push({ workCenter: wcCode, hours, costPerHour: cph, cost });
+        }
+      }
+
+      // ─── 2b. Registrar custo da OP ────────────────────────────────────────
+      const totalCost = materialCost + laborCost;
       const costPerUnit = finalQty > 0 ? totalCost / finalQty : 0;
 
       await tx.productionCost.create({
         data: {
           productionOrderId: id,
           materialCost,
-          laborCost: 0,
+          laborCost,
           totalCost,
           costPerUnit,
-          breakdown: breakdown as object[],
+          breakdown: { material: breakdown, labor: laborBreakdown } as object,
         },
       });
 
@@ -332,7 +367,46 @@ export class ProductionService {
         });
       }
 
-      // ─── 4. Dar entrada no produto acabado ────────────────────────────────
+      // ─── 4. Inspeção final ou entrada direta (#185) ──────────────────────
+      const requiresInspection = order.product.requiresFinalInspection === true;
+
+      if (requiresInspection) {
+        // Produto requer inspeção: OP fica em PENDING_INSPECTION, sem entrada no estoque
+        const updated = await tx.productionOrder.update({
+          where: { id },
+          data: {
+            status: 'PENDING_INSPECTION' as ProductionOrderStatus,
+            producedQty: finalQty,
+          },
+          include: ORDER_INCLUDE,
+        });
+
+        // Criar registro de inspeção
+        await tx.inspection.create({
+          data: {
+            companyId,
+            type: 'FINAL',
+            status: 'PENDING',
+            productionOrderId: id,
+            notes: `Inspeção final automática — ${finalQty} un produzidas`,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId,
+            companyId,
+            entity: 'ProductionOrder',
+            action: 'PENDING_INSPECTION',
+            payload: { id, plannedQty, producedQty: finalQty, totalCost, costPerUnit },
+          },
+        });
+
+        this.logger.log(`OP ${id} aguardando inspeção final — ${finalQty}/${plannedQty}`);
+        return { ...updated, _meta: null }; // Sem evento de produção completa até aprovação
+      }
+
+      // ─── 4b. Entrada direta no estoque (sem inspeção) ─────────────────────
       if (paBalance) {
         await tx.stockBalance.update({
           where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
@@ -485,14 +559,34 @@ export class ProductionService {
       );
     }
 
-    // Valida que qty não excede o saldo pendente (plannedQty - producedQty)
+    // Quantidade boa = qty total - refugo (#184)
+    const scrapQuantity = dto.scrapQuantity ?? 0;
+    const goodQuantity = dto.qty - scrapQuantity;
+
+    if (goodQuantity < 0) {
+      throw new BadRequestException('Refugo não pode ser maior que a quantidade total apontada');
+    }
+
+    // Valida que qty boa não excede o saldo pendente (plannedQty - producedQty)
     const alreadyProduced = Number(order.producedQty);
     const planned = Number(order.plannedQty);
-    if (alreadyProduced + dto.qty > planned) {
+    if (alreadyProduced + goodQuantity > planned) {
       throw new BadRequestException(
-        `Quantidade apontada excede o saldo pendente. ` +
-          `Planejado: ${planned}, já produzido: ${alreadyProduced}, solicitado: ${dto.qty}`,
+        `Quantidade boa apontada excede o saldo pendente. ` +
+          `Planejado: ${planned}, já produzido: ${alreadyProduced}, boas: ${goodQuantity}`,
       );
+    }
+
+    // Calcula horas trabalhadas (#184)
+    let hoursWorked: number | null = null;
+    const startTime = dto.startTime ? new Date(dto.startTime) : null;
+    const endTime = dto.endTime ? new Date(dto.endTime) : null;
+    if (startTime && endTime) {
+      const diffMs = endTime.getTime() - startTime.getTime();
+      if (diffMs < 0) {
+        throw new BadRequestException('endTime deve ser posterior a startTime');
+      }
+      hoursWorked = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
     }
 
     // Busca stepOrder da etapa, se informada
@@ -509,6 +603,11 @@ export class ProductionService {
         stepOrder,
         workCenter: dto.workCenter ?? null,
         qty: dto.qty,
+        scrapQuantity,
+        scrapReason: scrapQuantity > 0 ? (dto.scrapReason ?? null) : null,
+        startTime,
+        endTime,
+        hoursWorked,
         userId: userId ?? null,
         notes: dto.notes ?? null,
       },
@@ -518,14 +617,89 @@ export class ProductionService {
       },
     });
 
-    // Acumula producedQty na OP
-    await this.prisma.productionOrder.update({
-      where: { id },
-      data: { producedQty: { increment: dto.qty } },
+    // Acumula apenas quantidade boa na OP (não refugo)
+    if (goodQuantity > 0) {
+      await this.prisma.productionOrder.update({
+        where: { id },
+        data: { producedQty: { increment: goodQuantity } },
+      });
+    }
+
+    this.logger.log(
+      `Apontamento: OP ${id} +${goodQuantity} boas, ${scrapQuantity} refugo ` +
+        `(total: ${alreadyProduced + goodQuantity}/${planned})` +
+        (hoursWorked ? ` | ${hoursWorked}h` : ''),
+    );
+    return log;
+  }
+
+  // ─── Métricas de refugo (#184) ────────────────────────────────────────────
+
+  async getScrapMetrics(
+    companyId: string,
+    opts: { from?: string; to?: string; workCenterId?: string },
+  ) {
+    const where: any = {
+      productionOrder: { companyId },
+      scrapQuantity: { gt: 0 },
+    };
+    if (opts.from || opts.to) {
+      where.loggedAt = {};
+      if (opts.from) where.loggedAt.gte = new Date(opts.from);
+      if (opts.to) where.loggedAt.lte = new Date(opts.to);
+    }
+    if (opts.workCenterId) {
+      where.workCenter = opts.workCenterId;
+    }
+
+    const logs = await this.prisma.productionLog.findMany({
+      where,
+      select: {
+        qty: true,
+        scrapQuantity: true,
+        scrapReason: true,
+        workCenter: true,
+        productionOrderId: true,
+        loggedAt: true,
+      },
     });
 
-    this.logger.log(`Apontamento: OP ${id} +${dto.qty} (total: ${alreadyProduced + dto.qty}/${planned})`);
-    return log;
+    let totalQty = 0;
+    let totalScrap = 0;
+    const byWorkCenter = new Map<string, { qty: number; scrap: number }>();
+    const byReason = new Map<string, number>();
+
+    for (const log of logs) {
+      const qty = Number(log.qty);
+      const scrap = Number(log.scrapQuantity);
+      totalQty += qty;
+      totalScrap += scrap;
+
+      const wc = log.workCenter ?? 'SEM_WC';
+      const wcEntry = byWorkCenter.get(wc) ?? { qty: 0, scrap: 0 };
+      wcEntry.qty += qty;
+      wcEntry.scrap += scrap;
+      byWorkCenter.set(wc, wcEntry);
+
+      const reason = log.scrapReason ?? 'Não especificado';
+      byReason.set(reason, (byReason.get(reason) ?? 0) + scrap);
+    }
+
+    return {
+      totalQty,
+      totalScrap,
+      scrapPct: totalQty > 0 ? Math.round((totalScrap / totalQty) * 10000) / 100 : 0,
+      entries: logs.length,
+      byWorkCenter: Array.from(byWorkCenter.entries()).map(([wc, data]) => ({
+        workCenter: wc,
+        totalQty: data.qty,
+        totalScrap: data.scrap,
+        scrapPct: data.qty > 0 ? Math.round((data.scrap / data.qty) * 10000) / 100 : 0,
+      })),
+      byReason: Array.from(byReason.entries())
+        .map(([reason, scrap]) => ({ reason, scrap }))
+        .sort((a, b) => b.scrap - a.scrap),
+    };
   }
 
   // ─── S14.02: Listar apontamentos da OP ───────────────────────────────────
@@ -635,5 +809,120 @@ export class ProductionService {
       costPerUnit: Number(cost.costPerUnit),
       breakdown: cost.breakdown,
     };
+  }
+
+  // ─── Aprovar inspeção final (#185) ────────────────────────────────────────
+
+  async approveInspection(id: string, companyId: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.productionOrder.findFirst({
+        where: { id, companyId },
+        include: { product: true },
+      });
+
+      if (!order) throw new NotFoundException(`OP ${id} não encontrada`);
+      if (order.status !== ('PENDING_INSPECTION' as ProductionOrderStatus)) {
+        throw new BadRequestException(`OP não está aguardando inspeção. Status: ${order.status}`);
+      }
+
+      const finalQty = Number(order.producedQty);
+
+      // Entrada no estoque PA
+      const paBalance = await tx.stockBalance.findUnique({
+        where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
+      });
+
+      if (paBalance) {
+        await tx.stockBalance.update({
+          where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: order.productId } },
+          data: { available: { increment: finalQty } },
+        });
+      } else {
+        await tx.stockBalance.create({
+          data: { companyId, warehouseId: order.warehouseId, productId: order.productId, available: finalQty, reserved: 0 },
+        });
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          companyId, warehouseId: order.warehouseId, productId: order.productId,
+          type: 'ENTRY', quantity: finalQty,
+          reason: 'Entrada de Produto Acabado (pós-inspeção)',
+          reference: `OP:${id}`, userId,
+        },
+      });
+
+      // Atualizar inspeção
+      await tx.inspection.updateMany({
+        where: { productionOrderId: id, status: 'PENDING' },
+        data: { status: 'PASSED', finishedAt: new Date(), inspectedById: userId ?? null },
+      });
+
+      const updated = await tx.productionOrder.update({
+        where: { id },
+        data: { status: ProductionOrderStatus.DONE, completedAt: new Date() },
+        include: ORDER_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: { userId, companyId, entity: 'ProductionOrder', action: 'INSPECTION_APPROVED', payload: { id, producedQty: finalQty } },
+      });
+
+      this.logger.log(`OP ${id} inspeção aprovada — ${finalQty} un entram no estoque`);
+
+      // Emitir evento de produção completa
+      this.eventEmitter.emit(
+        PRODUCTION_COMPLETED_EVENT,
+        new ProductionCompletedEvent(companyId, id, order.productId, order.warehouseId, finalQty, userId),
+      );
+
+      return updated;
+    });
+  }
+
+  // ─── Rejeitar inspeção final (#185) ───────────────────────────────────────
+
+  async rejectInspection(id: string, companyId: string, reason: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.productionOrder.findFirst({ where: { id, companyId } });
+
+      if (!order) throw new NotFoundException(`OP ${id} não encontrada`);
+      if (order.status !== ('PENDING_INSPECTION' as ProductionOrderStatus)) {
+        throw new BadRequestException(`OP não está aguardando inspeção. Status: ${order.status}`);
+      }
+
+      // Atualizar inspeção para FAILED
+      await tx.inspection.updateMany({
+        where: { productionOrderId: id, status: 'PENDING' },
+        data: { status: 'FAILED', finishedAt: new Date(), inspectedById: userId ?? null, notes: reason },
+      });
+
+      // Criar NCR (Non-Conformance Report)
+      await tx.nonConformance.create({
+        data: {
+          companyId,
+          productionOrderId: id,
+          productId: order.productId,
+          description: reason,
+          severity: 'MAJOR',
+          status: 'OPEN',
+          reportedById: userId ?? null,
+        },
+      });
+
+      // OP fica CANCELLED (bloqueada)
+      const updated = await tx.productionOrder.update({
+        where: { id },
+        data: { status: ProductionOrderStatus.CANCELLED },
+        include: ORDER_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: { userId, companyId, entity: 'ProductionOrder', action: 'INSPECTION_REJECTED', payload: { id, reason } },
+      });
+
+      this.logger.log(`OP ${id} inspeção rejeitada — NCR criado: ${reason}`);
+      return updated;
+    });
   }
 }

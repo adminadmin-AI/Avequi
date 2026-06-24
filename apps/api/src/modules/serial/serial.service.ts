@@ -263,11 +263,17 @@ export class SerialService {
 
     await this.prisma.serialNumber.createMany({ data });
 
+    // Busca IDs dos seriais recém-criados para rastreabilidade (#186)
+    const created = await this.prisma.serialNumber.findMany({
+      where: { productionOrderId, serial: { in: serials } },
+      select: { id: true },
+    });
+
     this.logger.log(
       `Gerados ${qty} seriais para OP ${productionOrderId}: ${serials[0]} → ${serials[serials.length - 1]}`,
     );
 
-    return { generated: qty, serials };
+    return { generated: qty, serials, serialIds: created.map((s) => s.id) };
   }
 
   // ─── Auto-vinculação de seriais no faturamento (#176) ────────────────────
@@ -323,5 +329,115 @@ export class SerialService {
 
     this.logger.log(`Vinculados ${details.length} seriais à OV ${salesOrderId}`);
     return { assigned: details.length, details };
+  }
+
+  // ─── Rastreabilidade componente ↔ chassi (#186) ───────────────────────────
+
+  async registerComponents(
+    serialId: string,
+    productionOrderId: string,
+    components: { componentProductId: string; batchId?: string; quantity: number }[],
+  ) {
+    if (components.length === 0) return { registered: 0 };
+
+    await this.prisma.serialComponent.createMany({
+      data: components.map((c) => ({
+        serialId,
+        componentProductId: c.componentProductId,
+        batchId: c.batchId ?? null,
+        quantity: c.quantity,
+        productionOrderId,
+      })),
+    });
+
+    this.logger.log(`Registrados ${components.length} componentes no serial ${serialId}`);
+    return { registered: components.length };
+  }
+
+  async getComponents(serialId: string, companyId: string) {
+    const serial = await this.prisma.serialNumber.findFirst({
+      where: { id: serialId, companyId },
+    });
+    if (!serial) throw new NotFoundException(`Serial ${serialId} não encontrado`);
+
+    return this.prisma.serialComponent.findMany({
+      where: { serialId },
+      include: {
+        componentProduct: { select: { id: true, sku: true, name: true, unit: true } },
+        batch: { select: { id: true, batchNumber: true, status: true, supplierId: true } },
+      },
+      orderBy: { consumedAt: 'asc' },
+    });
+  }
+
+  async getComponentTree(serialId: string, companyId: string) {
+    const serial = await this.prisma.serialNumber.findFirst({
+      where: { id: serialId, companyId },
+      include: { product: { select: { id: true, sku: true, name: true } } },
+    });
+    if (!serial) throw new NotFoundException(`Serial ${serialId} não encontrado`);
+
+    const components = await this.prisma.serialComponent.findMany({
+      where: { serialId },
+      include: {
+        componentProduct: { select: { id: true, sku: true, name: true, unit: true } },
+        batch: {
+          select: {
+            id: true, batchNumber: true, status: true,
+            supplier: { select: { id: true, name: true, cnpj: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      serial: serial.serial,
+      product: serial.product,
+      producedAt: serial.producedAt,
+      components: components.map((c) => ({
+        product: c.componentProduct,
+        quantity: Number(c.quantity),
+        batch: c.batch ? {
+          batchNumber: c.batch.batchNumber,
+          status: c.batch.status,
+          supplier: (c.batch as any).supplier,
+        } : null,
+        consumedAt: c.consumedAt,
+      })),
+    };
+  }
+
+  async getAffectedSerials(batchId: string, companyId: string) {
+    const batch = await this.prisma.batch.findFirst({
+      where: { id: batchId, companyId },
+      select: { id: true, batchNumber: true, productId: true },
+    });
+    if (!batch) throw new NotFoundException(`Lote ${batchId} não encontrado`);
+
+    const components = await this.prisma.serialComponent.findMany({
+      where: { batchId },
+      include: {
+        serial: {
+          select: { id: true, serial: true, status: true, productId: true,
+            product: { select: { id: true, sku: true, name: true } },
+          },
+        },
+      },
+    });
+
+    const serials = components.map((c) => ({
+      serialId: c.serial.id,
+      serial: c.serial.serial,
+      status: c.serial.status,
+      product: c.serial.product,
+      quantityUsed: Number(c.quantity),
+      consumedAt: c.consumedAt,
+    }));
+
+    return {
+      batch: { id: batch.id, batchNumber: batch.batchNumber },
+      affectedCount: serials.length,
+      serials,
+    };
   }
 }

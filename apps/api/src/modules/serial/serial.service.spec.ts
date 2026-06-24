@@ -16,6 +16,8 @@ const mockPrisma = {
     groupBy: jest.fn(),
     count: jest.fn(),
   },
+  serialComponent: { createMany: jest.fn(), findMany: jest.fn() },
+  batch: { findFirst: jest.fn() },
   product: { findFirst: jest.fn() },
   saleItem: { update: jest.fn() },
 };
@@ -368,6 +370,72 @@ describe('SerialService', () => {
 
       expect(result.assigned).toBe(0);
       expect(mockPrisma.serialNumber.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Rastreabilidade componente ↔ chassi (#186) ────────────────────────
+
+  describe('registerComponents (#186)', () => {
+    it('deve registrar componentes vinculados a um serial', async () => {
+      mockPrisma.serialComponent.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.registerComponents('sn-1', 'op-1', [
+        { componentProductId: 'c-1', quantity: 10 },
+        { componentProductId: 'c-2', batchId: 'batch-1', quantity: 5 },
+      ]);
+
+      expect(result.registered).toBe(2);
+      expect(mockPrisma.serialComponent.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ serialId: 'sn-1', componentProductId: 'c-1', quantity: 10 }),
+          expect.objectContaining({ serialId: 'sn-1', componentProductId: 'c-2', batchId: 'batch-1' }),
+        ]),
+      });
+    });
+  });
+
+  describe('getComponents (#186)', () => {
+    it('deve listar componentes de um serial', async () => {
+      mockPrisma.serialNumber.findFirst.mockResolvedValue({ id: 'sn-1', companyId: 'co-1' });
+      mockPrisma.serialComponent.findMany.mockResolvedValue([
+        { componentProduct: { id: 'c-1', sku: 'MP001', name: 'Chapa', unit: 'UN' }, batch: null, quantity: '10' },
+      ]);
+
+      const result = await service.getComponents('sn-1', 'co-1');
+      expect(result).toHaveLength(1);
+    });
+
+    it('deve lançar NotFoundException para serial inexistente', async () => {
+      mockPrisma.serialNumber.findFirst.mockResolvedValue(null);
+      await expect(service.getComponents('sn-x', 'co-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getAffectedSerials (#186)', () => {
+    it('deve retornar chassis afetados por um lote com defeito', async () => {
+      mockPrisma.batch.findFirst.mockResolvedValue({ id: 'batch-1', batchNumber: 'LOT-001', productId: 'c-1' });
+      mockPrisma.serialComponent.findMany.mockResolvedValue([
+        {
+          quantity: '5',
+          consumedAt: new Date(),
+          serial: { id: 'sn-1', serial: 'REB-2026-000001', status: 'SOLD', productId: 'p-1', product: { id: 'p-1', sku: 'REB', name: 'Reboque' } },
+        },
+        {
+          quantity: '5',
+          consumedAt: new Date(),
+          serial: { id: 'sn-2', serial: 'REB-2026-000002', status: 'IN_STOCK', productId: 'p-1', product: { id: 'p-1', sku: 'REB', name: 'Reboque' } },
+        },
+      ]);
+
+      const result = await service.getAffectedSerials('batch-1', 'co-1');
+
+      expect(result.affectedCount).toBe(2);
+      expect(result.serials[0].serial).toBe('REB-2026-000001');
+    });
+
+    it('deve lançar NotFoundException para lote inexistente', async () => {
+      mockPrisma.batch.findFirst.mockResolvedValue(null);
+      await expect(service.getAffectedSerials('batch-x', 'co-1')).rejects.toThrow(NotFoundException);
     });
   });
 });

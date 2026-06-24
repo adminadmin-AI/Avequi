@@ -315,6 +315,12 @@ model Product {
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
   minStock    Decimal        @default(0) @db.Decimal(14, 4)
+  minOrderQty       Decimal?  @db.Decimal(14, 4)
+  orderMultiple     Decimal?  @db.Decimal(14, 4)
+  minProductionQty  Decimal?  @db.Decimal(14, 4)
+  productionMultiple Decimal? @db.Decimal(14, 4)
+  leadTimeDays      Int?      @default(0)
+  requiresFinalInspection Boolean @default(false)
   tracksSerial Boolean       @default(false)
   isActive    Boolean        @default(true)
   batches        Batch[]       @relation("BatchProduct")
@@ -338,6 +344,7 @@ model Product {
   inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
   nonConformances           NonConformance[]     @relation("NcrProduct")
   serialNumbers             SerialNumber[]       @relation("SerialProduct")
+  serialComponents          SerialComponent[]    @relation("SerialComponentProduct")
   quotationItems            QuotationItem[]      @relation("QuotationItemProduct")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -1141,6 +1148,7 @@ enum ProductionOrderStatus {
   DRAFT
   RELEASED
   IN_PROGRESS
+  PENDING_INSPECTION
   DONE
   CANCELLED
 }
@@ -1154,6 +1162,11 @@ model ProductionLog {
   stepOrder         Int?            // cache do stepOrder para ordenação
   workCenter        String?
   qty               Decimal         @db.Decimal(14, 4)
+  scrapQuantity     Decimal         @default(0) @db.Decimal(14, 4)
+  scrapReason       String?
+  startTime         DateTime?
+  endTime           DateTime?
+  hoursWorked       Decimal?        @db.Decimal(10, 2)
   userId            String?
   user              User?           @relation("ProductionLogUser", fields: [userId], references: [id])
   notes             String?
@@ -1185,8 +1198,9 @@ model ProductionOrder {
   logs             ProductionLog[]
   cost             ProductionCost?
   inspections      Inspection[]
-  serialNumbers    SerialNumber[]
-  batchEvents      BatchEvent[]
+  serialNumbers      SerialNumber[]
+  serialComponents   SerialComponent[]
+  batchEvents        BatchEvent[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1605,10 +1619,30 @@ model SerialNumber {
   observations       String?
   createdAt          DateTime         @default(now()) @map("created_at")
   saleItems          SaleItem[]       @relation("SaleItemSerial")
+  components         SerialComponent[] @relation("SerialChassisComponents")
 
   @@index([companyId, status])
   @@index([productId, status])
   @@map("gdr_serial_number")
+}
+
+model SerialComponent {
+  id                 String           @id @default(cuid())
+  serialId           String
+  serial             SerialNumber     @relation("SerialChassisComponents", fields: [serialId], references: [id])
+  componentProductId String
+  componentProduct   Product          @relation("SerialComponentProduct", fields: [componentProductId], references: [id])
+  batchId            String?
+  batch              Batch?           @relation("SerialComponentBatch", fields: [batchId], references: [id])
+  quantity           Decimal          @db.Decimal(14, 4)
+  productionOrderId  String
+  productionOrder    ProductionOrder  @relation(fields: [productionOrderId], references: [id])
+  consumedAt         DateTime         @default(now())
+
+  @@index([serialId])
+  @@index([batchId])
+  @@index([productionOrderId])
+  @@map("gdr_serial_components")
 }
 
 // ─── Manutenção de Equipamentos (S27B) ───────────────────────────────────────
@@ -1803,6 +1837,7 @@ model WorkCenter {
   name                String
   description         String?
   capacityHoursPerDay Decimal  @default(8) @db.Decimal(5, 2)
+  costPerHour         Decimal  @default(0) @db.Decimal(14, 4)
   operatorsCount      Int      @default(1)
   efficiencyPct       Decimal  @default(85) @db.Decimal(5, 2)
   isActive            Boolean  @default(true)
@@ -1856,6 +1891,7 @@ model Batch {
   warehouse          Warehouse?  @relation(fields: [warehouseId], references: [id])
   notes              String?
   events             BatchEvent[]
+  serialComponents   SerialComponent[] @relation("SerialComponentBatch")
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
