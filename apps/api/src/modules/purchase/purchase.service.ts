@@ -217,10 +217,11 @@ export class PurchaseService {
 
       if (!po) throw new NotFoundException(`Pedido de compra ${dto.purchaseOrderId} não encontrado`);
 
-      // PO deve estar APPROVED para receber
-      if (po.status !== PurchaseOrderStatus.APPROVED) {
+      // PO deve estar APPROVED ou PARTIALLY_RECEIVED para receber
+      const RECEIVABLE_STATUSES = ['APPROVED', 'PARTIALLY_RECEIVED'] as const;
+      if (!RECEIVABLE_STATUSES.includes(po.status as any)) {
         throw new BadRequestException(
-          `Recebimento não permitido. Pedido está com status "${po.status}". Apenas pedidos APROVADOS podem ser recebidos.`,
+          `Recebimento não permitido. Pedido está com status "${po.status}". Apenas pedidos APROVADOS ou PARCIALMENTE RECEBIDOS podem ser recebidos.`,
         );
       }
 
@@ -249,10 +250,19 @@ export class PurchaseService {
           throw new NotFoundException(`Item de PO ${grItem.poItemId} não encontrado neste pedido`);
         }
 
-        const hasDivergence = Number(grItem.qtyReceived) !== Number(poItem.quantity);
+        const alreadyReceived = Number(poItem.receivedQuantity ?? 0);
+        const pendingQty = Number(poItem.quantity) - alreadyReceived;
+
+        if (grItem.qtyReceived > pendingQty) {
+          throw new BadRequestException(
+            `Item ${poItem.productId}: quantidade recebida (${grItem.qtyReceived}) excede o pendente (${pendingQty}).`,
+          );
+        }
+
+        const hasDivergence = grItem.qtyReceived !== pendingQty;
         if (hasDivergence && !grItem.divergenceReason?.trim()) {
           throw new BadRequestException(
-            `Item ${poItem.productId}: quantidade divergente (pedido: ${poItem.quantity}, recebido: ${grItem.qtyReceived}) exige motivo obrigatório.`,
+            `Item ${poItem.productId}: quantidade divergente (pendente: ${pendingQty}, recebido: ${grItem.qtyReceived}) exige motivo obrigatório.`,
           );
         }
 
@@ -368,10 +378,31 @@ export class PurchaseService {
         }
       }
 
-      // Marcar PO como RECEIVED
+      // Atualizar receivedQuantity em cada POItem
+      for (const item of grItemsData) {
+        await tx.pOItem.update({
+          where: { id: item.poItemId },
+          data: { receivedQuantity: { increment: item.qtyReceived } },
+        });
+      }
+
+      // Verificar se todos os itens foram totalmente recebidos
+      const updatedItems = await tx.pOItem.findMany({
+        where: { purchaseOrderId: dto.purchaseOrderId },
+      });
+      const allFullyReceived = updatedItems.every(
+        (i) => Number(i.receivedQuantity) >= Number(i.quantity),
+      );
+
+      // Marcar PO como RECEIVED ou PARTIALLY_RECEIVED
+      const PO_PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED' as PurchaseOrderStatus;
       await tx.purchaseOrder.update({
         where: { id: dto.purchaseOrderId },
-        data: { status: PurchaseOrderStatus.RECEIVED },
+        data: {
+          status: allFullyReceived
+            ? PurchaseOrderStatus.RECEIVED
+            : PO_PARTIALLY_RECEIVED,
+        },
       });
 
       // Auditoria
@@ -411,6 +442,33 @@ export class PurchaseService {
     );
 
     return receipt;
+  }
+
+  // ─── #190: Receiving Status ───────────────────────────────────────────────
+
+  async getReceivingStatus(id: string, companyId: string) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id, companyId },
+      include: { items: { include: { product: { select: { id: true, name: true, sku: true } } } } },
+    });
+
+    if (!po) throw new NotFoundException(`Pedido de compra ${id} não encontrado`);
+
+    const items = po.items.map((item) => ({
+      poItemId: item.id,
+      product: item.product,
+      orderedQty: Number(item.quantity),
+      receivedQty: Number(item.receivedQuantity),
+      pendingQty: Math.max(0, Number(item.quantity) - Number(item.receivedQuantity)),
+      fullyReceived: Number(item.receivedQuantity) >= Number(item.quantity),
+    }));
+
+    return {
+      purchaseOrderId: po.id,
+      status: po.status,
+      items,
+      allFullyReceived: items.every((i) => i.fullyReceived),
+    };
   }
 
   // ─── S05.07: PurchaseRequest CRUD ────────────────────────────────────────
