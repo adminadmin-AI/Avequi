@@ -46,6 +46,7 @@ import { BatchModule } from './modules/batch/batch.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { PriceModule } from './modules/price/price.module';
 import { ApprovalModule } from './modules/approval/approval.module';
+import { CommissionModule } from './modules/commission/commission.module';
 import { BankingModule } from './banking/banking.module';
 import { BpmModule } from './bpm/bpm.module';
 import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.module';
@@ -136,6 +137,7 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     TaxModule,
     PriceModule,
     ApprovalModule,
+    CommissionModule,
     BankingModule,
     BpmModule,
     AnalyticsBiModule,
