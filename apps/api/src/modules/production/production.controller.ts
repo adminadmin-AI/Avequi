@@ -29,6 +29,17 @@ export class ProductionController {
     return this.productionService.create(dto, req.user.sub);
   }
 
+  // GET /production/metrics/scrap — métricas de refugo (#184)
+  @Get('metrics/scrap')
+  getScrapMetrics(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('workCenterId') workCenterId?: string,
+  ) {
+    return this.productionService.getScrapMetrics(req.user.companyId, { from, to, workCenterId });
+  }
+
   // GET /production?status=DRAFT
   @Get()
   findAll(

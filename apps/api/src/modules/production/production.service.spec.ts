@@ -506,6 +506,135 @@ describe('ProductionService', () => {
     });
   });
 
+  // ─── addLog com refugo e tempo (#184) ──────────────────────────────────────
+
+  describe('addLog — scrap & time (#184)', () => {
+    const inProgressOrder = {
+      ...baseOrder,
+      status: 'IN_PROGRESS',
+      plannedQty: '10',
+      producedQty: '0',
+    };
+    const baseLog = {
+      id: 'log-1',
+      productionOrderId: 'op-1',
+      qty: '5',
+      scrapQuantity: '2',
+      scrapReason: 'Trinca',
+      startTime: new Date('2026-06-24T08:00:00Z'),
+      endTime: new Date('2026-06-24T11:30:00Z'),
+      hoursWorked: '3.5',
+      routingStepId: null,
+      stepOrder: null,
+      workCenter: null,
+      notes: null,
+      loggedAt: new Date(),
+      user: null,
+      routingStep: null,
+    };
+
+    it('deve registrar refugo e acumular apenas quantidade boa', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockPrisma.productionLog.create.mockResolvedValue(baseLog);
+      mockPrisma.productionOrder.update.mockResolvedValue({});
+
+      await service.addLog('op-1', 'co-1', { qty: 5, scrapQuantity: 2, scrapReason: 'Trinca' }, 'u-1');
+
+      expect(mockPrisma.productionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            qty: 5,
+            scrapQuantity: 2,
+            scrapReason: 'Trinca',
+          }),
+        }),
+      );
+      // Acumula apenas 3 boas (5 - 2 refugo)
+      expect(mockPrisma.productionOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { producedQty: { increment: 3 } },
+        }),
+      );
+    });
+
+    it('deve calcular hoursWorked a partir de startTime/endTime', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+      mockPrisma.productionLog.create.mockResolvedValue(baseLog);
+      mockPrisma.productionOrder.update.mockResolvedValue({});
+
+      await service.addLog('op-1', 'co-1', {
+        qty: 3,
+        startTime: '2026-06-24T08:00:00Z',
+        endTime: '2026-06-24T11:30:00Z',
+      }, 'u-1');
+
+      expect(mockPrisma.productionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            startTime: expect.any(Date),
+            endTime: expect.any(Date),
+            hoursWorked: 3.5,
+          }),
+        }),
+      );
+    });
+
+    it('deve lançar BadRequest quando refugo > qty total', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+
+      await expect(
+        service.addLog('op-1', 'co-1', { qty: 3, scrapQuantity: 5 }, 'u-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequest quando endTime < startTime', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue(inProgressOrder);
+
+      await expect(
+        service.addLog('op-1', 'co-1', {
+          qty: 3,
+          startTime: '2026-06-24T12:00:00Z',
+          endTime: '2026-06-24T08:00:00Z',
+        }, 'u-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar BadRequest quando qty boa excede saldo pendente', async () => {
+      mockPrisma.productionOrder.findFirst.mockResolvedValue({
+        ...inProgressOrder,
+        plannedQty: '5',
+        producedQty: '4',
+      });
+
+      // qty=3, scrap=1 → goodQty=2, alreadyProduced=4, total=6 > planned=5
+      await expect(
+        service.addLog('op-1', 'co-1', { qty: 3, scrapQuantity: 1 }, 'u-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── getScrapMetrics (#184) ───────────────────────────────────────────────
+
+  describe('getScrapMetrics', () => {
+    it('deve retornar métricas de refugo agrupadas por workCenter e reason', async () => {
+      mockPrisma.productionLog.findMany.mockResolvedValue([
+        { qty: '10', scrapQuantity: '2', scrapReason: 'Trinca', workCenter: 'WC-01', productionOrderId: 'op-1', loggedAt: new Date() },
+        { qty: '8', scrapQuantity: '1', scrapReason: 'Trinca', workCenter: 'WC-01', productionOrderId: 'op-2', loggedAt: new Date() },
+        { qty: '5', scrapQuantity: '3', scrapReason: 'Dimensional', workCenter: 'WC-02', productionOrderId: 'op-3', loggedAt: new Date() },
+      ]);
+
+      const result = await service.getScrapMetrics('co-1', {});
+
+      expect(result.totalQty).toBe(23);
+      expect(result.totalScrap).toBe(6);
+      expect(result.scrapPct).toBeCloseTo(26.09, 1);
+      expect(result.byWorkCenter).toHaveLength(2);
+      expect(result.byReason).toHaveLength(2);
+      expect(result.byReason[0].reason).toBe('Trinca');
+      expect(result.byReason[0].scrap).toBe(3);
+    });
+  });
+
   // ─── S14: getLogs ─────────────────────────────────────────────────────────
 
   describe('getLogs', () => {

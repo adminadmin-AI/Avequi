@@ -485,14 +485,34 @@ export class ProductionService {
       );
     }
 
-    // Valida que qty não excede o saldo pendente (plannedQty - producedQty)
+    // Quantidade boa = qty total - refugo (#184)
+    const scrapQuantity = dto.scrapQuantity ?? 0;
+    const goodQuantity = dto.qty - scrapQuantity;
+
+    if (goodQuantity < 0) {
+      throw new BadRequestException('Refugo não pode ser maior que a quantidade total apontada');
+    }
+
+    // Valida que qty boa não excede o saldo pendente (plannedQty - producedQty)
     const alreadyProduced = Number(order.producedQty);
     const planned = Number(order.plannedQty);
-    if (alreadyProduced + dto.qty > planned) {
+    if (alreadyProduced + goodQuantity > planned) {
       throw new BadRequestException(
-        `Quantidade apontada excede o saldo pendente. ` +
-          `Planejado: ${planned}, já produzido: ${alreadyProduced}, solicitado: ${dto.qty}`,
+        `Quantidade boa apontada excede o saldo pendente. ` +
+          `Planejado: ${planned}, já produzido: ${alreadyProduced}, boas: ${goodQuantity}`,
       );
+    }
+
+    // Calcula horas trabalhadas (#184)
+    let hoursWorked: number | null = null;
+    const startTime = dto.startTime ? new Date(dto.startTime) : null;
+    const endTime = dto.endTime ? new Date(dto.endTime) : null;
+    if (startTime && endTime) {
+      const diffMs = endTime.getTime() - startTime.getTime();
+      if (diffMs < 0) {
+        throw new BadRequestException('endTime deve ser posterior a startTime');
+      }
+      hoursWorked = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
     }
 
     // Busca stepOrder da etapa, se informada
@@ -509,6 +529,11 @@ export class ProductionService {
         stepOrder,
         workCenter: dto.workCenter ?? null,
         qty: dto.qty,
+        scrapQuantity,
+        scrapReason: scrapQuantity > 0 ? (dto.scrapReason ?? null) : null,
+        startTime,
+        endTime,
+        hoursWorked,
         userId: userId ?? null,
         notes: dto.notes ?? null,
       },
@@ -518,14 +543,89 @@ export class ProductionService {
       },
     });
 
-    // Acumula producedQty na OP
-    await this.prisma.productionOrder.update({
-      where: { id },
-      data: { producedQty: { increment: dto.qty } },
+    // Acumula apenas quantidade boa na OP (não refugo)
+    if (goodQuantity > 0) {
+      await this.prisma.productionOrder.update({
+        where: { id },
+        data: { producedQty: { increment: goodQuantity } },
+      });
+    }
+
+    this.logger.log(
+      `Apontamento: OP ${id} +${goodQuantity} boas, ${scrapQuantity} refugo ` +
+        `(total: ${alreadyProduced + goodQuantity}/${planned})` +
+        (hoursWorked ? ` | ${hoursWorked}h` : ''),
+    );
+    return log;
+  }
+
+  // ─── Métricas de refugo (#184) ────────────────────────────────────────────
+
+  async getScrapMetrics(
+    companyId: string,
+    opts: { from?: string; to?: string; workCenterId?: string },
+  ) {
+    const where: any = {
+      productionOrder: { companyId },
+      scrapQuantity: { gt: 0 },
+    };
+    if (opts.from || opts.to) {
+      where.loggedAt = {};
+      if (opts.from) where.loggedAt.gte = new Date(opts.from);
+      if (opts.to) where.loggedAt.lte = new Date(opts.to);
+    }
+    if (opts.workCenterId) {
+      where.workCenter = opts.workCenterId;
+    }
+
+    const logs = await this.prisma.productionLog.findMany({
+      where,
+      select: {
+        qty: true,
+        scrapQuantity: true,
+        scrapReason: true,
+        workCenter: true,
+        productionOrderId: true,
+        loggedAt: true,
+      },
     });
 
-    this.logger.log(`Apontamento: OP ${id} +${dto.qty} (total: ${alreadyProduced + dto.qty}/${planned})`);
-    return log;
+    let totalQty = 0;
+    let totalScrap = 0;
+    const byWorkCenter = new Map<string, { qty: number; scrap: number }>();
+    const byReason = new Map<string, number>();
+
+    for (const log of logs) {
+      const qty = Number(log.qty);
+      const scrap = Number(log.scrapQuantity);
+      totalQty += qty;
+      totalScrap += scrap;
+
+      const wc = log.workCenter ?? 'SEM_WC';
+      const wcEntry = byWorkCenter.get(wc) ?? { qty: 0, scrap: 0 };
+      wcEntry.qty += qty;
+      wcEntry.scrap += scrap;
+      byWorkCenter.set(wc, wcEntry);
+
+      const reason = log.scrapReason ?? 'Não especificado';
+      byReason.set(reason, (byReason.get(reason) ?? 0) + scrap);
+    }
+
+    return {
+      totalQty,
+      totalScrap,
+      scrapPct: totalQty > 0 ? Math.round((totalScrap / totalQty) * 10000) / 100 : 0,
+      entries: logs.length,
+      byWorkCenter: Array.from(byWorkCenter.entries()).map(([wc, data]) => ({
+        workCenter: wc,
+        totalQty: data.qty,
+        totalScrap: data.scrap,
+        scrapPct: data.qty > 0 ? Math.round((data.scrap / data.qty) * 10000) / 100 : 0,
+      })),
+      byReason: Array.from(byReason.entries())
+        .map(([reason, scrap]) => ({ reason, scrap }))
+        .sort((a, b) => b.scrap - a.scrap),
+    };
   }
 
   // ─── S14.02: Listar apontamentos da OP ───────────────────────────────────
