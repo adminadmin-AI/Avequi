@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   PRODUCTION_COMPLETED_EVENT,
   ProductionCompletedEvent,
@@ -14,7 +15,10 @@ import { SerialService } from './serial.service';
 export class SerialListener {
   private readonly logger = new Logger(SerialListener.name);
 
-  constructor(private readonly serialService: SerialService) {}
+  constructor(
+    private readonly serialService: SerialService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @OnEvent(PRODUCTION_COMPLETED_EVENT, { async: true })
   async onProductionCompleted(event: ProductionCompletedEvent): Promise<void> {
@@ -31,11 +35,39 @@ export class SerialListener {
         this.logger.log(
           `OP ${event.productionOrderId}: ${result.generated} seriais gerados automaticamente`,
         );
+
+        // Registrar rastreabilidade componente ↔ chassi (#186)
+        await this.registerComponentTraceability(event.productionOrderId, result.serialIds ?? []);
       }
     } catch (err) {
       this.logger.error(
         `Erro ao gerar seriais para OP ${event.productionOrderId}: ${(err as Error).message}`,
       );
+    }
+  }
+
+  private async registerComponentTraceability(productionOrderId: string, serialIds: string[]) {
+    if (serialIds.length === 0) return;
+    try {
+      const items = await this.prisma.productionOrderItem.findMany({
+        where: { productionOrderId },
+        select: { componentId: true, consumedQty: true },
+      });
+      if (items.length === 0) return;
+
+      const qtyPerSerial = (componentQty: number) => componentQty / serialIds.length;
+
+      for (const serialId of serialIds) {
+        const components = items.map((item) => ({
+          componentProductId: item.componentId,
+          quantity: qtyPerSerial(Number(item.consumedQty)),
+        }));
+        await this.serialService.registerComponents(serialId, productionOrderId, components);
+      }
+
+      this.logger.log(`Rastreabilidade: ${items.length} componentes × ${serialIds.length} seriais registrados`);
+    } catch (err) {
+      this.logger.error(`Erro ao registrar rastreabilidade: ${(err as Error).message}`);
     }
   }
 
