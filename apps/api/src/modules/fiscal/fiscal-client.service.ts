@@ -69,6 +69,51 @@ export class FiscalClientService {
     return this.post('/v2/nfe/inutilizacao', payload);
   }
 
+  /** Buscar NF-e recebidas (destinadas ao CNPJ) via Focus NFe */
+  async fetchReceivedNfes(cnpj: string): Promise<any[]> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<any[]>(`${this.baseUrl}/v2/nfes_recebidas?cnpj=${cnpj}`, {
+          auth: { username: this.token, password: '' },
+        }),
+      );
+      this.logger.log(`Focus NFe: ${Array.isArray(data) ? data.length : 0} NF-e recebidas para CNPJ ${cnpj}`);
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      const axiosErr = err as AxiosError<any>;
+      this.logger.error(`Erro ao buscar NF-e recebidas: ${axiosErr.message}`);
+      return [];
+    }
+  }
+
+  /** Manifestar NF-e recebida (ciência, confirmação, rejeição, desconhecimento) */
+  async manifestNfe(
+    chaveNfe: string,
+    tipoEvento: number,
+    justificativa?: string,
+  ): Promise<FocusEmissionResponse & { protocolo?: string }> {
+    try {
+      const payload: Record<string, unknown> = { tipo: tipoEvento };
+      if (justificativa) {
+        payload.justificativa = justificativa;
+      }
+
+      const { data } = await firstValueFrom(
+        this.http.post<FocusEmissionResponse & { protocolo?: string }>(
+          `${this.baseUrl}/v2/nfes_recebidas/${chaveNfe}/manifesto`,
+          payload,
+          { auth: { username: this.token, password: '' } },
+        ),
+      );
+
+      this.logger.log(`Focus NFe manifest: chave=${chaveNfe} tipo=${tipoEvento} status=${data.status}`);
+      return data;
+    } catch (err) {
+      const result = this.handleError(err);
+      return { ...result, protocolo: undefined };
+    }
+  }
+
   /** Consultar status de um documento já enviado */
   async getStatus(type: 'nfe' | 'nfce', ref: string): Promise<FocusEmissionResponse> {
     try {

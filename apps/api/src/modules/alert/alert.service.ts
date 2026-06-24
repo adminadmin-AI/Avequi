@@ -236,6 +236,17 @@ export class AlertService {
     });
   }
 
+  async alertManifestOverdue(companyId: string, count: number): Promise<void> {
+    await this.upsertAlert({
+      companyId,
+      type: AlertType.MANIFEST_OVERDUE,
+      severity: AlertSeverity.WARNING,
+      title: `${count} NF-e não manifestada(s) há mais de 30 dias`,
+      body: `Existem ${count} NF-e pendentes de manifestação que ultrapassaram o prazo de 30 dias. Acesse Fiscal > Manifestação para regularizar.`,
+      entityType: 'NfeManifest',
+    });
+  }
+
   async resolveFocusNfeAlert(companyId: string): Promise<void> {
     await this.prisma.alert.updateMany({
       where: {

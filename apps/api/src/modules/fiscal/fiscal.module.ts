@@ -15,6 +15,6 @@ import { TaxModule } from '../tax/tax.module';
   ],
   controllers: [FiscalController],
   providers: [FiscalService, FiscalClientService, FiscalListener],
-  exports: [FiscalService],
+  exports: [FiscalService, FiscalClientService],
 })
 export class FiscalModule {}

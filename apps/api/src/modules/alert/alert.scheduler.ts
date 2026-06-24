@@ -5,6 +5,7 @@ import { Queue } from 'bull';
 import { AlertService } from './alert.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MrpService } from '../mrp/mrp.service';
+import { ManifestService } from '../manifest/manifest.service';
 import { REPORT_QUEUE } from '../report/report.types';
 
 const FOCUS_NFE_HEALTH_URL = 'https://homologacao.focusnfe.com.br/v2/';
@@ -18,6 +19,7 @@ export class AlertScheduler {
     private readonly alertService: AlertService,
     private readonly prisma: PrismaService,
     private readonly mrpService: MrpService,
+    private readonly manifestService: ManifestService,
     @InjectQueue(REPORT_QUEUE) private readonly reportQueue: Queue,
   ) {}
 
@@ -147,6 +149,51 @@ export class AlertScheduler {
       } else {
         await this.alertService.resolveFocusNfeAlert(company.id);
       }
+    }
+  }
+
+  // ─── F6: Sync NF-e recebidas — diariamente às 07h ────────────────────────
+
+  @Cron('0 7 * * *', { name: 'manifest-sync' })
+  async syncManifests(): Promise<void> {
+    this.logger.log('Sync manifestação: iniciando...');
+    const companies = await this.getActiveCompanies();
+
+    for (const company of companies) {
+      try {
+        const { synced } = await this.manifestService.syncReceivedNfes(company.id);
+        if (synced > 0) {
+          this.logger.log(`Manifest sync company=${company.id}: ${synced} novas NF-e`);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Falha no sync manifestação para ${company.id}: ${msg}`);
+      }
+    }
+  }
+
+  // ─── F6: Alerta NF-e não manifestada > 30 dias — diariamente às 09h ──────
+
+  @Cron('0 9 * * *', { name: 'manifest-overdue-check' })
+  async checkManifestOverdue(): Promise<void> {
+    const companies = await this.getActiveCompanies();
+    let total = 0;
+
+    for (const company of companies) {
+      try {
+        const count = await this.manifestService.checkOverdueManifests(company.id);
+        if (count > 0) {
+          await this.alertService.alertManifestOverdue(company.id, count);
+          total += count;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Falha no check manifestação vencida para ${company.id}: ${msg}`);
+      }
+    }
+
+    if (total > 0) {
+      this.logger.warn(`Alertas manifestação vencida: ${total} NF-e`);
     }
   }
 }
