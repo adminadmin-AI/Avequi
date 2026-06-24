@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InboundNfeStatus, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MatchNfeDto } from './dto/match-nfe.dto';
@@ -57,6 +58,8 @@ const CHAVE_NFE = '35260619999999999999550010000001231234567890';
 
 // ─── Mock Prisma ─────────────────────────────────────────────────────────────
 
+const mockEventEmitter = { emit: jest.fn() };
+
 const mockPrisma = {
   inboundNfe: {
     findUnique: jest.fn(),
@@ -74,6 +77,15 @@ const mockPrisma = {
   },
   warehouse: {
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
+  },
+  stockBalance: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  stockMovement: {
+    create: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -179,6 +191,7 @@ describe('InboundNfeService', () => {
       providers: [
         InboundNfeService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -392,9 +405,10 @@ describe('InboundNfeService', () => {
       items: [{ id: 'gri-1', goodsReceiptId: 'gr-1', poItemId: 'poi-1', productId: 'prod-1', qtyOrdered: 10, qtyReceived: 10 }],
     };
 
-    it('should create GoodsReceipt and update NF-e to IMPORTED', async () => {
+    it('should create GoodsReceipt, update stock, emit event and mark IMPORTED', async () => {
       mockPrisma.inboundNfe.findFirst.mockResolvedValue(matchedNfe);
       mockPrisma.goodsReceipt.findFirst.mockResolvedValue({ warehouseId: 'wh-1' });
+      mockPrisma.warehouse.findUnique.mockResolvedValue({ wmsEnabled: false });
       mockPrisma.$transaction.mockImplementation(async (fn: any) => {
         const txPrisma = {
           goodsReceipt: { create: jest.fn().mockResolvedValue(grResult) },
@@ -406,6 +420,12 @@ describe('InboundNfeService', () => {
               importedAt: new Date(),
             }),
           },
+          stockBalance: {
+            findUnique: jest.fn().mockResolvedValue({ available: 10, reserved: 0 }),
+            create: jest.fn(),
+            update: jest.fn(),
+          },
+          stockMovement: { create: jest.fn() },
         };
         return fn(txPrisma);
       });
@@ -414,6 +434,14 @@ describe('InboundNfeService', () => {
 
       expect(result.goodsReceipt.id).toBe('gr-1');
       expect(result.inboundNfe.status).toBe(InboundNfeStatus.IMPORTED);
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'purchase.goods_received',
+        expect.objectContaining({
+          companyId: 'co-1',
+          goodsReceiptId: 'gr-1',
+          purchaseOrderId: 'po-1',
+        }),
+      );
     });
 
     it('should throw BadRequestException if status is not MATCHED', async () => {

@@ -1,17 +1,25 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InboundNfeStatus, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GOODS_RECEIVED_EVENT, GoodsReceivedEvent } from '../stock/events/goods-received.event';
 import { MatchNfeDto } from './dto/match-nfe.dto';
 import { UploadNfeDto } from './dto/upload-nfe.dto';
 import { parseNfeXml } from './nfe-xml.parser';
 
 @Injectable()
 export class InboundNfeService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(InboundNfeService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ─── Upload e parse de XML ─────────────────────────────────────────────────
 
@@ -155,9 +163,9 @@ export class InboundNfeService {
     });
   }
 
-  // ─── Importar como GR (rascunho) ──────────────────────────────────────────
-  // Cria GoodsReceipt + GRItems diretamente via Prisma, sem triggering de
-  // movimentações de estoque. O usuário revisa e confirma via PATCH /purchase/receipts.
+  // ─── Importar como GR + atualizar estoque e financeiro ─────────────────────
+  // Cria GoodsReceipt, atualiza StockBalance/StockMovement e emite evento
+  // para que finance.listener crie conta a pagar automaticamente.
 
   async importAsGr(id: string, companyId: string, userId?: string) {
     const nfe = await this.prisma.inboundNfe.findFirst({
@@ -203,6 +211,7 @@ export class InboundNfeService {
         productId: poItem.productId,
         qtyOrdered: poItem.quantity,
         qtyReceived: nfeItem.quantity,
+        unitCost: Number(poItem.unitCost),
       };
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -212,16 +221,13 @@ export class InboundNfeService {
       );
     }
 
-    // warehouseId: use the PO's warehouse from the GoodsReceipt context
-    // We'll use the first available warehouse for the company if none from nfe
-    const warehouse = await this.prisma.goodsReceipt.findFirst({
+    // Determinar warehouse
+    const existingGr = await this.prisma.goodsReceipt.findFirst({
       where: { purchaseOrderId: po.id, companyId },
       select: { warehouseId: true },
     });
-
-    // Fallback: find any warehouse for the company
     const warehouseId =
-      warehouse?.warehouseId ??
+      existingGr?.warehouseId ??
       (await this.prisma.warehouse.findFirst({
         where: { companyId, isActive: true },
         select: { id: true },
@@ -231,7 +237,15 @@ export class InboundNfeService {
       throw new BadRequestException('Nenhum armazém encontrado para a empresa');
     }
 
+    // Verificar WMS
+    const wh = await this.prisma.warehouse.findUnique({
+      where: { id: warehouseId },
+      select: { wmsEnabled: true },
+    });
+    const wmsEnabled = wh?.wmsEnabled ?? false;
+
     const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Criar GoodsReceipt + GRItems
       const gr = await tx.goodsReceipt.create({
         data: {
           companyId,
@@ -251,6 +265,46 @@ export class InboundNfeService {
         include: { items: true },
       });
 
+      // 2. Atualizar estoque para cada item
+      for (const item of grItems) {
+        if (item.qtyReceived <= 0) continue;
+
+        // Garantir que StockBalance existe
+        const existing = await tx.stockBalance.findUnique({
+          where: { warehouseId_productId: { warehouseId, productId: item.productId } },
+        });
+        if (!existing) {
+          await tx.stockBalance.create({
+            data: { companyId, warehouseId, productId: item.productId, available: 0, reserved: 0 },
+          });
+        }
+
+        // Atualizar saldo
+        await tx.stockBalance.update({
+          where: { warehouseId_productId: { warehouseId, productId: item.productId } },
+          data: wmsEnabled
+            ? { pendingPutaway: { increment: item.qtyReceived } }
+            : { available: { increment: item.qtyReceived } },
+        });
+
+        // StockMovement ENTRY (apenas sem WMS — com WMS, criado no putaway)
+        if (!wmsEnabled) {
+          await tx.stockMovement.create({
+            data: {
+              companyId,
+              warehouseId,
+              productId: item.productId,
+              type: 'ENTRY',
+              quantity: item.qtyReceived,
+              reason: `NF-e entrada ${nfe.chaveNfe} — PO #${po.id}`,
+              reference: `GR:${gr.id}`,
+              userId,
+            },
+          });
+        }
+      }
+
+      // 3. Marcar NF-e como importada
       const updatedNfe = await tx.inboundNfe.update({
         where: { id },
         data: {
@@ -263,6 +317,27 @@ export class InboundNfeService {
 
       return { goodsReceipt: gr, inboundNfe: updatedNfe };
     });
+
+    // 4. Emitir evento GOODS_RECEIVED → finance.listener cria CP, wms.listener cria ReceivingOrder
+    this.eventEmitter.emit(
+      GOODS_RECEIVED_EVENT,
+      new GoodsReceivedEvent(
+        companyId,
+        userId,
+        po.id,
+        result.goodsReceipt.id,
+        warehouseId,
+        grItems.map((item) => ({
+          productId: item.productId,
+          qtyReceived: item.qtyReceived,
+          unitCost: item.unitCost,
+        })),
+      ),
+    );
+
+    this.logger.log(
+      `NF-e ${nfe.chaveNfe} importada como GR ${result.goodsReceipt.id} — estoque e financeiro atualizados`,
+    );
 
     return result;
   }
