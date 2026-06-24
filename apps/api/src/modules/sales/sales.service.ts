@@ -24,6 +24,19 @@ export class SalesService {
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
   async createOrder(dto: CreateSalesOrderDto, userId?: string) {
+    // #187: validar crédito do cliente
+    let initialStatus: SalesOrderStatus = SalesOrderStatus.DRAFT;
+    if (dto.customerId) {
+      const creditCheck = await this.checkCustomerCredit(
+        dto.customerId,
+        dto.companyId,
+        dto.items,
+      );
+      if (creditCheck === 'BLOCKED') {
+        initialStatus = 'CREDIT_HOLD' as SalesOrderStatus;
+      }
+    }
+
     const order = await this.prisma.salesOrder.create({
       data: {
         companyId: dto.companyId,
@@ -31,7 +44,7 @@ export class SalesService {
         customerId: dto.customerId,
         notes: dto.notes,
         createdById: userId,
-        status: SalesOrderStatus.DRAFT,
+        status: initialStatus,
         items: {
           create: dto.items.map((item) => ({
             productId: item.productId,
@@ -562,5 +575,81 @@ export class SalesService {
 
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
     return order;
+  }
+
+  // ─── #187: Credit check ─────────────────────────────────────────────────
+
+  private async checkCustomerCredit(
+    customerId: string,
+    companyId: string,
+    items: { quantity: number; unitPrice: number }[],
+  ): Promise<'OK' | 'BLOCKED'> {
+    const creditLimit = await this.prisma.creditLimit.findFirst({
+      where: { customerId, companyId, status: 'ACTIVE' },
+    });
+
+    // No credit limit configured → OK (no restriction)
+    if (!creditLimit) return 'OK';
+
+    const orderTotal = items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0,
+    );
+
+    // Sum of open/overdue receivables
+    const { _sum } = await this.prisma.receivable.aggregate({
+      where: {
+        customerId,
+        companyId,
+        status: { in: ['OPEN', 'OVERDUE'] },
+      },
+      _sum: { amount: true },
+    });
+    const creditUsed = Number(_sum.amount ?? 0);
+    const creditAvailable = Number(creditLimit.maxAmount) - creditUsed;
+
+    if (orderTotal > creditAvailable) {
+      this.logger.warn(
+        `OV bloqueada: cliente ${customerId} sem crédito suficiente ` +
+          `(disponível: ${creditAvailable}, OV: ${orderTotal})`,
+      );
+      return 'BLOCKED';
+    }
+
+    return 'OK';
+  }
+
+  // ─── #187: Approve credit hold ──────────────────────────────────────────
+
+  async approveCreditHold(id: string, companyId: string, userId?: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+    if (order.status !== ('CREDIT_HOLD' as SalesOrderStatus)) {
+      throw new BadRequestException(
+        `Venda não está em CREDIT_HOLD. Status atual: ${order.status}`,
+      );
+    }
+
+    const updated = await this.prisma.salesOrder.update({
+      where: { id },
+      data: { status: SalesOrderStatus.DRAFT },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'APPROVE_CREDIT',
+        payload: { salesOrderId: id },
+      },
+    });
+
+    this.logger.log(`OV ${id}: CREDIT_HOLD → DRAFT (aprovação gerencial por ${userId})`);
+    return updated;
   }
 }
