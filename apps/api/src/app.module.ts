@@ -44,6 +44,7 @@ import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { TaxModule } from './modules/tax/tax.module';
+import { PriceModule } from './modules/price/price.module';
 import { BankingModule } from './banking/banking.module';
 import { BpmModule } from './bpm/bpm.module';
 import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.module';
@@ -132,6 +133,7 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     CapacityModule,
     BatchModule,
     TaxModule,
+    PriceModule,
     BankingModule,
     BpmModule,
     AnalyticsBiModule,
