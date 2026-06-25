@@ -20,6 +20,7 @@ import {
   Barcode,
   CalendarClock,
   ShoppingCart,
+  FileText,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -52,7 +53,10 @@ const NAV: NavSection[] = [
   },
   {
     title: 'Comercial',
-    items: [{ href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart }],
+    items: [
+      { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
+      { href: '/app/quotations', label: 'Cotações', icon: FileText },
+    ],
   },
   {
     title: 'Financeiro',

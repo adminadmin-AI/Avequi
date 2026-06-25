@@ -154,6 +154,37 @@ export interface Warehouse extends BaseEntity {
   wmsEnabled: boolean;
 }
 
+export type QuotationStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'CONVERTED';
+
+export interface QuotationItem {
+  id: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  quantity: string;
+  unitPrice: string;
+  discount?: string | null;
+}
+
+export interface Quotation extends BaseEntity {
+  companyId: string;
+  customerId?: string | null;
+  customer?: Pick<Customer, 'id' | 'name'> | null;
+  warehouseId: string;
+  status: QuotationStatus;
+  validUntil?: string | null;
+  notes?: string | null;
+  discount?: string | null;
+  rejectionReason?: string | null;
+  salesOrderId?: string | null;
+  items?: QuotationItem[];
+}
+
 export interface SaleItem {
   id: string;
   productId: string;
