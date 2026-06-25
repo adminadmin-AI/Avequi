@@ -30,6 +30,7 @@ import {
   Truck,
   MapPin,
   ClipboardList,
+  Network,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -79,7 +80,10 @@ const NAV: NavSection[] = [
   },
   {
     title: 'Produção',
-    items: [{ href: '/app/production', label: 'Ordens de Produção', icon: Factory }],
+    items: [
+      { href: '/app/production', label: 'Ordens de Produção', icon: Factory },
+      { href: '/app/production/bom', label: 'BOM', icon: Network },
+    ],
   },
   {
     title: 'Suprimentos',
