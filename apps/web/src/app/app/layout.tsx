@@ -42,6 +42,7 @@ import {
   Wrench,
   BarChart3,
   Bell,
+  History,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -55,6 +56,8 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** se definido, o item só aparece para esses papéis */
+  roles?: string[];
 }
 interface NavSection {
   title?: string;
@@ -152,6 +155,7 @@ const NAV: NavSection[] = [
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2 },
+      { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, roles: ['SUPER_ADMIN'] },
     ],
   },
 ];
@@ -213,7 +217,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </p>
               )}
               <div className="space-y-0.5">
-                {section.items.map(({ href, label, icon: Icon }) => {
+                {section.items
+                  .filter((it) => !it.roles || (user?.role ? it.roles.includes(user.role) : false))
+                  .map(({ href, label, icon: Icon }) => {
                   const active = isActive(pathname, href);
                   return (
                     <Link
