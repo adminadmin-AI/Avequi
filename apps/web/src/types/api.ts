@@ -10,6 +10,8 @@
 // ─── Enums (espelham o schema Prisma) ─────────────────────────────────────────
 export type CompanyType = 'MATRIZ' | 'FILIAL';
 
+export type TaxRegime = 'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
+
 export type UserRole =
   | 'SUPER_ADMIN'
   | 'DIRECTOR'
@@ -47,6 +49,25 @@ export interface Company extends BaseEntity {
   cnpj: string;
   type: CompanyType;
   parentId?: string | null;
+  // Dados fiscais (#161)
+  razaoSocial?: string | null;
+  ie?: string | null;
+  im?: string | null;
+  crt?: number | null;
+  taxRegime?: TaxRegime | null;
+  suframa?: string | null;
+  cnae?: string | null;
+  // Endereço
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface User extends BaseEntity {
