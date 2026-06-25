@@ -19,6 +19,7 @@ import {
   Scale,
   Barcode,
   CalendarClock,
+  ShoppingCart,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -48,6 +49,10 @@ const NAV: NavSection[] = [
       { href: '/app/customers', label: 'Clientes', icon: Users },
       { href: '/app/suppliers', label: 'Fornecedores', icon: Factory },
     ],
+  },
+  {
+    title: 'Comercial',
+    items: [{ href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart }],
   },
   {
     title: 'Financeiro',
