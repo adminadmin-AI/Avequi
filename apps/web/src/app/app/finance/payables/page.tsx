@@ -18,6 +18,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate } from '@/lib/format';
+import { ManualEntryDialog } from '../manual-entry-dialog';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -299,6 +300,7 @@ export default function PayablesPage() {
       <PageHeader
         title="Carteira de Pagáveis"
         description="Contas a pagar, vencimentos e baixas."
+        actions={<ManualEntryDialog defaultType="PAYABLE" />}
       />
 
       {/* KPIs */}

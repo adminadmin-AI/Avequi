@@ -18,6 +18,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate } from '@/lib/format';
+import { ManualEntryDialog } from '../manual-entry-dialog';
 import { ReceivablePayForm, type PayFormValues } from './receivable-pay-form';
 
 const RESOURCE = '/finance';
@@ -326,6 +327,7 @@ export default function ReceivablesPage() {
       <PageHeader
         title="Carteira de Recebíveis"
         description="Contas a receber, vencimentos e baixas."
+        actions={<ManualEntryDialog defaultType="RECEIVABLE" />}
       />
 
       {/* KPIs */}
