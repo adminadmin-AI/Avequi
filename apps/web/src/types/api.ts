@@ -64,6 +64,26 @@ export type PurchaseOrderStatus =
   | 'RECEIVED'
   | 'CANCELLED';
 
+export type TransferStatus = 'DRAFT' | 'DISPATCHED' | 'RECEIVED' | 'CANCELLED';
+
+export interface StoreTransferItem {
+  id: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  quantity: string;
+}
+
+export interface StoreTransfer extends BaseEntity {
+  companyId: string;
+  fromWarehouseId: string;
+  fromWarehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  toWarehouseId: string;
+  toWarehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  status: TransferStatus;
+  notes?: string | null;
+  items?: StoreTransferItem[];
+}
+
 export type MovementType =
   | 'ENTRY'
   | 'EXIT'
