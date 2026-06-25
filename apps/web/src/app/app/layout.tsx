@@ -138,6 +138,7 @@ const NAV: NavSection[] = [
     title: 'Inteligência',
     items: [
       { href: '/app/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/app/reports', label: 'Relatórios', icon: FileText },
     ],
   },
   {
