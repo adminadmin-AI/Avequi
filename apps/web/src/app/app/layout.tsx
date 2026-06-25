@@ -29,6 +29,7 @@ import {
   ArrowLeftRight,
   Truck,
   MapPin,
+  ClipboardList,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -73,6 +74,7 @@ const NAV: NavSection[] = [
       { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight },
       { href: '/app/stock/transfers', label: 'Transferências', icon: Truck },
       { href: '/app/stock/locations', label: 'Localizações', icon: MapPin },
+      { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList },
     ],
   },
   {
