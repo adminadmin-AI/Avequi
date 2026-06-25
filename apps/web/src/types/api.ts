@@ -64,6 +64,30 @@ export type PurchaseOrderStatus =
   | 'RECEIVED'
   | 'CANCELLED';
 
+export type ProductionOrderStatus =
+  | 'DRAFT'
+  | 'RELEASED'
+  | 'IN_PROGRESS'
+  | 'PENDING_INSPECTION'
+  | 'DONE'
+  | 'CANCELLED';
+
+export interface ProductionOrder extends BaseEntity {
+  companyId: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name' | 'unit'> | null;
+  warehouseId: string;
+  warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  plannedQty: string;
+  producedQty: string;
+  status: ProductionOrderStatus;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  notes?: string | null;
+}
+
 export type TransferStatus = 'DRAFT' | 'DISPATCHED' | 'RECEIVED' | 'CANCELLED';
 
 export interface StoreTransferItem {
