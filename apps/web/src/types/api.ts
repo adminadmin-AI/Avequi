@@ -177,6 +177,21 @@ export interface FinancialCategory extends BaseEntity {
   children?: FinancialCategory[];
 }
 
+export interface ReconciliationItem {
+  id: string;
+  companyId: string;
+  bankAccountId: string;
+  date: string;
+  description: string;
+  amount: string;
+  type: string;
+  matched: boolean;
+  matchedToId?: string | null;
+  matchedToType?: string | null;
+  bankAccount?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface BankAccount extends BaseEntity {
   companyId: string;
   name: string;
