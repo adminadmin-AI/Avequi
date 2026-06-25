@@ -31,6 +31,7 @@ import {
   MapPin,
   ClipboardList,
   Network,
+  Calculator,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -83,6 +84,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/app/production', label: 'Ordens de Produção', icon: Factory },
       { href: '/app/production/bom', label: 'BOM', icon: Network },
+      { href: '/app/production/mrp', label: 'MRP', icon: Calculator },
     ],
   },
   {
