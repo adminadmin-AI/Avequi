@@ -34,6 +34,7 @@ import {
   Calculator,
   Workflow,
   ScrollText,
+  ClipboardCheck,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -97,6 +98,12 @@ const NAV: NavSection[] = [
       { href: '/app/purchases/automation', label: 'Automação', icon: Gauge },
       { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput },
       { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck },
+    ],
+  },
+  {
+    title: 'Qualidade',
+    items: [
+      { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck },
     ],
   },
   {
