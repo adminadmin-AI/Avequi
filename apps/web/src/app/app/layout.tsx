@@ -23,6 +23,7 @@ import {
   FileText,
   PackageOpen,
   BadgeCheck,
+  Gauge,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -64,6 +65,7 @@ const NAV: NavSection[] = [
     title: 'Suprimentos',
     items: [
       { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen },
+      { href: '/app/purchases/automation', label: 'Automação', icon: Gauge },
       { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck },
     ],
   },
