@@ -78,6 +78,10 @@ const NAV: NavSection[] = [
     ],
   },
   {
+    title: 'Produção',
+    items: [{ href: '/app/production', label: 'Ordens de Produção', icon: Factory }],
+  },
+  {
     title: 'Suprimentos',
     items: [
       { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen },
