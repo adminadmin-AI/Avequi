@@ -38,6 +38,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Wrench,
+  BarChart3,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -131,6 +132,12 @@ const NAV: NavSection[] = [
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode },
       { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock },
       { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal },
+    ],
+  },
+  {
+    title: 'Inteligência',
+    items: [
+      { href: '/app/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
   {
