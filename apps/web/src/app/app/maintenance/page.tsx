@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Play, Check, X, Pencil, PowerOff, Info } from 'lucide-react';
+import { Plus, Play, Check, X, Pencil, PowerOff, Info, LayoutList, CalendarDays } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
@@ -23,10 +23,12 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatBRL } from '@/lib/format';
+import { MaintenanceCalendar } from './maintenance-calendar';
 import {
   EQUIPMENT_STATUS,
   MAINTENANCE_ORDER_STATUS,
@@ -129,6 +131,10 @@ export default function MaintenancePage() {
       apiClient.patch(`${ORDERS}/${id}/${endpoint}`, body ?? {}),
     onSuccess: refetchAll,
   });
+
+  // ── Visualização e detalhe (#134) ──
+  const [view, setView] = useState<'table' | 'calendar'>('table');
+  const [selected, setSelected] = useState<MaintenanceOrder | null>(null);
 
   // ── Filtros OM ──
   const [statusFilter, setStatusFilter] = useState<'' | MaintenanceOrderStatus>('');
@@ -472,6 +478,29 @@ export default function MaintenancePage() {
             </div>
           )}
 
+          <div className="mb-3 flex items-center justify-end">
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+              <button
+                onClick={() => setView('table')}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  view === 'table' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <LayoutList size={15} /> Tabela
+              </button>
+              <button
+                onClick={() => setView('calendar')}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  view === 'calendar' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <CalendarDays size={15} /> Calendário
+              </button>
+            </div>
+          </div>
+
           <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <div>
               <Label>Status</Label>
@@ -519,13 +548,17 @@ export default function MaintenancePage() {
             </div>
           </div>
 
-          <DataTable
-            data={filteredOrders}
-            columns={orderColumns}
-            loading={ordersQ.isLoading}
-            searchPlaceholder="Buscar por descrição..."
-            emptyMessage="Nenhuma ordem de manutenção encontrada."
-          />
+          {view === 'table' ? (
+            <DataTable
+              data={filteredOrders}
+              columns={orderColumns}
+              loading={ordersQ.isLoading}
+              searchPlaceholder="Buscar por descrição..."
+              emptyMessage="Nenhuma ordem de manutenção encontrada."
+            />
+          ) : (
+            <MaintenanceCalendar orders={filteredOrders} onSelect={(o) => setSelected(o)} />
+          )}
         </>
       ) : (
         <DataTable
@@ -648,6 +681,69 @@ export default function MaintenancePage() {
           )}
         </form>
       </FormDialog>
+
+      {/* Detalhe da OM (clique no calendário) */}
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent>
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle>OM #{shortId(selected.id)}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 px-6 pb-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={MAINTENANCE_TYPE[selected.type].variant}>{MAINTENANCE_TYPE[selected.type].label}</Badge>
+                  <Badge variant={MAINTENANCE_ORDER_STATUS[selected.status].variant}>{MAINTENANCE_ORDER_STATUS[selected.status].label}</Badge>
+                </div>
+                <p className="text-base font-medium text-slate-800">{selected.title}</p>
+                {selected.description && <p className="text-slate-600">{selected.description}</p>}
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-slate-600">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipamento</dt>
+                    <dd>{selected.equipment ? `${selected.equipment.code} — ${selected.equipment.name}` : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Técnico</dt>
+                    <dd>{selected.technician?.name ?? techName(selected.technicianId)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Data prevista</dt>
+                    <dd>{selected.scheduledAt ? formatDate(selected.scheduledAt) : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Conclusão</dt>
+                    <dd>{selected.completedAt ? formatDate(selected.completedAt) : '—'}</dd>
+                  </div>
+                  {selected.resolution && (
+                    <div className="col-span-2">
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Serviço realizado</dt>
+                      <dd>{selected.resolution}{selected.cost ? ` · ${formatBRL(selected.cost)}` : ''}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                {selected.status === 'OPEN' && (
+                  <>
+                    <Button variant="secondary" onClick={() => { const o = selected; setSelected(null); cancelOrder(o); }}>Cancelar OM</Button>
+                    <Button onClick={() => { const o = selected; setSelected(null); startOrder(o); }}>
+                      <Play size={15} /> Iniciar
+                    </Button>
+                  </>
+                )}
+                {selected.status === 'IN_PROGRESS' && (
+                  <>
+                    <Button variant="secondary" onClick={() => { const o = selected; setSelected(null); cancelOrder(o); }}>Cancelar OM</Button>
+                    <Button onClick={() => { const o = selected; setSelected(null); setCompleteTarget(o); setResolution(''); setCost(''); }}>
+                      <Check size={15} /> Concluir
+                    </Button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
