@@ -18,6 +18,7 @@ import {
   LineChart,
   Scale,
   Barcode,
+  CalendarClock,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -57,6 +58,7 @@ const NAV: NavSection[] = [
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale },
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode },
+      { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock },
       { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal },
     ],
   },
