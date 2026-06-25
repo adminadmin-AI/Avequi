@@ -64,6 +64,42 @@ export type PurchaseOrderStatus =
   | 'RECEIVED'
   | 'CANCELLED';
 
+export type MovementType =
+  | 'ENTRY'
+  | 'EXIT'
+  | 'ADJUSTMENT'
+  | 'REVERSAL'
+  | 'TRANSFER_OUT'
+  | 'TRANSFER_IN';
+
+export interface StockBalance {
+  id: string;
+  warehouseId: string;
+  warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  productId: string;
+  product?: Product | null;
+  available: string;
+  reserved: string;
+  inTransit: string;
+  pendingPutaway: string;
+}
+
+export interface StockMovement {
+  id: string;
+  warehouseId: string;
+  warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  type: MovementType;
+  quantity: string;
+  reason: string;
+  reference?: string | null;
+  reversedById?: string | null;
+  userId?: string | null;
+  user?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface POItem {
   id: string;
   productId: string;

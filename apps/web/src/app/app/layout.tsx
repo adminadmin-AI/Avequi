@@ -25,6 +25,7 @@ import {
   BadgeCheck,
   Gauge,
   FileInput,
+  Boxes,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -61,6 +62,10 @@ const NAV: NavSection[] = [
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
     ],
+  },
+  {
+    title: 'Estoque',
+    items: [{ href: '/app/stock', label: 'Saldos', icon: Boxes }],
   },
   {
     title: 'Suprimentos',
