@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { BrandMark } from '@/components/brand-mark';
+import { NotificationBell } from '@/components/notification-bell';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
@@ -245,6 +246,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen flex-1 flex-col pl-60">
         {/* Header */}
         <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur">
+          <NotificationBell />
           <div className="flex items-center gap-3">
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-slate-800">{user?.name}</p>
