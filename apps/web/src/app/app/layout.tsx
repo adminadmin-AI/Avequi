@@ -33,6 +33,7 @@ import {
   Network,
   Calculator,
   Workflow,
+  ScrollText,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -97,6 +98,10 @@ const NAV: NavSection[] = [
       { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput },
       { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck },
     ],
+  },
+  {
+    title: 'Fiscal',
+    items: [{ href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText }],
   },
   {
     title: 'Financeiro',

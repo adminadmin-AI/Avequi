@@ -64,6 +64,39 @@ export type PurchaseOrderStatus =
   | 'RECEIVED'
   | 'CANCELLED';
 
+export type FiscalStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'AUTHORIZED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'ERROR';
+export type FiscalDocumentType = 'NFE' | 'NFCE';
+
+export interface FiscalDocumentItem {
+  id: string;
+  description?: string | null;
+  ncm?: string | null;
+  quantity?: string | null;
+  unitValue?: string | null;
+  totalValue?: string | null;
+}
+
+export interface FiscalDocument extends BaseEntity {
+  companyId: string;
+  salesOrderId?: string | null;
+  salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
+  type: FiscalDocumentType;
+  status: FiscalStatus;
+  focusRef?: string | null;
+  chave?: string | null;
+  rejectionCode?: string | null;
+  rejectionReason?: string | null;
+  cancelledAt?: string | null;
+  cancellationJustification?: string | null;
+  items?: FiscalDocumentItem[];
+}
+
 export type ProductionOrderStatus =
   | 'DRAFT'
   | 'RELEASED'
