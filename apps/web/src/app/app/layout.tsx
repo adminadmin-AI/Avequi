@@ -36,6 +36,7 @@ import {
   ScrollText,
   ClipboardCheck,
   AlertTriangle,
+  ShieldCheck,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -104,6 +105,7 @@ const NAV: NavSection[] = [
   {
     title: 'Qualidade',
     items: [
+      { href: '/app/quality', label: 'Dashboard', icon: ShieldCheck },
       { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck },
       { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle },
     ],
