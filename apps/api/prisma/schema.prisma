@@ -130,6 +130,9 @@ model Company {
   rfqs                 RequestForQuotation[]
   // Fase 6
   nfeManifests         NfeManifest[]
+  // Fase 7
+  consentRecords           ConsentRecord[]
+  anonymizationRequests    AnonymizationRequest[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -239,6 +242,7 @@ model User {
   commissions               Commission[]       @relation("CommissionUser")
   rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
   nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
+  anonymizationRequests     AnonymizationRequest[] @relation("AnonymizationRequestedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1893,6 +1897,68 @@ model NfeManifest {
   @@index([companyId, status])
   @@index([supplierCnpj])
   @@map("gdr_nfe_manifests")
+}
+
+// ─── LGPD — Consentimento e Anonimização (Fase 7, #194) ─────────────────────
+
+enum ConsentPurpose {
+  COMMERCIAL       // Marketing, ofertas
+  OPERATIONAL      // Necessário para operação (pedidos, NF-e)
+  ANALYTICS        // Dados agregados para BI
+}
+
+enum ConsentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum AnonymizationStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  DENIED
+}
+
+model ConsentRecord {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  subjectType   String         // 'Customer' | 'User' | 'Supplier'
+  subjectId     String         // ID da entidade
+  document      String         // CPF/CNPJ do titular
+  purpose       ConsentPurpose
+  status        ConsentStatus  @default(ACTIVE)
+  collectedAt   DateTime       @default(now())
+  collectedBy   String?        // userId que registrou
+  revokedAt     DateTime?
+  expiresAt     DateTime?
+  legalBasis    String?        // Base legal LGPD (Art. 7)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([companyId, document])
+  @@index([companyId, subjectType, subjectId])
+  @@map("gdr_consent_records")
+}
+
+model AnonymizationRequest {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id])
+  document      String              // CPF/CNPJ do titular
+  subjectName   String?             // Nome original (apagado após conclusão)
+  status        AnonymizationStatus @default(REQUESTED)
+  requestedById String?
+  requestedBy   User?               @relation("AnonymizationRequestedBy", fields: [requestedById], references: [id])
+  processedAt   DateTime?
+  entitiesAffected Json?            // { customers: 1, users: 0, suppliers: 0 }
+  denialReason  String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([companyId, document])
+  @@map("gdr_anonymization_requests")
 }
 
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
