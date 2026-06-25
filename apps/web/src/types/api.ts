@@ -45,6 +45,12 @@ export type FinancialEntryStatus =
   | 'CANCELLED';
 export type PaymentMethod = 'BOLETO' | 'PIX' | 'TED' | 'DINHEIRO' | 'CARTAO' | 'CHEQUE';
 export type EntrySource = 'AUTO_SALES' | 'AUTO_PURCHASE' | 'MANUAL';
+export type PurchaseOrderStatus =
+  | 'DRAFT'
+  | 'APPROVED'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CANCELLED';
 
 // ─── Base ─────────────────────────────────────────────────────────────────────
 export interface BaseEntity {
@@ -151,7 +157,12 @@ export interface FinancialEntry extends BaseEntity {
   purchaseOrderId?: string | null;
   // Relações incluídas pelo GET /finance
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
-  purchaseOrder?: { id: string; supplier?: Pick<Supplier, 'id' | 'name'> | null } | null;
+  purchaseOrder?: {
+    id: string;
+    status?: PurchaseOrderStatus;
+    approvedAt?: string | null;
+    supplier?: Pick<Supplier, 'id' | 'name'> | null;
+  } | null;
 }
 
 // ─── Inputs (create/update) ───────────────────────────────────────────────────
