@@ -27,6 +27,7 @@ import {
   FileInput,
   Boxes,
   ArrowLeftRight,
+  Truck,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -69,6 +70,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/app/stock', label: 'Saldos', icon: Boxes },
       { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight },
+      { href: '/app/stock/transfers', label: 'Transferências', icon: Truck },
     ],
   },
   {
