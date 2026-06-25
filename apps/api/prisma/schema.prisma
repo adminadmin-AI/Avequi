@@ -128,6 +128,8 @@ model Company {
   commissionRules      CommissionRule[]
   commissions          Commission[]
   rfqs                 RequestForQuotation[]
+  // Fase 6
+  nfeManifests         NfeManifest[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -236,6 +238,7 @@ model User {
   commissionRules           CommissionRule[]    @relation("CommissionRuleUser")
   commissions               Commission[]       @relation("CommissionUser")
   rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
+  nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1488,6 +1491,7 @@ enum AlertType {
   FOCUS_NFE_DOWN
   QC_INSPECTION_FAILED
   MAINTENANCE_DUE
+  MANIFEST_OVERDUE
 }
 
 enum AlertSeverity {
@@ -1836,12 +1840,59 @@ model InboundNfe {
   importedBy      User?            @relation("InboundNfeImportedBy", fields: [importedById], references: [id])
   importedAt      DateTime?
   threeWayMatches ThreeWayMatch[]
+  nfeManifest     NfeManifest?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   @@index([companyId, status])
   @@index([supplierCnpj])
   @@map("gdr_inbound_nfe")
+}
+
+// ─── Manifestação do Destinatário (Fase 6) ──────────────────────────────────
+
+enum ManifestStatus {
+  PENDING        // NF-e detectada, aguardando ação
+  CIENCIA        // Ciência da operação registrada
+  CONFIRMED      // Operação confirmada
+  NOT_PERFORMED  // Operação não realizada
+  UNKNOWN        // Desconhecimento da operação
+}
+
+enum ManifestEventType {
+  CIENCIA            // 210210 — Ciência da Operação
+  CONFIRMACAO        // 210200 — Confirmação da Operação
+  OPERACAO_NAO_REALIZADA // 210220 — Operação Não Realizada
+  DESCONHECIMENTO    // 210240 — Desconhecimento da Operação
+}
+
+model NfeManifest {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  chaveNfe        String         // 44-digit access key
+  nfeNumber       String?
+  series          String?
+  supplierCnpj    String
+  supplierName    String?
+  issueDate       DateTime?
+  totalValue      Decimal?       @db.Decimal(14, 4)
+  status          ManifestStatus @default(PENDING)
+  lastEventType   ManifestEventType?
+  lastEventDate   DateTime?
+  justification   String?        // Required for NOT_PERFORMED and UNKNOWN
+  protocol        String?        // SEFAZ protocol returned
+  inboundNfeId    String?        @unique
+  inboundNfe      InboundNfe?    @relation(fields: [inboundNfeId], references: [id])
+  manifestedById  String?
+  manifestedBy    User?          @relation("NfeManifestBy", fields: [manifestedById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([companyId, chaveNfe])
+  @@index([companyId, status])
+  @@index([supplierCnpj])
+  @@map("gdr_nfe_manifests")
 }
 
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
