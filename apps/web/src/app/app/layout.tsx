@@ -22,6 +22,7 @@ import {
   ShoppingCart,
   FileText,
   PackageOpen,
+  BadgeCheck,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -61,7 +62,10 @@ const NAV: NavSection[] = [
   },
   {
     title: 'Suprimentos',
-    items: [{ href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen }],
+    items: [
+      { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen },
+      { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck },
+    ],
   },
   {
     title: 'Financeiro',
