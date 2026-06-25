@@ -92,6 +92,7 @@ const NAV: NavSection[] = [
       { href: '/app/production/bom', label: 'BOM', icon: Network },
       { href: '/app/production/mrp', label: 'MRP', icon: Calculator },
       { href: '/app/production/routing', label: 'Roteiros', icon: Workflow },
+      { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge },
     ],
   },
   {

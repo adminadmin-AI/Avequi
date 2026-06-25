@@ -159,6 +159,18 @@ export interface MaintenanceOrder extends BaseEntity {
   createdById?: string | null;
 }
 
+export interface WorkCenter extends BaseEntity {
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  capacityHoursPerDay: string;
+  costPerHour: string;
+  operatorsCount: number;
+  efficiencyPct: string;
+  isActive: boolean;
+}
+
 export type TransferStatus = 'DRAFT' | 'DISPATCHED' | 'RECEIVED' | 'CANCELLED';
 
 export interface StoreTransferItem {
