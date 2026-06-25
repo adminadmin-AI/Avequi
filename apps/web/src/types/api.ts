@@ -177,6 +177,32 @@ export interface FinancialCategory extends BaseEntity {
   children?: FinancialCategory[];
 }
 
+export type BoletoStatus = 'PENDING' | 'REGISTERED' | 'PAID' | 'CANCELLED' | 'OVERDUE' | 'WRITTEN_OFF';
+
+export interface Boleto {
+  id: string;
+  nossoNumero: string;
+  seuNumero?: string | null;
+  amount: string;
+  dueDate: string;
+  status: BoletoStatus;
+  payerName: string;
+  payerDocument: string;
+  bankAccount?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface PixCharge {
+  id: string;
+  txId: string;
+  amount: string;
+  pixKey: string;
+  qrCode: string;
+  status: string;
+  description?: string | null;
+  createdAt: string;
+}
+
 export interface ReconciliationItem {
   id: string;
   companyId: string;

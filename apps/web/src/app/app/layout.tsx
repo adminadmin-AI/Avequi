@@ -17,6 +17,7 @@ import {
   Landmark,
   LineChart,
   Scale,
+  Barcode,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -55,6 +56,7 @@ const NAV: NavSection[] = [
       { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart },
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale },
+      { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode },
       { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal },
     ],
   },
