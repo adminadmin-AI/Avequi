@@ -134,6 +134,8 @@ model Company {
   consentRecords           ConsentRecord[]
   anonymizationRequests    AnonymizationRequest[]
   budgets                  Budget[]
+  bankStatements           BankStatement[]
+  productionSchedules      ProductionSchedule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1036,6 +1038,7 @@ model BankAccount {
   pixCharges          PixCharge[]
   fraudRules          FraudRule[]
   fraudAlerts         FraudAlert[]
+  bankStatements      BankStatement[]
 
   @@index([companyId])
   @@map("gdr_bank_accounts")
@@ -1226,6 +1229,7 @@ model ProductionOrder {
   serialNumbers      SerialNumber[]
   serialComponents   SerialComponent[]
   batchEvents        BatchEvent[]
+  schedules          ProductionSchedule[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1960,6 +1964,54 @@ model AnonymizationRequest {
 
   @@index([companyId, document])
   @@map("gdr_anonymization_requests")
+}
+
+// ─── Conciliação Bancária OFX (Fase 7, #197) ────────────────────────────────
+
+model BankStatement {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  bankAccountId   String
+  bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
+  transactionDate DateTime
+  amount          Decimal  @db.Decimal(14, 4)
+  description     String?
+  reference       String?
+  type            String   @default("DEBIT") // DEBIT | CREDIT
+  fitId           String?  // OFX unique transaction ID
+  matchStatus     String   @default("UNMATCHED") // MATCHED | UNMATCHED
+  matchedEntryId  String?
+  matchedAt       DateTime?
+  importBatchId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId, bankAccountId])
+  @@index([matchStatus])
+  @@map("gdr_bank_statements")
+}
+
+// ─── Sequenciamento de Produção (Fase 7, #200) ──────────────────────────────
+
+model ProductionSchedule {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id])
+  workCenterId      String
+  startDate         DateTime
+  endDate           DateTime
+  sequence          Int      @default(0)
+  durationMinutes   Int      @default(0)
+  status            String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId, workCenterId])
+  @@index([productionOrderId])
+  @@map("gdr_production_schedules")
 }
 
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
