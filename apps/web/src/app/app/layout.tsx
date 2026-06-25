@@ -11,6 +11,7 @@ import {
   Warehouse,
   Building2,
   UserCog,
+  Wallet,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -39,6 +40,12 @@ const NAV: NavSection[] = [
       { href: '/app/products', label: 'Produtos', icon: Package },
       { href: '/app/customers', label: 'Clientes', icon: Users },
       { href: '/app/suppliers', label: 'Fornecedores', icon: Factory },
+    ],
+  },
+  {
+    title: 'Financeiro',
+    items: [
+      { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet },
     ],
   },
   {
