@@ -19,6 +19,7 @@ import { WorkflowTemplateService } from './workflow-template.service';
 import { DryRunService } from './engine/dry-run.service';
 import { WorkflowDiffService } from './workflow-diff.service';
 import { WorkflowValidator } from './engine/workflow-validator';
+import { BpmPurchaseListener } from './bpm-purchase.listener';
 
 @Module({
   controllers: [BpmController],
@@ -42,6 +43,7 @@ import { WorkflowValidator } from './engine/workflow-validator';
     DryRunService,
     WorkflowDiffService,
     WorkflowValidator,
+    BpmPurchaseListener,
   ],
   exports: [
     WorkflowService,
