@@ -16,6 +16,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { formatNumber, formatDateTime } from '@/lib/format';
 import { MOVEMENT_TYPE, MOVEMENT_TYPE_OPTIONS } from './movement-meta';
+import { NewMovementDialog } from './new-movement-dialog';
 
 export default function MovementsPage() {
   const toast = useToast();
@@ -124,7 +125,11 @@ export default function MovementsPage() {
 
   return (
     <div>
-      <PageHeader title="Movimentações de Estoque" description="Histórico de entradas, saídas e ajustes." />
+      <PageHeader
+        title="Movimentações de Estoque"
+        description="Histórico de entradas, saídas e ajustes."
+        actions={<NewMovementDialog />}
+      />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
