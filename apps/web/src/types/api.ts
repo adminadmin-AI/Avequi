@@ -64,6 +64,27 @@ export type PurchaseOrderStatus =
   | 'RECEIVED'
   | 'CANCELLED';
 
+export interface POItem {
+  id: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  quantity: string;
+  unitCost: string;
+  unit: UnitOfMeasure;
+  receivedQuantity?: string;
+}
+
+export interface PurchaseOrder extends BaseEntity {
+  companyId: string;
+  supplierId: string;
+  supplier?: Pick<Supplier, 'id' | 'name'> | null;
+  status: PurchaseOrderStatus;
+  expectedAt?: string | null;
+  notes?: string | null;
+  approvedAt?: string | null;
+  items?: POItem[];
+}
+
 // ─── Base ─────────────────────────────────────────────────────────────────────
 export interface BaseEntity {
   id: string;
