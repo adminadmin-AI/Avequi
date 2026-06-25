@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
 import {
   LayoutDashboard,
   Package,
@@ -171,13 +170,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
-  // Contador de alertas ativos (badge na sidebar). Atualiza a cada 60s.
-  const { data: alertCount = 0 } = useQuery({
-    queryKey: ['/alerts/active-count'],
-    queryFn: async () => (await apiClient.get<unknown[]>('/alerts')).data.length,
-    enabled: isAuthenticated,
-    refetchInterval: 60_000,
-  });
+  // Badges dinâmicos da sidebar (aprovações, alertas, conciliação). Polling 60s.
+  const counts = useSidebarCounts();
 
   // Aguarda a rehidratação do zustand/persist antes de decidir o guard.
   useEffect(() => setMounted(true), []);
@@ -234,9 +228,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     >
                       <Icon size={17} className={active ? 'text-brand-600' : 'text-slate-400'} />
                       <span className="flex-1">{label}</span>
-                      {href === '/app/alerts' && alertCount > 0 && (
+                      {(counts[href] ?? 0) > 0 && (
                         <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">
-                          {alertCount > 99 ? '99+' : alertCount}
+                          {counts[href] > 99 ? '99+' : counts[href]}
                         </span>
                       )}
                     </Link>
