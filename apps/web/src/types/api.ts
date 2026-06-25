@@ -177,6 +177,28 @@ export interface FinancialCategory extends BaseEntity {
   children?: FinancialCategory[];
 }
 
+export type ScheduledPaymentStatus = 'PENDING' | 'DONE' | 'CANCELLED' | 'FAILED';
+
+/**
+ * Agendamento de pagamento (#98). O backend ainda NÃO expõe esse recurso
+ * (issue #241) — tipo definido para a tela funcionar como preview e ligar
+ * automaticamente quando os endpoints /banking/schedule existirem.
+ */
+export interface ScheduledPayment {
+  id: string;
+  financialEntryId: string;
+  bankAccountId: string;
+  scheduledDate: string;
+  amount: string;
+  status: ScheduledPaymentStatus;
+  financialEntry?: {
+    id: string;
+    description?: string | null;
+    purchaseOrder?: { supplier?: { name: string } | null } | null;
+  } | null;
+  bankAccount?: { id: string; name: string } | null;
+}
+
 export type BoletoStatus = 'PENDING' | 'REGISTERED' | 'PAID' | 'CANCELLED' | 'OVERDUE' | 'WRITTEN_OFF';
 
 export interface Boleto {
