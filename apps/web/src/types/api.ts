@@ -177,6 +177,16 @@ export interface FinancialCategory extends BaseEntity {
   children?: FinancialCategory[];
 }
 
+export interface BankAccount extends BaseEntity {
+  companyId: string;
+  name: string;
+  bank?: string | null;
+  agency?: string | null;
+  account?: string | null;
+  balance: string;
+  active: boolean;
+}
+
 export interface CostCenter extends BaseEntity {
   companyId: string;
   name: string;
