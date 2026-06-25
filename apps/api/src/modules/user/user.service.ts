@@ -41,17 +41,17 @@ export class UserService {
     });
   }
 
-  async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  async findOne(id: string, companyId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, companyId },
       select: SELECT_SAFE,
     });
     if (!user) throw new NotFoundException(`Usuário ${id} não encontrado`);
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateUserDto, companyId: string) {
+    await this.findOne(id, companyId);
     const { password, ...rest } = dto;
     const data: any = { ...rest };
     if (password) {

@@ -10,9 +10,6 @@ import {
 
 export class CreateMovementDto {
   @IsString()
-  companyId: string;
-
-  @IsString()
   warehouseId: string;
 
   @IsString()

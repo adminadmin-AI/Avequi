@@ -228,13 +228,13 @@ export class WmsService {
 
   // ─── S18.01: Criar PickingOrder (chamado pelo listener SaleConfirmed) ───────
 
-  async createPickingOrder(event: SaleConfirmedEvent) {
+  async createPickingOrder(event: SaleConfirmedEvent): Promise<boolean> {
     const warehouse = await this.prisma.warehouse.findUnique({
       where: { id: event.warehouseId },
       select: { wmsEnabled: true },
     });
 
-    if (!warehouse?.wmsEnabled) return; // WMS desativado para este armazém
+    if (!warehouse?.wmsEnabled) return false; // WMS desativado para este armazém
 
     const order = await this.prisma.pickingOrder.create({
       data: {
@@ -256,6 +256,8 @@ export class WmsService {
     this.logger.log(
       `PickingOrder ${order.id} criada para SO ${event.salesOrderId} — ${event.items.length} tasks`,
     );
+
+    return true;
   }
 
   // ─── S18.02: Listar PickingOrders ────────────────────────────────────────

@@ -44,7 +44,7 @@ export class StockController {
   @Roles('DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION')
   @ApiOperation({ summary: 'Registrar movimentação de estoque' })
   move(@Body() dto: CreateMovementDto, @CurrentUser() user: any) {
-    return this.stockService.move(dto, user?.id);
+    return this.stockService.move({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Post('reverse/:movementId')

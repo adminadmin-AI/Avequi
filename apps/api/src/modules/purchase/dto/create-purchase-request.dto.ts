@@ -4,10 +4,6 @@ import { IsDateString, IsNumber, IsOptional, IsString, Min } from 'class-validat
 export class CreatePurchaseRequestDto {
   @ApiProperty()
   @IsString()
-  companyId: string;
-
-  @ApiProperty()
-  @IsString()
   productId: string;
 
   @ApiProperty({ example: 10 })

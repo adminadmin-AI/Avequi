@@ -222,6 +222,7 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.AWAITING_PICKING,
         pickingOrder: null,
+        items: [],
       });
       await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
     });
@@ -236,14 +237,26 @@ describe('SalesService', () => {
       await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/Picking não concluído/);
     });
 
-    it('deve lançar BadRequestException quando não tem picking order', async () => {
+    it('deve permitir faturamento sem picking order quando WMS desativado (#220)', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...baseOrder,
         status: SalesOrderStatus.READY_TO_INVOICE,
         pickingOrder: null,
+        items: [{ productId: 'p-1', quantity: 5, unitPrice: 100 }],
       });
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/Picking não concluído/);
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.INVOICED,
+        items: [{ productId: 'p-1', quantity: 5, unitPrice: 100 }],
+        customer: null,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result = await service.invoiceOrder('so-1', 'co-1', 'user-1');
+      expect(result.status).toBe(SalesOrderStatus.INVOICED);
     });
 
     it('deve baixar reservado, criar StockMovement EXIT, mudar para INVOICED e emitir evento', async () => {

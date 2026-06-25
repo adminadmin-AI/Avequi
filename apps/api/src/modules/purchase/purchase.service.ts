@@ -208,10 +208,10 @@ export class PurchaseService {
 
   // ─── Recebimento (S05.04 + S05.05 + S06) ────────────────────────────────
 
-  async createReceipt(dto: CreateGoodsReceiptDto, userId?: string) {
+  async createReceipt(dto: CreateGoodsReceiptDto, userId?: string, callerCompanyId?: string) {
     const receipt = await this.prisma.$transaction(async (tx) => {
-      const po = await tx.purchaseOrder.findUnique({
-        where: { id: dto.purchaseOrderId },
+      const po = await tx.purchaseOrder.findFirst({
+        where: { id: dto.purchaseOrderId, ...(callerCompanyId ? { companyId: callerCompanyId } : {}) },
         include: { items: true },
       });
 
