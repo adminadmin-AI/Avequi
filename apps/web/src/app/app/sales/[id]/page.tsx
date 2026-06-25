@@ -299,6 +299,36 @@ export default function SalesDetailPage() {
           }}
           className="space-y-4 py-1"
         >
+          {/* Itens a devolver (devolução total — ver nota) */}
+          <div>
+            <Label>Itens a devolver</Label>
+            <div className="mt-1 overflow-hidden rounded-lg border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                    <th className="px-3 py-2 text-left font-medium">Produto</th>
+                    <th className="px-3 py-2 text-right font-medium">Qtd a devolver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(order.items ?? []).map((it) => (
+                    <tr key={it.id} className="border-b border-slate-50 last:border-0">
+                      <td className="px-3 py-2 text-slate-800">
+                        {it.product?.name ?? '—'}
+                        <span className="ml-1 font-mono text-xs text-slate-400">{it.product?.sku}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{Number(it.quantity)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-1 text-xs text-amber-700">
+              A devolução é <strong>total</strong> (todos os itens, quantidade integral). O backend
+              ainda não suporta devolução parcial por item.
+            </p>
+          </div>
+
           <div>
             <Label required>Motivo da devolução</Label>
             <Input
