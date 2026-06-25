@@ -32,3 +32,52 @@ export function salesOrderTotal(order: Pick<SalesOrder, 'items'>): number {
     0,
   );
 }
+
+/** Etapas principais do pipeline para o stepper visual (caminho feliz). */
+export const SALES_PIPELINE: { status: SalesOrderStatus; label: string }[] = [
+  { status: 'DRAFT', label: 'Rascunho' },
+  { status: 'RESERVED', label: 'Reservada' },
+  { status: 'AWAITING_PICKING', label: 'Separação' },
+  { status: 'READY_TO_INVOICE', label: 'Pronta' },
+  { status: 'INVOICED', label: 'Faturada' },
+];
+
+export interface SalesAction {
+  /** sufixo do endpoint PATCH /sales/:id/<endpoint> */
+  endpoint: 'approve-credit' | 'reserve' | 'confirm' | 'invoice' | 'return' | 'cancel';
+  label: string;
+  variant: 'primary' | 'secondary' | 'danger';
+}
+
+/**
+ * Ações disponíveis por status, espelhando as transições válidas do
+ * sales.controller. O backend é a fonte da verdade (erros tratados na UI).
+ */
+export function availableSalesActions(status: SalesOrderStatus): SalesAction[] {
+  switch (status) {
+    case 'CREDIT_HOLD':
+      return [
+        { endpoint: 'approve-credit', label: 'Aprovar crédito', variant: 'primary' },
+        { endpoint: 'cancel', label: 'Cancelar', variant: 'danger' },
+      ];
+    case 'DRAFT':
+      return [
+        { endpoint: 'reserve', label: 'Reservar estoque', variant: 'primary' },
+        { endpoint: 'cancel', label: 'Cancelar', variant: 'danger' },
+      ];
+    case 'RESERVED':
+      return [
+        { endpoint: 'confirm', label: 'Confirmar OV', variant: 'primary' },
+        { endpoint: 'cancel', label: 'Cancelar', variant: 'danger' },
+      ];
+    case 'CONFIRMED':
+    case 'AWAITING_PICKING':
+      return [{ endpoint: 'cancel', label: 'Cancelar', variant: 'danger' }];
+    case 'READY_TO_INVOICE':
+      return [{ endpoint: 'invoice', label: 'Faturar (emitir NF-e)', variant: 'primary' }];
+    case 'INVOICED':
+      return [{ endpoint: 'return', label: 'Devolver', variant: 'secondary' }];
+    default:
+      return [];
+  }
+}
