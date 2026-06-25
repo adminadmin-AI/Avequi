@@ -26,6 +26,7 @@ import {
   Gauge,
   FileInput,
   Boxes,
+  ArrowLeftRight,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -65,7 +66,10 @@ const NAV: NavSection[] = [
   },
   {
     title: 'Estoque',
-    items: [{ href: '/app/stock', label: 'Saldos', icon: Boxes }],
+    items: [
+      { href: '/app/stock', label: 'Saldos', icon: Boxes },
+      { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight },
+    ],
   },
   {
     title: 'Suprimentos',
