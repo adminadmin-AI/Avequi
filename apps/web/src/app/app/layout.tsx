@@ -32,6 +32,7 @@ import {
   ClipboardList,
   Network,
   Calculator,
+  Workflow,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -85,6 +86,7 @@ const NAV: NavSection[] = [
       { href: '/app/production', label: 'Ordens de Produção', icon: Factory },
       { href: '/app/production/bom', label: 'BOM', icon: Network },
       { href: '/app/production/mrp', label: 'MRP', icon: Calculator },
+      { href: '/app/production/routing', label: 'Roteiros', icon: Workflow },
     ],
   },
   {
