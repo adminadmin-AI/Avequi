@@ -17,6 +17,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
 import { formatDate } from '@/lib/format';
 import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL } from './fiscal-status';
+import { EmitNfeDialog } from './emit-nfe-dialog';
 
 const RESOURCE = '/fiscal';
 
@@ -135,10 +136,13 @@ export default function FiscalPage() {
         title="Documentos Fiscais"
         description="NF-e e NFC-e emitidas pela empresa."
         actions={
-          <Button variant="secondary" onClick={() => router.push('/app/fiscal/dashboard')}>
-            <LayoutDashboard size={16} />
-            Dashboard
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => router.push('/app/fiscal/dashboard')}>
+              <LayoutDashboard size={16} />
+              Dashboard
+            </Button>
+            <EmitNfeDialog />
+          </div>
         }
       />
 
