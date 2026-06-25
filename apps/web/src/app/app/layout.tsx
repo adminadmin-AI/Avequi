@@ -12,6 +12,7 @@ import {
   Building2,
   UserCog,
   Wallet,
+  CreditCard,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ const NAV: NavSection[] = [
     title: 'Financeiro',
     items: [
       { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet },
+      { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard },
     ],
   },
   {
