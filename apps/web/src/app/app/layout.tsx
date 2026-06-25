@@ -15,6 +15,7 @@ import {
   CreditCard,
   SlidersHorizontal,
   Landmark,
+  LineChart,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet },
       { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard },
+      { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart },
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark },
       { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal },
     ],
