@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useList } from '@/hooks/use-resource';
 import type { SalesOrder, SalesOrderStatus, Customer } from '@/types/api';
+import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -125,7 +127,16 @@ export default function SalesPage() {
 
   return (
     <div>
-      <PageHeader title="Ordens de Venda" description="Pipeline comercial — do rascunho ao faturamento." />
+      <PageHeader
+        title="Ordens de Venda"
+        description="Pipeline comercial — do rascunho ao faturamento."
+        actions={
+          <Button onClick={() => router.push('/app/sales/new')}>
+            <Plus size={16} />
+            Nova venda
+          </Button>
+        }
+      />
 
       <div className="mb-5 grid gap-4 sm:grid-cols-3">
         <Kpi label="OVs abertas" value={String(kpis.openCount)} />
