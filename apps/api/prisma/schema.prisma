@@ -130,6 +130,12 @@ model Company {
   rfqs                 RequestForQuotation[]
   // Fase 6
   nfeManifests         NfeManifest[]
+  // Fase 7
+  consentRecords           ConsentRecord[]
+  anonymizationRequests    AnonymizationRequest[]
+  budgets                  Budget[]
+  bankStatements           BankStatement[]
+  productionSchedules      ProductionSchedule[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -239,6 +245,7 @@ model User {
   commissions               Commission[]       @relation("CommissionUser")
   rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
   nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
+  anonymizationRequests     AnonymizationRequest[] @relation("AnonymizationRequestedBy")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1031,6 +1038,7 @@ model BankAccount {
   pixCharges          PixCharge[]
   fraudRules          FraudRule[]
   fraudAlerts         FraudAlert[]
+  bankStatements      BankStatement[]
 
   @@index([companyId])
   @@map("gdr_bank_accounts")
@@ -1221,6 +1229,7 @@ model ProductionOrder {
   serialNumbers      SerialNumber[]
   serialComponents   SerialComponent[]
   batchEvents        BatchEvent[]
+  schedules          ProductionSchedule[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1895,6 +1904,116 @@ model NfeManifest {
   @@map("gdr_nfe_manifests")
 }
 
+// ─── LGPD — Consentimento e Anonimização (Fase 7, #194) ─────────────────────
+
+enum ConsentPurpose {
+  COMMERCIAL       // Marketing, ofertas
+  OPERATIONAL      // Necessário para operação (pedidos, NF-e)
+  ANALYTICS        // Dados agregados para BI
+}
+
+enum ConsentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum AnonymizationStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  DENIED
+}
+
+model ConsentRecord {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  subjectType   String         // 'Customer' | 'User' | 'Supplier'
+  subjectId     String         // ID da entidade
+  document      String         // CPF/CNPJ do titular
+  purpose       ConsentPurpose
+  status        ConsentStatus  @default(ACTIVE)
+  collectedAt   DateTime       @default(now())
+  collectedBy   String?        // userId que registrou
+  revokedAt     DateTime?
+  expiresAt     DateTime?
+  legalBasis    String?        // Base legal LGPD (Art. 7)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([companyId, document])
+  @@index([companyId, subjectType, subjectId])
+  @@map("gdr_consent_records")
+}
+
+model AnonymizationRequest {
+  id            String              @id @default(cuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id])
+  document      String              // CPF/CNPJ do titular
+  subjectName   String?             // Nome original (apagado após conclusão)
+  status        AnonymizationStatus @default(REQUESTED)
+  requestedById String?
+  requestedBy   User?               @relation("AnonymizationRequestedBy", fields: [requestedById], references: [id])
+  processedAt   DateTime?
+  entitiesAffected Json?            // { customers: 1, users: 0, suppliers: 0 }
+  denialReason  String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([companyId, document])
+  @@map("gdr_anonymization_requests")
+}
+
+// ─── Conciliação Bancária OFX (Fase 7, #197) ────────────────────────────────
+
+model BankStatement {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  bankAccountId   String
+  bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
+  transactionDate DateTime
+  amount          Decimal  @db.Decimal(14, 4)
+  description     String?
+  reference       String?
+  type            String   @default("DEBIT") // DEBIT | CREDIT
+  fitId           String?  // OFX unique transaction ID
+  matchStatus     String   @default("UNMATCHED") // MATCHED | UNMATCHED
+  matchedEntryId  String?
+  matchedAt       DateTime?
+  importBatchId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId, bankAccountId])
+  @@index([matchStatus])
+  @@map("gdr_bank_statements")
+}
+
+// ─── Sequenciamento de Produção (Fase 7, #200) ──────────────────────────────
+
+model ProductionSchedule {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id])
+  workCenterId      String
+  startDate         DateTime
+  endDate           DateTime
+  sequence          Int      @default(0)
+  durationMinutes   Int      @default(0)
+  status            String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId, workCenterId])
+  @@index([productionOrderId])
+  @@map("gdr_production_schedules")
+}
+
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
 
 model WorkCenter {
@@ -2018,6 +2137,7 @@ model FinancialCategory {
   entries     FinancialEntry[]
   payables    Payable[]
   receivables Receivable[]
+  budgets     Budget[]
 
   createdAt DateTime @default(now())
 
@@ -2045,8 +2165,32 @@ model CostCenter {
 
   createdAt DateTime @default(now())
 
+  budgets   Budget[]
+
   @@index([parentId])
   @@map("gdr_cost_centers")
+}
+
+// ─── Orçamento Empresarial (Fase 7, #195) ────────────────────────────────────
+
+model Budget {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  year         Int
+  month        Int               // 1-12
+  costCenterId String?
+  costCenter   CostCenter?       @relation(fields: [costCenterId], references: [id])
+  categoryId   String?
+  category     FinancialCategory? @relation(fields: [categoryId], references: [id])
+  amount       Decimal           @db.Decimal(14, 4)
+  description  String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([companyId, year, month, costCenterId, categoryId])
+  @@index([companyId, year])
+  @@map("gdr_budgets")
 }
 
 // ─── Contas a Pagar ───────────────────────────────────────────────────────────

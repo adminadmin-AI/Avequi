@@ -49,6 +49,9 @@ import { ApprovalModule } from './modules/approval/approval.module';
 import { CommissionModule } from './modules/commission/commission.module';
 import { RfqModule } from './modules/rfq/rfq.module';
 import { ManifestModule } from './modules/manifest/manifest.module';
+import { LgpdModule } from './modules/lgpd/lgpd.module';
+import { BudgetModule } from './modules/budget/budget.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { BankingModule } from './banking/banking.module';
 import { BpmModule } from './bpm/bpm.module';
 import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.module';
@@ -142,6 +145,9 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     CommissionModule,
     RfqModule,
     ManifestModule,
+    LgpdModule,
+    BudgetModule,
+    SchedulingModule,
     BankingModule,
     BpmModule,
     AnalyticsBiModule,
