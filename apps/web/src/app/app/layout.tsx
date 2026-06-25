@@ -37,6 +37,7 @@ import {
   ClipboardCheck,
   AlertTriangle,
   ShieldCheck,
+  Wrench,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -109,6 +110,10 @@ const NAV: NavSection[] = [
       { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck },
       { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle },
     ],
+  },
+  {
+    title: 'Manutenção',
+    items: [{ href: '/app/maintenance', label: 'Ordens de Manutenção', icon: Wrench }],
   },
   {
     title: 'Fiscal',

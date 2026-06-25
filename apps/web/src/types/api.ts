@@ -121,6 +121,44 @@ export interface ProductionOrder extends BaseEntity {
   notes?: string | null;
 }
 
+// ─── Manutenção (FE-F9 / módulo maintenance) ──────────────────────────────────
+export type EquipmentStatus = 'ACTIVE' | 'INACTIVE' | 'UNDER_MAINTENANCE' | 'SCRAPPED';
+
+export type MaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'CALIBRATION' | 'INSPECTION';
+
+export type MaintenanceOrderStatus = 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+
+export interface Equipment extends BaseEntity {
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  location?: string | null;
+  status: EquipmentStatus;
+  acquisitionDate?: string | null;
+  nextMaintenanceAt?: string | null;
+  maintenanceIntervalDays: number;
+  _count?: { maintenanceOrders: number };
+}
+
+export interface MaintenanceOrder extends BaseEntity {
+  companyId: string;
+  equipmentId: string;
+  equipment?: Pick<Equipment, 'id' | 'code' | 'name' | 'location'> | null;
+  type: MaintenanceType;
+  status: MaintenanceOrderStatus;
+  title: string;
+  description?: string | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  technicianId?: string | null;
+  technician?: Pick<User, 'id' | 'name' | 'email'> | null;
+  resolution?: string | null;
+  cost?: string | null;
+  createdById?: string | null;
+}
+
 export type TransferStatus = 'DRAFT' | 'DISPATCHED' | 'RECEIVED' | 'CANCELLED';
 
 export interface StoreTransferItem {
