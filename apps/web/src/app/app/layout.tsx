@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 import {
   LayoutDashboard,
   Package,
@@ -39,6 +41,7 @@ import {
   ShieldCheck,
   Wrench,
   BarChart3,
+  Bell,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -139,6 +142,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/app/analytics', label: 'Analytics', icon: BarChart3 },
       { href: '/app/reports', label: 'Relatórios', icon: FileText },
+      { href: '/app/alerts', label: 'Alertas', icon: Bell },
     ],
   },
   {
@@ -161,6 +165,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [mounted, setMounted] = useState(false);
+
+  // Contador de alertas ativos (badge na sidebar). Atualiza a cada 60s.
+  const { data: alertCount = 0 } = useQuery({
+    queryKey: ['/alerts/active-count'],
+    queryFn: async () => (await apiClient.get<unknown[]>('/alerts')).data.length,
+    enabled: isAuthenticated,
+    refetchInterval: 60_000,
+  });
 
   // Aguarda a rehidratação do zustand/persist antes de decidir o guard.
   useEffect(() => setMounted(true), []);
@@ -214,7 +226,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       )}
                     >
                       <Icon size={17} className={active ? 'text-brand-600' : 'text-slate-400'} />
-                      {label}
+                      <span className="flex-1">{label}</span>
+                      {href === '/app/alerts' && alertCount > 0 && (
+                        <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">
+                          {alertCount > 99 ? '99+' : alertCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
