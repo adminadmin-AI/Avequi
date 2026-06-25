@@ -46,6 +46,17 @@ export type FinancialEntryStatus =
 export type PaymentMethod = 'BOLETO' | 'PIX' | 'TED' | 'DINHEIRO' | 'CARTAO' | 'CHEQUE';
 export type EntrySource = 'AUTO_SALES' | 'AUTO_PURCHASE' | 'MANUAL';
 export type FinancialCategoryType = 'REVENUE' | 'EXPENSE' | 'TRANSFER' | 'GROUP';
+export type SalesOrderStatus =
+  | 'DRAFT'
+  | 'CREDIT_HOLD'
+  | 'RESERVED'
+  | 'CONFIRMED'
+  | 'AWAITING_PICKING'
+  | 'READY_TO_INVOICE'
+  | 'INVOICED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
 export type PurchaseOrderStatus =
   | 'DRAFT'
   | 'APPROVED'
@@ -141,6 +152,29 @@ export interface Warehouse extends BaseEntity {
   description?: string | null;
   isActive: boolean;
   wmsEnabled: boolean;
+}
+
+export interface SaleItem {
+  id: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  quantity: string;
+  unitPrice: string;
+  unit: UnitOfMeasure;
+}
+
+export interface SalesOrder extends BaseEntity {
+  companyId: string;
+  customerId?: string | null;
+  customer?: Pick<Customer, 'id' | 'name'> | null;
+  warehouseId: string;
+  warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
+  status: SalesOrderStatus;
+  notes?: string | null;
+  confirmedAt?: string | null;
+  invoicedAt?: string | null;
+  items?: SaleItem[];
+  createdBy?: { id: string; name: string } | null;
 }
 
 export interface FinancialEntry extends BaseEntity {
