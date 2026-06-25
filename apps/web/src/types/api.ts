@@ -45,6 +45,7 @@ export type FinancialEntryStatus =
   | 'CANCELLED';
 export type PaymentMethod = 'BOLETO' | 'PIX' | 'TED' | 'DINHEIRO' | 'CARTAO' | 'CHEQUE';
 export type EntrySource = 'AUTO_SALES' | 'AUTO_PURCHASE' | 'MANUAL';
+export type FinancialCategoryType = 'REVENUE' | 'EXPENSE' | 'TRANSFER' | 'GROUP';
 export type PurchaseOrderStatus =
   | 'DRAFT'
   | 'APPROVED'
@@ -163,6 +164,26 @@ export interface FinancialEntry extends BaseEntity {
     approvedAt?: string | null;
     supplier?: Pick<Supplier, 'id' | 'name'> | null;
   } | null;
+}
+
+export interface FinancialCategory extends BaseEntity {
+  companyId: string;
+  name: string;
+  code?: string | null;
+  type: FinancialCategoryType;
+  parentId?: string | null;
+  dreCode?: string | null;
+  isActive: boolean;
+  children?: FinancialCategory[];
+}
+
+export interface CostCenter extends BaseEntity {
+  companyId: string;
+  name: string;
+  code?: string | null;
+  parentId?: string | null;
+  isActive: boolean;
+  children?: CostCenter[];
 }
 
 // ─── Inputs (create/update) ───────────────────────────────────────────────────
