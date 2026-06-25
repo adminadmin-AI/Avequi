@@ -36,6 +36,16 @@ export type UnitOfMeasure = 'UN' | 'KG' | 'G' | 'M' | 'M2' | 'M3' | 'L' | 'PC' |
 
 export type CustomerType = 'INDIVIDUAL' | 'COMPANY';
 
+export type FinancialEntryType = 'RECEIVABLE' | 'PAYABLE';
+export type FinancialEntryStatus =
+  | 'OPEN'
+  | 'OVERDUE'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'CANCELLED';
+export type PaymentMethod = 'BOLETO' | 'PIX' | 'TED' | 'DINHEIRO' | 'CARTAO' | 'CHEQUE';
+export type EntrySource = 'AUTO_SALES' | 'AUTO_PURCHASE' | 'MANUAL';
+
 // ─── Base ─────────────────────────────────────────────────────────────────────
 export interface BaseEntity {
   id: string;
@@ -124,6 +134,24 @@ export interface Warehouse extends BaseEntity {
   description?: string | null;
   isActive: boolean;
   wmsEnabled: boolean;
+}
+
+export interface FinancialEntry extends BaseEntity {
+  companyId: string;
+  type: FinancialEntryType;
+  status: FinancialEntryStatus;
+  amount: string;
+  dueDate: string;
+  description?: string | null;
+  source: EntrySource;
+  paidAt?: string | null;
+  paidAmount?: string | null;
+  paymentNote?: string | null;
+  salesOrderId?: string | null;
+  purchaseOrderId?: string | null;
+  // Relações incluídas pelo GET /finance
+  salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
+  purchaseOrder?: { id: string; supplier?: Pick<Supplier, 'id' | 'name'> | null } | null;
 }
 
 // ─── Inputs (create/update) ───────────────────────────────────────────────────
