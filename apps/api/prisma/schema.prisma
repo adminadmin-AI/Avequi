@@ -133,6 +133,7 @@ model Company {
   // Fase 7
   consentRecords           ConsentRecord[]
   anonymizationRequests    AnonymizationRequest[]
+  budgets                  Budget[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2084,6 +2085,7 @@ model FinancialCategory {
   entries     FinancialEntry[]
   payables    Payable[]
   receivables Receivable[]
+  budgets     Budget[]
 
   createdAt DateTime @default(now())
 
@@ -2111,8 +2113,32 @@ model CostCenter {
 
   createdAt DateTime @default(now())
 
+  budgets   Budget[]
+
   @@index([parentId])
   @@map("gdr_cost_centers")
+}
+
+// ─── Orçamento Empresarial (Fase 7, #195) ────────────────────────────────────
+
+model Budget {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  year         Int
+  month        Int               // 1-12
+  costCenterId String?
+  costCenter   CostCenter?       @relation(fields: [costCenterId], references: [id])
+  categoryId   String?
+  category     FinancialCategory? @relation(fields: [categoryId], references: [id])
+  amount       Decimal           @db.Decimal(14, 4)
+  description  String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([companyId, year, month, costCenterId, categoryId])
+  @@index([companyId, year])
+  @@map("gdr_budgets")
 }
 
 // ─── Contas a Pagar ───────────────────────────────────────────────────────────
