@@ -21,6 +21,7 @@ import {
   CalendarClock,
   ShoppingCart,
   FileText,
+  PackageOpen,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -57,6 +58,10 @@ const NAV: NavSection[] = [
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
     ],
+  },
+  {
+    title: 'Suprimentos',
+    items: [{ href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen }],
   },
   {
     title: 'Financeiro',
