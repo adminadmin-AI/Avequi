@@ -41,30 +41,10 @@ export class CustomerController {
     return this.customerService.findAll(user.companyId, { search, type, isActive });
   }
 
-  @Post('auto-block-overdue')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
-  @ApiOperation({ summary: 'Bloquear clientes inadimplentes automaticamente (#187)' })
-  @ApiQuery({ name: 'overdueDays', required: false, type: Number })
-  autoBlockOverdue(
-    @CurrentUser() user: any,
-    @Query('overdueDays') overdueDays?: string,
-  ) {
-    return this.customerService.autoBlockOverdue(
-      user.companyId,
-      overdueDays ? parseInt(overdueDays, 10) : undefined,
-    );
-  }
-
   @Get(':id')
   @ApiOperation({ summary: 'Buscar cliente por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customerService.findOne(id, user.companyId);
-  }
-
-  @Get(':id/credit-summary')
-  @ApiOperation({ summary: 'Resumo de crédito do cliente (#187)' })
-  getCreditSummary(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customerService.getCreditSummary(id, user.companyId);
   }
 
   @Patch(':id')

@@ -49,13 +49,6 @@ export class SalesController {
     return this.salesService.findOne(id, user.companyId);
   }
 
-  @Patch(':id/approve-credit')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
-  @ApiOperation({ summary: 'Aprovar crédito e liberar OV (CREDIT_HOLD → DRAFT) (#187)' })
-  approveCredit(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.approveCreditHold(id, user.companyId, user?.id);
-  }
-
   @Patch(':id/reserve')
   @ApiOperation({ summary: 'Reservar estoque para a venda (DRAFT → RESERVED)' })
   reserve(@Param('id') id: string, @CurrentUser() user: any) {
