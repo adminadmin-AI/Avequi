@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -81,7 +82,7 @@ export class ManifestController {
     @CurrentUser() user: any,
   ) {
     if (!dto.justificativa) {
-      throw new Error('Justificativa é obrigatória para operação não realizada');
+      throw new BadRequestException('Justificativa é obrigatória para operação não realizada');
     }
     return this.manifestService.rejectOperation(chaveNfe, user.companyId, user.id, dto.justificativa);
   }
@@ -96,7 +97,7 @@ export class ManifestController {
     @CurrentUser() user: any,
   ) {
     if (!dto.justificativa) {
-      throw new Error('Justificativa é obrigatória para desconhecimento da operação');
+      throw new BadRequestException('Justificativa é obrigatória para desconhecimento da operação');
     }
     return this.manifestService.unknownOperation(chaveNfe, user.companyId, user.id, dto.justificativa);
   }

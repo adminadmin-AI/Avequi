@@ -567,6 +567,24 @@ export class ProductionService {
       throw new BadRequestException('Refugo não pode ser maior que a quantidade total apontada');
     }
 
+    // #226: Exigir justificativa quando refugo excede o % tolerado pelo BOM
+    if (scrapQuantity > 0) {
+      const bom = await this.prisma.bomVersion.findFirst({
+        where: { productId: order.productId, companyId, isActive: true },
+        include: { items: true },
+      });
+      const maxBomScrapPct = Math.max(
+        ...(bom?.items.map((i) => Number(i.scrapPct)) ?? [0]),
+        0,
+      );
+      const actualScrapPct = (scrapQuantity / dto.qty) * 100;
+      if (actualScrapPct > maxBomScrapPct && !dto.scrapReason) {
+        throw new BadRequestException(
+          `Refugo ${actualScrapPct.toFixed(1)}% excede o tolerado pelo BOM (${maxBomScrapPct}%). Justificativa obrigatória.`,
+        );
+      }
+    }
+
     // Valida que qty boa não excede o saldo pendente (plannedQty - producedQty)
     const alreadyProduced = Number(order.producedQty);
     const planned = Number(order.plannedQty);

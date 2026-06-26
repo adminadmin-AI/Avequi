@@ -44,6 +44,10 @@ export class CreatePriceTableDto {
   customerId?: string;
 
   @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PriceTableItemDto)

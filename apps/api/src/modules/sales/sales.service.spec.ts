@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SalesOrderStatus } from '@prisma/client';
 import { SalesService } from './sales.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StockService } from '../stock/stock.service';
 import { SALE_CONFIRMED_EVENT } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT } from './events/sale-invoiced.event';
 
@@ -44,6 +45,14 @@ const mockPrisma = {
 
 const mockEventEmitter = { emit: jest.fn() };
 
+const mockStockService = {
+  reserveBalance: jest.fn(),
+  releaseBalance: jest.fn(),
+  consumeReserved: jest.fn(),
+  returnStock: jest.fn(),
+  receiveGoods: jest.fn(),
+};
+
 const baseOrder = {
   id: 'so-1',
   companyId: 'co-1',
@@ -63,6 +72,7 @@ describe('SalesService', () => {
         SalesService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: StockService, useValue: mockStockService },
       ],
     }).compile();
 
@@ -110,7 +120,6 @@ describe('SalesService', () => {
     it('deve reservar estoque e mudar status para RESERVED quando há saldo suficiente', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 10, reserved: 0 });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
       const reservedOrder = { ...baseOrder, status: SalesOrderStatus.RESERVED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(reservedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
@@ -118,10 +127,8 @@ describe('SalesService', () => {
       const result = await service.reserveOrder('so-1', 'co-1', 'user-1');
 
       expect(result.status).toBe(SalesOrderStatus.RESERVED);
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { available: { decrement: 5 }, reserved: { increment: 5 } },
-        }),
+      expect(mockStockService.reserveBalance).toHaveBeenCalledWith(
+        'wh-1', 'p-1', 5, 'co-1', mockPrisma,
       );
     });
   });
@@ -218,7 +225,7 @@ describe('SalesService', () => {
 
   describe('invoiceOrder', () => {
     it('deve lançar BadRequestException quando OV não está READY_TO_INVOICE', async () => {
-      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+      mockPrisma.salesOrder.findFirst.mockResolvedValueOnce({
         ...baseOrder,
         status: SalesOrderStatus.AWAITING_PICKING,
         pickingOrder: null,
@@ -265,8 +272,6 @@ describe('SalesService', () => {
         status: SalesOrderStatus.READY_TO_INVOICE,
         pickingOrder: { status: 'DONE' },
       });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
-      mockPrisma.stockMovement.create.mockResolvedValue({});
       const invoicedOrder = {
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
@@ -282,14 +287,9 @@ describe('SalesService', () => {
 
       expect(result.status).toBe(SalesOrderStatus.INVOICED);
 
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { reserved: { decrement: 5 } } }),
-      );
-
-      expect(mockPrisma.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ type: 'EXIT', quantity: 5 }),
-        }),
+      expect(mockStockService.consumeReserved).toHaveBeenCalledWith(
+        'wh-1', 'p-1', 5, 'co-1',
+        expect.stringContaining('Faturamento'), 'user-1', mockPrisma,
       );
 
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
@@ -314,8 +314,6 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
       });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
-      mockPrisma.stockMovement.create.mockResolvedValue({});
       mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
       const returnedOrder = { ...baseOrder, status: SalesOrderStatus.RETURNED, items: [], customer: null, warehouse: {} };
@@ -325,15 +323,9 @@ describe('SalesService', () => {
       const result = await service.returnOrder('so-1', 'co-1', { reason: 'Produto com defeito' }, 'user-1');
 
       expect(result.status).toBe(SalesOrderStatus.RETURNED);
-
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { available: { increment: 5 } } }),
-      );
-
-      expect(mockPrisma.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ type: 'ENTRY', quantity: 5 }),
-        }),
+      expect(mockStockService.returnStock).toHaveBeenCalledWith(
+        'wh-1', 'p-1', 5, 'co-1',
+        expect.stringContaining('Devolução'), 'user-1', mockPrisma,
       );
     });
 
@@ -503,7 +495,6 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.RESERVED,
       });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
       const cancelled = { ...baseOrder, status: SalesOrderStatus.CANCELLED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
@@ -511,11 +502,7 @@ describe('SalesService', () => {
       const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { reserved: { decrement: 5 }, available: { increment: 5 } },
-        }),
-      );
+      expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
     });
 
     it('deve devolver reservado para disponível ao cancelar OV AWAITING_PICKING', async () => {
@@ -523,7 +510,6 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.AWAITING_PICKING,
       });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
       const cancelled = { ...baseOrder, status: SalesOrderStatus.CANCELLED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
@@ -531,11 +517,7 @@ describe('SalesService', () => {
       const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { reserved: { decrement: 5 }, available: { increment: 5 } },
-        }),
-      );
+      expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
     });
 
     it('deve devolver reservado para disponível ao cancelar OV READY_TO_INVOICE', async () => {
@@ -543,7 +525,6 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.READY_TO_INVOICE,
       });
-      mockPrisma.stockBalance.update.mockResolvedValue({});
       const cancelled = { ...baseOrder, status: SalesOrderStatus.CANCELLED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
@@ -551,11 +532,7 @@ describe('SalesService', () => {
       const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
-      expect(mockPrisma.stockBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { reserved: { decrement: 5 }, available: { increment: 5 } },
-        }),
-      );
+      expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
     });
   });
 

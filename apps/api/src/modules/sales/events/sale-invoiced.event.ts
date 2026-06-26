@@ -12,5 +12,11 @@ export class SaleInvoicedEvent {
       quantity: number;
       unitPrice: number;
     }>,
+    /** Tipo do cliente: INDIVIDUAL (CPF) ou COMPANY (CNPJ) */
+    public readonly customerType?: 'INDIVIDUAL' | 'COMPANY',
+    /** UF do cliente (ex: "SP", "MG") */
+    public readonly customerState?: string | null,
+    /** UF da empresa emitente */
+    public readonly companyState?: string | null,
   ) {}
 }
