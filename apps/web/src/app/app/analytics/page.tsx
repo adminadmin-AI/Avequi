@@ -8,6 +8,7 @@ import {
   Line,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,6 +51,17 @@ interface InventoryAgingRow {
   name: string;
   inventoryValue: number;
   agingBucket: '0-30' | '31-90' | '91-180' | '180+';
+}
+interface DreReport {
+  receitaBruta: number;
+  deducoes: number;
+  receitaLiquida: number;
+  cpv: number;
+  lucroBruto: number;
+  despesasOperacionais: number;
+  resultadoOperacional: number;
+  margemBruta: number;
+  margemOperacional: number;
 }
 
 const PERIODS = [
@@ -106,6 +118,11 @@ export default function AnalyticsPage() {
     queryKey: ['/analytics/inventory-aging'],
     queryFn: async () => (await apiClient.get<InventoryAgingRow[]>('/analytics/inventory-aging')).data,
   });
+  const dreQ = useQuery({
+    queryKey: ['/finance/reports/dre', startDate, endDate],
+    queryFn: async () =>
+      (await apiClient.get<DreReport>('/finance/reports/dre', { params: { from: startDate, to: endDate } })).data,
+  });
 
   const summary = summaryQ.data;
   const salesRows = salesQ.data ?? [];
@@ -150,7 +167,19 @@ export default function AnalyticsPage() {
     return AGING_ORDER.map((bucket) => ({ bucket: `${bucket} dias`, valor: map.get(bucket) ?? 0 }));
   }, [agingRows]);
 
-  const loading = summaryQ.isLoading || salesQ.isLoading || prodQ.isLoading || agingQ.isLoading;
+  const dre = dreQ.data;
+  const dreChart = useMemo(() => {
+    if (!dre) return [];
+    return [
+      { label: 'Receita bruta', valor: dre.receitaBruta },
+      { label: 'Deduções', valor: -dre.deducoes },
+      { label: 'CPV', valor: -dre.cpv },
+      { label: 'Despesas op.', valor: -dre.despesasOperacionais },
+      { label: 'Resultado', valor: dre.resultadoOperacional },
+    ];
+  }, [dre]);
+
+  const loading = summaryQ.isLoading || salesQ.isLoading || prodQ.isLoading || agingQ.isLoading || dreQ.isLoading;
 
   return (
     <div>
@@ -177,10 +206,11 @@ export default function AnalyticsPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          Gráficos construídos sobre os endpoints reais de <code>/analytics</code> (sales-cube, production-costs,
-          inventory-aging, summary). Os itens "recebimentos vs pagamentos por mês", "margem bruta por produto",
-          "OPs planejadas vs concluídas" e "lead time médio" da issue ainda <strong>não têm endpoint</strong> no backend
-          (pendência registrada na #247). O filtro de período afeta Comercial e Produção; Estoque é um retrato atual.
+          Gráficos sobre os endpoints reais de <code>/analytics</code> e <code>/finance</code> (sales-cube,
+          production-costs, inventory-aging, summary e DRE). A seção Financeiro usa o DRE realizado
+          (<code>/finance/reports/dre</code>). Ainda <strong>sem endpoint</strong>: "margem bruta por produto",
+          "OPs planejadas vs concluídas" e "lead time médio" (pendência #247). O filtro de período afeta
+          Comercial, Financeiro e Produção; Estoque é um retrato atual.
         </span>
       </div>
 
@@ -230,6 +260,39 @@ export default function AnalyticsPage() {
                       <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
                       <Tooltip formatter={(v) => formatBRL(Number(v))} />
                       <Bar dataKey="revenue" name="Receita" fill="#00C2A8" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Financeiro */}
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Financeiro</h2>
+          <div className="mb-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi label="Receita líquida" value={formatBRL(dre?.receitaLiquida ?? 0)} tone="success" />
+            <Kpi label="Lucro bruto" value={formatBRL(dre?.lucroBruto ?? 0)} />
+            <Kpi label="Resultado operacional" value={formatBRL(dre?.resultadoOperacional ?? 0)} tone={(dre?.resultadoOperacional ?? 0) < 0 ? 'danger' : 'neutral'} />
+            <Kpi label="Margem bruta" value={`${formatNumber(dre?.margemBruta ?? 0)}%`} />
+          </div>
+          <div className="mb-6 grid gap-5">
+            <Card>
+              <CardHeader><CardTitle className="text-base">DRE do período (valores realizados)</CardTitle></CardHeader>
+              <CardContent>
+                {!dre || dre.receitaBruta === 0 ? (
+                  <p className="py-12 text-center text-sm text-slate-400">Sem lançamentos pagos no período.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={dreChart} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
+                      <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                      <Bar dataKey="valor" name="Valor" radius={[4, 4, 0, 0]}>
+                        {dreChart.map((d) => (
+                          <Cell key={d.label} fill={d.valor >= 0 ? '#16a34a' : '#dc2626'} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
