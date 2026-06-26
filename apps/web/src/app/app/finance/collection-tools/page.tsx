@@ -2,16 +2,19 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Copy, Info } from 'lucide-react';
+import { Plus, Copy, Info, Ban } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { Boleto, PixCharge, BankAccount, BoletoStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
 import {
@@ -26,7 +29,9 @@ interface Paginated<T> {
   total: number;
 }
 
-const BOLETO_STATUS: Record<BoletoStatus, { label: string; variant: any }> = {
+type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info';
+
+const BOLETO_STATUS: Record<BoletoStatus, { label: string; variant: BadgeVariant }> = {
   PENDING: { label: 'Pendente', variant: 'warning' },
   REGISTERED: { label: 'Registrado', variant: 'info' },
   PAID: { label: 'Pago', variant: 'success' },
@@ -34,6 +39,15 @@ const BOLETO_STATUS: Record<BoletoStatus, { label: string; variant: any }> = {
   OVERDUE: { label: 'Vencido', variant: 'danger' },
   WRITTEN_OFF: { label: 'Baixado', variant: 'neutral' },
 };
+
+const PIX_STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
+  ACTIVE: { label: 'Ativa', variant: 'info' },
+  PAID: { label: 'Paga', variant: 'success' },
+  CANCELLED: { label: 'Cancelada', variant: 'neutral' },
+  EXPIRED: { label: 'Expirada', variant: 'danger' },
+};
+
+const BOLETO_CANCELLABLE: BoletoStatus[] = ['PENDING', 'REGISTERED', 'OVERDUE'];
 
 function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
   const items = [
@@ -62,10 +76,13 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
 
 export default function CollectionToolsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [tab, setTab] = useState('boletos');
   const [boletoDialog, setBoletoDialog] = useState(false);
   const [pixDialog, setPixDialog] = useState(false);
+  const [boletoStatusFilter, setBoletoStatusFilter] = useState<'' | BoletoStatus>('');
+  const [pixStatusFilter, setPixStatusFilter] = useState('');
 
   const { data: accounts = [] } = useList<BankAccount>('/finance/bank-accounts');
 
@@ -86,6 +103,28 @@ export default function CollectionToolsPage() {
     mutationFn: (v: PixFormValues) => apiClient.post('/banking/pix/charges', v),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/banking/pix/charges'] }),
   });
+  const cancelBoleto = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/banking/boletos/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['/banking/boletos'] }),
+  });
+  const cancelPix = useMutation({
+    mutationFn: (id: string) => apiClient.patch(`/banking/pix/charges/${id}/cancel`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['/banking/pix/charges'] }),
+  });
+
+  function handleCancelBoleto(b: Boleto) {
+    confirm({ title: 'Cancelar boleto?', description: `Boleto ${b.nossoNumero} (${b.payerName}).`, confirmLabel: 'Cancelar boleto', variant: 'danger' }).then(
+      (ok) => ok && cancelBoleto.mutate(b.id, { onSuccess: () => toast.success('Boleto cancelado'), onError: () => toast.error('Erro ao cancelar boleto') }),
+    );
+  }
+  function handleCancelPix(p: PixCharge) {
+    confirm({ title: 'Cancelar cobrança PIX?', description: p.description || p.txId, confirmLabel: 'Cancelar PIX', variant: 'danger' }).then(
+      (ok) => ok && cancelPix.mutate(p.id, { onSuccess: () => toast.success('Cobrança PIX cancelada'), onError: () => toast.error('Erro ao cancelar PIX') }),
+    );
+  }
+
+  const boletoList = (boletos.data?.data ?? []).filter((b) => !boletoStatusFilter || b.status === boletoStatusFilter);
+  const pixList = (pixCharges.data?.data ?? []).filter((p) => !pixStatusFilter || p.status === pixStatusFilter);
 
   function submitBoleto(v: BoletoFormValues) {
     createBoleto.mutate(v, {
@@ -130,9 +169,20 @@ export default function CollectionToolsPage() {
       header: 'Status',
       align: 'center',
       cell: (b) => {
-        const m = BOLETO_STATUS[b.status] ?? { label: b.status, variant: 'neutral' };
+        const m = BOLETO_STATUS[b.status] ?? { label: b.status, variant: 'neutral' as BadgeVariant };
         return <Badge variant={m.variant}>{m.label}</Badge>;
       },
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (b) =>
+        BOLETO_CANCELLABLE.includes(b.status) ? (
+          <button onClick={() => handleCancelBoleto(b)} title="Cancelar boleto" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+            <Ban size={15} />
+          </button>
+        ) : null,
     },
   ];
 
@@ -151,26 +201,32 @@ export default function CollectionToolsPage() {
       key: 'status',
       header: 'Status',
       align: 'center',
-      cell: (p) => <Badge variant={p.status === 'PAID' ? 'success' : 'info'}>{p.status}</Badge>,
+      cell: (p) => {
+        const m = PIX_STATUS[p.status] ?? { label: p.status, variant: 'neutral' as BadgeVariant };
+        return <Badge variant={m.variant}>{m.label}</Badge>;
+      },
     },
     {
-      key: 'copy',
+      key: 'actions',
       header: 'Copia e cola',
       align: 'right',
-      cell: (p) =>
-        p.qrCode ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              copy(p.qrCode);
-            }}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"
-          >
-            <Copy size={13} /> Copiar
-          </button>
-        ) : (
-          '—'
-        ),
+      cell: (p) => (
+        <div className="flex items-center justify-end gap-1">
+          {p.qrCode && (
+            <button
+              onClick={(e) => { e.stopPropagation(); copy(p.qrCode); }}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"
+            >
+              <Copy size={13} /> Copiar
+            </button>
+          )}
+          {p.status === 'ACTIVE' && (
+            <button onClick={() => handleCancelPix(p)} title="Cancelar PIX" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+              <Ban size={15} />
+            </button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -192,21 +248,40 @@ export default function CollectionToolsPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
         <Info size={15} className="mt-0.5 shrink-0" />
         <span>
-          A emissão real depende de uma <strong>conta bancária com integração configurada</strong>{' '}
-          (provedor/credenciais), que ainda não existe no backend. Sem isso, a geração retornará
-          erro. O backend também não fornece <strong>linha digitável/PDF do boleto</strong> nem
-          imagem de QR Code do PIX (apenas o código copia-e-cola).
+          A emissão usa o <strong>adaptador do banco configurado</strong> na conta (BB/Bradesco/Itaú);
+          contas sem credenciais retornam erro. Boletos podem ser <strong>cancelados</strong> e
+          incluídos em remessa CNAB; o PIX é liquidado via webhook. O backend ainda não devolve
+          <strong> PDF/linha digitável</strong> do boleto nem a imagem do QR (apenas o copia-e-cola).
         </span>
       </div>
 
       <Tabs tab={tab} setTab={setTab} />
 
+      <div className="mb-3 w-56">
+        <Label>Status</Label>
+        {tab === 'boletos' ? (
+          <Select value={boletoStatusFilter} onChange={(e) => setBoletoStatusFilter(e.target.value as '' | BoletoStatus)}>
+            <option value="">Todos</option>
+            {(Object.keys(BOLETO_STATUS) as BoletoStatus[]).map((s) => (
+              <option key={s} value={s}>{BOLETO_STATUS[s].label}</option>
+            ))}
+          </Select>
+        ) : (
+          <Select value={pixStatusFilter} onChange={(e) => setPixStatusFilter(e.target.value)}>
+            <option value="">Todos</option>
+            {Object.keys(PIX_STATUS).map((s) => (
+              <option key={s} value={s}>{PIX_STATUS[s].label}</option>
+            ))}
+          </Select>
+        )}
+      </div>
+
       {tab === 'boletos' ? (
         <DataTable
-          data={boletos.data?.data ?? []}
+          data={boletoList}
           columns={boletoColumns}
           loading={boletos.isLoading}
           searchPlaceholder="Buscar por pagador ou nosso número..."
@@ -214,7 +289,7 @@ export default function CollectionToolsPage() {
         />
       ) : (
         <DataTable
-          data={pixCharges.data?.data ?? []}
+          data={pixList}
           columns={pixColumns}
           loading={pixCharges.isLoading}
           searchPlaceholder="Buscar por descrição ou TxID..."
