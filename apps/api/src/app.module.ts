@@ -53,9 +53,6 @@ import { ManifestModule } from './modules/manifest/manifest.module';
 import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
-import { BankingModule } from './banking/banking.module';
-import { BpmModule } from './bpm/bpm.module';
-import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -76,8 +73,6 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
           .default('development'),
         FOCUS_NFE_TOKEN: Joi.string().optional(),
         FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
-        BANK_ENCRYPTION_KEY: Joi.string().optional(),
-        PIX_WEBHOOK_SECRET: Joi.string().optional(),
       }),
       validationOptions: {
         abortEarly: false,
@@ -149,9 +144,6 @@ import { AnalyticsModule as AnalyticsBiModule } from './analytics/analytics.modu
     LgpdModule,
     BudgetModule,
     SchedulingModule,
-    BankingModule,
-    BpmModule,
-    AnalyticsBiModule,
   ],
   providers: [
     {
