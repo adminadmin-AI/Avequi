@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -10,9 +11,17 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return null;
+
+    // #221: check isActive on login
+    if (!user.isActive) return null;
+
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return null;
     const { passwordHash: _ph, ...result } = user;
@@ -36,9 +45,10 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    // #221: store hashed refresh token
     await this.prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: this.hashToken(refreshToken),
         userId: user.id,
         expiresAt,
       },
@@ -57,12 +67,22 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token inválido ou expirado');
     }
 
+    const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+      where: { token: tokenHash },
     });
 
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
+    // #221: check isActive on refresh
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+      select: { isActive: true },
+    });
+    if (!user?.isActive) {
+      throw new UnauthorizedException('Usuário desativado');
     }
 
     // Rotate: revoke old, issue new
@@ -83,7 +103,7 @@ export class AuthService {
 
     await this.prisma.refreshToken.create({
       data: {
-        token: newRefreshToken,
+        token: this.hashToken(newRefreshToken),
         userId: stored.userId,
         expiresAt,
       },
@@ -94,8 +114,9 @@ export class AuthService {
 
   async logout(refreshToken: string) {
     if (!refreshToken) return;
+    const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+      where: { token: tokenHash },
     });
     if (!stored || stored.revokedAt) return;
     await this.prisma.refreshToken.update({

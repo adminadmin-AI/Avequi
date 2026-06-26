@@ -33,7 +33,7 @@ export class PurchaseController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
   @ApiOperation({ summary: 'Criar pedido de compra em rascunho' })
   createPO(@Body() dto: CreatePurchaseOrderDto, @CurrentUser() user: any) {
-    return this.purchaseService.createPO(dto, user?.id);
+    return this.purchaseService.createPO({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Patch('orders/:id')
@@ -79,7 +79,7 @@ export class PurchaseController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
   @ApiOperation({ summary: 'Registrar recebimento de mercadoria (GR)' })
   createReceipt(@Body() dto: CreateGoodsReceiptDto, @CurrentUser() user: any) {
-    return this.purchaseService.createReceipt(dto, user?.id);
+    return this.purchaseService.createReceipt(dto, user.id, user.companyId);
   }
 
   @Get('receipts')
@@ -126,7 +126,7 @@ export class PurchaseController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'STORE')
   @ApiOperation({ summary: 'Criar solicitação de compra' })
   createRequest(@Body() dto: CreatePurchaseRequestDto, @CurrentUser() user: any) {
-    return this.purchaseService.createRequest(dto, user?.id);
+    return this.purchaseService.createRequest({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Get('requests')

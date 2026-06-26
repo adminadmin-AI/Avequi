@@ -20,6 +20,7 @@ const mockPrisma = {
     create: jest.fn(),
   },
   $transaction: jest.fn(),
+  $queryRawUnsafe: jest.fn(),
 };
 
 describe('StockService', () => {
@@ -49,6 +50,7 @@ describe('StockService', () => {
         available: 5,
         reserved: 0,
       });
+      mockPrisma.$queryRawUnsafe.mockResolvedValue([{ available: 5 }]);
 
       const dto = {
         companyId: 'co-1',
@@ -74,6 +76,7 @@ describe('StockService', () => {
         available: 10,
         reserved: 0,
       });
+      mockPrisma.$queryRawUnsafe.mockResolvedValue([{ available: 10 }]);
 
       const createdMovement = {
         id: 'mov-1',
@@ -117,6 +120,7 @@ describe('StockService', () => {
         available: 50,
         reserved: 0,
       });
+      mockPrisma.$queryRawUnsafe.mockResolvedValue([{ available: 50 }]);
       mockPrisma.stockBalance.update.mockResolvedValue({});
       mockPrisma.stockMovement.create.mockResolvedValue({ id: 'mov-1' });
       mockPrisma.auditLog.create.mockResolvedValue({});

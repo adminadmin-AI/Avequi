@@ -236,8 +236,9 @@ export class SalesService {
         );
       }
 
-      // Validação de segurança: picking deve estar DONE
-      if (!order.pickingOrder || order.pickingOrder.status !== 'DONE') {
+      // Validação de segurança: picking deve estar DONE (se WMS ativo)
+      // #220: non-WMS warehouses don't have a pickingOrder
+      if (order.pickingOrder && order.pickingOrder.status !== 'DONE') {
         throw new BadRequestException(
           'Picking não concluído. Conclua todas as tarefas de picking antes de faturar.',
         );

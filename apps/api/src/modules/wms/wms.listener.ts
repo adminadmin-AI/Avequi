@@ -29,7 +29,14 @@ export class WmsListener {
   @OnEvent(SALE_CONFIRMED_EVENT, { async: true })
   async onSaleConfirmed(event: SaleConfirmedEvent): Promise<void> {
     try {
-      await this.wmsService.createPickingOrder(event);
+      const created = await this.wmsService.createPickingOrder(event);
+      // #220: Non-WMS warehouses — skip picking, go straight to READY_TO_INVOICE
+      if (!created) {
+        await this.salesService.markReadyToInvoice(event.salesOrderId);
+        this.logger.log(
+          `SO ${event.salesOrderId} marcada como READY_TO_INVOICE (WMS desativado)`,
+        );
+      }
     } catch (err) {
       this.logger.error(
         `Falha ao criar PickingOrder para SO ${event.salesOrderId}: ${(err as Error).message}`,

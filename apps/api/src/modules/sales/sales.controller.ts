@@ -23,7 +23,7 @@ export class SalesController {
   @Post()
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    return this.salesService.createOrder(dto, user?.id);
+    return this.salesService.createOrder({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Get()

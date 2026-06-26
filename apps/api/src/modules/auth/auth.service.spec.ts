@@ -2,8 +2,13 @@ import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 const mockPrisma = {
   user: {
@@ -80,12 +85,20 @@ describe('AuthService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should return null when user is inactive (#221)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, isActive: false });
+
+      const result = await service.validateUser('admin@gdr.com.br', 'Admin@123');
+
+      expect(result).toBeNull();
+    });
   });
 
   // ─── login ─────────────────────────────────────────────────────────────────
 
   describe('login', () => {
-    it('should return accessToken, refreshToken and user', async () => {
+    it('should return accessToken, refreshToken and user with hashed storage (#221)', async () => {
       mockJwt.sign
         .mockReturnValueOnce('access-token-123')
         .mockReturnValueOnce('refresh-token-456');
@@ -98,10 +111,11 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe('refresh-token-456');
       expect(result.user).toEqual(user);
       expect(mockJwt.sign).toHaveBeenCalledTimes(2);
+      // Token stored as SHA-256 hash, not plaintext
       expect(mockPrisma.refreshToken.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            token: 'refresh-token-456',
+            token: hashToken('refresh-token-456'),
             userId: 'user-1',
           }),
         }),
@@ -117,11 +131,12 @@ describe('AuthService', () => {
       mockJwt.verify.mockReturnValue(payload);
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
-        token: 'old-refresh',
+        token: hashToken('old-refresh'),
         userId: 'user-1',
         revokedAt: null,
         expiresAt: new Date(Date.now() + 86400000),
       });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
       mockPrisma.refreshToken.update.mockResolvedValue({});
       mockJwt.sign
         .mockReturnValueOnce('new-access-token')
@@ -140,6 +155,21 @@ describe('AuthService', () => {
       );
     });
 
+    it('should throw UnauthorizedException when user is inactive (#221)', async () => {
+      const payload = { sub: 'user-1', iat: 1, exp: 2 };
+      mockJwt.verify.mockReturnValue(payload);
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('some-token'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: false });
+
+      await expect(service.refresh('some-token')).rejects.toThrow(UnauthorizedException);
+    });
+
     it('should throw UnauthorizedException when JWT verify fails', async () => {
       mockJwt.verify.mockImplementation(() => {
         throw new Error('invalid token');
@@ -152,7 +182,7 @@ describe('AuthService', () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', iat: 1, exp: 2 });
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
-        token: 'revoked-token',
+        token: hashToken('revoked-token'),
         userId: 'user-1',
         revokedAt: new Date(),
         expiresAt: new Date(Date.now() + 86400000),
@@ -165,7 +195,7 @@ describe('AuthService', () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', iat: 1, exp: 2 });
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
-        token: 'expired-token',
+        token: hashToken('expired-token'),
         userId: 'user-1',
         revokedAt: null,
         expiresAt: new Date(Date.now() - 86400000),
@@ -188,7 +218,7 @@ describe('AuthService', () => {
     it('should revoke refresh token', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
-        token: 'valid-token',
+        token: hashToken('valid-token'),
         revokedAt: null,
       });
       mockPrisma.refreshToken.update.mockResolvedValue({});
@@ -212,7 +242,7 @@ describe('AuthService', () => {
     it('should do nothing when token is already revoked', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
-        token: 'already-revoked',
+        token: hashToken('already-revoked'),
         revokedAt: new Date(),
       });
 

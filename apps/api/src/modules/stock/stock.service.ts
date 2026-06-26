@@ -42,7 +42,7 @@ export class StockService {
     });
   }
 
-  async move(dto: CreateMovementDto, userId?: string) {
+  async move(dto: CreateMovementDto & { companyId: string }, userId?: string) {
     return this.prisma.$transaction(async (tx) => {
       // Find or create balance
       let balance = await tx.stockBalance.findUnique({
@@ -61,9 +61,16 @@ export class StockService {
         });
       }
 
-      // Check sufficient stock for outbound
+      // SELECT FOR UPDATE — row-level lock to prevent race conditions (#219)
+      const [locked] = await tx.$queryRawUnsafe<{ available: any }[]>(
+        `SELECT "available" FROM "gdr_stock_balances" WHERE "warehouseId" = $1 AND "productId" = $2 FOR UPDATE`,
+        dto.warehouseId,
+        dto.productId,
+      );
+
+      // Check sufficient stock for outbound (using locked row value)
       if (OUTBOUND_TYPES.includes(dto.type)) {
-        const available = Number(balance.available);
+        const available = Number(locked?.available ?? balance.available);
         if (available < dto.quantity) {
           throw new BadRequestException(
             `Saldo insuficiente. Disponível: ${available}, solicitado: ${dto.quantity}`,
@@ -134,12 +141,14 @@ export class StockService {
       // Reversal undoes original: if original was outbound (negative), reversal adds back (positive)
       const reverseDelta = isOutbound ? Number(original.quantity) : -Number(original.quantity);
 
-      // If removing stock (negative delta), check balance
+      // If removing stock (negative delta), check balance with row lock
       if (reverseDelta < 0) {
-        const balance = await tx.stockBalance.findUnique({
-          where: { warehouseId_productId: { warehouseId: original.warehouseId, productId: original.productId } },
-        });
-        const available = balance ? Number(balance.available) : 0;
+        const [locked] = await tx.$queryRawUnsafe<{ available: any }[]>(
+          `SELECT "available" FROM "gdr_stock_balances" WHERE "warehouseId" = $1 AND "productId" = $2 FOR UPDATE`,
+          original.warehouseId,
+          original.productId,
+        );
+        const available = locked ? Number(locked.available) : 0;
         const removeQty = Math.abs(reverseDelta);
         if (available < removeQty) {
           throw new BadRequestException(
