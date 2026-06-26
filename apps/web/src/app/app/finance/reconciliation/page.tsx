@@ -1,62 +1,106 @@
 'use client';
 
-import { useState } from 'react';
-import { RefreshCw, Info } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Info, Download, FileCheck2 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { ReconciliationItem } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
-import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatDate } from '@/lib/format';
 
-const RESOURCE = '/banking/reconciliation/unmatched';
+const UNMATCHED = '/banking/reconciliation/unmatched';
+const RETORNOS = '/banking/cnab/retornos';
+
+type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info';
+
+const RETORNO_STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
+  PENDING: { label: 'Pendente', variant: 'neutral' },
+  PROCESSING: { label: 'Processando', variant: 'info' },
+  PROCESSED: { label: 'Processado', variant: 'success' },
+  ERROR: { label: 'Erro', variant: 'danger' },
+};
+
+interface CnabRetorno {
+  id: string;
+  fileName: string;
+  status: string;
+  matchedCount: number;
+  unmatchedCount: number;
+  totalAmount: string | null;
+  processedAt: string | null;
+  createdAt: string;
+  bankAccount?: { id: string; name: string; bankCode?: string } | null;
+  _count?: { items: number };
+}
 
 function num(v: string | null | undefined) {
   return v ? Number(v) : 0;
 }
 
-function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
-  const items = [
-    { id: 'unmatched', label: 'Não identificados' },
-    { id: 'pending', label: 'Pendentes (com sugestão)' },
-    { id: 'matched', label: 'Conciliados' },
-  ];
-  return (
-    <div className="mb-5 flex gap-1 border-b border-slate-200">
-      {items.map((it) => (
-        <button
-          key={it.id}
-          onClick={() => setTab(it.id)}
-          className={cn(
-            'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-            tab === it.id
-              ? 'border-brand-600 text-brand-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700',
-          )}
-        >
-          {it.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Placeholder({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center">
-      <Info className="text-slate-300" size={32} />
-      <p className="max-w-md text-sm text-slate-500">{children}</p>
-    </div>
-  );
-}
-
 export default function ReconciliationPage() {
-  const [tab, setTab] = useState('unmatched');
-  const { data: items = [], isLoading } = useList<ReconciliationItem>(RESOURCE);
+  const toast = useToast();
+  const qc = useQueryClient();
 
-  const columns: Column<ReconciliationItem>[] = [
+  const retornosQ = useQuery({
+    queryKey: [RETORNOS],
+    queryFn: async () => (await apiClient.get<CnabRetorno[]>(RETORNOS)).data,
+  });
+  const { data: items = [], isLoading } = useList<ReconciliationItem>(UNMATCHED);
+
+  const importMut = useMutation({
+    mutationFn: (retornoId: string) =>
+      apiClient.post<{ created: number }>(`/banking/reconciliation/import/${retornoId}`, {}),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: [UNMATCHED] });
+      qc.invalidateQueries({ queryKey: [RETORNOS] });
+      const created = res.data?.created ?? 0;
+      toast.success(created > 0 ? `${created} item(ns) importado(s) para conciliação` : 'Nenhum item novo a importar');
+    },
+    onError: () => toast.error('Não foi possível importar o retorno'),
+  });
+
+  const retornos = retornosQ.data ?? [];
+
+  const retornoColumns: Column<CnabRetorno>[] = [
+    { key: 'fileName', header: 'Arquivo', cell: (r) => <span className="font-mono text-xs">{r.fileName}</span> },
+    { key: 'account', header: 'Conta', cell: (r) => r.bankAccount?.name ?? '—' },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      cell: (r) => {
+        const s = RETORNO_STATUS[r.status] ?? { label: r.status, variant: 'neutral' as BadgeVariant };
+        return <Badge variant={s.variant}>{s.label}</Badge>;
+      },
+    },
+    { key: 'matched', header: 'Conciliados', align: 'right', cell: (r) => `${r.matchedCount}/${r._count?.items ?? r.matchedCount + r.unmatchedCount}` },
+    { key: 'total', header: 'Valor', align: 'right', cell: (r) => formatBRL(num(r.totalAmount)) },
+    { key: 'date', header: 'Processado', sortable: true, accessor: (r) => r.processedAt ?? r.createdAt, cell: (r) => formatDate(r.processedAt ?? r.createdAt) },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (r) => (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => importMut.mutate(r.id)}
+          loading={importMut.isPending && importMut.variables === r.id}
+          disabled={r.status !== 'PROCESSED'}
+        >
+          <Download size={14} /> Importar conciliação
+        </Button>
+      ),
+    },
+  ];
+
+  const itemColumns: Column<ReconciliationItem>[] = [
     { key: 'date', header: 'Data', sortable: true, accessor: (i) => i.date, cell: (i) => formatDate(i.date) },
     { key: 'description', header: 'Descrição do banco', cell: (i) => i.description || '—' },
     { key: 'account', header: 'Conta', cell: (i) => i.bankAccount?.name ?? '—' },
@@ -65,7 +109,7 @@ export default function ReconciliationPage() {
       header: 'Tipo',
       align: 'center',
       cell: (i) => {
-        const credit = num(i.amount) >= 0;
+        const credit = (i.type ? i.type === 'CREDIT' : num(i.amount) >= 0);
         return <Badge variant={credit ? 'success' : 'danger'}>{credit ? 'Crédito' : 'Débito'}</Badge>;
       },
     },
@@ -83,46 +127,58 @@ export default function ReconciliationPage() {
     <div>
       <PageHeader
         title="Conciliação Bancária"
-        description="Transações bancárias importadas a conciliar com os lançamentos."
-        actions={
-          <div className="flex items-center gap-2">
-            {tab === 'unmatched' && items.length > 0 && (
-              <Badge variant="warning">{items.length} não identificados</Badge>
-            )}
-            <Button variant="secondary" disabled title="Conciliação automática depende do backend (issue separada)">
-              <RefreshCw size={16} />
-              Rodar conciliação
-            </Button>
-          </div>
-        }
+        description="Importe os retornos CNAB e acompanhe as transações ainda não conciliadas."
       />
 
-      <Tabs tab={tab} setTab={setTab} />
+      <div className="mb-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <Info size={14} className="mt-0.5 shrink-0" />
+        <span>
+          Ao <strong>importar</strong> um retorno CNAB processado, os boletos liquidados são conciliados
+          automaticamente (vinculados pelo Nosso Número); o que não casar aparece em
+          <strong> Itens não conciliados</strong>. A confirmação manual de matches ainda depende de um
+          endpoint do backend (#247).
+        </span>
+      </div>
 
-      {tab === 'unmatched' && (
-        <DataTable
-          data={items}
-          columns={columns}
-          loading={isLoading}
-          searchPlaceholder="Buscar por descrição..."
-          emptyMessage="Nenhuma transação não identificada."
-        />
-      )}
+      {/* Retornos CNAB */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><FileCheck2 size={16} /> Retornos CNAB</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {retornosQ.isLoading ? (
+            <div className="flex justify-center py-8"><Spinner /></div>
+          ) : retornos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">Nenhum arquivo de retorno CNAB processado.</p>
+          ) : (
+            <DataTable
+              data={retornos}
+              columns={retornoColumns}
+              searchable={false}
+              emptyMessage="Nenhum retorno."
+            />
+          )}
+        </CardContent>
+      </Card>
 
-      {tab === 'pending' && (
-        <Placeholder>
-          A aba <strong>Pendentes</strong> (sugestão de match com % de confiança, confirmar/ignorar)
-          depende de endpoints de conciliação automática que ainda não existem no backend. Hoje o
-          backend só expõe a lista de transações <em>não identificadas</em>.
-        </Placeholder>
-      )}
-
-      {tab === 'matched' && (
-        <Placeholder>
-          O histórico de <strong>Conciliados</strong> depende de um endpoint de listagem de itens já
-          conciliados que ainda não existe no backend.
-        </Placeholder>
-      )}
+      {/* Itens não conciliados */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Itens não conciliados</span>
+            {items.length > 0 && <Badge variant="warning">{items.length}</Badge>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            data={items}
+            columns={itemColumns}
+            loading={isLoading}
+            searchPlaceholder="Buscar por descrição..."
+            emptyMessage="Nenhuma transação pendente de conciliação."
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
