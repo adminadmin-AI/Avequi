@@ -47,7 +47,7 @@ export class ApprovalService {
     userId: string,
     userRole: string,
   ) {
-    // Get required approval levels
+    // #227: Validate document exists, is in approvable status, and compute amount
     let amount = 0;
     if (documentType === 'PO') {
       const po = await this.prisma.purchaseOrder.findFirst({
@@ -59,6 +59,18 @@ export class ApprovalService {
         throw new BadRequestException(`PO não está em DRAFT (status: ${po.status})`);
       }
       amount = po.items.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unitCost), 0);
+    } else if (documentType === 'PR') {
+      const pr = await this.prisma.purchaseRequest.findFirst({
+        where: { id: documentId, companyId },
+        include: { product: true },
+      });
+      if (!pr) throw new NotFoundException(`PR ${documentId} não encontrada`);
+      if (pr.status !== 'OPEN') {
+        throw new BadRequestException(`PR não está em OPEN (status: ${pr.status})`);
+      }
+      amount = Number(pr.quantity) * Number(pr.product.costPrice ?? 0);
+    } else {
+      throw new BadRequestException(`Tipo de documento não suportado: ${documentType}`);
     }
 
     const requiredLevels = await this.getRequiredLevels(companyId, documentType, amount);
@@ -143,6 +155,7 @@ export class ApprovalService {
     userId: string,
     finalLevel: number,
   ) {
+    // #227: Execute approval for each supported document type
     if (documentType === 'PO') {
       await this.prisma.purchaseOrder.update({
         where: { id: documentId },
@@ -151,6 +164,11 @@ export class ApprovalService {
           approvedById: userId,
           approvedAt: new Date(),
         },
+      });
+    } else if (documentType === 'PR') {
+      await this.prisma.purchaseRequest.update({
+        where: { id: documentId },
+        data: { status: 'APPROVED' },
       });
     }
 
@@ -168,42 +186,61 @@ export class ApprovalService {
   // ─── Pending approvals for a user ───────────────────────────────────────
 
   async getPending(companyId: string, userRole: string) {
-    // Find all draft POs that need approval
-    const draftPOs = await this.prisma.purchaseOrder.findMany({
-      where: { companyId, status: 'DRAFT' },
-      include: {
-        items: true,
-        supplier: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
-    });
+    // #227: Fetch pending items for all supported document types
+    const [draftPOs, openPRs, allMatrices] = await Promise.all([
+      this.prisma.purchaseOrder.findMany({
+        where: { companyId, status: 'DRAFT' },
+        include: {
+          items: true,
+          supplier: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.purchaseRequest.findMany({
+        where: { companyId, status: 'OPEN' },
+        include: {
+          product: { select: { id: true, sku: true, name: true, costPrice: true } },
+          requestedBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.approvalMatrix.findMany({
+        where: { companyId },
+        orderBy: { level: 'asc' },
+      }),
+    ]);
 
-    const matrices = await this.prisma.approvalMatrix.findMany({
-      where: { companyId, entityType: 'PO' },
-      orderBy: { level: 'asc' },
-    });
+    const filterByMatrix = (
+      items: any[],
+      entityType: string,
+      getAmount: (item: any) => number,
+    ) => {
+      const matrices = allMatrices.filter((m) => m.entityType === entityType);
+      return items
+        .map((item) => {
+          const amount = getAmount(item);
+          const applicable = matrices.filter((m) => {
+            if (!m.conditionField || m.conditionField !== 'amount') return true;
+            const threshold = parseFloat(m.conditionValue ?? '0');
+            if (m.conditionOp === 'gte') return amount >= threshold;
+            if (m.conditionOp === 'lte') return amount <= threshold;
+            return true;
+          });
+          const canApprove = applicable.some((m) =>
+            m.approverRoles.includes(userRole),
+          );
+          if (!canApprove && matrices.length > 0) return null;
+          return { ...item, documentType: entityType, totalAmount: amount };
+        })
+        .filter(Boolean);
+    };
 
-    const pending = draftPOs
-      .map((po) => {
-        const amount = po.items.reduce(
-          (sum, i) => sum + Number(i.quantity) * Number(i.unitCost),
-          0,
-        );
-        const applicable = matrices.filter((m) => {
-          if (!m.conditionField || m.conditionField !== 'amount') return true;
-          const threshold = parseFloat(m.conditionValue ?? '0');
-          if (m.conditionOp === 'gte') return amount >= threshold;
-          if (m.conditionOp === 'lte') return amount <= threshold;
-          return true;
-        });
-        const canApprove = applicable.some((m) =>
-          m.approverRoles.includes(userRole),
-        );
-        if (!canApprove && matrices.length > 0) return null;
-        return { ...po, totalAmount: amount };
-      })
-      .filter(Boolean);
+    const pendingPOs = filterByMatrix(draftPOs, 'PO', (po) =>
+      po.items.reduce((sum: number, i: any) => sum + Number(i.quantity) * Number(i.unitCost), 0),
+    );
+    const pendingPRs = filterByMatrix(openPRs, 'PR', (pr) =>
+      Number(pr.quantity) * Number(pr.product?.costPrice ?? 0),
+    );
 
-    return pending;
+    return [...pendingPOs, ...pendingPRs];
   }
 }

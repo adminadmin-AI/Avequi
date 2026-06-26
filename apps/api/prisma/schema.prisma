@@ -519,6 +519,7 @@ model Warehouse {
   inventoryCounts  InventoryCount[]
   serialNumbers    SerialNumber[]
   quotations       Quotation[]
+  priceTables      PriceTable[]
   createdAt     DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -3209,13 +3210,16 @@ model PriceTable {
   validTo    DateTime?
   isDefault  Boolean        @default(false)
   isActive   Boolean        @default(true)
-  customerId String?
-  customer   Customer?      @relation(fields: [customerId], references: [id])
-  items      PriceTableItem[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  customerId  String?
+  customer    Customer?      @relation(fields: [customerId], references: [id])
+  warehouseId String?
+  warehouse   Warehouse?     @relation(fields: [warehouseId], references: [id])
+  items       PriceTableItem[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([companyId, isActive])
+  @@index([companyId, warehouseId, isActive])
   @@index([customerId])
   @@map("gdr_price_tables")
 }

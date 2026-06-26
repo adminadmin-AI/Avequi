@@ -292,9 +292,9 @@ export class FinanceService {
         dueDate,
         description: `${entry.description ?? 'Parcela'} (${i + 1}/${dto.numberOfInstallments})`,
         parentEntryId: entry.id,
-        salesOrderId: null as string | null,
-        purchaseOrderId: entry.purchaseOrderId,
-        goodsReceiptId: null as string | null,
+        salesOrderId: entry.salesOrderId ?? null,
+        purchaseOrderId: entry.purchaseOrderId ?? null,
+        goodsReceiptId: entry.goodsReceiptId ?? null,
       };
     });
 

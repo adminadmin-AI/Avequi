@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SalesOrderStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { SalesService } from './sales.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -49,6 +50,7 @@ export class SalesController {
   }
 
   @Patch(':id/approve-credit')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
   @ApiOperation({ summary: 'Aprovar crédito e liberar OV (CREDIT_HOLD → DRAFT) (#187)' })
   approveCredit(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.approveCreditHold(id, user.companyId, user?.id);

@@ -61,6 +61,7 @@ export class PriceService {
     productId: string,
     customerId?: string,
     quantity?: number,
+    warehouseId?: string,
   ) {
     const now = new Date();
 
@@ -97,7 +98,42 @@ export class PriceService {
       }
     }
 
-    // 2. Active non-default table (promotional etc)
+    // 2. Warehouse-specific table (#224)
+    if (warehouseId) {
+      const warehouseTable = await this.prisma.priceTable.findFirst({
+        where: {
+          companyId,
+          warehouseId,
+          customerId: null,
+          isActive: true,
+          validFrom: { lte: now },
+          OR: [{ validTo: null }, { validTo: { gte: now } }],
+        },
+        include: {
+          items: {
+            where: { productId },
+            orderBy: { minQuantity: 'desc' },
+          },
+        },
+        orderBy: { validFrom: 'desc' },
+      });
+
+      if (warehouseTable && warehouseTable.items.length > 0) {
+        const item = this.findBestItem(warehouseTable.items, quantity);
+        if (item) {
+          return {
+            source: 'WAREHOUSE_SPECIFIC',
+            priceTableId: warehouseTable.id,
+            priceTableName: warehouseTable.name,
+            unitPrice: Number(item.unitPrice),
+            discountPercent: item.discountPercent ? Number(item.discountPercent) : null,
+            effectivePrice: this.calcEffectivePrice(item),
+          };
+        }
+      }
+    }
+
+    // 3. Active non-default table (promotional etc)
     const activeTable = await this.prisma.priceTable.findFirst({
       where: {
         companyId,

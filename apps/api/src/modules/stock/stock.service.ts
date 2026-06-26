@@ -198,6 +198,141 @@ export class StockService {
     });
   }
 
+  // ─── #230: Facade methods for cross-module use ───────────────────────────
+
+  /**
+   * Reserve stock for a sales order or other document.
+   * Decrements `available`, increments `reserved`.
+   */
+  async reserveBalance(
+    warehouseId: string,
+    productId: string,
+    quantity: number,
+    companyId: string,
+    tx?: any,
+  ) {
+    const prisma = tx ?? this.prisma;
+    await prisma.stockBalance.update({
+      where: { warehouseId_productId: { warehouseId, productId } },
+      data: {
+        available: { decrement: quantity },
+        reserved: { increment: quantity },
+      },
+    });
+  }
+
+  /**
+   * Release previously reserved stock (e.g., order cancelled).
+   * Decrements `reserved`, increments `available`.
+   */
+  async releaseBalance(
+    warehouseId: string,
+    productId: string,
+    quantity: number,
+    tx?: any,
+  ) {
+    const prisma = tx ?? this.prisma;
+    await prisma.stockBalance.update({
+      where: { warehouseId_productId: { warehouseId, productId } },
+      data: {
+        reserved: { decrement: quantity },
+        available: { increment: quantity },
+      },
+    });
+  }
+
+  /**
+   * Consume reserved stock (invoice): decrements `reserved`, creates EXIT movement.
+   */
+  async consumeReserved(
+    warehouseId: string,
+    productId: string,
+    quantity: number,
+    companyId: string,
+    reason: string,
+    userId?: string,
+    tx?: any,
+  ) {
+    const prisma = tx ?? this.prisma;
+    await prisma.stockBalance.update({
+      where: { warehouseId_productId: { warehouseId, productId } },
+      data: { reserved: { decrement: quantity } },
+    });
+    await prisma.stockMovement.create({
+      data: {
+        companyId,
+        warehouseId,
+        productId,
+        type: 'EXIT',
+        quantity,
+        reason,
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Return stock: increments `available`, creates ENTRY movement.
+   */
+  async returnStock(
+    warehouseId: string,
+    productId: string,
+    quantity: number,
+    companyId: string,
+    reason: string,
+    userId?: string,
+    tx?: any,
+  ) {
+    const prisma = tx ?? this.prisma;
+    await prisma.stockBalance.update({
+      where: { warehouseId_productId: { warehouseId, productId } },
+      data: { available: { increment: quantity } },
+    });
+    await prisma.stockMovement.create({
+      data: {
+        companyId,
+        warehouseId,
+        productId,
+        type: 'ENTRY',
+        quantity,
+        reason,
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Receive goods: increments `available`, creates ENTRY movement, returns movement.
+   */
+  async receiveGoods(
+    warehouseId: string,
+    productId: string,
+    quantity: number,
+    companyId: string,
+    reason: string,
+    userId?: string,
+    tx?: any,
+  ) {
+    const prisma = tx ?? this.prisma;
+    // Ensure balance exists
+    await prisma.stockBalance.upsert({
+      where: { warehouseId_productId: { warehouseId, productId } },
+      create: { companyId, warehouseId, productId, available: quantity, reserved: 0 },
+      update: { available: { increment: quantity } },
+    });
+    return prisma.stockMovement.create({
+      data: {
+        companyId,
+        warehouseId,
+        productId,
+        type: 'ENTRY',
+        quantity,
+        reason,
+        userId,
+      },
+    });
+  }
+
   async getMovements(companyId: string, warehouseId?: string, productId?: string) {
     const where: any = { companyId };
     if (warehouseId) where.warehouseId = warehouseId;

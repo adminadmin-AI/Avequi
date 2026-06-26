@@ -7,6 +7,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StockService } from '../stock/stock.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
@@ -19,6 +20,7 @@ export class SalesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly stockService: StockService,
   ) {}
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
@@ -89,6 +91,7 @@ export class SalesService {
         throw new BadRequestException('Venda sem itens não pode ser reservada');
       }
 
+      // #230: Use StockService facade for reserve operations
       for (const item of order.items) {
         const balance = await tx.stockBalance.findUnique({
           where: {
@@ -109,18 +112,9 @@ export class SalesService {
           );
         }
 
-        await tx.stockBalance.update({
-          where: {
-            warehouseId_productId: {
-              warehouseId: order.warehouseId,
-              productId: item.productId,
-            },
-          },
-          data: {
-            available: { decrement: qty },
-            reserved: { increment: qty },
-          },
-        });
+        await this.stockService.reserveBalance(
+          order.warehouseId, item.productId, qty, companyId, tx,
+        );
       }
 
       const reserved = await tx.salesOrder.update({
@@ -225,7 +219,7 @@ export class SalesService {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true, pickingOrder: true },
+        include: { items: true, pickingOrder: true, customer: true, company: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -247,28 +241,11 @@ export class SalesService {
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
-        await tx.stockBalance.update({
-          where: {
-            warehouseId_productId: {
-              warehouseId: order.warehouseId,
-              productId: item.productId,
-            },
-          },
-          data: { reserved: { decrement: qty } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            companyId,
-            warehouseId: order.warehouseId,
-            productId: item.productId,
-            type: 'EXIT',
-            quantity: qty,
-            reason: `Faturamento OV #${id}`,
-            reference: `SO:${id}`,
-            userId,
-          },
-        });
+        // #230: Use StockService facade for invoice stock consumption
+        await this.stockService.consumeReserved(
+          order.warehouseId, item.productId, qty, companyId,
+          `Faturamento OV #${id}`, userId, tx,
+        );
       }
 
       const updated = await tx.salesOrder.update({
@@ -304,6 +281,9 @@ export class SalesService {
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),
         })),
+        (invoiced as any).customer?.type,
+        (invoiced as any).customer?.state,
+        (invoiced as any).company?.state,
       ),
     );
 
@@ -327,31 +307,13 @@ export class SalesService {
       }
 
       // 1. Reverter estoque: entrada de todos os itens
+      // #230: Use StockService facade for return stock entry
       for (const item of order.items) {
         const qty = Number(item.quantity);
-
-        await tx.stockBalance.update({
-          where: {
-            warehouseId_productId: {
-              warehouseId: order.warehouseId,
-              productId: item.productId,
-            },
-          },
-          data: { available: { increment: qty } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            companyId,
-            warehouseId: order.warehouseId,
-            productId: item.productId,
-            type: 'ENTRY',
-            quantity: qty,
-            reason: `Devolução OV #${id}: ${dto.reason}`,
-            reference: `SO-RETURN:${id}`,
-            userId,
-          },
-        });
+        await this.stockService.returnStock(
+          order.warehouseId, item.productId, qty, companyId,
+          `Devolução OV #${id}: ${dto.reason}`, userId, tx,
+        );
       }
 
       // 2. Cancelar CR (conta a receber) vinculada (#178)
@@ -489,22 +451,13 @@ export class SalesService {
         order.status === SalesOrderStatus.AWAITING_PICKING ||
         order.status === SalesOrderStatus.READY_TO_INVOICE;
 
+      // #230: Use StockService facade for cancel stock release
       if (needsStockRevert) {
         for (const item of order.items) {
           const qty = Number(item.quantity);
-
-          await tx.stockBalance.update({
-            where: {
-              warehouseId_productId: {
-                warehouseId: order.warehouseId,
-                productId: item.productId,
-              },
-            },
-            data: {
-              reserved: { decrement: qty },
-              available: { increment: qty },
-            },
-          });
+          await this.stockService.releaseBalance(
+            order.warehouseId, item.productId, qty, tx,
+          );
         }
       }
 

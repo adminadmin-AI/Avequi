@@ -22,9 +22,18 @@ export class FiscalListener {
 
   @OnEvent(SALE_INVOICED_EVENT, { async: true })
   async handleSaleInvoiced(event: SaleInvoicedEvent): Promise<void> {
-    this.logger.log(`Iniciando emissão fiscal para OV=${event.salesOrderId}`);
+    // #222: NF-e (mod 55) para PJ ou venda interestadual; NFC-e (mod 65) para PF mesma UF
+    const isCompany = event.customerType === 'COMPANY';
+    const isInterstate =
+      event.customerState && event.companyState && event.customerState !== event.companyState;
+    const docType =
+      isCompany || isInterstate ? FiscalDocumentType.NFE : FiscalDocumentType.NFCE;
+
+    this.logger.log(
+      `Emissão fiscal OV=${event.salesOrderId} tipo=${docType} (customer=${event.customerType ?? 'N/A'}, interstate=${!!isInterstate})`,
+    );
     try {
-      await this.fiscalService.emitForSale(event.salesOrderId, FiscalDocumentType.NFCE);
+      await this.fiscalService.emitForSale(event.salesOrderId, docType);
     } catch (err: any) {
       // Falha fiscal nunca desfaz a venda — apenas loga
       this.logger.error(`Erro ao emitir NF para OV=${event.salesOrderId}: ${err.message}`);

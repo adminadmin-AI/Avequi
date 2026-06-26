@@ -191,6 +191,24 @@ export class BatchService {
         },
       );
 
+      // #225: Sync batch consumption with StockMovement to prevent divergence
+      await tx.stockMovement.create({
+        data: {
+          companyId,
+          warehouseId: batch.warehouseId,
+          productId: batch.productId,
+          type: 'EXIT',
+          quantity: qty,
+          reason: `Consumo de lote ${batch.batchNumber}${dto.productionOrderId ? ` — OP=${dto.productionOrderId}` : ''}`,
+          userId,
+        },
+      });
+
+      await tx.stockBalance.updateMany({
+        where: { warehouseId: batch.warehouseId, productId: batch.productId },
+        data: { available: { decrement: Number(qty) } },
+      });
+
       return updated;
     });
   }
@@ -291,6 +309,26 @@ export class BatchService {
         { notes: reason, userId },
       );
 
+      // #225: Sync batch scrap with StockMovement to prevent divergence
+      if (Number(qtyBefore) > 0) {
+        await tx.stockMovement.create({
+          data: {
+            companyId,
+            warehouseId: batch.warehouseId,
+            productId: batch.productId,
+            type: 'EXIT',
+            quantity: qtyBefore,
+            reason: `Refugo de lote ${batch.batchNumber} — ${reason}`,
+            userId,
+          },
+        });
+
+        await tx.stockBalance.updateMany({
+          where: { warehouseId: batch.warehouseId, productId: batch.productId },
+          data: { available: { decrement: Number(qtyBefore) } },
+        });
+      }
+
       return updated;
     });
   }
@@ -325,6 +363,31 @@ export class BatchService {
         newQty,
         { notes: dto.notes, userId },
       );
+
+      // #225: Sync batch adjustment with StockMovement
+      if (!delta.equals(0)) {
+        const isIncrease = newQty.greaterThan(qtyBefore);
+        await tx.stockMovement.create({
+          data: {
+            companyId,
+            warehouseId: batch.warehouseId,
+            productId: batch.productId,
+            type: isIncrease ? 'ENTRY' : 'EXIT',
+            quantity: delta,
+            reason: `Ajuste de lote ${batch.batchNumber}${dto.notes ? ` — ${dto.notes}` : ''}`,
+            userId,
+          },
+        });
+
+        await tx.stockBalance.updateMany({
+          where: { warehouseId: batch.warehouseId, productId: batch.productId },
+          data: {
+            available: isIncrease
+              ? { increment: Number(delta) }
+              : { decrement: Number(delta) },
+          },
+        });
+      }
 
       return updated;
     });
