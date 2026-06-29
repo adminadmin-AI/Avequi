@@ -186,7 +186,7 @@ export default function VendasPage() {
         </div>
         <button
           onClick={() => { setShowForm(true); setFormError(''); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
         >
           <Plus size={16} /> Nova Venda
         </button>
@@ -204,7 +204,7 @@ export default function VendasPage() {
                   required
                   value={warehouseId}
                   onChange={(e) => setWarehouseId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="">Selecione...</option>
                   {warehouses.map((w) => (
@@ -217,7 +217,7 @@ export default function VendasPage() {
                 <select
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="">Sem cliente</option>
                   {customers.map((c) => (
@@ -235,7 +235,7 @@ export default function VendasPage() {
                   <select
                     value={item.productId}
                     onChange={(e) => handleProductChange(idx, e.target.value)}
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   >
                     <option value="">Produto...</option>
                     {products.map((p) => (
@@ -251,7 +251,7 @@ export default function VendasPage() {
                     onChange={(e) =>
                       setItems((prev) => prev.map((it, i) => i === idx ? { ...it, quantity: e.target.value } : it))
                     }
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <input
                     type="number"
@@ -262,7 +262,7 @@ export default function VendasPage() {
                     onChange={(e) =>
                       setItems((prev) => prev.map((it, i) => i === idx ? { ...it, unitPrice: e.target.value } : it))
                     }
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <button
                     type="button"
@@ -277,7 +277,7 @@ export default function VendasPage() {
               <button
                 type="button"
                 onClick={() => setItems((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand-600 hover:underline"
               >
                 + Adicionar item
               </button>
@@ -290,7 +290,7 @@ export default function VendasPage() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Opcional"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
 
@@ -304,7 +304,7 @@ export default function VendasPage() {
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
               >
                 {createMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
               </button>

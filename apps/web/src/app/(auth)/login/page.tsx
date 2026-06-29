@@ -27,10 +27,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-600 via-brand-700 to-brand-950">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900">GDR ERP</h1>
+          <h1 className="text-2xl font-bold text-brand-600">GDR ERP</h1>
           <p className="text-slate-500 text-sm mt-1">Faça login para continuar</p>
         </div>
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="seu@email.com"
               required
             />
@@ -53,7 +53,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="••••••••"
               required
             />
@@ -68,14 +68,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="w-full py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 
         <div className="text-center text-xs text-slate-400">
-          Credenciais de teste: admin@gdr.com.br / admin123
+          Credenciais de teste: admin@gdr.com.br / Admin@123
         </div>
       </div>
     </div>

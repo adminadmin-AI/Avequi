@@ -100,7 +100,7 @@ export default function DemandaPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Previsão de Demanda</h1>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700" onClick={() => setShowForm(!showForm)}>
+        <button className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700" onClick={() => setShowForm(!showForm)}>
           <Plus className="w-4 h-4" />Registrar Demanda
         </button>
       </div>
@@ -132,7 +132,7 @@ export default function DemandaPage() {
           </div>
           <div className="flex justify-end gap-3">
             <button className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setShowForm(false)}>Cancelar</button>
-            <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            <button className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
               disabled={upsertMut.isPending || !form.productId || !form.period || !form.quantity} onClick={handleSubmit}>
               {upsertMut.isPending ? 'Salvando...' : 'Salvar Previsão'}
             </button>
@@ -151,7 +151,7 @@ export default function DemandaPage() {
       <div className="flex gap-1 border-b border-slate-200">
         {(['filial', 'consolidado'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-brand-600 text-brand-600' : 'text-slate-500 hover:text-slate-700'}`}>
             {t === 'filial' ? 'Minha Filial' : 'Consolidado (PCP)'}
           </button>
         ))}
@@ -223,7 +223,7 @@ export default function DemandaPage() {
                   <tr key={`${row.productId}::${row.period}`} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">{row.productName}</td>
                     <td className="px-4 py-3 font-mono text-slate-500 text-xs">{row.productSku}</td>
-                    <td className="px-4 py-3 text-right font-bold text-blue-700 text-base">{row.totalQty.toLocaleString('pt-BR')}</td>
+                    <td className="px-4 py-3 text-right font-bold text-brand-700 text-base">{row.totalQty.toLocaleString('pt-BR')}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{row.entries}</td>
                   </tr>
                 ))}

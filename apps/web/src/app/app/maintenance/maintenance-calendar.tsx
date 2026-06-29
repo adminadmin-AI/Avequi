@@ -10,7 +10,7 @@ import { MAINTENANCE_ORDER_STATUS } from './maintenance-meta';
 /** Cor do "dot" por status (verde = aberta, azul = em andamento). */
 const DOT_COLOR: Record<MaintenanceOrder['status'], string> = {
   OPEN: 'bg-emerald-500',
-  IN_PROGRESS: 'bg-blue-500',
+  IN_PROGRESS: 'bg-brand-500',
   DONE: 'bg-slate-300',
   CANCELLED: 'bg-red-300',
 };
@@ -145,7 +145,7 @@ export function MaintenanceCalendar({
         {/* Legenda */}
         <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Aberta</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Em andamento</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-brand-500" /> Em andamento</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-300" /> Concluída</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-300" /> Cancelada</span>
           <span className="ml-auto">{scheduledCount} OM(s) agendada(s) no mês</span>

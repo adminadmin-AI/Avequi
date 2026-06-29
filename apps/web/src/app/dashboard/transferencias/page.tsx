@@ -130,7 +130,7 @@ export default function TransferenciasPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Transferências</h1>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700" onClick={() => setShowForm(!showForm)}>
+        <button className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700" onClick={() => setShowForm(!showForm)}>
           <Plus className="w-4 h-4" />Nova Transferência
         </button>
       </div>
@@ -162,7 +162,7 @@ export default function TransferenciasPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Itens *</label>
-              <button className="text-xs text-blue-600 hover:underline" onClick={() => setForm((p) => ({ ...p, items: [...p.items, { productId: '', quantity: 1 }] }))}>+ Adicionar</button>
+              <button className="text-xs text-brand-600 hover:underline" onClick={() => setForm((p) => ({ ...p, items: [...p.items, { productId: '', quantity: 1 }] }))}>+ Adicionar</button>
             </div>
             {form.items.map((item, idx) => (
               <div key={idx} className="flex gap-3 items-center">
@@ -184,7 +184,7 @@ export default function TransferenciasPage() {
           {actionError.form && <p className="text-xs text-red-500">{actionError.form}</p>}
           <div className="flex gap-3 justify-end pt-2">
             <button className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setShowForm(false)}>Cancelar</button>
-            <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            <button className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
               disabled={createMut.isPending || !form.fromWarehouseId || !form.toWarehouseId} onClick={handleSubmit}>
               {createMut.isPending ? 'Criando...' : 'Criar Transferência'}
             </button>
@@ -228,7 +228,7 @@ export default function TransferenciasPage() {
                 <div className="flex gap-2 flex-shrink-0 items-center">
                   {tr.status === 'DRAFT' && (
                     <>
-                      <button className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={() => dispatchMut.mutate(tr.id)} disabled={dispatchMut.isPending}>Despachar</button>
+                      <button className="text-xs px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700" onClick={() => dispatchMut.mutate(tr.id)} disabled={dispatchMut.isPending}>Despachar</button>
                       <button className="text-xs px-3 py-1.5 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300" onClick={() => cancelMut.mutate(tr.id)} disabled={cancelMut.isPending}>Cancelar</button>
                     </>
                   )}
