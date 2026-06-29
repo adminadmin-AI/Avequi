@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Landmark } from 'lucide-react';
+import { Plus, Pencil, Trash2, Landmark, Settings2 } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate, useDelete } from '@/hooks/use-resource';
+import { apiClient } from '@/lib/api-client';
 import type { BankAccount } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL } from '@/lib/format';
 import { BankAccountForm, type BankAccountFormValues } from './bank-account-form';
+import { BankConfigForm, type BankConfigFormValues } from './bank-config-form';
 
 const RESOURCE = '/finance/bank-accounts';
 
@@ -22,11 +25,20 @@ export default function BankAccountsPage() {
   const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
+  const qc = useQueryClient();
 
   const { data: accounts = [], isLoading } = useList<BankAccount>(RESOURCE);
   const create = useCreate<BankAccount, BankAccountFormValues & { companyId: string }>(RESOURCE);
   const update = useUpdate<BankAccount>(RESOURCE);
   const remove = useDelete(RESOURCE);
+
+  const configure = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      apiClient.patch(`/banking/accounts/${id}/configure`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
+  });
+
+  const [configTarget, setConfigTarget] = useState<BankAccount | null>(null);
 
   const totalBalance = useMemo(
     () => accounts.reduce((sum, a) => sum + Number(a.balance ?? 0), 0),
@@ -52,6 +64,32 @@ export default function BankAccountsPage() {
     };
     if (editing) update.mutate({ id: editing.id, data: payload }, opts);
     else create.mutate({ ...payload, companyId }, opts);
+  }
+
+  function handleConfigSubmit(values: BankConfigFormValues) {
+    if (!configTarget) return;
+    const data: Record<string, unknown> = {
+      provider: values.provider || undefined,
+      pixKey: values.pixKey || undefined,
+    };
+    if (
+      values.minCashBalance !== undefined &&
+      values.minCashBalance !== '' &&
+      !Number.isNaN(Number(values.minCashBalance))
+    ) {
+      data.minCashBalance = Number(values.minCashBalance);
+    }
+    configure.mutate(
+      { id: configTarget.id, data },
+      {
+        onSuccess: () => {
+          toast.success('Configuração de cobrança salva');
+          setConfigTarget(null);
+        },
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message ?? 'Erro ao salvar configuração'),
+      },
+    );
   }
 
   async function deactivate(a: BankAccount) {
@@ -103,6 +141,16 @@ export default function BankAccountsPage() {
       align: 'right',
       cell: (a) => (
         <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfigTarget(a);
+            }}
+            title="Configurar cobrança (provider, PIX, saldo mínimo)"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+          >
+            <Settings2 size={15} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -193,6 +241,30 @@ export default function BankAccountsPage() {
           }
           onSubmit={handleSubmit}
         />
+      </FormDialog>
+
+      <FormDialog
+        open={!!configTarget}
+        onOpenChange={(open) => !open && setConfigTarget(null)}
+        title="Configurar cobrança"
+        description={configTarget ? `Conta "${configTarget.name}".` : undefined}
+        formId="bank-config-form"
+        loading={configure.isPending}
+      >
+        {configTarget && (
+          <BankConfigForm
+            key={configTarget.id}
+            formId="bank-config-form"
+            defaultValues={{
+              provider: configTarget.provider ?? '',
+              pixKey: configTarget.pixKey ?? '',
+              minCashBalance: configTarget.minCashBalance
+                ? Number(configTarget.minCashBalance)
+                : '',
+            }}
+            onSubmit={handleConfigSubmit}
+          />
+        )}
       </FormDialog>
     </div>
   );

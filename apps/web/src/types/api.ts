@@ -429,9 +429,10 @@ export interface FinancialCategory extends BaseEntity {
 export type ScheduledPaymentStatus = 'PENDING' | 'DONE' | 'CANCELLED' | 'FAILED';
 
 /**
- * Agendamento de pagamento (#98). O backend ainda NÃO expõe esse recurso
- * (issue #241) — tipo definido para a tela funcionar como preview e ligar
- * automaticamente quando os endpoints /banking/schedule existirem.
+ * Agendamento de pagamento (#98). Backend disponível desde o PR #296
+ * (endpoints GET /banking/schedules, POST /banking/schedule,
+ * DELETE /banking/schedule/:id). O shape abaixo reflete o include real
+ * do FinanceService.findAllScheduledPayments.
  */
 export interface ScheduledPayment {
   id: string;
@@ -440,12 +441,16 @@ export interface ScheduledPayment {
   scheduledDate: string;
   amount: string;
   status: ScheduledPaymentStatus;
+  note?: string | null;
   financialEntry?: {
     id: string;
     description?: string | null;
-    purchaseOrder?: { supplier?: { name: string } | null } | null;
+    amount?: string;
+    dueDate?: string;
+    type?: string;
+    status?: string;
   } | null;
-  bankAccount?: { id: string; name: string } | null;
+  bankAccount?: { id: string; name: string; bank?: string | null } | null;
 }
 
 export type BoletoStatus = 'PENDING' | 'REGISTERED' | 'PAID' | 'CANCELLED' | 'OVERDUE' | 'WRITTEN_OFF';
@@ -497,6 +502,10 @@ export interface BankAccount extends BaseEntity {
   account?: string | null;
   balance: string;
   active: boolean;
+  // Configuração de cobrança/integração (PATCH /banking/accounts/:id/configure)
+  provider?: string | null;
+  pixKey?: string | null;
+  minCashBalance?: string | null;
 }
 
 export interface CostCenter extends BaseEntity {

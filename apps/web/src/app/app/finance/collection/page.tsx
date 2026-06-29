@@ -2,22 +2,48 @@
 
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Barcode, ExternalLink, Info } from 'lucide-react';
+import { Barcode, ExternalLink, Mail, MessageCircle, Phone } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { Boleto, PixCharge, BoletoStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { Spinner } from '@/components/ui/spinner';
-import { formatBRL } from '@/lib/format';
+import { useToast } from '@/components/ui/toast';
+import { formatBRL, formatDate } from '@/lib/format';
+
+type CollectionChannel = 'EMAIL' | 'WHATSAPP' | 'PHONE';
 
 interface Paginated<T> { data: T[]; total: number }
 interface Overview {
   totals: { currentBalance: number; projectedBalance: number };
   receivables: { openCount: number; openAmount: number; overdueCount: number };
   payables: { openCount: number; openAmount: number; overdueCount: number };
+}
+interface DailyReport {
+  totalOverdue: number;
+  totalCollected: number;
+  totalPending: number;
+  conversionRate: number;
+  overdueCount: number;
+  collectedCount: number;
+}
+interface CollectionItem {
+  id: string;
+  source: 'FINANCIAL_ENTRY' | 'RECEIVABLE';
+  customerName: string | null;
+  customerId: string | null;
+  amount: number;
+  dueDate: string;
+  daysOverdue: number;
+  description: string | null;
+  attemptCount: number;
+  lastAttemptDate: string | null;
+  lastAttemptChannel: string | null;
 }
 
 const BOLETO_LABEL: Record<BoletoStatus, string> = {
@@ -26,6 +52,9 @@ const BOLETO_LABEL: Record<BoletoStatus, string> = {
 };
 const PIX_LABEL: Record<string, string> = {
   ACTIVE: 'Ativa', PAID: 'Paga', CANCELLED: 'Cancelada', EXPIRED: 'Expirada',
+};
+const CHANNEL_LABEL: Record<string, string> = {
+  EMAIL: 'E-mail', WHATSAPP: 'WhatsApp', PHONE: 'Telefone',
 };
 const BOLETO_PENDENTE: BoletoStatus[] = ['PENDING', 'REGISTERED', 'OVERDUE'];
 
@@ -44,7 +73,17 @@ function Kpi({ label, value, hint, tone = 'neutral' }: { label: string; value: s
 
 export default function CollectionMonitorPage() {
   const router = useRouter();
+  const toast = useToast();
+  const qc = useQueryClient();
 
+  const reportQ = useQuery({
+    queryKey: ['/billing/daily-report'],
+    queryFn: async () => (await apiClient.get<DailyReport>('/billing/daily-report')).data,
+  });
+  const statusQ = useQuery({
+    queryKey: ['/billing/collection/status'],
+    queryFn: async () => (await apiClient.get<CollectionItem[]>('/billing/collection/status')).data,
+  });
   const overviewQ = useQuery({
     queryKey: ['/banking/overview'],
     queryFn: async () => (await apiClient.get<Overview>('/banking/overview')).data,
@@ -58,6 +97,19 @@ export default function CollectionMonitorPage() {
     queryFn: async () => (await apiClient.get<Paginated<PixCharge>>('/banking/pix/charges', { params: { limit: 500 } })).data,
   });
 
+  const trigger = useMutation({
+    mutationFn: async ({ id, channel }: { id: string; channel: CollectionChannel }) =>
+      apiClient.post('/billing/collection/trigger', { ids: [id], channel }),
+    onSuccess: (_res, { channel }) => {
+      qc.invalidateQueries({ queryKey: ['/billing/collection/status'] });
+      qc.invalidateQueries({ queryKey: ['/billing/daily-report'] });
+      toast.success(`Cobrança registrada via ${CHANNEL_LABEL[channel]}`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erro ao registrar cobrança'),
+  });
+
+  const report = reportQ.data;
+  const overdue = statusQ.data ?? [];
   const overview = overviewQ.data;
   const boletos = boletosQ.data?.data ?? [];
   const pix = pixQ.data?.data ?? [];
@@ -81,13 +133,90 @@ export default function CollectionMonitorPage() {
       .map((s) => ({ label: PIX_LABEL[s], total: map.get(s) ?? 0 }));
   }, [pix]);
 
-  const loading = overviewQ.isLoading || boletosQ.isLoading || pixQ.isLoading;
+  const collectionColumns: Column<CollectionItem>[] = [
+    {
+      key: 'customer',
+      header: 'Cliente',
+      cell: (r) => (
+        <div>
+          <p className="text-sm text-slate-800">{r.customerName ?? '—'}</p>
+          {r.description && <p className="text-xs text-slate-400">{r.description}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'dueDate',
+      header: 'Vencimento',
+      sortable: true,
+      accessor: (r) => r.daysOverdue,
+      cell: (r) => (
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{formatDate(r.dueDate)}</span>
+          <Badge variant="danger">{r.daysOverdue}d</Badge>
+        </div>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'Valor',
+      align: 'right',
+      sortable: true,
+      accessor: (r) => r.amount,
+      cell: (r) => <span className="font-medium tabular-nums">{formatBRL(r.amount)}</span>,
+    },
+    {
+      key: 'attempts',
+      header: 'Tentativas',
+      align: 'center',
+      cell: (r) =>
+        r.attemptCount > 0 ? (
+          <div className="text-xs text-slate-500">
+            <span className="font-medium text-slate-700">{r.attemptCount}</span>
+            {r.lastAttemptChannel && (
+              <span> · {CHANNEL_LABEL[r.lastAttemptChannel] ?? r.lastAttemptChannel}</span>
+            )}
+            {r.lastAttemptDate && <span> · {formatDate(r.lastAttemptDate)}</span>}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-300">—</span>
+        ),
+    },
+    {
+      key: 'actions',
+      header: 'Cobrar',
+      align: 'right',
+      cell: (r) => (
+        <div className="flex items-center justify-end gap-1">
+          {([
+            { ch: 'EMAIL' as const, Icon: Mail },
+            { ch: 'WHATSAPP' as const, Icon: MessageCircle },
+            { ch: 'PHONE' as const, Icon: Phone },
+          ]).map(({ ch, Icon }) => (
+            <button
+              key={ch}
+              disabled={trigger.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                trigger.mutate({ id: r.id, channel: ch });
+              }}
+              title={`Registrar cobrança via ${CHANNEL_LABEL[ch]}`}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Icon size={15} />
+            </button>
+          ))}
+        </div>
+      ),
+    },
+  ];
+
+  const loading = reportQ.isLoading || statusQ.isLoading || overviewQ.isLoading;
 
   return (
     <div>
       <PageHeader
         title="Monitor de Cobrança"
-        description="Acompanhamento de recebíveis e das cobranças (boleto/PIX) emitidas."
+        description="Recebíveis vencidos, régua de cobrança e cobranças (boleto/PIX) emitidas."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/finance/collection-tools')}>
             <Barcode size={16} /> Emitir cobrança
@@ -95,19 +224,46 @@ export default function CollectionMonitorPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-        <Info size={14} className="mt-0.5 shrink-0" />
-        <span>
-          Monitor montado sobre <code>/banking/overview</code> + boletos/PIX. Não há (ainda) um endpoint
-          dedicado de "cobrança automática" com régua/disparos (<code>/billing/collection</code>) — pendência #247.
-        </span>
-      </div>
-
       {loading ? (
         <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : (
         <>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi
+              label="Total vencido"
+              value={formatBRL(report?.totalOverdue ?? 0)}
+              hint={`${report?.overdueCount ?? 0} título(s)`}
+              tone={(report?.totalOverdue ?? 0) > 0 ? 'danger' : 'neutral'}
+            />
+            <Kpi
+              label="Recebido hoje"
+              value={formatBRL(report?.totalCollected ?? 0)}
+              hint={`${report?.collectedCount ?? 0} baixa(s)`}
+              tone="success"
+            />
+            <Kpi label="A vencer (em aberto)" value={formatBRL(report?.totalPending ?? 0)} />
+            <Kpi
+              label="Taxa de conversão (dia)"
+              value={`${(report?.conversionRate ?? 0).toFixed(1)}%`}
+              tone={(report?.conversionRate ?? 0) >= 50 ? 'success' : 'warning'}
+            />
+          </div>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-base">Régua de cobrança — recebíveis vencidos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                data={overdue}
+                columns={collectionColumns}
+                searchPlaceholder="Buscar por cliente..."
+                emptyMessage="Nenhum recebível vencido. 🎉"
+              />
+            </CardContent>
+          </Card>
+
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi label="Recebíveis em aberto" value={formatBRL(overview?.receivables.openAmount ?? 0)} hint={`${overview?.receivables.openCount ?? 0} título(s)`} />
             <Kpi label="Recebíveis vencidos" value={String(overview?.receivables.overdueCount ?? 0)} tone={(overview?.receivables.overdueCount ?? 0) > 0 ? 'danger' : 'neutral'} />
             <Kpi label="Boletos a receber" value={String(boletoPendentes)} tone={boletoPendentes > 0 ? 'warning' : 'neutral'} />

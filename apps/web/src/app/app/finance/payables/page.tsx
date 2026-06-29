@@ -270,13 +270,14 @@ export default function PayablesPage() {
                 <DollarSign size={15} />
               </button>
             )}
-            <button
-              disabled
-              title="Agendar pagamento — em breve (F2-7)"
-              className="rounded-md p-1.5 text-slate-300 cursor-not-allowed"
+            <Link
+              href="/app/finance/scheduled-payments"
+              onClick={(ev) => ev.stopPropagation()}
+              title="Agendar pagamento"
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
             >
               <CalendarClock size={15} />
-            </button>
+            </Link>
             {canCancel && (
               <button
                 onClick={(ev) => {
