@@ -108,6 +108,8 @@ model Company {
   budgets                  Budget[]
   bankStatements           BankStatement[]
   productionSchedules      ProductionSchedule[]
+  scheduledPayments        ScheduledPayment[]
+  collectionAttempts       CollectionAttempt[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -941,8 +943,10 @@ model FinancialEntry {
   parentEntryId    String?
   parentEntry      FinancialEntry?      @relation("Installments", fields: [parentEntryId], references: [id])
   installments     FinancialEntry[]     @relation("Installments")
-  payments         Payment[]
-  costCenterSplits EntryCostCenterSplit[]
+  payments            Payment[]
+  costCenterSplits    EntryCostCenterSplit[]
+  scheduledPayments   ScheduledPayment[]
+  collectionAttempts  CollectionAttempt[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -997,13 +1001,74 @@ model BankAccount {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  provider       String?
+  pixKey         String?
+  minCashBalance Decimal?  @db.Decimal(14, 4)
+
   payments            Payment[]
   payables            Payable[]
   receivables         Receivable[]
   bankStatements      BankStatement[]
+  scheduledPayments   ScheduledPayment[]
 
   @@index([companyId])
   @@map("gdr_bank_accounts")
+}
+
+// ─── Pagamentos agendados ────────────────────────────────────────────────────
+
+enum ScheduledPaymentStatus {
+  PENDING
+  DONE
+  CANCELLED
+  FAILED
+}
+
+model ScheduledPayment {
+  id               String                  @id @default(cuid())
+  companyId        String
+  company          Company                 @relation(fields: [companyId], references: [id])
+  financialEntryId String
+  financialEntry   FinancialEntry          @relation(fields: [financialEntryId], references: [id])
+  bankAccountId    String
+  bankAccount      BankAccount             @relation(fields: [bankAccountId], references: [id])
+  scheduledDate    DateTime
+  amount           Decimal                 @db.Decimal(14, 4)
+  status           ScheduledPaymentStatus  @default(PENDING)
+  note             String?
+  executedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([companyId])
+  @@index([scheduledDate, status])
+  @@map("gdr_scheduled_payments")
+}
+
+// ─── Tentativas de cobrança ──────────────────────────────────────────────────
+
+enum CollectionAttemptChannel {
+  EMAIL
+  WHATSAPP
+  PHONE
+  OTHER
+}
+
+model CollectionAttempt {
+  id               String                    @id @default(cuid())
+  companyId        String
+  company          Company                   @relation(fields: [companyId], references: [id])
+  receivableId     String?
+  receivable       Receivable?               @relation(fields: [receivableId], references: [id])
+  financialEntryId String?
+  financialEntry   FinancialEntry?           @relation(fields: [financialEntryId], references: [id])
+  channel          CollectionAttemptChannel
+  note             String?
+  sentAt           DateTime                  @default(now())
+  createdAt        DateTime                  @default(now())
+
+  @@index([companyId])
+  @@map("gdr_collection_attempts")
 }
 
 // ─── Transferências fábrica → loja ───────────────────────────────────────────
@@ -2252,7 +2317,8 @@ model Receivable {
   accessKey     String?
   legacyId      String?
 
-  allocations ReceivableAllocation[]
+  allocations        ReceivableAllocation[]
+  collectionAttempts CollectionAttempt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
