@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { CollectionAttemptChannel, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -8,6 +8,9 @@ import { CreateInstallmentsDto } from './dto/create-installments.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
+import { ConfigureBankAccountDto } from './dto/configure-bank-account.dto';
+import { CreateScheduledPaymentDto } from './dto/create-scheduled-payment.dto';
+import { TriggerCollectionDto } from './dto/trigger-collection.dto';
 
 @Injectable()
 export class FinanceService {
@@ -839,6 +842,375 @@ export class FinanceService {
       where: { id },
       data: { isActive: false },
     });
+  }
+
+  // ─── Banking: Account detail & config ──────────────────────────────────────
+
+  async findOneBankAccount(companyId: string, id: string) {
+    const account = await this.prisma.bankAccount.findFirst({
+      where: { id, companyId },
+    });
+    if (!account) throw new NotFoundException(`Conta bancária ${id} não encontrada`);
+    return account;
+  }
+
+  async getBankAccountBalance(companyId: string, id: string) {
+    const account = await this.prisma.bankAccount.findFirst({
+      where: { id, companyId },
+    });
+    if (!account) throw new NotFoundException(`Conta bancária ${id} não encontrada`);
+
+    const balance = Number(account.balance);
+    const minCashBalance = account.minCashBalance ? Number(account.minCashBalance) : null;
+    const belowMinimum = minCashBalance !== null ? balance < minCashBalance : false;
+
+    return { balance, minCashBalance, belowMinimum };
+  }
+
+  async configureBankAccount(companyId: string, id: string, dto: ConfigureBankAccountDto) {
+    const account = await this.prisma.bankAccount.findFirst({
+      where: { id, companyId },
+    });
+    if (!account) throw new NotFoundException(`Conta bancária ${id} não encontrada`);
+
+    const updated = await this.prisma.bankAccount.update({
+      where: { id },
+      data: {
+        ...(dto.provider !== undefined ? { provider: dto.provider } : {}),
+        ...(dto.pixKey !== undefined ? { pixKey: dto.pixKey } : {}),
+        ...(dto.minCashBalance !== undefined ? { minCashBalance: dto.minCashBalance } : {}),
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'BankAccount',
+        action: 'CONFIGURE',
+        payload: JSON.stringify({ id, ...dto }),
+      },
+    });
+
+    this.logger.log(`BankAccount ${id} configurado: provider=${dto.provider}, pixKey=${dto.pixKey}`);
+    return updated;
+  }
+
+  async getBankingOverview(companyId: string) {
+    const accounts = await this.prisma.bankAccount.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, bank: true, balance: true, minCashBalance: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+    const accountsBelowMinimum = accounts.filter(
+      (a) => a.minCashBalance !== null && Number(a.balance) < Number(a.minCashBalance),
+    );
+
+    return {
+      totalBalance,
+      accountCount: accounts.length,
+      accountsBelowMinimum: accountsBelowMinimum.map((a) => ({
+        id: a.id,
+        name: a.name,
+        balance: Number(a.balance),
+        minCashBalance: Number(a.minCashBalance),
+      })),
+      accounts: accounts.map((a) => ({
+        ...a,
+        balance: Number(a.balance),
+        minCashBalance: a.minCashBalance ? Number(a.minCashBalance) : null,
+      })),
+    };
+  }
+
+  // ─── Scheduled Payments ───────────────────────────────────────────────────
+
+  async createScheduledPayment(companyId: string, dto: CreateScheduledPaymentDto) {
+    // Validate financial entry exists, is PAYABLE, and status is OPEN or OVERDUE
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id: dto.financialEntryId, companyId },
+    });
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${dto.financialEntryId} não encontrado`);
+    if (entry.type !== FinancialEntryType.PAYABLE) {
+      throw new BadRequestException('Apenas lançamentos do tipo PAYABLE podem ser agendados');
+    }
+    if (entry.status !== FinancialEntryStatus.OPEN && entry.status !== FinancialEntryStatus.OVERDUE) {
+      throw new BadRequestException(`Lançamento com status ${entry.status} não pode ser agendado. Apenas OPEN ou OVERDUE`);
+    }
+
+    // Validate bank account exists
+    const bankAccount = await this.prisma.bankAccount.findFirst({
+      where: { id: dto.bankAccountId, companyId },
+    });
+    if (!bankAccount) throw new NotFoundException(`Conta bancária ${dto.bankAccountId} não encontrada`);
+
+    // Check projected balance: current balance minus pending scheduled amounts for same account
+    const currentBalance = Number(bankAccount.balance);
+    const pendingScheduled = await this.prisma.scheduledPayment.aggregate({
+      where: {
+        bankAccountId: dto.bankAccountId,
+        status: ScheduledPaymentStatus.PENDING,
+        companyId,
+      },
+      _sum: { amount: true },
+    });
+    const pendingTotal = Number(pendingScheduled._sum.amount ?? 0);
+    const projectedBalance = currentBalance - pendingTotal - dto.amount;
+
+    if (projectedBalance < 0) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_BALANCE',
+        message: 'Saldo projetado insuficiente para agendamento',
+        currentBalance,
+        projectedBalance,
+        shortfall: Math.abs(projectedBalance),
+      });
+    }
+
+    const scheduled = await this.prisma.scheduledPayment.create({
+      data: {
+        companyId,
+        financialEntryId: dto.financialEntryId,
+        bankAccountId: dto.bankAccountId,
+        scheduledDate: new Date(dto.scheduledDate),
+        amount: dto.amount,
+        note: dto.note ?? null,
+      },
+      include: { financialEntry: true, bankAccount: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'ScheduledPayment',
+        action: 'CREATE',
+        payload: JSON.stringify({ id: scheduled.id, financialEntryId: dto.financialEntryId, amount: dto.amount }),
+      },
+    });
+
+    this.logger.log(`ScheduledPayment criado: ${scheduled.id} — R$ ${dto.amount} em ${dto.scheduledDate}`);
+    return scheduled;
+  }
+
+  async findAllScheduledPayments(companyId: string, status?: ScheduledPaymentStatus) {
+    return this.prisma.scheduledPayment.findMany({
+      where: {
+        companyId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        financialEntry: { select: { id: true, description: true, amount: true, dueDate: true, type: true, status: true } },
+        bankAccount: { select: { id: true, name: true, bank: true } },
+      },
+      orderBy: { scheduledDate: 'asc' },
+    });
+  }
+
+  async cancelScheduledPayment(companyId: string, id: string) {
+    const scheduled = await this.prisma.scheduledPayment.findFirst({
+      where: { id, companyId },
+    });
+    if (!scheduled) throw new NotFoundException(`Agendamento ${id} não encontrado`);
+    if (scheduled.status !== ScheduledPaymentStatus.PENDING) {
+      throw new BadRequestException(`Agendamento com status ${scheduled.status} não pode ser cancelado. Apenas PENDING`);
+    }
+
+    const updated = await this.prisma.scheduledPayment.update({
+      where: { id },
+      data: { status: ScheduledPaymentStatus.CANCELLED },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'ScheduledPayment',
+        action: 'CANCEL',
+        payload: JSON.stringify({ id }),
+      },
+    });
+
+    this.logger.log(`ScheduledPayment ${id} → CANCELLED`);
+    return updated;
+  }
+
+  // ─── Collection Monitor ───────────────────────────────────────────────────
+
+  async getCollectionStatus(companyId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Overdue FinancialEntry of type RECEIVABLE
+    const overdueEntries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        type: FinancialEntryType.RECEIVABLE,
+        status: FinancialEntryStatus.OVERDUE,
+      },
+      include: {
+        salesOrder: { include: { customer: true } },
+        collectionAttempts: { orderBy: { sentAt: 'desc' } },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    // Overdue Receivables (legacy)
+    const overdueReceivables = await this.prisma.receivable.findMany({
+      where: {
+        companyId,
+        status: 'OVERDUE',
+      },
+      include: {
+        customer: true,
+        collectionAttempts: { orderBy: { sentAt: 'desc' } },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    const entriesResult = overdueEntries.map((e) => {
+      const daysOverdue = Math.floor((today.getTime() - new Date(e.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: e.id,
+        source: 'FINANCIAL_ENTRY' as const,
+        customerName: e.salesOrder?.customer?.name ?? null,
+        customerId: e.salesOrder?.customer?.id ?? null,
+        amount: Number(e.amount),
+        dueDate: e.dueDate,
+        daysOverdue,
+        description: e.description,
+        attemptCount: e.collectionAttempts.length,
+        lastAttemptDate: e.collectionAttempts[0]?.sentAt ?? null,
+        lastAttemptChannel: e.collectionAttempts[0]?.channel ?? null,
+      };
+    });
+
+    const receivablesResult = overdueReceivables.map((r) => {
+      const daysOverdue = Math.floor((today.getTime() - new Date(r.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: r.id,
+        source: 'RECEIVABLE' as const,
+        customerName: r.customer?.name ?? null,
+        customerId: r.customer?.id ?? null,
+        amount: Number(r.amount),
+        dueDate: r.dueDate,
+        daysOverdue,
+        description: r.description,
+        attemptCount: r.collectionAttempts.length,
+        lastAttemptDate: r.collectionAttempts[0]?.sentAt ?? null,
+        lastAttemptChannel: r.collectionAttempts[0]?.channel ?? null,
+      };
+    });
+
+    return [...entriesResult, ...receivablesResult].sort((a, b) => b.daysOverdue - a.daysOverdue);
+  }
+
+  async getDailyCollectionReport(companyId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = this.addDays(today, 1);
+
+    // Total overdue (FinancialEntry RECEIVABLE + Receivable)
+    const overdueEntries = await this.prisma.financialEntry.aggregate({
+      where: { companyId, type: FinancialEntryType.RECEIVABLE, status: FinancialEntryStatus.OVERDUE },
+      _sum: { amount: true },
+      _count: true,
+    });
+    const overdueReceivables = await this.prisma.receivable.aggregate({
+      where: { companyId, status: 'OVERDUE' },
+      _sum: { amount: true },
+      _count: true,
+    });
+    const totalOverdue = Number(overdueEntries._sum.amount ?? 0) + Number(overdueReceivables._sum.amount ?? 0);
+
+    // Total collected today (paid today)
+    const collectedToday = await this.prisma.financialEntry.aggregate({
+      where: {
+        companyId,
+        type: FinancialEntryType.RECEIVABLE,
+        status: FinancialEntryStatus.PAID,
+        paidAt: { gte: today, lt: tomorrow },
+      },
+      _sum: { paidAmount: true },
+      _count: true,
+    });
+    const totalCollected = Number(collectedToday._sum.paidAmount ?? 0);
+
+    // Total pending (OPEN receivables)
+    const pendingEntries = await this.prisma.financialEntry.aggregate({
+      where: { companyId, type: FinancialEntryType.RECEIVABLE, status: FinancialEntryStatus.OPEN },
+      _sum: { amount: true },
+    });
+    const pendingReceivables = await this.prisma.receivable.aggregate({
+      where: { companyId, status: 'OPEN' },
+      _sum: { amount: true },
+    });
+    const totalPending = Number(pendingEntries._sum.amount ?? 0) + Number(pendingReceivables._sum.amount ?? 0);
+
+    const totalDue = totalOverdue + totalCollected;
+    const conversionRate = totalDue > 0 ? +((totalCollected / totalDue) * 100).toFixed(2) : 0;
+
+    return {
+      totalOverdue,
+      totalCollected,
+      totalPending,
+      conversionRate,
+      overdueCount: (overdueEntries._count ?? 0) + (overdueReceivables._count ?? 0),
+      collectedCount: collectedToday._count ?? 0,
+    };
+  }
+
+  async triggerCollection(companyId: string, dto: TriggerCollectionDto) {
+    const attempts = dto.ids.map((id) => ({
+      companyId,
+      // Try to link to either financialEntry or receivable — we'll determine below
+      financialEntryId: null as string | null,
+      receivableId: null as string | null,
+      channel: dto.channel,
+      note: dto.note ?? null,
+    }));
+
+    // Check which ids are FinancialEntry and which are Receivable
+    const financialEntries = await this.prisma.financialEntry.findMany({
+      where: { id: { in: dto.ids }, companyId },
+      select: { id: true },
+    });
+    const feIds = new Set(financialEntries.map((e) => e.id));
+
+    const receivables = await this.prisma.receivable.findMany({
+      where: { id: { in: dto.ids.filter((id) => !feIds.has(id)) }, companyId },
+      select: { id: true },
+    });
+    const recIds = new Set(receivables.map((r) => r.id));
+
+    const validAttempts = dto.ids
+      .filter((id) => feIds.has(id) || recIds.has(id))
+      .map((id) => ({
+        companyId,
+        financialEntryId: feIds.has(id) ? id : null,
+        receivableId: recIds.has(id) ? id : null,
+        channel: dto.channel,
+        note: dto.note ?? null,
+      }));
+
+    if (validAttempts.length === 0) {
+      throw new BadRequestException('Nenhum ID válido encontrado para cobrança');
+    }
+
+    await this.prisma.collectionAttempt.createMany({
+      data: validAttempts,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'CollectionAttempt',
+        action: 'TRIGGER',
+        payload: JSON.stringify({ ids: dto.ids, channel: dto.channel, triggered: validAttempts.length }),
+      },
+    });
+
+    this.logger.log(`Collection triggered: ${validAttempts.length} tentativas via ${dto.channel}`);
+    return { triggered: validAttempts.length };
   }
 
   // ─── Util ─────────────────────────────────────────────────────────────────
