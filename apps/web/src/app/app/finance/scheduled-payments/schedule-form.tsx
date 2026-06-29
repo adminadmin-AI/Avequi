@@ -39,8 +39,8 @@ function Field({
 
 /**
  * Formulário de novo agendamento. Os seletores usam dados REAIS (pagáveis em
- * aberto e contas bancárias). O envio é tratado pela página, que hoje apenas
- * simula (backend #241 pendente).
+ * aberto e contas bancárias). O valor do agendamento é derivado do pagável
+ * selecionado pela própria página no submit (POST /banking/schedule).
  */
 export function ScheduleForm({
   formId,

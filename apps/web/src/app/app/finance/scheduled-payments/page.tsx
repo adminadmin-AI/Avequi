@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, Ban, FlaskConical } from 'lucide-react';
-import { useList } from '@/hooks/use-resource';
+import { Plus, Ban } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useList, useCreate, useDelete } from '@/hooks/use-resource';
 import type {
   FinancialEntry,
   BankAccount,
@@ -15,22 +16,21 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ScheduleForm, type ScheduleFormValues } from './schedule-form';
 
 /**
- * ⚠️ PREVIEW — backend pendente (issue #241).
+ * Agendamento de Pagamentos (#98) — ligado ao backend (PR #296).
+ *  - Lista:    GET    /banking/schedules
+ *  - Criar:    POST   /banking/schedule   (valida saldo projetado)
+ *  - Cancelar: DELETE /banking/schedule/:id  (apenas PENDING)
  *
- * Esta tela é uma PRÉ-VISUALIZAÇÃO visual do Agendamento de Pagamentos (#98).
- * O backend ainda NÃO expõe o recurso (sem model ScheduledPayment, sem
- * endpoints POST/GET/DELETE /banking/schedule). Por isso:
- *  - A tabela usa dados MOCK (claramente fictícios) só para demonstrar o layout.
- *  - "Novo agendamento" e "Cancelar" NÃO persistem — exibem aviso.
- *
- * Quando o backend existir, basta: (1) trocar MOCK_DATA por
- * useList<ScheduledPayment>('/banking/schedules'); (2) ligar as mutações
- * POST /banking/schedule e DELETE /banking/schedule/:id; (3) remover o banner.
+ * As rotas de lista (plural) e mutação (singular) divergem, então
+ * invalidamos a queryKey da lista manualmente após cada mutação.
  */
+const LIST = '/banking/schedules';
+const MUTATE = '/banking/schedule';
 const OPEN_STATUSES = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
 
 const STATUS_META: Record<ScheduledPaymentStatus, { label: string; variant: any }> = {
@@ -40,43 +40,14 @@ const STATUS_META: Record<ScheduledPaymentStatus, { label: string; variant: any 
   FAILED: { label: 'Falhou', variant: 'danger' },
 };
 
-const MOCK_DATA: ScheduledPayment[] = [
-  {
-    id: 'mock-1',
-    financialEntryId: 'x',
-    bankAccountId: 'y',
-    scheduledDate: new Date(Date.now() + 2 * 86400000).toISOString(),
-    amount: '4500.00',
-    status: 'PENDING',
-    financialEntry: { id: 'x', description: 'Aço — lote 42', purchaseOrder: { supplier: { name: 'Metalúrgica Sul' } } },
-    bankAccount: { id: 'y', name: 'Bradesco Corrente' },
-  },
-  {
-    id: 'mock-2',
-    financialEntryId: 'x2',
-    bankAccountId: 'y',
-    scheduledDate: new Date(Date.now() + 5 * 86400000).toISOString(),
-    amount: '1280.50',
-    status: 'PENDING',
-    financialEntry: { id: 'x2', description: 'Energia elétrica', purchaseOrder: null },
-    bankAccount: { id: 'y', name: 'Bradesco Corrente' },
-  },
-  {
-    id: 'mock-3',
-    financialEntryId: 'x3',
-    bankAccountId: 'y',
-    scheduledDate: new Date(Date.now() - 3 * 86400000).toISOString(),
-    amount: '8900.00',
-    status: 'DONE',
-    financialEntry: { id: 'x3', description: 'Pneus — pedido 118', purchaseOrder: { supplier: { name: 'BorrachaMax' } } },
-    bankAccount: { id: 'y', name: 'Bradesco Corrente' },
-  },
-];
-
 export default function ScheduledPaymentsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
+  const qc = useQueryClient();
 
-  // Dados REAIS para os seletores do formulário (esses endpoints existem).
+  const { data: schedules = [], isLoading } = useList<ScheduledPayment>(LIST);
+
+  // Dados REAIS para os seletores do formulário.
   const { data: allPayables = [] } = useList<FinancialEntry>('/finance', { type: 'PAYABLE' });
   const { data: accounts = [] } = useList<BankAccount>('/finance/bank-accounts');
   const openPayables = useMemo(
@@ -84,16 +55,62 @@ export default function ScheduledPaymentsPage() {
     [allPayables],
   );
 
+  const create = useCreate<ScheduledPayment>(MUTATE);
+  const remove = useDelete(MUTATE);
+
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  function handleSubmit(_values: ScheduleFormValues) {
-    // Backend pendente (#241): não há endpoint para persistir.
-    toast.error('Agendamento indisponível: backend pendente (issue #241).');
-    setDialogOpen(false);
+  const invalidate = () => qc.invalidateQueries({ queryKey: [LIST] });
+
+  function handleSubmit(values: ScheduleFormValues) {
+    const payable = openPayables.find((p) => p.id === values.financialEntryId);
+    if (!payable) {
+      toast.error('Pagável selecionado não encontrado.');
+      return;
+    }
+    create.mutate(
+      {
+        financialEntryId: values.financialEntryId,
+        bankAccountId: values.bankAccountId,
+        scheduledDate: values.scheduledDate,
+        amount: Number(payable.amount),
+      } as Partial<ScheduledPayment> & { amount: number },
+      {
+        onSuccess: () => {
+          invalidate();
+          toast.success('Pagamento agendado');
+          setDialogOpen(false);
+        },
+        onError: (err: any) => {
+          const data = err?.response?.data;
+          if (data?.code === 'INSUFFICIENT_BALANCE') {
+            toast.error(
+              `Saldo projetado insuficiente (faltam ${formatBRL(Number(data.shortfall ?? 0))}).`,
+            );
+          } else {
+            toast.error(data?.message ?? 'Erro ao agendar pagamento');
+          }
+        },
+      },
+    );
   }
 
-  function handleCancel() {
-    toast.error('Cancelamento indisponível: backend pendente (issue #241).');
+  async function handleCancel(s: ScheduledPayment) {
+    const ok = await confirm({
+      title: 'Cancelar agendamento?',
+      description: `O débito de ${formatBRL(Number(s.amount))} agendado para ${formatDate(s.scheduledDate)} não será mais processado.`,
+      confirmLabel: 'Cancelar agendamento',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    remove.mutate(s.id, {
+      onSuccess: () => {
+        invalidate();
+        toast.success('Agendamento cancelado');
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message ?? 'Erro ao cancelar agendamento'),
+    });
   }
 
   const columns: Column<ScheduledPayment>[] = [
@@ -103,9 +120,7 @@ export default function ScheduledPaymentsPage() {
       cell: (s) => (
         <div>
           <p className="text-sm text-slate-800">{s.financialEntry?.description ?? '—'}</p>
-          {s.financialEntry?.purchaseOrder?.supplier?.name && (
-            <p className="text-xs text-slate-400">{s.financialEntry.purchaseOrder.supplier.name}</p>
-          )}
+          {s.note && <p className="text-xs text-slate-400">{s.note}</p>}
         </div>
       ),
     },
@@ -143,7 +158,7 @@ export default function ScheduledPaymentsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleCancel();
+              handleCancel(s);
             }}
             title="Cancelar agendamento"
             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
@@ -167,20 +182,10 @@ export default function ScheduledPaymentsPage() {
         }
       />
 
-      {/* Banner: deixa explícito que é preview, não funcional */}
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        <FlaskConical size={15} className="mt-0.5 shrink-0" />
-        <span>
-          <strong>Pré-visualização.</strong> O agendamento de pagamentos ainda não tem suporte no
-          backend (issue <strong>#241</strong>): não existe o model <code>ScheduledPayment</code> nem
-          os endpoints <code>/banking/schedule</code>. A tabela abaixo mostra dados fictícios e as
-          ações não persistem. A tela liga automaticamente quando o backend estiver pronto.
-        </span>
-      </div>
-
       <DataTable
-        data={MOCK_DATA}
+        data={schedules}
         columns={columns}
+        loading={isLoading}
         searchPlaceholder="Buscar..."
         emptyMessage="Nenhum agendamento."
       />
@@ -192,6 +197,7 @@ export default function ScheduledPaymentsPage() {
         description="Programe o débito de um pagável em aberto."
         formId="schedule-form"
         submitLabel="Agendar"
+        loading={create.isPending}
       >
         <ScheduleForm
           formId="schedule-form"
