@@ -13,7 +13,7 @@ const ThreeWayMatchResult = {
 };
 type ThreeWayMatchResult = (typeof ThreeWayMatchResult)[keyof typeof ThreeWayMatchResult];
 
-interface MatchItemDetail {
+export interface MatchItemDetail {
   productId: string;
   productName?: string;
   poQty: number;
@@ -27,7 +27,7 @@ interface MatchItemDetail {
   priceVariancePct: number | null;
 }
 
-interface MatchResult {
+export interface MatchResult {
   result: ThreeWayMatchResult;
   details: MatchItemDetail[];
   summary: {

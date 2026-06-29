@@ -216,7 +216,7 @@ export class SerialService {
     productId: string,
     warehouseId: string,
     qty: number,
-  ): Promise<{ generated: number; serials: string[] }> {
+  ): Promise<{ generated: number; serials: string[]; serialIds?: string[] }> {
     // Verifica se produto rastreia serial
     const product = await this.prisma.product.findFirst({
       where: { id: productId, companyId },

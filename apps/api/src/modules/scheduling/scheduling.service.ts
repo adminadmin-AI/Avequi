@@ -16,7 +16,7 @@ export class SchedulingService {
     const orders = await this.prisma.productionOrder.findMany({
       where: {
         companyId,
-        status: { in: ['DRAFT', 'CONFIRMED', 'IN_PROGRESS'] },
+        status: { in: ['DRAFT', 'RELEASED', 'IN_PROGRESS'] },
       },
       include: { product: true, items: true },
       orderBy: { scheduledEnd: 'asc' },

@@ -39,6 +39,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# OpenSSL — necessário pro Prisma query engine (libquery_engine-linux-musl.so.node)
+RUN apk add --no-cache openssl
+
 # Só o necessário pra rodar
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
@@ -53,4 +56,4 @@ WORKDIR /app/apps/api
 #   injetam a porta em $PORT. A forma shell abaixo mapeia $PORT -> API_PORT em
 #   runtime, mantendo o fallback 3001 pra dev local.
 EXPOSE 3001
-CMD ["sh", "-c", "API_PORT=${PORT:-3001} node dist/main"]
+CMD ["sh", "-c", "API_PORT=${PORT:-3001} node dist/src/main"]

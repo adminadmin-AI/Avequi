@@ -919,12 +919,12 @@ export class ProductionService {
       await tx.nonConformance.create({
         data: {
           companyId,
-          productionOrderId: id,
+          title: `NCR - OP ${id}`,
           productId: order.productId,
           description: reason,
           severity: 'MAJOR',
           status: 'OPEN',
-          reportedById: userId ?? null,
+          createdById: userId ?? null,
         },
       });
 
