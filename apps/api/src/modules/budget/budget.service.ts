@@ -57,7 +57,7 @@ export class BudgetService {
     const actualByMonth: Record<number, number> = {};
     for (const e of entries) {
       const m = e.createdAt.getMonth() + 1;
-      const val = Number(e.amount) * (e.type === 'EXPENSE' ? -1 : 1);
+      const val = Number(e.amount) * (e.type === 'PAYABLE' ? -1 : 1);
       actualByMonth[m] = (actualByMonth[m] ?? 0) + Math.abs(val);
     }
 

@@ -212,7 +212,7 @@ export class MrpService {
     // 6c. Busca POs pendentes como supply adicional (#183)
     const pendingPOs = await this.prisma.pOItem.findMany({
       where: {
-        purchaseOrder: { companyId, status: { in: ['DRAFT', 'SENT', 'CONFIRMED'] } },
+        purchaseOrder: { companyId, status: { in: ['DRAFT', 'APPROVED', 'PARTIALLY_RECEIVED'] } },
         productId: { in: productIds },
       },
       select: { productId: true, quantity: true },
@@ -386,7 +386,7 @@ export class MrpService {
       where: { id: suggestionId },
       include: {
         mrpRun: { select: { companyId: true } },
-        product: { select: { id: true, name: true, supplierId: true } },
+        product: { select: { id: true, name: true, supplierPriceHistory: { select: { supplierId: true }, orderBy: { recordedAt: 'desc' }, take: 1 } } },
       },
     });
 
@@ -411,7 +411,7 @@ export class MrpService {
   }
 
   private async convertToPO(suggestion: any, companyId: string) {
-    const supplierId = suggestion.product.supplierId;
+    const supplierId = suggestion.product.supplierPriceHistory?.[0]?.supplierId ?? null;
     if (!supplierId) {
       throw new BadRequestException(
         `Produto ${suggestion.product.name} não tem fornecedor preferencial cadastrado`,
