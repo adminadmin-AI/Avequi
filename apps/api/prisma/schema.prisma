@@ -163,6 +163,8 @@ model TaxRule {
   // COFINS
   cofinsCst        String           @default("01") // Ex: 01, 06, 07, 49
   cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
+  // DIFAL — alíquota interna do UF destino (para cálculo quando consumidor final interestadual)
+  icmsInternaDestino Decimal?       @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica
@@ -807,6 +809,7 @@ model FiscalDocument {
   rejectionReason  String?
   retryCount       Int                @default(0)
   lastError        String?
+  infCpl           String?            // Informações complementares da NF-e (#370)
   cancelledAt              DateTime?
   cancellationJustification String?
   financialEntry   FinancialEntry?
@@ -889,6 +892,11 @@ model FiscalDocumentItemTax {
   baseCofins           Decimal?           @db.Decimal(14, 4)
   aliquotaCofins       Decimal?           @db.Decimal(14, 4)
   valorCofins          Decimal?           @db.Decimal(14, 4)
+  // DIFAL (#369)
+  difalBase            Decimal?           @db.Decimal(14, 4)
+  difalAliqInterna     Decimal?           @db.Decimal(5, 2)
+  difalAliqInterest    Decimal?           @db.Decimal(5, 2)
+  difalValor           Decimal?           @db.Decimal(14, 4)
 
   @@map("gdr_fiscal_document_item_taxes")
 }

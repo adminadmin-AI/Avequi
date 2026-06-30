@@ -97,6 +97,10 @@ export class FiscalService {
       ? 'VENDA_INTERESTADUAL' as any
       : 'VENDA_INTERNA' as any;
 
+    // Consumidor final: pessoa física (CPF, 11 dígitos) ou sem IE
+    const recipientDoc = order.customer?.document?.replace(/\D/g, '') ?? '';
+    const consumidorFinal = !order.customer?.ie || recipientDoc.length === 11;
+
     const items: FiscalItem[] = [];
     for (const i of order.items) {
       const itemValue = Number(i.quantity) * Number(i.unitPrice);
@@ -108,6 +112,7 @@ export class FiscalService {
         ufOrigem: order.company.state ?? 'SP',
         ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
         itemValue,
+        consumidorFinal,
       });
 
       // Montar dados veiculares se o item tiver SerialNumber com chassi preenchido
@@ -167,12 +172,31 @@ export class FiscalService {
           cofinsBase: taxResult.cofins.baseCalculo,
           cofinsAliquota: taxResult.cofins.aliquota,
           cofinsValor: taxResult.cofins.valor,
+          ...(taxResult.difal && { difal: taxResult.difal }),
         },
         vehicle,
       });
     }
 
     const totalValue = calcTotalValue(items);
+
+    // Gerar informações complementares (#370)
+    const infCplParts: string[] = [];
+
+    // DIFAL: informar valor do diferencial se houver
+    const totalDifal = items.reduce((sum, it) => sum + (it.tax?.difal?.valor ?? 0), 0);
+    if (totalDifal > 0) {
+      infCplParts.push(`ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino`);
+    }
+
+    // Veículo: informar chassi
+    for (const it of items) {
+      if (it.vehicle) {
+        infCplParts.push(`Veículo: chassi ${it.vehicle.chassi}`);
+      }
+    }
+
+    const infCpl = infCplParts.length > 0 ? infCplParts.join('. ') : undefined;
 
     const input: FiscalPayloadInput = {
       ref,
@@ -208,10 +232,20 @@ export class FiscalService {
         : undefined,
       items,
       totalValue,
+      consumidorFinal,
+      infCpl,
     };
 
     // Persistir itens + impostos detalhados (#166)
     await this.persistFiscalItems(fiscalDoc.id, items, order.items);
+
+    // Salvar infCpl no FiscalDocument (#370)
+    if (infCpl) {
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: { infCpl },
+      });
+    }
 
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
@@ -627,6 +661,12 @@ export class FiscalService {
             baseCofins: fi.tax.cofinsBase,
             aliquotaCofins: fi.tax.cofinsAliquota,
             valorCofins: fi.tax.cofinsValor,
+            ...(fi.tax.difal && {
+              difalBase: fi.tax.difal.baseCalculo,
+              difalAliqInterna: fi.tax.difal.aliquotaInterna,
+              difalAliqInterest: fi.tax.difal.aliquotaInterestadual,
+              difalValor: fi.tax.difal.valor,
+            }),
           },
         });
       }

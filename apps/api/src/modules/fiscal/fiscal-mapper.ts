@@ -11,6 +11,13 @@
  * Esta função é pura (sem efeitos colaterais) para facilitar testes unitários.
  */
 
+export interface FiscalDifal {
+  baseCalculo: number;
+  aliquotaInterna: number;
+  aliquotaInterestadual: number;
+  valor: number;
+}
+
 export interface FiscalItemTax {
   cfop: string;
   icmsCst: string;
@@ -29,6 +36,7 @@ export interface FiscalItemTax {
   cofinsBase: number;
   cofinsAliquota: number;
   cofinsValor: number;
+  difal?: FiscalDifal;
 }
 
 export interface FiscalItem {
@@ -106,6 +114,8 @@ export interface FiscalPayloadInput {
   items: FiscalItem[];
   totalValue: number;
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
+  consumidorFinal?: boolean; // true = indicador_consumidor_final: 1 na NF-e
+  infCpl?: string; // informações complementares (#370)
 }
 
 function mapVehicleToPayload(v: FiscalVehicleData) {
@@ -170,6 +180,15 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       cofins_valor: t.cofinsValor,
     }),
     ...(item.vehicle && { veiculos_novos: mapVehicleToPayload(item.vehicle) }),
+    // DIFAL — campos Focus NFe para ICMSUFDest (EC 87/2015)
+    ...(t?.difal && {
+      icms_base_calculo_uf_destino: t.difal.baseCalculo,
+      icms_aliquota_interna_uf_destino: t.difal.aliquotaInterna,
+      icms_aliquota_interestadual: t.difal.aliquotaInterestadual,
+      icms_valor_uf_destino: t.difal.valor,
+      icms_valor_uf_remetente: 0, // 100% destino desde 2019 (EC 87/2015)
+      icms_percentual_fcp: 0, // FCP não aplicável para reboques no PR
+    }),
   };
 }
 
@@ -219,6 +238,8 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
     forma_pagamento: 0,
     modalidade_frete: '9', // 9=Sem frete (default — ajustar quando houver transporte)
+    ...(input.consumidorFinal && { indicador_consumidor_final: '1' }),
+    ...(input.infCpl && { informacoes_adicionais_contribuinte: input.infCpl }),
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
@@ -239,7 +260,9 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
       ...(input.recipient?.document && {
         cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
       }),
-      ...(input.recipient?.ie && { inscricao_estadual: input.recipient.ie }),
+      ...(input.recipient?.ie
+        ? { inscricao_estadual: input.recipient.ie, indicador_inscricao_estadual_destinatario: '1' }
+        : { indicador_inscricao_estadual_destinatario: input.consumidorFinal ? '9' : '2' }),
       ...(input.recipient?.address && { logradouro: input.recipient.address }),
       ...(input.recipient?.number && { numero: input.recipient.number }),
       ...(input.recipient?.complement && { complemento: input.recipient.complement }),
