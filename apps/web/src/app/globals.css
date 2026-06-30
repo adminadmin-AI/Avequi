@@ -2,13 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───────────────────────────────────────────────────────────────
+   Design tokens semânticos (dark-mode aware)
+   Consumidos via Tailwind: bg-surface, text-content, border-line, …
+   Ver: tailwind.config.ts + src/lib/design-tokens.ts
+   ─────────────────────────────────────────────────────────────── */
 :root {
+  /* Superfícies */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-elevated: #ffffff;
+  --surface-overlay: rgb(15 23 42 / 0.45);
+
+  /* Texto */
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  /* Bordas */
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* Compat shadcn (legado) */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
 }
 
+.dark {
+  /* Superfícies */
+  --bg-primary: #0c0f1a;
+  --bg-secondary: #111827;
+  --bg-elevated: #1e293b;
+  --surface-overlay: rgb(0 0 0 / 0.6);
+
+  /* Texto */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  /* Bordas */
+  --border-default: #1e293b;
+  --border-strong: #334155;
+
+  /* Compat shadcn (legado) */
+  --background: 222 47% 6%;
+  --foreground: 210 40% 96%;
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Tabular numerals for data/money columns */
@@ -22,7 +67,20 @@ body {
   background-image: linear-gradient(135deg, #3d2ce6 0%, #00c2a8 100%);
 }
 
-/* Focus ring (WCAG AA — 3px offset, brand color) */
+/* Focus ring (WCAG AA — anel brand, offset na superfície) */
 .focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
+  --tw-ring-offset-color: var(--bg-primary);
+}
+
+/* Motion tokens respeitam preferência de redução de movimento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

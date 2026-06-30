@@ -48,6 +48,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { BrandMark } from '@/components/brand-mark';
 import { NotificationBell } from '@/components/notification-bell';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
@@ -188,26 +189,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!mounted || !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-surface-secondary">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-surface-secondary">
       {/* ─── Sidebar (Shell A — 240px) ─── */}
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-line bg-surface">
+        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-line">
           <BrandMark size={26} />
-          <span className="text-base font-semibold tracking-tight text-slate-900">Avequi</span>
+          <span className="text-base font-semibold tracking-tight text-content">Avequi</span>
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {NAV.map((section, i) => (
             <div key={i}>
               {section.title && (
-                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
                   {section.title}
                 </p>
               )}
@@ -223,11 +224,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       className={cn(
                         'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-fast',
                         active
-                          ? 'bg-brand-50 font-medium text-brand-700'
-                          : 'text-slate-600 hover:bg-slate-100',
+                          ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                          : 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
                       )}
                     >
-                      <Icon size={17} className={active ? 'text-brand-600' : 'text-slate-400'} />
+                      <Icon
+                        size={17}
+                        className={active ? 'text-brand-600 dark:text-brand-300' : 'text-content-muted'}
+                      />
                       <span className="flex-1">{label}</span>
                       {(counts[href] ?? 0) > 0 && (
                         <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">
@@ -246,12 +250,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ─── Conteúdo ─── */}
       <div className="flex min-h-screen flex-1 flex-col pl-60">
         {/* Header */}
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur">
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-3 border-b border-line bg-surface/80 px-6 backdrop-blur">
+          <ThemeToggle />
           <NotificationBell />
           <div className="flex items-center gap-3">
             <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-              <p className="text-xs text-slate-400">{user?.role}</p>
+              <p className="text-sm font-medium text-content">{user?.name}</p>
+              <p className="text-xs text-content-muted">{user?.role}</p>
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-gradient text-xs font-semibold text-white">
               {user?.name?.[0]?.toUpperCase() ?? '?'}
@@ -259,7 +264,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={handleLogout}
               title="Sair"
-              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-lg p-2 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
             >
               <LogOut size={18} />
             </button>
