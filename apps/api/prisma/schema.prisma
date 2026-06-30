@@ -390,9 +390,15 @@ model Customer {
   document     String?
   email        String?
   phone        String?
-  address      String?
+  address      String?       // logradouro (rua, av, etc.)
+  number       String?       @db.VarChar(10)
+  complement   String?       @db.VarChar(60)
+  neighborhood String?       @db.VarChar(60) // bairro
   city         String?
-  state        String?
+  state        String?       @db.VarChar(2)
+  zipCode      String?       @map("zip_code") @db.VarChar(8) // CEP sem máscara
+  ibgeCode     String?       @map("ibge_code") @db.VarChar(7) // código município IBGE
+  ie           String?       @db.VarChar(14) // inscrição estadual
   isActive     Boolean      @default(true)
   salesOrders  SalesOrder[]
   quotations   Quotation[]
@@ -1675,6 +1681,33 @@ model SerialNumber {
   engravingDoneAt    DateTime?        @map("engraving_done_at")
   engravingOperator  String?          @map("engraving_operator")
   observations       String?
+
+  // ─── Dados veiculares (NF-e grupo veiculos_novos) ────────────────────────────
+  chassi             String?          @db.VarChar(17)  // VIN 17 chars, idêntico ao BIN
+  codigoCor          String?          @map("codigo_cor") @db.VarChar(4)
+  descricaoCor       String?          @map("descricao_cor") @db.VarChar(40)
+  pesoLiquido        Decimal?         @map("peso_liquido") @db.Decimal(10, 3) // toneladas
+  pesoBruto          Decimal?         @map("peso_bruto") @db.Decimal(10, 3)   // PBT toneladas
+  potenciaMotor      Int?             @default(0) @map("potencia_motor") // CV (0 p/ reboque)
+  cilindrada         Int?             @default(0) // cm³ (0 p/ reboque)
+  tipoCombustivel    String?          @default("99") @map("tipo_combustivel") @db.VarChar(2) // 99=sem motor
+  numeroMotor        String?          @map("numero_motor") @db.VarChar(21)
+  cmt                Decimal?         @db.Decimal(10, 3) // capacidade máx. tração (ton)
+  distanciaEixos     Int?             @map("distancia_eixos") // mm
+  anoFabricacao      Int?             @map("ano_fabricacao")
+  anoModelo          Int?             @map("ano_modelo")
+  tipoPintura        String?          @default("S") @map("tipo_pintura") @db.VarChar(1) // M=Metálica, S=Sólida, P=Perolizada
+  tipoVeiculo        String?          @default("10") @map("tipo_veiculo") @db.VarChar(2) // 10=Reboque (RENAVAM)
+  especieVeiculo     String?          @default("2") @map("especie_veiculo") @db.VarChar(1) // 2=Carga
+  vin                String?          @default("N") @db.VarChar(1) // N=Normal, R=Remarcado
+  condicaoVeiculo    String?          @default("1") @map("condicao_veiculo") @db.VarChar(1) // 1=Acabado
+  codigoMarcaModelo  String?          @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM
+  corDenatran        String?          @map("cor_denatran") @db.VarChar(2) // código cor DENATRAN
+  lotacao            Int?             @default(0) // 0 p/ reboque
+  restricao          String?          @default("0") @db.VarChar(1) // 0=Sem restrição
+  qtdEixos           Int?             @map("qtd_eixos")
+  tipoOperacao       String?          @default("1") @map("tipo_operacao") @db.VarChar(1) // 1=Venda concessionária
+
   createdAt          DateTime         @default(now()) @map("created_at")
   saleItems          SaleItem[]       @relation("SaleItemSerial")
   components         SerialComponent[] @relation("SerialChassisComponents")

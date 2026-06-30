@@ -12,6 +12,7 @@ import {
   calcTotalValue,
   FiscalItem,
   FiscalPayloadInput,
+  FiscalVehicleData,
 } from './fiscal-mapper';
 
 const CANCEL_DEADLINE_HOURS = 24;
@@ -48,7 +49,7 @@ export class FiscalService {
       include: {
         company: true,
         customer: true,
-        items: { include: { product: true } },
+        items: { include: { product: true, serialNumber: true } },
       },
     });
 
@@ -109,6 +110,38 @@ export class FiscalService {
         itemValue,
       });
 
+      // Montar dados veiculares se o item tiver SerialNumber com chassi preenchido
+      let vehicle: FiscalVehicleData | undefined;
+      const sn = i.serialNumber;
+      if (sn?.chassi) {
+        vehicle = {
+          tipoOperacao: sn.tipoOperacao ?? '1',
+          chassi: sn.chassi,
+          codigoCor: sn.codigoCor ?? '00',
+          descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
+          potenciaMotor: sn.potenciaMotor ?? 0,
+          cilindrada: sn.cilindrada ?? 0,
+          pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
+          pesoBruto: String(sn.pesoBruto ?? '0.000'),
+          serie: sn.serial,
+          tipoCombustivel: sn.tipoCombustivel ?? '99',
+          numeroMotor: sn.numeroMotor ?? '000000000000000000000',
+          cmt: sn.cmt ? String(sn.cmt) : undefined,
+          distanciaEixos: sn.distanciaEixos ?? undefined,
+          anoModelo: sn.anoModelo ?? new Date().getFullYear(),
+          anoFabricacao: sn.anoFabricacao ?? new Date().getFullYear(),
+          tipoPintura: sn.tipoPintura ?? 'S',
+          tipoVeiculo: sn.tipoVeiculo ?? '10',
+          especieVeiculo: sn.especieVeiculo ?? '2',
+          vin: sn.vin ?? 'N',
+          condicao: sn.condicaoVeiculo ?? '1',
+          codigoMarcaModelo: sn.codigoMarcaModelo ?? '999999',
+          corDenatran: sn.corDenatran ?? '00',
+          lotacao: sn.lotacao ?? 0,
+          restricao: sn.restricao ?? '0',
+        };
+      }
+
       items.push({
         sku: i.product.sku,
         name: i.product.name,
@@ -135,6 +168,7 @@ export class FiscalService {
           cofinsAliquota: taxResult.cofins.aliquota,
           cofinsValor: taxResult.cofins.valor,
         },
+        vehicle,
       });
     }
 
@@ -161,7 +195,15 @@ export class FiscalService {
         ? {
             name: order.customer.name,
             document: order.customer.document ?? undefined,
+            ie: order.customer.ie ?? undefined,
+            address: order.customer.address ?? undefined,
+            number: order.customer.number ?? undefined,
+            complement: order.customer.complement ?? undefined,
+            neighborhood: order.customer.neighborhood ?? undefined,
+            city: order.customer.city ?? undefined,
             state: order.customer.state ?? undefined,
+            zipCode: order.customer.zipCode ?? undefined,
+            ibgeCode: order.customer.ibgeCode ?? undefined,
           }
         : undefined,
       items,

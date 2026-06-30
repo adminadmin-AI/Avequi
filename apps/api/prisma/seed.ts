@@ -255,6 +255,15 @@ async function main() {
 
     // ─── Bonificação ────────────────────────────────────────────────────────
     { companyId: matriz.id, operationType: TaxOperationType.BONIFICACAO, cfop: '5910', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Bonificação, doação — interna', priority: 0 },
+
+    // ─── NCM 8716.39.00 — Reboques (veículos) — prioridade 10 > genérica 0 ──
+    // IPI CST 51 (alíquota zero, TIPI Decreto 11.158/2022), ICMS sem ST
+    // PIS 0.65% / COFINS 3% (Lucro Presumido cumulativo) — pendente confirmação contador (#371)
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, ncm: '87163900', cfop: '5101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Reboque NCM 8716 — venda interna PR (ICMS 12%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'SC', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Reboque NCM 8716 — PR→SC (ICMS 12%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'RS', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Reboque NCM 8716 — PR→RS (ICMS 12%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'SP', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Reboque NCM 8716 — PR→SP (ICMS 12%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'MG', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Reboque NCM 8716 — PR→MG (ICMS 12%)', priority: 10 },
   ];
 
   for (const rule of taxRules) {

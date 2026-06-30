@@ -39,6 +39,7 @@ export interface FiscalItem {
   unitPrice: number;
   unit: string;
   tax?: FiscalItemTax;
+  vehicle?: FiscalVehicleData;
 }
 
 export interface FiscalEmitter {
@@ -60,7 +61,42 @@ export interface FiscalEmitter {
 export interface FiscalRecipient {
   name: string;
   document?: string; // CPF ou CNPJ
+  ie?: string; // inscrição estadual
+  address?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
   state?: string;
+  zipCode?: string;
+  ibgeCode?: string;
+}
+
+export interface FiscalVehicleData {
+  tipoOperacao: string;  // 1=Venda concessionária
+  chassi: string;        // VIN 17 chars
+  codigoCor: string;
+  descricaoCor: string;
+  potenciaMotor: number; // 0 p/ reboque
+  cilindrada: number;    // 0 p/ reboque
+  pesoLiquido: string;   // toneladas (decimal string)
+  pesoBruto: string;     // PBT toneladas
+  serie: string;
+  tipoCombustivel: string; // 99=sem motor
+  numeroMotor: string;
+  cmt?: string;
+  distanciaEixos?: number;
+  anoModelo: number;
+  anoFabricacao: number;
+  tipoPintura: string;   // S=Sólida, M=Metálica, P=Perolizada
+  tipoVeiculo: string;   // 10=Reboque
+  especieVeiculo: string; // 2=Carga
+  vin: string;           // N=Normal, R=Remarcado
+  condicao: string;      // 1=Acabado
+  codigoMarcaModelo: string; // 6 dígitos RENAVAM
+  corDenatran: string;
+  lotacao: number;       // 0 p/ reboque
+  restricao: string;     // 0=Sem restrição
 }
 
 export interface FiscalPayloadInput {
@@ -70,6 +106,35 @@ export interface FiscalPayloadInput {
   items: FiscalItem[];
   totalValue: number;
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
+}
+
+function mapVehicleToPayload(v: FiscalVehicleData) {
+  return {
+    tipo_operacao: v.tipoOperacao,
+    chassi: v.chassi,
+    codigo_cor: v.codigoCor,
+    descricao_cor: v.descricaoCor,
+    potencia_motor: String(v.potenciaMotor),
+    cm3: String(v.cilindrada),
+    peso_liquido: v.pesoLiquido,
+    peso_bruto: v.pesoBruto,
+    serie: v.serie,
+    tipo_combustivel: v.tipoCombustivel,
+    numero_motor: v.numeroMotor,
+    ...(v.cmt && { cmt: v.cmt }),
+    ...(v.distanciaEixos && { distancia_eixos: String(v.distanciaEixos) }),
+    ano_modelo: v.anoModelo,
+    ano_fabricacao: v.anoFabricacao,
+    tipo_pintura: v.tipoPintura,
+    tipo: v.tipoVeiculo,
+    especie: v.especieVeiculo,
+    vin: v.vin,
+    condicao: v.condicao,
+    codigo_marca_modelo: v.codigoMarcaModelo,
+    codigo_cor_denatran: v.corDenatran,
+    lotacao: String(v.lotacao),
+    restricao: v.restricao,
+  };
 }
 
 function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
@@ -86,6 +151,7 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
     codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
     icms_origem: 0,
     icms_situacao_tributaria: t?.icmsCst ?? '00',
+    icms_modalidade_base_calculo: '3', // 3=Valor da operação
     ...(t && {
       icms_base_calculo: t.icmsBase,
       icms_aliquota: t.icmsAliquota,
@@ -103,6 +169,7 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       cofins_aliquota: t.cofinsAliquota,
       cofins_valor: t.cofinsValor,
     }),
+    ...(item.vehicle && { veiculos_novos: mapVehicleToPayload(item.vehicle) }),
   };
 }
 
@@ -111,6 +178,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
   return {
     natureza_operacao: 'VENDA A CONSUMIDOR',
     forma_pagamento: 0,
+    modalidade_frete: '9',
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
@@ -150,6 +218,7 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
   return {
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
     forma_pagamento: 0,
+    modalidade_frete: '9', // 9=Sem frete (default — ajustar quando houver transporte)
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
@@ -170,7 +239,15 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
       ...(input.recipient?.document && {
         cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
       }),
+      ...(input.recipient?.ie && { inscricao_estadual: input.recipient.ie }),
+      ...(input.recipient?.address && { logradouro: input.recipient.address }),
+      ...(input.recipient?.number && { numero: input.recipient.number }),
+      ...(input.recipient?.complement && { complemento: input.recipient.complement }),
+      ...(input.recipient?.neighborhood && { bairro: input.recipient.neighborhood }),
+      ...(input.recipient?.city && { municipio: input.recipient.city }),
       ...(input.recipient?.state && { uf: input.recipient.state }),
+      ...(input.recipient?.zipCode && { cep: input.recipient.zipCode.replace(/\D/g, '') }),
+      ...(input.recipient?.ibgeCode && { codigo_municipio: input.recipient.ibgeCode }),
     },
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
     formas_pagamento: [
@@ -197,6 +274,7 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
   return {
     natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
     forma_pagamento: 0,
+    modalidade_frete: '9',
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
