@@ -1,7 +1,23 @@
 export { Button, buttonVariants, type ButtonProps } from './button';
-export { Badge, badgeVariants, type BadgeProps } from './badge';
-export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './card';
+export {
+  Badge,
+  StatusDot,
+  TrendIndicator,
+  Tag,
+  type BadgeProps,
+  type BadgeVariant,
+} from './badge';
+export {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+  cardVariants,
+  type CardProps,
+} from './card';
 export { Input, type InputProps } from './input';
+export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Select, type SelectProps } from './select';
 export { Spinner } from './spinner';
