@@ -73,6 +73,23 @@ body {
   --tw-ring-offset-color: var(--bg-primary);
 }
 
+/* Scrollbar fina e discreta (sidebar, listas) */
+.avequi-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.avequi-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.avequi-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 9999px;
+}
+.avequi-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Motion tokens respeitam preferência de redução de movimento */
 @media (prefers-reduced-motion: reduce) {
   *,
