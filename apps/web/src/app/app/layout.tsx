@@ -1,179 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
-import {
-  LayoutDashboard,
-  Package,
-  Users,
-  Factory,
-  Warehouse,
-  Building2,
-  UserCog,
-  Wallet,
-  CreditCard,
-  SlidersHorizontal,
-  Landmark,
-  LineChart,
-  Scale,
-  Barcode,
-  CalendarClock,
-  ShoppingCart,
-  FileText,
-  PackageOpen,
-  BadgeCheck,
-  Gauge,
-  FileInput,
-  Boxes,
-  ArrowLeftRight,
-  Truck,
-  MapPin,
-  ClipboardList,
-  Network,
-  Calculator,
-  Workflow,
-  ScrollText,
-  ClipboardCheck,
-  AlertTriangle,
-  ShieldCheck,
-  Wrench,
-  BarChart3,
-  Bell,
-  History,
-  LogOut,
-  type LucideIcon,
-} from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
-import { BrandMark } from '@/components/brand-mark';
-import { NotificationBell } from '@/components/notification-bell';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { useUiStore } from '@/stores/ui-store';
+import { Sidebar } from '@/components/shell/sidebar';
+import { Header } from '@/components/shell/header';
+import { CommandPalette } from '@/components/shell/command-palette';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /** se definido, o item só aparece para esses papéis */
-  roles?: string[];
-}
-interface NavSection {
-  title?: string;
-  items: NavItem[];
-}
-
-const NAV: NavSection[] = [
-  {
-    items: [{ href: '/app', label: 'Início', icon: LayoutDashboard }],
-  },
-  {
-    title: 'Cadastros',
-    items: [
-      { href: '/app/products', label: 'Produtos', icon: Package },
-      { href: '/app/customers', label: 'Clientes', icon: Users },
-      { href: '/app/suppliers', label: 'Fornecedores', icon: Factory },
-    ],
-  },
-  {
-    title: 'Comercial',
-    items: [
-      { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
-      { href: '/app/quotations', label: 'Cotações', icon: FileText },
-    ],
-  },
-  {
-    title: 'Estoque',
-    items: [
-      { href: '/app/stock', label: 'Saldos', icon: Boxes },
-      { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight },
-      { href: '/app/stock/transfers', label: 'Transferências', icon: Truck },
-      { href: '/app/stock/locations', label: 'Localizações', icon: MapPin },
-      { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList },
-    ],
-  },
-  {
-    title: 'Produção',
-    items: [
-      { href: '/app/production', label: 'Ordens de Produção', icon: Factory },
-      { href: '/app/production/bom', label: 'BOM', icon: Network },
-      { href: '/app/production/mrp', label: 'MRP', icon: Calculator },
-      { href: '/app/production/routing', label: 'Roteiros', icon: Workflow },
-      { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge },
-    ],
-  },
-  {
-    title: 'Suprimentos',
-    items: [
-      { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen },
-      { href: '/app/purchases/automation', label: 'Automação', icon: Gauge },
-      { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput },
-      { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck },
-    ],
-  },
-  {
-    title: 'Qualidade',
-    items: [
-      { href: '/app/quality', label: 'Dashboard', icon: ShieldCheck },
-      { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck },
-      { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle },
-    ],
-  },
-  {
-    title: 'Manutenção',
-    items: [{ href: '/app/maintenance', label: 'Ordens de Manutenção', icon: Wrench }],
-  },
-  {
-    title: 'Fiscal',
-    items: [{ href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText }],
-  },
-  {
-    title: 'Financeiro',
-    items: [
-      { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet },
-      { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard },
-      { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart },
-      { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark },
-      { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale },
-      { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode },
-      { href: '/app/finance/collection', label: 'Monitor de Cobrança', icon: Gauge },
-      { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock },
-      { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal },
-    ],
-  },
-  {
-    title: 'Inteligência',
-    items: [
-      { href: '/app/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/app/reports', label: 'Relatórios', icon: FileText },
-      { href: '/app/alerts', label: 'Alertas', icon: Bell },
-    ],
-  },
-  {
-    title: 'Configurações',
-    items: [
-      { href: '/app/settings/users', label: 'Usuários', icon: UserCog },
-      { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse },
-      { href: '/app/settings/company', label: 'Empresa', icon: Building2 },
-      { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, roles: ['SUPER_ADMIN'] },
-    ],
-  },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === '/app') return pathname === '/app';
-  return pathname === href || pathname.startsWith(href + '/');
-}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
+  const { sidebarCollapsed, toggleSidebarCollapsed, setCommandOpen, setMobileNavOpen } =
+    useUiStore();
   const [mounted, setMounted] = useState(false);
-
-  // Badges dinâmicos da sidebar (aprovações, alertas, conciliação). Polling 60s.
-  const counts = useSidebarCounts();
 
   // Aguarda a rehidratação do zustand/persist antes de decidir o guard.
   useEffect(() => setMounted(true), []);
@@ -182,10 +25,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (mounted && !isAuthenticated) router.replace('/login');
   }, [mounted, isAuthenticated, router]);
 
-  async function handleLogout() {
-    await logout();
-    router.push('/login');
-  }
+  // Fecha o drawer mobile ao navegar.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname, setMobileNavOpen]);
+
+  // Atalhos globais: Ctrl/⌘+K (command palette) e Ctrl/⌘+B (recolher sidebar).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === 'k') {
+        e.preventDefault();
+        setCommandOpen(true);
+      } else if (key === 'b') {
+        e.preventDefault();
+        toggleSidebarCollapsed();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setCommandOpen, toggleSidebarCollapsed]);
 
   if (!mounted || !isAuthenticated) {
     return (
@@ -196,82 +57,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-surface-secondary">
-      {/* ─── Sidebar (Shell A — 240px) ─── */}
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-line bg-surface">
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-line">
-          <BrandMark size={26} />
-          <span className="text-base font-semibold tracking-tight text-content">Avequi</span>
-        </div>
+    <div className="min-h-screen bg-surface-secondary">
+      <Sidebar />
+      <CommandPalette />
 
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
-          {NAV.map((section, i) => (
-            <div key={i}>
-              {section.title && (
-                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
-                  {section.title}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {section.items
-                  .filter((it) => !it.roles || (user?.role ? it.roles.includes(user.role) : false))
-                  .map(({ href, label, icon: Icon }) => {
-                  const active = isActive(pathname, href);
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      className={cn(
-                        'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-fast',
-                        active
-                          ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
-                          : 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
-                      )}
-                    >
-                      <Icon
-                        size={17}
-                        className={active ? 'text-brand-600 dark:text-brand-300' : 'text-content-muted'}
-                      />
-                      <span className="flex-1">{label}</span>
-                      {(counts[href] ?? 0) > 0 && (
-                        <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">
-                          {counts[href] > 99 ? '99+' : counts[href]}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-      </aside>
-
-      {/* ─── Conteúdo ─── */}
-      <div className="flex min-h-screen flex-1 flex-col pl-60">
-        {/* Header */}
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-3 border-b border-line bg-surface/80 px-6 backdrop-blur">
-          <ThemeToggle />
-          <NotificationBell />
-          <div className="flex items-center gap-3">
-            <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-content">{user?.name}</p>
-              <p className="text-xs text-content-muted">{user?.role}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-gradient text-xs font-semibold text-white">
-              {user?.name?.[0]?.toUpperCase() ?? '?'}
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Sair"
-              className="rounded-lg p-2 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        </header>
-
-        <main className="flex-1 p-6">{children}</main>
+      <div
+        className={cn(
+          'flex min-h-screen flex-col transition-[padding] duration-flow ease-precise',
+          sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60',
+        )}
+      >
+        <Header />
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
