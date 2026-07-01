@@ -51,16 +51,16 @@ function Pipeline({ status }: { status: SalesOrder['status'] }) {
                   'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                   done && 'bg-success text-white',
                   active && 'bg-brand-600 text-white',
-                  !done && !active && 'bg-slate-100 text-slate-400',
+                  !done && !active && 'bg-surface-secondary text-content-muted',
                 )}
               >
                 {done ? <Check size={13} /> : i + 1}
               </span>
-              <span className={cn('text-xs', active ? 'font-medium text-slate-800' : 'text-slate-400')}>
+              <span className={cn('text-xs', active ? 'font-medium text-content' : 'text-content-muted')}>
                 {step.label}
               </span>
             </div>
-            {i < SALES_PIPELINE.length - 1 && <div className="h-px w-6 bg-slate-200" />}
+            {i < SALES_PIPELINE.length - 1 && <div className="h-px w-6 bg-neutral-200 dark:bg-neutral-700" />}
           </div>
         );
       })}
@@ -178,20 +178,20 @@ export default function SalesDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Status</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Status</p>
                 <Badge variant={SALES_STATUS[order.status].variant}>{SALES_STATUS[order.status].label}</Badge>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Criação</p>
-                <p className="text-slate-800">{formatDate(order.createdAt)}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Criação</p>
+                <p className="text-content">{formatDate(order.createdAt)}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Confirmação</p>
-                <p className="text-slate-800">{order.confirmedAt ? formatDate(order.confirmedAt) : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Confirmação</p>
+                <p className="text-content">{order.confirmedAt ? formatDate(order.confirmedAt) : '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Depósito</p>
-                <p className="text-slate-800">{order.warehouse?.name ?? '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Depósito</p>
+                <p className="text-content">{order.warehouse?.name ?? '—'}</p>
               </div>
             </div>
             {actions.length > 0 && (
@@ -209,7 +209,7 @@ export default function SalesDetailPage() {
               </div>
             )}
           </div>
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-line pt-4">
             <Pipeline status={order.status} />
           </div>
         </CardContent>
@@ -224,7 +224,7 @@ export default function SalesDetailPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                   <th className="py-2 text-left font-medium">SKU</th>
                   <th className="py-2 text-left font-medium">Produto</th>
                   <th className="py-2 text-right font-medium">Qtd</th>
@@ -234,9 +234,9 @@ export default function SalesDetailPage() {
               </thead>
               <tbody>
                 {(order.items ?? []).map((it) => (
-                  <tr key={it.id} className="border-b border-slate-50">
-                    <td className="py-2 font-mono text-xs text-slate-500">{it.product?.sku ?? '—'}</td>
-                    <td className="py-2 text-slate-800">{it.product?.name ?? '—'}</td>
+                  <tr key={it.id} className="border-b border-line">
+                    <td className="py-2 font-mono text-xs text-content-muted">{it.product?.sku ?? '—'}</td>
+                    <td className="py-2 text-content">{it.product?.name ?? '—'}</td>
                     <td className="py-2 text-right tabular-nums">{Number(it.quantity)}</td>
                     <td className="py-2 text-right tabular-nums">{formatBRL(Number(it.unitPrice))}</td>
                     <td className="py-2 text-right font-medium tabular-nums">
@@ -247,10 +247,10 @@ export default function SalesDetailPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4} className="py-3 text-right text-sm font-medium text-slate-600">
+                  <td colSpan={4} className="py-3 text-right text-sm font-medium text-content-secondary">
                     Total geral
                   </td>
-                  <td className="py-3 text-right text-base font-semibold tabular-nums text-slate-900">
+                  <td className="py-3 text-right text-base font-semibold tabular-nums text-content">
                     {formatBRL(total)}
                   </td>
                 </tr>
@@ -264,12 +264,12 @@ export default function SalesDetailPage() {
       <Card>
         <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Observações</p>
-            <p className="mt-1 text-sm text-slate-700">{order.notes || '—'}</p>
+            <p className="text-xs uppercase tracking-wide text-content-muted">Observações</p>
+            <p className="mt-1 text-sm text-content-secondary">{order.notes || '—'}</p>
           </div>
           {order.status === 'INVOICED' && (
             <div>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Conta a receber</p>
+              <p className="text-xs uppercase tracking-wide text-content-muted">Conta a receber</p>
               <Link
                 href="/app/finance/receivables"
                 className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
@@ -302,20 +302,20 @@ export default function SalesDetailPage() {
           {/* Itens a devolver (devolução total — ver nota) */}
           <div>
             <Label>Itens a devolver</Label>
-            <div className="mt-1 overflow-hidden rounded-lg border border-slate-200">
+            <div className="mt-1 overflow-hidden rounded-lg border border-line">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line bg-surface-secondary text-xs uppercase tracking-wide text-content-muted">
                     <th className="px-3 py-2 text-left font-medium">Produto</th>
                     <th className="px-3 py-2 text-right font-medium">Qtd a devolver</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(order.items ?? []).map((it) => (
-                    <tr key={it.id} className="border-b border-slate-50 last:border-0">
-                      <td className="px-3 py-2 text-slate-800">
+                    <tr key={it.id} className="border-b border-line last:border-0">
+                      <td className="px-3 py-2 text-content">
                         {it.product?.name ?? '—'}
-                        <span className="ml-1 font-mono text-xs text-slate-400">{it.product?.sku}</span>
+                        <span className="ml-1 font-mono text-xs text-content-muted">{it.product?.sku}</span>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{Number(it.quantity)}</td>
                     </tr>
@@ -323,7 +323,7 @@ export default function SalesDetailPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="mt-1 text-xs text-warning">
               A devolução é <strong>total</strong> (todos os itens, quantidade integral). O backend
               ainda não suporta devolução parcial por item.
             </p>
@@ -344,7 +344,7 @@ export default function SalesDetailPage() {
               onChange={(e) => setReturnJustif(e.target.value)}
               placeholder="Opcional — usada no cancelamento da NF-e"
             />
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-content-muted">
               Se preenchida, deve ter ao menos 15 caracteres.
             </p>
           </div>

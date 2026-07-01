@@ -117,15 +117,15 @@ export function SalesKanban({ orders }: { orders: SalesOrder[] }) {
           onDragLeave={() => setOverCol((c) => (c === col.id ? null : c))}
           onDrop={() => onDrop(col.id)}
           className={cn(
-            'flex flex-col rounded-xl border bg-slate-50/60 p-2 transition-colors',
-            overCol === col.id ? 'border-brand-400 bg-brand-50/50' : 'border-slate-200',
+            'flex flex-col rounded-xl border bg-surface-secondary p-2 transition-colors',
+            overCol === col.id ? 'border-brand-400 bg-brand-50/50' : 'border-line',
           )}
         >
           <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wide text-content-muted">
               {col.label}
             </span>
-            <span className="rounded-full bg-slate-200 px-2 text-xs font-medium text-slate-600">
+            <span className="rounded-full bg-neutral-200 dark:bg-neutral-700 px-2 text-xs font-medium text-content-secondary">
               {byColumn[col.id].length}
             </span>
           </div>
@@ -142,18 +142,18 @@ export function SalesKanban({ orders }: { orders: SalesOrder[] }) {
                 }}
                 onClick={() => router.push(`/app/sales/${o.id}`)}
                 className={cn(
-                  'cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-xs transition-shadow hover:shadow-sm active:cursor-grabbing',
+                  'cursor-grab rounded-lg border border-line bg-surface p-3 shadow-xs transition-shadow hover:shadow-sm active:cursor-grabbing',
                   dragId === o.id && 'opacity-50',
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-medium text-slate-500">#{shortId(o.id)}</span>
-                  <span className="text-xs text-slate-400">{formatDate(o.createdAt)}</span>
+                  <span className="font-mono text-xs font-medium text-content-muted">#{shortId(o.id)}</span>
+                  <span className="text-xs text-content-muted">{formatDate(o.createdAt)}</span>
                 </div>
-                <p className="mt-1 truncate text-sm font-medium text-slate-800">
+                <p className="mt-1 truncate text-sm font-medium text-content">
                   {o.customer?.name ?? 'Sem cliente'}
                 </p>
-                <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+                <p className="mt-0.5 text-sm font-semibold tabular-nums text-content">
                   {formatBRL(salesOrderTotal(o))}
                 </p>
               </div>
