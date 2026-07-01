@@ -102,7 +102,7 @@ export default function ApprovalsPage() {
             handleApprove(i);
           }}
           title="Aprovar"
-          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success"
+          className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success"
         >
           <Check size={16} />
         </button>
@@ -114,11 +114,11 @@ export default function ApprovalsPage() {
     return (
       <div>
         <PageHeader title="Aprovações" description="Pedidos pendentes de aprovação por alçada." />
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-center">
-          <ShieldAlert className="text-slate-300" size={40} />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface py-16 text-center">
+          <ShieldAlert className="text-content-muted" size={40} />
           <div>
-            <p className="text-sm font-medium text-slate-700">Acesso restrito</p>
-            <p className="text-xs text-slate-400">Apenas aprovadores (Gerente, Diretor, Super Admin).</p>
+            <p className="text-sm font-medium text-content-secondary">Acesso restrito</p>
+            <p className="text-xs text-content-muted">Apenas aprovadores (Gerente, Diretor, Super Admin).</p>
           </div>
         </div>
       </div>
@@ -129,7 +129,7 @@ export default function ApprovalsPage() {
     <div>
       <PageHeader title="Aprovações" description="Pedidos de compra pendentes de aprovação por alçada." />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           O backend expõe aprovação de <strong>Pedidos de Compra</strong> por alçada. Rejeição com

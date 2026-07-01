@@ -26,9 +26,9 @@ function Kpi({ label, value, count }: { label: string; value: string; count?: nu
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
-        {count != null && <p className="mt-0.5 text-xs text-slate-400">{count} POs</p>}
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
+        {count != null && <p className="mt-0.5 text-xs text-content-muted">{count} POs</p>}
       </CardContent>
     </Card>
   );
@@ -70,7 +70,7 @@ export default function PurchasesPage() {
 
   const columns: Column<PurchaseOrder>[] = [
     { key: 'number', header: 'Nº PO', cell: (o) => <span className="font-mono text-xs font-medium">#{shortId(o.id)}</span> },
-    { key: 'supplier', header: 'Fornecedor', cell: (o) => o.supplier?.name ?? <span className="text-slate-400">—</span> },
+    { key: 'supplier', header: 'Fornecedor', cell: (o) => o.supplier?.name ?? <span className="text-content-muted">—</span> },
     {
       key: 'total',
       header: 'Valor total',
@@ -91,7 +91,7 @@ export default function PurchasesPage() {
     {
       key: 'expectedAt',
       header: 'Prevista',
-      cell: (o) => (o.expectedAt ? formatDate(o.expectedAt) : <span className="text-slate-400">—</span>),
+      cell: (o) => (o.expectedAt ? formatDate(o.expectedAt) : <span className="text-content-muted">—</span>),
     },
   ];
 

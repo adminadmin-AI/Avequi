@@ -71,7 +71,7 @@ export default function TransfersPage() {
       cell: (t) => (
         <span className="inline-flex items-center gap-1.5 text-sm">
           {t.fromWarehouse?.code ?? '—'}
-          <ArrowRight size={13} className="text-slate-400" />
+          <ArrowRight size={13} className="text-content-muted" />
           {t.toWarehouse?.code ?? '—'}
         </span>
       ),
@@ -93,17 +93,17 @@ export default function TransfersPage() {
       cell: (t) => (
         <div className="flex items-center justify-end gap-1">
           {t.status === 'DRAFT' && (
-            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'dispatch'); }} title="Despachar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'dispatch'); }} title="Despachar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
               <Send size={15} />
             </button>
           )}
           {t.status === 'DISPATCHED' && (
-            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'receive'); }} title="Confirmar recebimento" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'receive'); }} title="Confirmar recebimento" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
               <PackageCheck size={15} />
             </button>
           )}
           {(t.status === 'DRAFT' || t.status === 'DISPATCHED') && (
-            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'cancel'); }} title="Cancelar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'cancel'); }} title="Cancelar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
               <Ban size={15} />
             </button>
           )}

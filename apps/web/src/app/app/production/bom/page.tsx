@@ -122,7 +122,7 @@ export default function BomPage() {
       </Card>
 
       {!productId ? (
-        <p className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-line bg-surface py-16 text-center text-sm text-content-muted">
           Selecione um produto para ver sua estrutura de componentes.
         </p>
       ) : versionsQ.isLoading ? (
@@ -130,8 +130,8 @@ export default function BomPage() {
           <Spinner size="lg" />
         </div>
       ) : versions.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white py-12 text-center">
-          <p className="mb-3 text-sm text-slate-400">Nenhuma versão de BOM para este produto.</p>
+        <div className="rounded-xl border border-line bg-surface py-12 text-center">
+          <p className="mb-3 text-sm text-content-muted">Nenhuma versão de BOM para este produto.</p>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus size={16} />
             Criar primeira versão
@@ -140,14 +140,14 @@ export default function BomPage() {
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Versões:</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-content-muted">Versões:</span>
             {versions.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setSelectedVersionId(v.id)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                  selected?.id === v.id ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                  selected?.id === v.id ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-line text-content-secondary hover:bg-surface-secondary',
                 )}
               >
                 v{v.version}
@@ -183,7 +183,7 @@ export default function BomPage() {
             <CardContent>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                     <th className="py-2 text-left font-medium">SKU</th>
                     <th className="py-2 text-left font-medium">Componente</th>
                     <th className="py-2 text-right font-medium">Quantidade</th>
@@ -192,11 +192,11 @@ export default function BomPage() {
                 </thead>
                 <tbody>
                   {(selected?.items ?? []).map((it) => (
-                    <tr key={it.id} className="border-b border-slate-50">
-                      <td className="py-2 font-mono text-xs text-slate-500">{it.component?.sku ?? '—'}</td>
-                      <td className="py-2 text-slate-800">{it.component?.name ?? '—'}</td>
+                    <tr key={it.id} className="border-b border-line">
+                      <td className="py-2 font-mono text-xs text-content-muted">{it.component?.sku ?? '—'}</td>
+                      <td className="py-2 text-content">{it.component?.name ?? '—'}</td>
                       <td className="py-2 text-right tabular-nums">{formatNumber(Number(it.quantity))}</td>
-                      <td className="py-2 text-right tabular-nums text-slate-500">{formatNumber(Number(it.scrapPct ?? 0))}%</td>
+                      <td className="py-2 text-right tabular-nums text-content-muted">{formatNumber(Number(it.scrapPct ?? 0))}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -204,7 +204,7 @@ export default function BomPage() {
             </CardContent>
           </Card>
 
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               O BOM é <strong>versionado e imutável</strong>: para alterar a estrutura, crie uma
@@ -232,7 +232,7 @@ export default function BomPage() {
           }}
           className="space-y-4 py-1"
         >
-          <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+          <div className="flex flex-wrap items-end gap-2 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[180px] flex-1">
               <Label>Componente</Label>
               <Select value={newComp} onChange={(e) => setNewComp(e.target.value)}>
@@ -258,11 +258,11 @@ export default function BomPage() {
           </div>
 
           {items.length === 0 ? (
-            <p className="py-3 text-center text-sm text-slate-400">Nenhum componente adicionado.</p>
+            <p className="py-3 text-center text-sm text-content-muted">Nenhum componente adicionado.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                   <th className="py-1.5 text-left font-medium">Componente</th>
                   <th className="py-1.5 text-right font-medium">Qtd</th>
                   <th className="py-1.5 text-right font-medium">Refugo</th>
@@ -273,12 +273,12 @@ export default function BomPage() {
                 {items.map((it, idx) => {
                   const p = productMap.get(it.componentId);
                   return (
-                    <tr key={idx} className="border-b border-slate-50">
+                    <tr key={idx} className="border-b border-line">
                       <td className="py-1.5">{p?.sku} — {p?.name}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.quantity}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.scrapPct}%</td>
                       <td className="py-1.5 text-right">
-                        <button type="button" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))} className="rounded-md p-1 text-slate-400 hover:text-danger">
+                        <button type="button" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))} className="rounded-md p-1 text-content-muted hover:text-danger">
                           <Trash2 size={14} />
                         </button>
                       </td>

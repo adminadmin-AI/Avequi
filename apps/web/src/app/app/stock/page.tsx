@@ -21,8 +21,8 @@ function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
       </CardContent>
     </Card>
   );
@@ -82,8 +82,8 @@ export default function StockPage() {
         </span>
       ),
     },
-    { key: 'reserved', header: 'Reservado', align: 'right', cell: (b) => <span className="tabular-nums text-slate-500">{formatNumber(num(b.reserved))}</span> },
-    { key: 'inTransit', header: 'Em trânsito', align: 'right', cell: (b) => <span className="tabular-nums text-slate-500">{formatNumber(num(b.inTransit))}</span> },
+    { key: 'reserved', header: 'Reservado', align: 'right', cell: (b) => <span className="tabular-nums text-content-muted">{formatNumber(num(b.reserved))}</span> },
+    { key: 'inTransit', header: 'Em trânsito', align: 'right', cell: (b) => <span className="tabular-nums text-content-muted">{formatNumber(num(b.inTransit))}</span> },
     {
       key: 'total',
       header: 'Total',
@@ -121,7 +121,7 @@ export default function StockPage() {
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SKU ou nome" />
         </div>
         <div className="flex items-end">
-          <label className="flex items-center gap-2 pb-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 pb-2 text-sm text-content-secondary">
             <input type="checkbox" checked={belowMin} onChange={(e) => setBelowMin(e.target.checked)} />
             Somente abaixo do mínimo
           </label>

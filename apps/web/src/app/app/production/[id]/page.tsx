@@ -56,14 +56,14 @@ function Pipeline({ status }: { status: ProductionOrderStatus }) {
                   'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                   done && 'bg-success text-white',
                   active && 'bg-brand-600 text-white',
-                  !done && !active && 'bg-slate-100 text-slate-400',
+                  !done && !active && 'bg-surface-secondary text-content-muted',
                 )}
               >
                 {done ? <Check size={13} /> : i + 1}
               </span>
-              <span className={cn('text-xs', active ? 'font-medium text-slate-800' : 'text-slate-400')}>{step.label}</span>
+              <span className={cn('text-xs', active ? 'font-medium text-content' : 'text-content-muted')}>{step.label}</span>
             </div>
-            {i < PRODUCTION_PIPELINE.length - 1 && <div className="h-px w-6 bg-slate-200" />}
+            {i < PRODUCTION_PIPELINE.length - 1 && <div className="h-px w-6 bg-neutral-200 dark:bg-neutral-700" />}
           </div>
         );
       })}
@@ -154,26 +154,26 @@ export default function ProductionDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Status</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Status</p>
                 <Badge variant={PRODUCTION_STATUS[order.status].variant}>{PRODUCTION_STATUS[order.status].label}</Badge>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Quantidade</p>
-                <p className="text-slate-800 tabular-nums">
+                <p className="text-xs uppercase tracking-wide text-content-muted">Quantidade</p>
+                <p className="text-content tabular-nums">
                   {formatNumber(Number(order.producedQty))} / {formatNumber(Number(order.plannedQty))}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Depósito</p>
-                <p className="text-slate-800">{order.warehouse?.name ?? '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Depósito</p>
+                <p className="text-content">{order.warehouse?.name ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Planejada</p>
-                <p className="text-slate-800">{order.scheduledStart ? formatDate(order.scheduledStart) : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Planejada</p>
+                <p className="text-content">{order.scheduledStart ? formatDate(order.scheduledStart) : '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Conclusão</p>
-                <p className="text-slate-800">{order.completedAt ? formatDate(order.completedAt) : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Conclusão</p>
+                <p className="text-content">{order.completedAt ? formatDate(order.completedAt) : '—'}</p>
               </div>
             </div>
             {actions.length > 0 && (
@@ -186,7 +186,7 @@ export default function ProductionDetailPage() {
               </div>
             )}
           </div>
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-line pt-4">
             <Pipeline status={order.status} />
           </div>
         </CardContent>
@@ -198,14 +198,14 @@ export default function ProductionDetailPage() {
         </CardHeader>
         <CardContent>
           {(order.items ?? []).length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">
+            <p className="py-6 text-center text-sm text-content-muted">
               Sem componentes registrados para esta OP.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                     <th className="py-2 text-left font-medium">SKU</th>
                     <th className="py-2 text-left font-medium">Componente</th>
                     <th className="py-2 text-right font-medium">Necessário</th>
@@ -220,11 +220,11 @@ export default function ProductionDetailPage() {
                     const avail = it.component ? availableByProduct.get(it.component.id) ?? 0 : 0;
                     const enough = avail >= needed;
                     return (
-                      <tr key={it.id} className="border-b border-slate-50">
-                        <td className="py-2 font-mono text-xs text-slate-500">{it.component?.sku ?? '—'}</td>
-                        <td className="py-2 text-slate-800">{it.component?.name ?? '—'}</td>
+                      <tr key={it.id} className="border-b border-line">
+                        <td className="py-2 font-mono text-xs text-content-muted">{it.component?.sku ?? '—'}</td>
+                        <td className="py-2 text-content">{it.component?.name ?? '—'}</td>
                         <td className="py-2 text-right tabular-nums">{formatNumber(needed)}</td>
-                        <td className="py-2 text-right tabular-nums text-slate-500">{formatNumber(Number(it.consumedQty))}</td>
+                        <td className="py-2 text-right tabular-nums text-content-muted">{formatNumber(Number(it.consumedQty))}</td>
                         <td className="py-2 text-right tabular-nums">{formatNumber(avail)}</td>
                         <td className="py-2 text-center">
                           <Badge variant={enough ? 'success' : 'danger'}>{enough ? 'OK' : 'Insuficiente'}</Badge>

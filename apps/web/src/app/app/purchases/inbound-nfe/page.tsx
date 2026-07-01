@@ -144,8 +144,8 @@ export default function InboundNfePage() {
       header: 'Fornecedor',
       cell: (n) => (
         <div>
-          <p className="text-sm text-slate-800">{n.supplierName}</p>
-          <p className="font-mono text-xs text-slate-400">{formatCNPJ(n.supplierCnpj)}</p>
+          <p className="text-sm text-content">{n.supplierName}</p>
+          <p className="font-mono text-xs text-content-muted">{formatCNPJ(n.supplierCnpj)}</p>
         </div>
       ),
     },
@@ -184,7 +184,7 @@ export default function InboundNfePage() {
                 setLinkPoId('');
               }}
               title="Vincular a PO"
-              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
             >
               <Link2 size={15} />
             </button>
@@ -195,7 +195,7 @@ export default function InboundNfePage() {
               downloadXml(n);
             }}
             title="Baixar XML"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <FileDown size={15} />
           </button>
@@ -209,7 +209,7 @@ export default function InboundNfePage() {
                 });
               }}
               title="Rejeitar"
-              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
             >
               <Ban size={15} />
             </button>
@@ -272,10 +272,10 @@ export default function InboundNfePage() {
               onChange={(e) => setXmlContent(e.target.value)}
               rows={6}
               placeholder="<?xml version=&quot;1.0&quot;?> ..."
-              className="w-full rounded-lg border border-slate-200 p-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+              className="w-full rounded-lg border border-line p-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
             />
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-content-muted">
             A consulta automática à SEFAZ por chave de acesso não está disponível no backend; use o XML.
           </p>
         </form>
@@ -310,7 +310,7 @@ export default function InboundNfePage() {
               ))}
             </Select>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-content-muted">
             Ao vincular, o backend gera o recebimento (GR) e a conta a pagar automaticamente.
           </p>
         </form>

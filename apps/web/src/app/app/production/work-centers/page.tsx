@@ -32,8 +32,8 @@ function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
       </CardContent>
     </Card>
   );
@@ -174,15 +174,15 @@ export default function WorkCentersPage() {
       align: 'right',
       cell: (w) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEdit(w)} title="Editar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+          <button onClick={() => openEdit(w)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
             <Pencil size={15} />
           </button>
           {w.isActive ? (
-            <button onClick={() => toggleActive(w)} title="Desativar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+            <button onClick={() => toggleActive(w)} title="Desativar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
               <PowerOff size={15} />
             </button>
           ) : (
-            <button onClick={() => toggleActive(w)} title="Reativar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+            <button onClick={() => toggleActive(w)} title="Reativar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
               <Power size={15} />
             </button>
           )}
@@ -211,8 +211,8 @@ export default function WorkCentersPage() {
         <Kpi label="Capacidade média" value={`${formatNumber(stats?.avgCapacityHoursPerDay ?? 0)} h/dia`} />
       </div>
 
-      <label className="mb-3 flex w-fit items-center gap-2 text-sm text-slate-600">
-        <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-slate-300" />
+      <label className="mb-3 flex w-fit items-center gap-2 text-sm text-content-secondary">
+        <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />
         Mostrar inativos
       </label>
 

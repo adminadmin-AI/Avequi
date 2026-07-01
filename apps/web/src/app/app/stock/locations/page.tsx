@@ -105,7 +105,7 @@ export default function LocationsPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           O model de localização não possui <strong>capacidade máxima</strong> nem contagem de
@@ -119,7 +119,7 @@ export default function LocationsPage() {
           <Spinner size="lg" />
         </div>
       ) : grouped.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-line bg-surface py-16 text-center text-sm text-content-muted">
           Nenhuma localização cadastrada.
         </p>
       ) : (
@@ -132,7 +132,7 @@ export default function LocationsPage() {
               <CardContent>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                    <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                       <th className="py-2 text-left font-medium">Código</th>
                       <th className="py-2 text-left font-medium">Tipo</th>
                       <th className="py-2 text-left font-medium">Descrição</th>
@@ -142,10 +142,10 @@ export default function LocationsPage() {
                   </thead>
                   <tbody>
                     {locs.map((l) => (
-                      <tr key={l.id} className="border-b border-slate-50">
+                      <tr key={l.id} className="border-b border-line">
                         <td className="py-2 font-mono text-xs font-medium">{l.code}</td>
                         <td className="py-2">{l.type ? TYPE_LABEL[l.type] : '—'}</td>
-                        <td className="py-2 text-slate-600">{l.description || '—'}</td>
+                        <td className="py-2 text-content-secondary">{l.description || '—'}</td>
                         <td className="py-2 text-center">
                           <Badge variant={l.isActive ? 'success' : 'neutral'}>{l.isActive ? 'Ativa' : 'Inativa'}</Badge>
                         </td>
@@ -158,7 +158,7 @@ export default function LocationsPage() {
                               })
                             }
                             title={l.isActive ? 'Desativar' : 'Ativar'}
-                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+                            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
                           >
                             <Power size={15} />
                           </button>
