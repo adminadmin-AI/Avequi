@@ -174,7 +174,7 @@ export default function DashboardPage() {
   }, [salesQ.data]);
 
   const today = isoDaysAgo(0);
-  const in7 = isoDaysAgo(-7);
+  const inPeriod = isoDaysAgo(-periodDays);
   const overdueReceivable = useMemo(
     () =>
       (receivablesQ.data ?? [])
@@ -186,17 +186,17 @@ export default function DashboardPage() {
         .reduce((s, e) => s + num(e.amount), 0),
     [receivablesQ.data, today],
   );
-  const payableNext7 = useMemo(
+  const payableUpcoming = useMemo(
     () =>
       (payablesQ.data ?? [])
         .filter(
           (e) =>
             (e.status === 'OPEN' || e.status === 'PARTIALLY_PAID' || e.status === 'OVERDUE') &&
             e.dueDate >= today &&
-            e.dueDate <= in7,
+            e.dueDate <= inPeriod,
         )
         .reduce((s, e) => s + num(e.amount), 0),
-    [payablesQ.data, today, in7],
+    [payablesQ.data, today, inPeriod],
   );
   const cashBalance = useMemo(
     () => (cashAccountsQ.data ?? []).reduce((s, a) => s + num(a.balance), 0),
@@ -282,10 +282,11 @@ export default function DashboardPage() {
           loading={receivablesQ.isLoading}
         />
         <KpiCard
-          label="A pagar (7 dias)"
-          value={formatBRL(payableNext7)}
+          label={`A pagar (${periodDays}d)`}
+          value={formatBRL(payableUpcoming)}
           icon={CreditCard}
-          tone={payableNext7 > 0 ? 'warning' : 'neutral'}
+          tone={payableUpcoming > 0 ? 'warning' : 'neutral'}
+          sub="A vencer no período"
           loading={payablesQ.isLoading}
         />
         <KpiCard
