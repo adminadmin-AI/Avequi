@@ -159,10 +159,10 @@ export default function NewSalePage() {
       {/* Itens */}
       <Card className="mb-5">
         <CardContent className="py-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Itens</h3>
+          <h3 className="mb-3 text-sm font-semibold text-content-secondary">Itens</h3>
 
           {/* Linha de adição */}
-          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3">
+          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
@@ -186,12 +186,12 @@ export default function NewSalePage() {
 
           {/* Tabela de itens */}
           {items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Nenhum item adicionado.</p>
+            <p className="py-6 text-center text-sm text-content-muted">Nenhum item adicionado.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                     <th className="py-2 text-left font-medium">Produto</th>
                     <th className="py-2 text-right font-medium">Qtd</th>
                     <th className="py-2 text-right font-medium">Preço unit.</th>
@@ -203,10 +203,10 @@ export default function NewSalePage() {
                   {items.map((it, idx) => {
                     const p = productMap.get(it.productId);
                     return (
-                      <tr key={idx} className="border-b border-slate-50">
+                      <tr key={idx} className="border-b border-line">
                         <td className="py-2">
-                          <p className="text-slate-800">{p?.name ?? '—'}</p>
-                          <p className="font-mono text-xs text-slate-400">{p?.sku}</p>
+                          <p className="text-content">{p?.name ?? '—'}</p>
+                          <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
                         </td>
                         <td className="py-2 text-right">
                           <Input
@@ -235,7 +235,7 @@ export default function NewSalePage() {
                           <button
                             onClick={() => removeItem(idx)}
                             title="Remover"
-                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+                            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -246,10 +246,10 @@ export default function NewSalePage() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={3} className="py-3 text-right text-sm font-medium text-slate-600">
+                    <td colSpan={3} className="py-3 text-right text-sm font-medium text-content-secondary">
                       Total geral
                     </td>
-                    <td className="py-3 text-right text-base font-semibold tabular-nums text-slate-900">
+                    <td className="py-3 text-right text-base font-semibold tabular-nums text-content">
                       {formatBRL(total)}
                     </td>
                     <td></td>

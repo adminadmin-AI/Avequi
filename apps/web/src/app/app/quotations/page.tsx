@@ -118,7 +118,7 @@ export default function QuotationsPage() {
 
   const columns: Column<Quotation>[] = [
     { key: 'number', header: 'Nº', cell: (q) => <span className="font-mono text-xs font-medium">#{shortId(q.id)}</span> },
-    { key: 'customer', header: 'Cliente', cell: (q) => q.customer?.name ?? <span className="text-slate-400">—</span> },
+    { key: 'customer', header: 'Cliente', cell: (q) => q.customer?.name ?? <span className="text-content-muted">—</span> },
     {
       key: 'total',
       header: 'Valor total',
@@ -138,7 +138,7 @@ export default function QuotationsPage() {
     {
       key: 'validUntil',
       header: 'Validade',
-      cell: (q) => (q.validUntil ? formatDate(q.validUntil) : <span className="text-slate-400">—</span>),
+      cell: (q) => (q.validUntil ? formatDate(q.validUntil) : <span className="text-content-muted">—</span>),
     },
     { key: 'createdAt', header: 'Data', sortable: true, accessor: (q) => q.createdAt, cell: (q) => formatDate(q.createdAt) },
     {
@@ -158,7 +158,7 @@ export default function QuotationsPage() {
                   runAction(q, a);
                 }}
                 title={a.label}
-                className={`rounded-md p-1.5 text-slate-400 hover:bg-slate-100 ${
+                className={`rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                   a.variant === 'danger' ? 'hover:text-danger' : 'hover:text-brand-600'
                 }`}
               >
