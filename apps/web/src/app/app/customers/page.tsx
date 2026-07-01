@@ -139,7 +139,7 @@ export default function CustomersPage() {
               openEdit(c);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -149,7 +149,7 @@ export default function CustomersPage() {
               toggleActive(c);
             }}
             title={c.isActive ? 'Desativar' : 'Reativar'}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Power size={15} />
           </button>

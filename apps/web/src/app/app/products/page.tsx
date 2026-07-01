@@ -90,7 +90,7 @@ export default function ProductsPage() {
       key: 'sku',
       header: 'SKU',
       sortable: true,
-      cell: (p) => <span className="font-mono text-xs text-slate-600">{p.sku}</span>,
+      cell: (p) => <span className="font-mono text-xs text-content-secondary">{p.sku}</span>,
     },
     { key: 'name', header: 'Nome', sortable: true },
     {
@@ -145,7 +145,7 @@ export default function ProductsPage() {
               openEdit(p);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -155,7 +155,7 @@ export default function ProductsPage() {
               toggleActive(p);
             }}
             title={p.isActive ? 'Desativar' : 'Reativar'}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Power size={15} />
           </button>
