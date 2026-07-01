@@ -32,8 +32,8 @@ const CRT_LABEL: Record<number, string> = {
 function Row({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 py-2.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="text-sm text-slate-800">{value ?? '—'}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</dt>
+      <dd className="text-sm text-content">{value ?? '—'}</dd>
     </div>
   );
 }
@@ -111,7 +111,7 @@ export default function CompanyPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <dl className="divide-y divide-slate-100">
+            <dl className="divide-y divide-line">
               <Row label="Nome" value={company.name} />
               <Row
                 label="CNPJ"
@@ -131,7 +131,7 @@ export default function CompanyPage() {
           </CardHeader>
           <CardContent>
             {hasFiscal ? (
-              <dl className="grid grid-cols-2 gap-x-6 divide-slate-100">
+              <dl className="grid grid-cols-2 gap-x-6 divide-line">
                 <Row label="Razão social" value={company.razaoSocial} />
                 <Row label="CNAE" value={company.cnae} />
                 <Row label="Inscrição Estadual" value={company.ie} />
@@ -147,7 +147,7 @@ export default function CompanyPage() {
                 <Row label="SUFRAMA" value={company.suframa} />
               </dl>
             ) : (
-              <p className="py-4 text-sm text-slate-400">
+              <p className="py-4 text-sm text-content-muted">
                 Nenhum dado fiscal cadastrado para esta empresa.
               </p>
             )}
@@ -189,7 +189,7 @@ export default function CompanyPage() {
                 <Row label="E-mail" value={company.email} />
               </dl>
             ) : (
-              <p className="py-4 text-sm text-slate-400">Nenhum endereço cadastrado.</p>
+              <p className="py-4 text-sm text-content-muted">Nenhum endereço cadastrado.</p>
             )}
           </CardContent>
         </Card>

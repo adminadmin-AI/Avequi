@@ -87,8 +87,8 @@ export default function AuditLogPage() {
         <PageHeader title="Log de Auditoria" />
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
-            <ShieldX size={32} className="text-slate-300" />
-            <p className="text-sm text-slate-500">Acesso restrito a administradores (SUPER_ADMIN).</p>
+            <ShieldX size={32} className="text-content-muted" />
+            <p className="text-sm text-content-muted">Acesso restrito a administradores (SUPER_ADMIN).</p>
           </CardContent>
         </Card>
       </div>
@@ -100,7 +100,7 @@ export default function AuditLogPage() {
       <PageHeader title="Log de Auditoria" description="Registro de alterações realizadas no sistema." />
 
       {logsQ.isError && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-warning">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>
             O endpoint <code>GET /audit-logs</code> ainda <strong>não está disponível no backend</strong> — os
@@ -144,13 +144,13 @@ export default function AuditLogPage() {
           {logsQ.isLoading ? (
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : paged.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">
+            <p className="py-16 text-center text-sm text-content-muted">
               {logsQ.isError ? 'Sem dados (endpoint indisponível).' : 'Nenhum registro de auditoria encontrado.'}
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-line bg-surface-secondary text-xs font-semibold uppercase tracking-wide text-content-muted">
                   <th className="w-8 px-2 py-3"></th>
                   <th className="px-4 py-3 text-left">Data/hora</th>
                   <th className="px-4 py-3 text-left">Usuário</th>
@@ -166,21 +166,21 @@ export default function AuditLogPage() {
                     <Fragment key={log.id}>
                       <tr
                         onClick={() => hasPayload && toggle(log.id)}
-                        className={cn('border-b border-slate-50', hasPayload && 'cursor-pointer hover:bg-slate-50')}
+                        className={cn('border-b border-line', hasPayload && 'cursor-pointer hover:bg-surface-secondary')}
                       >
-                        <td className="px-2 py-3 text-slate-400">
+                        <td className="px-2 py-3 text-content-muted">
                           {hasPayload && (isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />)}
                         </td>
-                        <td className="px-4 py-3 tabular-nums text-slate-600">{formatDateTime(log.createdAt)}</td>
-                        <td className="px-4 py-3 text-slate-700">{log.user?.name ?? '—'}</td>
+                        <td className="px-4 py-3 tabular-nums text-content-secondary">{formatDateTime(log.createdAt)}</td>
+                        <td className="px-4 py-3 text-content-secondary">{log.user?.name ?? '—'}</td>
                         <td className="px-4 py-3"><span className="font-mono text-xs">{log.entity}</span></td>
-                        <td className="px-4 py-3 text-slate-700">{log.action}</td>
+                        <td className="px-4 py-3 text-content-secondary">{log.action}</td>
                       </tr>
                       {isOpen && hasPayload && (
-                        <tr className="border-b border-slate-50 bg-slate-50/40">
+                        <tr className="border-b border-line bg-surface-secondary">
                           <td></td>
                           <td colSpan={4} className="px-4 py-3">
-                            <pre className="max-h-72 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
+                            <pre className="max-h-72 overflow-auto rounded-lg bg-neutral-900 p-3 text-[11px] leading-relaxed text-neutral-100">
                               {JSON.stringify(log.payload, null, 2)}
                             </pre>
                           </td>
@@ -196,12 +196,12 @@ export default function AuditLogPage() {
       </Card>
 
       {pageCount > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+        <div className="mt-3 flex items-center justify-between text-sm text-content-muted">
           <span>{logs.length} registro{logs.length === 1 ? '' : 's'}</span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} className="rounded-md px-3 py-1 hover:bg-slate-100 disabled:opacity-40">Anterior</button>
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} className="rounded-md px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-40">Anterior</button>
             <span className="px-2 tabular-nums">{safePage + 1} / {pageCount}</span>
-            <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1} className="rounded-md px-3 py-1 hover:bg-slate-100 disabled:opacity-40">Próxima</button>
+            <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1} className="rounded-md px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-40">Próxima</button>
           </div>
         </div>
       )}

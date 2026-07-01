@@ -26,11 +26,11 @@ import {
 } from './alert-meta';
 
 function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'warning' | 'danger' }) {
-  const cls = { neutral: 'text-slate-900', warning: 'text-warning', danger: 'text-danger' }[tone];
+  const cls = { neutral: 'text-content', warning: 'text-warning', danger: 'text-danger' }[tone];
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
       </CardContent>
     </Card>
@@ -105,15 +105,15 @@ export default function AlertsPage() {
     {
       key: 'type',
       header: 'Tipo',
-      cell: (a) => <span className="font-medium text-slate-700">{ALERT_TYPE_LABEL[a.type] ?? a.type}</span>,
+      cell: (a) => <span className="font-medium text-content-secondary">{ALERT_TYPE_LABEL[a.type] ?? a.type}</span>,
     },
     {
       key: 'description',
       header: 'Descrição',
       cell: (a) => (
         <div>
-          <p className="text-slate-800">{a.title}</p>
-          {a.body && <p className="text-xs text-slate-500">{a.body}</p>}
+          <p className="text-content">{a.title}</p>
+          {a.body && <p className="text-xs text-content-muted">{a.body}</p>}
         </div>
       ),
     },
@@ -141,12 +141,12 @@ export default function AlertsPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             {link && (
-              <button onClick={() => router.push(link)} title="Ver item relacionado" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+              <button onClick={() => router.push(link)} title="Ver item relacionado" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
                 <ExternalLink size={15} />
               </button>
             )}
             {!a.resolvedAt && (
-              <button onClick={() => handleResolve(a)} title="Marcar como visto" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+              <button onClick={() => handleResolve(a)} title="Marcar como visto" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
                 <Check size={15} />
               </button>
             )}
@@ -177,14 +177,14 @@ export default function AlertsPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex gap-1 border-b border-slate-200">
+        <div className="flex gap-1 border-b border-line">
           {([['active', 'Ativos'], ['resolved', 'Resolvidos']] as const).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               className={cn(
                 'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700',
+                tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-content-muted hover:text-content-secondary',
               )}
             >
               {label}

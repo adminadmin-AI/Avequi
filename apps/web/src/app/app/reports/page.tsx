@@ -70,8 +70,8 @@ function DirectReportCard({ report }: { report: (typeof DIRECT_REPORTS)[number] 
             <FileSpreadsheet size={18} />
           </div>
           <div>
-            <p className="font-medium text-slate-800">{report.label}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{report.desc}</p>
+            <p className="font-medium text-content">{report.label}</p>
+            <p className="mt-0.5 text-xs text-content-muted">{report.desc}</p>
           </div>
         </div>
         <div className="mt-auto pt-2">
@@ -125,17 +125,17 @@ function AsyncReportCard({ report }: { report: (typeof ASYNC_REPORTS)[number] })
     <Card>
       <CardContent className="flex h-full flex-col py-5">
         <div className="mb-3 flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
             <FileSpreadsheet size={18} />
           </div>
           <div>
-            <p className="font-medium text-slate-800">{report.label}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{report.desc}</p>
+            <p className="font-medium text-content">{report.label}</p>
+            <p className="mt-0.5 text-xs text-content-muted">{report.desc}</p>
           </div>
         </div>
 
         {status && (
-          <p className={`mb-2 text-xs ${failed ? 'text-danger' : ready ? 'text-success' : 'text-slate-500'}`}>
+          <p className={`mb-2 text-xs ${failed ? 'text-danger' : ready ? 'text-success' : 'text-content-muted'}`}>
             {failed && statusQ.data?.error ? `Falhou: ${statusQ.data.error}` : STATUS_LABEL[status] ?? status}
           </p>
         )}
@@ -168,7 +168,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader title="Relatórios" description="Exporte relatórios gerenciais e operacionais em Excel." />
 
-      <div className="mb-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-5 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           O backend gera os relatórios em <strong>Excel (.xlsx)</strong> para download — não há pré-visualização em
@@ -178,14 +178,14 @@ export default function ReportsPage() {
         </span>
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Relatórios diretos</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Relatórios diretos</h2>
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {DIRECT_REPORTS.map((r) => (
           <DirectReportCard key={r.path} report={r} />
         ))}
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Relatórios pesados (fila)</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Relatórios pesados (fila)</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {ASYNC_REPORTS.map((r) => (
           <AsyncReportCard key={r.name} report={r} />

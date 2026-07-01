@@ -125,7 +125,7 @@ export default function UsersPage() {
               openEdit(u);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -142,7 +142,7 @@ export default function UsersPage() {
                   ? 'Inativar'
                   : 'Reativar'
             }
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-content-muted"
           >
             <Power size={15} />
           </button>
@@ -155,11 +155,11 @@ export default function UsersPage() {
     return (
       <div>
         <PageHeader title="Usuários" description="Gestão de acessos e papéis." />
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-center">
-          <ShieldAlert className="text-slate-300" size={40} />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface py-16 text-center">
+          <ShieldAlert className="text-content-muted" size={40} />
           <div>
-            <p className="text-sm font-medium text-slate-700">Acesso restrito</p>
-            <p className="text-xs text-slate-400">
+            <p className="text-sm font-medium text-content-secondary">Acesso restrito</p>
+            <p className="text-xs text-content-muted">
               Apenas Super Admin e Diretor podem gerenciar usuários.
             </p>
           </div>
