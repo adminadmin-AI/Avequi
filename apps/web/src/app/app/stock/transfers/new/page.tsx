@@ -134,8 +134,8 @@ export default function NewTransferPage() {
 
       <Card className="mb-5">
         <CardContent className="py-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Itens</h3>
-          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3">
+          <h3 className="mb-3 text-sm font-semibold text-content-secondary">Itens</h3>
+          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)} disabled={!fromWarehouseId}>
@@ -158,12 +158,12 @@ export default function NewTransferPage() {
           </div>
 
           {items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Nenhum item adicionado.</p>
+            <p className="py-6 text-center text-sm text-content-muted">Nenhum item adicionado.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                     <th className="py-2 text-left font-medium">Produto</th>
                     <th className="py-2 text-right font-medium">Quantidade</th>
                     <th className="py-2 text-right font-medium">Saldo origem</th>
@@ -176,15 +176,15 @@ export default function NewTransferPage() {
                     const avail = availableAtOrigin(it.productId);
                     const over = it.quantity > avail;
                     return (
-                      <tr key={idx} className="border-b border-slate-50">
+                      <tr key={idx} className="border-b border-line">
                         <td className="py-2">
-                          <p className="text-slate-800">{p?.name ?? '—'}</p>
-                          <p className="font-mono text-xs text-slate-400">{p?.sku}</p>
+                          <p className="text-content">{p?.name ?? '—'}</p>
+                          <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
                         </td>
                         <td className={`py-2 text-right tabular-nums ${over ? 'font-medium text-danger' : ''}`}>{formatNumber(it.quantity)}</td>
-                        <td className="py-2 text-right tabular-nums text-slate-500">{formatNumber(avail)}</td>
+                        <td className="py-2 text-right tabular-nums text-content-muted">{formatNumber(avail)}</td>
                         <td className="py-2 text-right">
-                          <button onClick={() => removeItem(idx)} title="Remover" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+                          <button onClick={() => removeItem(idx)} title="Remover" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                             <Trash2 size={15} />
                           </button>
                         </td>

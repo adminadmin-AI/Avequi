@@ -153,10 +153,10 @@ export function NewMovementDialog() {
             </Field>
             <Field label="Tipo" required>
               <div className="flex gap-4 pt-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-content-secondary">
                   <input type="radio" checked={type === 'ENTRY'} onChange={() => setType('ENTRY')} /> Entrada
                 </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-content-secondary">
                   <input type="radio" checked={type === 'EXIT'} onChange={() => setType('EXIT')} /> Saída
                 </label>
               </div>
@@ -167,7 +167,7 @@ export function NewMovementDialog() {
             <Field label="Quantidade" required>
               <Input type="number" min="0.01" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} error={exceedsStock} />
               {productId && warehouseId && (
-                <p className={`mt-1 text-xs ${exceedsStock ? 'text-danger' : 'text-slate-400'}`}>
+                <p className={`mt-1 text-xs ${exceedsStock ? 'text-danger' : 'text-content-muted'}`}>
                   Disponível: {formatNumber(available)}
                   {exceedsStock && ' — saída excede o saldo!'}
                 </p>

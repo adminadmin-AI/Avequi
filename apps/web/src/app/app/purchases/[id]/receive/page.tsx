@@ -112,11 +112,11 @@ export default function ReceivePOPage() {
 
       <Card className="mb-5">
         <CardContent className="py-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Itens a receber</h3>
+          <h3 className="mb-3 text-sm font-semibold text-content-secondary">Itens a receber</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                   <th className="py-2 text-left font-medium">Produto</th>
                   <th className="py-2 text-right font-medium">Pedido</th>
                   <th className="py-2 text-right font-medium">Já recebido</th>
@@ -130,13 +130,13 @@ export default function ReceivePOPage() {
                   const already = Number(it.receivedQuantity ?? 0);
                   const pending = Math.max(0, ordered - already);
                   return (
-                    <tr key={it.id} className="border-b border-slate-50">
+                    <tr key={it.id} className="border-b border-line">
                       <td className="py-2">
-                        <p className="text-slate-800">{it.product?.name ?? '—'}</p>
-                        <p className="font-mono text-xs text-slate-400">{it.product?.sku}</p>
+                        <p className="text-content">{it.product?.name ?? '—'}</p>
+                        <p className="font-mono text-xs text-content-muted">{it.product?.sku}</p>
                       </td>
                       <td className="py-2 text-right tabular-nums">{ordered}</td>
-                      <td className="py-2 text-right tabular-nums text-slate-500">{already}</td>
+                      <td className="py-2 text-right tabular-nums text-content-muted">{already}</td>
                       <td className="py-2 text-right tabular-nums font-medium">{pending}</td>
                       <td className="py-2 text-right">
                         <Input
@@ -162,7 +162,7 @@ export default function ReceivePOPage() {
             </table>
           </div>
 
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               Permite <strong>recebimento parcial</strong> (PO fica como "Recebida parcial" até

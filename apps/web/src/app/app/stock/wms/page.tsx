@@ -53,14 +53,14 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
     { id: 'pick', label: 'Pick (Saída)' },
   ];
   return (
-    <div className="mb-5 flex gap-1 border-b border-slate-200">
+    <div className="mb-5 flex gap-1 border-b border-line">
       {items.map((it) => (
         <button
           key={it.id}
           onClick={() => setTab(it.id)}
           className={cn(
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-            tab === it.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700',
+            tab === it.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
           {it.label}
@@ -167,14 +167,14 @@ export default function WmsTasksPage() {
           <Spinner size="lg" />
         </div>
       ) : active.tasks.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-line bg-surface py-16 text-center text-sm text-content-muted">
           Nenhuma tarefa pendente.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                 <th className="px-4 py-2.5 text-left font-medium">Produto</th>
                 <th className="px-4 py-2.5 text-right font-medium">Quantidade</th>
                 <th className="px-4 py-2.5 text-left font-medium">Localização {tab === 'putaway' ? 'sugerida' : 'origem'}</th>
@@ -184,10 +184,10 @@ export default function WmsTasksPage() {
             </thead>
             <tbody>
               {active.tasks.map((t) => (
-                <tr key={t.id} className="border-b border-slate-50 last:border-0">
+                <tr key={t.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-2.5">
-                    <p className="text-slate-800">{t.product?.name ?? '—'}</p>
-                    <p className="font-mono text-xs text-slate-400">{t.product?.sku}</p>
+                    <p className="text-content">{t.product?.name ?? '—'}</p>
+                    <p className="font-mono text-xs text-content-muted">{t.product?.sku}</p>
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatNumber(Number(t.qty))}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{t.location?.code ?? '—'}</td>

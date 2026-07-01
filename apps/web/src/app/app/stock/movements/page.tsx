@@ -93,7 +93,7 @@ export default function MovementsPage() {
       cell: (m) => {
         const sign = MOVEMENT_TYPE[m.type].sign;
         return (
-          <span className={`tabular-nums ${sign > 0 ? 'text-success' : sign < 0 ? 'text-danger' : 'text-slate-700'}`}>
+          <span className={`tabular-nums ${sign > 0 ? 'text-success' : sign < 0 ? 'text-danger' : 'text-content-secondary'}`}>
             {sign > 0 ? '+' : sign < 0 ? '−' : ''} {formatNumber(Number(m.quantity))}
           </span>
         );
@@ -115,7 +115,7 @@ export default function MovementsPage() {
               setReverseReason('');
             }}
             title="Estornar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Undo2 size={15} />
           </button>

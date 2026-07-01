@@ -98,7 +98,7 @@ export default function PurchaseAutomationPage() {
       key: 'minStock',
       header: 'Estoque mínimo',
       align: 'right',
-      cell: (r) => <span className="tabular-nums text-slate-500">{formatNumber(r.minStock)}</span>,
+      cell: (r) => <span className="tabular-nums text-content-muted">{formatNumber(r.minStock)}</span>,
     },
     {
       key: 'status',
@@ -118,21 +118,21 @@ export default function PurchaseAutomationPage() {
       />
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2">
-        <Card className={counts.critico > 0 ? 'border-red-200 bg-red-50/40' : undefined}>
+        <Card className={counts.critico > 0 ? 'border-danger/30 bg-danger/10' : undefined}>
           <CardContent className="py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Crítico (sem estoque)</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Crítico (sem estoque)</p>
             <p className="mt-1 text-2xl font-semibold tracking-tight text-danger">{counts.critico}</p>
           </CardContent>
         </Card>
-        <Card className={counts.alerta > 0 ? 'border-amber-200 bg-amber-50/40' : undefined}>
+        <Card className={counts.alerta > 0 ? 'border-warning/30 bg-warning/10' : undefined}>
           <CardContent className="py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Abaixo do mínimo</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Abaixo do mínimo</p>
             <p className="mt-1 text-2xl font-semibold tracking-tight text-warning">{counts.alerta}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           A <strong>geração automática de PO</strong> e a <strong>configuração por produto</strong>

@@ -47,16 +47,16 @@ function Pipeline({ status }: { status: PurchaseOrderStatus }) {
                   'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                   done && 'bg-success text-white',
                   active && 'bg-brand-600 text-white',
-                  !done && !active && 'bg-slate-100 text-slate-400',
+                  !done && !active && 'bg-surface-secondary text-content-muted',
                 )}
               >
                 {done ? <Check size={13} /> : i + 1}
               </span>
-              <span className={cn('text-xs', active ? 'font-medium text-slate-800' : 'text-slate-400')}>
+              <span className={cn('text-xs', active ? 'font-medium text-content' : 'text-content-muted')}>
                 {step.label}
               </span>
             </div>
-            {i < PIPELINE.length - 1 && <div className="h-px w-6 bg-slate-200" />}
+            {i < PIPELINE.length - 1 && <div className="h-px w-6 bg-neutral-200 dark:bg-neutral-700" />}
           </div>
         );
       })}
@@ -134,20 +134,20 @@ export default function PurchaseDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Status</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Status</p>
                 <Badge variant={PO_STATUS[po.status].variant}>{PO_STATUS[po.status].label}</Badge>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Criação</p>
-                <p className="text-slate-800">{formatDate(po.createdAt)}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Criação</p>
+                <p className="text-content">{formatDate(po.createdAt)}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Prevista</p>
-                <p className="text-slate-800">{po.expectedAt ? formatDate(po.expectedAt) : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Prevista</p>
+                <p className="text-content">{po.expectedAt ? formatDate(po.expectedAt) : '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Aprovação</p>
-                <p className="text-slate-800">{po.approvedAt ? formatDate(po.approvedAt) : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Aprovação</p>
+                <p className="text-content">{po.approvedAt ? formatDate(po.approvedAt) : '—'}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -169,7 +169,7 @@ export default function PurchaseDetailPage() {
               ))}
             </div>
           </div>
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-line pt-4">
             <Pipeline status={po.status} />
           </div>
         </CardContent>
@@ -183,7 +183,7 @@ export default function PurchaseDetailPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                   <th className="py-2 text-left font-medium">SKU</th>
                   <th className="py-2 text-left font-medium">Produto</th>
                   <th className="py-2 text-right font-medium">Qtd</th>
@@ -197,12 +197,12 @@ export default function PurchaseDetailPage() {
                   const received = Number(it.receivedQuantity ?? 0);
                   const qty = Number(it.quantity);
                   return (
-                    <tr key={it.id} className="border-b border-slate-50">
-                      <td className="py-2 font-mono text-xs text-slate-500">{it.product?.sku ?? '—'}</td>
-                      <td className="py-2 text-slate-800">{it.product?.name ?? '—'}</td>
+                    <tr key={it.id} className="border-b border-line">
+                      <td className="py-2 font-mono text-xs text-content-muted">{it.product?.sku ?? '—'}</td>
+                      <td className="py-2 text-content">{it.product?.name ?? '—'}</td>
                       <td className="py-2 text-right tabular-nums">{qty}</td>
                       <td className="py-2 text-right tabular-nums">
-                        <span className={cn(received >= qty ? 'text-success' : received > 0 ? 'text-warning' : 'text-slate-400')}>
+                        <span className={cn(received >= qty ? 'text-success' : received > 0 ? 'text-warning' : 'text-content-muted')}>
                           {received}
                         </span>
                       </td>
@@ -216,10 +216,10 @@ export default function PurchaseDetailPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={5} className="py-3 text-right text-sm font-medium text-slate-600">
+                  <td colSpan={5} className="py-3 text-right text-sm font-medium text-content-secondary">
                     Total geral
                   </td>
-                  <td className="py-3 text-right text-base font-semibold tabular-nums text-slate-900">
+                  <td className="py-3 text-right text-base font-semibold tabular-nums text-content">
                     {formatBRL(total)}
                   </td>
                 </tr>
@@ -232,12 +232,12 @@ export default function PurchaseDetailPage() {
       <Card>
         <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Observações</p>
-            <p className="mt-1 text-sm text-slate-700">{po.notes || '—'}</p>
+            <p className="text-xs uppercase tracking-wide text-content-muted">Observações</p>
+            <p className="mt-1 text-sm text-content-secondary">{po.notes || '—'}</p>
           </div>
           {(po.status === 'RECEIVED' || po.status === 'PARTIALLY_RECEIVED') && (
             <div>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Conta a pagar</p>
+              <p className="text-xs uppercase tracking-wide text-content-muted">Conta a pagar</p>
               <Link
                 href="/app/finance/payables"
                 className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"

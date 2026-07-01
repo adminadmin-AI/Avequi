@@ -145,7 +145,7 @@ export default function RoutingPage() {
       </Card>
 
       {!productId ? (
-        <p className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-line bg-surface py-16 text-center text-sm text-content-muted">
           Selecione um produto para ver seu roteiro de produção.
         </p>
       ) : stepsQ.isLoading ? (
@@ -156,11 +156,11 @@ export default function RoutingPage() {
         <Card>
           <CardContent>
             {steps.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">Nenhuma operação no roteiro.</p>
+              <p className="py-8 text-center text-sm text-content-muted">Nenhuma operação no roteiro.</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                     <th className="py-2 text-left font-medium">Seq.</th>
                     <th className="py-2 text-left font-medium">Operação</th>
                     <th className="py-2 text-left font-medium">Centro de trabalho</th>
@@ -171,18 +171,18 @@ export default function RoutingPage() {
                 </thead>
                 <tbody>
                   {steps.map((s) => (
-                    <tr key={s.id} className="border-b border-slate-50">
+                    <tr key={s.id} className="border-b border-line">
                       <td className="py-2 font-mono text-xs">{s.stepOrder}</td>
-                      <td className="py-2 text-slate-800">{s.name}</td>
-                      <td className="py-2 text-slate-600">{s.workCenter || '—'}</td>
+                      <td className="py-2 text-content">{s.name}</td>
+                      <td className="py-2 text-content-secondary">{s.workCenter || '—'}</td>
                       <td className="py-2 text-right tabular-nums">{s.setupTimeMin ?? 0}</td>
                       <td className="py-2 text-right tabular-nums">{s.runTimeMin ?? 0}</td>
                       <td className="py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEditStep(s)} title="Editar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+                          <button onClick={() => openEditStep(s)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
                             <Pencil size={15} />
                           </button>
-                          <button onClick={() => removeStep(s)} title="Remover" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+                          <button onClick={() => removeStep(s)} title="Remover" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                             <Trash2 size={15} />
                           </button>
                         </div>

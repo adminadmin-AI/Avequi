@@ -84,7 +84,7 @@ export default function MrpPage() {
     { key: 'sku', header: 'SKU', cell: (s) => <span className="font-mono text-xs">{s.product?.sku ?? '—'}</span> },
     { key: 'product', header: 'Produto', cell: (s) => s.product?.name ?? '—' },
     { key: 'gross', header: 'Necessidade bruta', align: 'right', cell: (s) => <span className="tabular-nums">{formatNumber(Number(s.grossQty))}</span> },
-    { key: 'onHand', header: 'Em estoque', align: 'right', cell: (s) => <span className="tabular-nums text-slate-500">{formatNumber(Number(s.stockOnHand))}</span> },
+    { key: 'onHand', header: 'Em estoque', align: 'right', cell: (s) => <span className="tabular-nums text-content-muted">{formatNumber(Number(s.stockOnHand))}</span> },
     {
       key: 'net',
       header: 'Necessidade líquida',
@@ -133,7 +133,7 @@ export default function MrpPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           O horizonte de planejamento é definido pelo backend ao rodar o MRP (não selecionável aqui);
@@ -143,7 +143,7 @@ export default function MrpPage() {
       </div>
 
       {detailQ.data && (
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-content-muted">
           Rodada de <strong>{formatDateTime(detailQ.data.createdAt)}</strong> — horizonte {detailQ.data.horizonDays} dias
         </p>
       )}

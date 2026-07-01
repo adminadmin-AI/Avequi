@@ -26,8 +26,8 @@ function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
       </CardContent>
     </Card>
   );
