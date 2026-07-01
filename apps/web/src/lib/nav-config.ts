@@ -202,6 +202,22 @@ export function isActive(pathname: string, href: string): boolean {
 }
 
 /**
+ * Href do item de navegação que melhor casa com o pathname atual — o mais
+ * específico (prefixo mais longo). Evita que o item "raiz" de um grupo
+ * (ex.: /app/stock) acenda junto com um filho (ex.: /app/stock/transfers),
+ * mas mantém o pai ativo em páginas de detalhe sem item próprio (ex.:
+ * /app/sales/123 mantém "Ordens de Venda"). Retorna null se nada casar.
+ */
+export function resolveActiveHref(pathname: string): string | null {
+  let best: string | null = null;
+  for (const item of NAV.flatMap((s) => s.items)) {
+    if (!isActive(pathname, item.href)) continue;
+    if (best === null || item.href.length > best.length) best = item.href;
+  }
+  return best;
+}
+
+/**
  * Rótulos pt-BR para segmentos de path que não são itens de navegação
  * (intermediários e páginas de detalhe), usados nos breadcrumbs.
  */

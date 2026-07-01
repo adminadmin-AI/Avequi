@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, Star, X } from 'lucide-react';
-import { NAV, flatNav, isActive, type NavItem } from '@/lib/nav-config';
+import { NAV, flatNav, resolveActiveHref, type NavItem } from '@/lib/nav-config';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { useAuthStore } from '@/stores/auth-store';
@@ -73,6 +73,8 @@ function SidebarInner({
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
   const [search, setSearch] = useState('');
 
+  const activeHref = useMemo(() => resolveActiveHref(pathname), [pathname]);
+
   useEffect(() => {
     try {
       setFavorites(JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'));
@@ -110,7 +112,17 @@ function SidebarInner({
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return null;
-    return flatNav(role).filter((it) => it.label.toLowerCase().includes(q));
+    const groups: { key: string; title?: string; items: NavItem[] }[] = [];
+    for (const section of NAV) {
+      const titleMatch = section.title?.toLowerCase().includes(q) ?? false;
+      const items = section.items.filter((it) => {
+        if (it.roles && !(role && it.roles.includes(role))) return false;
+        // casa pelo rótulo do item OU pelo título da seção (ex.: "Cadastros")
+        return titleMatch || it.label.toLowerCase().includes(q);
+      });
+      if (items.length > 0) groups.push({ key: section.key, title: section.title, items });
+    }
+    return groups;
   }, [search, role]);
 
   const favItems = useMemo(() => {
@@ -197,26 +209,36 @@ function SidebarInner({
 
       {/* ─── Navegação ─── */}
       <nav className="avequi-scroll flex-1 space-y-4 overflow-y-auto px-3 py-3">
-        {/* Resultados de busca (modo plano) */}
+        {/* Resultados de busca (agrupados por seção) */}
         {searchResults ? (
-          <div className="space-y-0.5">
-            {searchResults.length === 0 && (
-              <p className="px-3 py-2 text-caption text-content-muted">Nenhum item encontrado.</p>
-            )}
-            {searchResults.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                active={isActive(pathname, item.href)}
-                mini={false}
-                count={counts[item.href] ?? 0}
-                isFavorite={favorites.includes(item.href)}
-                onToggleFav={() => toggleFav(item.href)}
-                onNavigate={onClose}
-                highlight={search}
-              />
-            ))}
-          </div>
+          searchResults.length === 0 ? (
+            <p className="px-3 py-2 text-caption text-content-muted">Nenhum item encontrado.</p>
+          ) : (
+            searchResults.map((section) => (
+              <div key={'search-' + section.key}>
+                {section.title && (
+                  <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                    {section.title}
+                  </p>
+                )}
+                <div className="space-y-0.5">
+                  {section.items.map((item) => (
+                    <NavLink
+                      key={item.href}
+                      item={item}
+                      active={item.href === activeHref}
+                      mini={false}
+                      count={counts[item.href] ?? 0}
+                      isFavorite={favorites.includes(item.href)}
+                      onToggleFav={() => toggleFav(item.href)}
+                      onNavigate={onClose}
+                      highlight={search}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))
+          )
         ) : (
           <>
             {/* Favoritos */}
@@ -230,7 +252,7 @@ function SidebarInner({
                     <NavLink
                       key={'fav-' + item.href}
                       item={item}
-                      active={isActive(pathname, item.href)}
+                      active={item.href === activeHref}
                       mini={false}
                       count={counts[item.href] ?? 0}
                       isFavorite
@@ -245,7 +267,7 @@ function SidebarInner({
             {/* Seções */}
             {sections.map((section) => {
               const collapsed = collapsedSections.includes(section.key);
-              const sectionActive = section.items.some((it) => isActive(pathname, it.href));
+              const sectionActive = section.items.some((it) => it.href === activeHref);
               const open = !collapsed || sectionActive; // seção ativa sempre aberta
               return (
                 <div key={section.key}>
@@ -270,7 +292,7 @@ function SidebarInner({
                         <NavLink
                           key={item.href}
                           item={item}
-                          active={isActive(pathname, item.href)}
+                          active={item.href === activeHref}
                           mini={mini}
                           count={counts[item.href] ?? 0}
                           isFavorite={favorites.includes(item.href)}
