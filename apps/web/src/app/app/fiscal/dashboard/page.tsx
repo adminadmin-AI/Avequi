@@ -30,11 +30,11 @@ const RESOURCE = '/fiscal';
 const HOUR = 3_600_000;
 
 function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'success' | 'danger' }) {
-  const cls = { neutral: 'text-slate-900', success: 'text-success', danger: 'text-danger' }[tone];
+  const cls = { neutral: 'text-content', success: 'text-success', danger: 'text-danger' }[tone];
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
       </CardContent>
     </Card>
@@ -166,16 +166,16 @@ export default function FiscalDashboardPage() {
           </CardHeader>
           <CardContent>
             {errorOld.length === 0 ? (
-              <p className="py-4 text-sm text-slate-400">Nenhum documento em erro prolongado. 🎉</p>
+              <p className="py-4 text-sm text-content-muted">Nenhum documento em erro prolongado. 🎉</p>
             ) : (
               <div className="space-y-2">
                 {errorOld.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-2 border-b border-slate-50 pb-2 last:border-0">
+                  <div key={d.id} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
                     <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 hover:underline">
                       {FISCAL_TYPE_LABEL[d.type]} {d.focusRef ?? d.id.slice(-6)}
                     </button>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">{formatDateTime(d.createdAt)}</span>
+                      <span className="text-xs text-content-muted">{formatDateTime(d.createdAt)}</span>
                       <Button variant="secondary" onClick={() => retry.mutate(d.id, { onSuccess: () => toast.success('Reprocessado'), onError: () => toast.error('Erro') })} loading={retry.isPending}>
                         Reprocessar
                       </Button>
@@ -195,15 +195,15 @@ export default function FiscalDashboardPage() {
           </CardHeader>
           <CardContent>
             {stuckProcessing.length === 0 ? (
-              <p className="py-4 text-sm text-slate-400">Nenhum documento travado em processamento.</p>
+              <p className="py-4 text-sm text-content-muted">Nenhum documento travado em processamento.</p>
             ) : (
               <div className="space-y-2">
                 {stuckProcessing.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-2 border-b border-slate-50 pb-2 last:border-0">
+                  <div key={d.id} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
                     <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 hover:underline">
                       {FISCAL_TYPE_LABEL[d.type]} {d.focusRef ?? d.id.slice(-6)}
                     </button>
-                    <span className="text-xs text-slate-400">{formatDateTime(d.createdAt)}</span>
+                    <span className="text-xs text-content-muted">{formatDateTime(d.createdAt)}</span>
                   </div>
                 ))}
               </div>

@@ -100,13 +100,13 @@ export function EmitNfeDialog() {
               ))}
             </Select>
             {ready.length === 0 && (
-              <p className="mt-1 text-xs text-amber-700">
+              <p className="mt-1 text-xs text-warning">
                 Nenhuma OV no status "Pronta p/ faturar" no momento.
               </p>
             )}
           </div>
 
-          <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <div className="flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               A emissão é feita ao <strong>faturar a OV</strong> (o backend não tem endpoint

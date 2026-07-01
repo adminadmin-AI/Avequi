@@ -121,7 +121,7 @@ export default function NcrPage() {
 
   const columns: Column<Ncr>[] = [
     { key: 'number', header: 'Nº', cell: (n) => <span className="font-mono text-xs font-medium">#{shortId(n.id)}</span> },
-    { key: 'title', header: 'Título', cell: (n) => <div><p className="text-slate-800">{n.title}</p><p className="truncate text-xs text-slate-400">{n.description}</p></div> },
+    { key: 'title', header: 'Título', cell: (n) => <div><p className="text-content">{n.title}</p><p className="truncate text-xs text-content-muted">{n.description}</p></div> },
     { key: 'severity', header: 'Severidade', align: 'center', cell: (n) => <Badge variant={NCR_SEVERITY[n.severity].variant}>{NCR_SEVERITY[n.severity].label}</Badge> },
     { key: 'status', header: 'Status', align: 'center', sortable: true, accessor: (n) => n.status, cell: (n) => <Badge variant={NCR_STATUS[n.status].variant}>{NCR_STATUS[n.status].label}</Badge> },
     { key: 'responsible', header: 'Responsável', cell: (n) => n.responsible?.name ?? '—' },
@@ -135,27 +135,27 @@ export default function NcrPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             {!closedOrCancelled && (
-              <button onClick={() => { setEditTarget(n); setEditForm({ rootCause: n.rootCause ?? '', correctiveAction: n.correctiveAction ?? '' }); }} title="Editar causa/ação" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+              <button onClick={() => { setEditTarget(n); setEditForm({ rootCause: n.rootCause ?? '', correctiveAction: n.correctiveAction ?? '' }); }} title="Editar causa/ação" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
                 <Pencil size={15} />
               </button>
             )}
             {n.status === 'OPEN' && (
-              <button onClick={() => lifecycle(n, 'analyze')} title="Analisar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-warning">
+              <button onClick={() => lifecycle(n, 'analyze')} title="Analisar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-warning">
                 <Search size={15} />
               </button>
             )}
             {n.status === 'UNDER_ANALYSIS' && (
-              <button onClick={() => lifecycle(n, 'corrective-action')} title="Ação corretiva" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+              <button onClick={() => lifecycle(n, 'corrective-action')} title="Ação corretiva" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
                 <Wrench size={15} />
               </button>
             )}
             {n.status === 'CORRECTIVE_ACTION' && (
-              <button onClick={() => lifecycle(n, 'close')} title="Fechar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+              <button onClick={() => lifecycle(n, 'close')} title="Fechar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
                 <CheckCircle2 size={15} />
               </button>
             )}
             {!closedOrCancelled && (
-              <button onClick={() => lifecycle(n, 'cancel')} title="Cancelar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+              <button onClick={() => lifecycle(n, 'cancel')} title="Cancelar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                 <Ban size={15} />
               </button>
             )}
@@ -178,7 +178,7 @@ export default function NcrPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Ciclo: Aberta → Em análise → Ação corretiva → Fechada (ou Cancelada). Causa raiz e ação

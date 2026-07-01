@@ -9,10 +9,10 @@ import { MAINTENANCE_ORDER_STATUS } from './maintenance-meta';
 
 /** Cor do "dot" por status (verde = aberta, azul = em andamento). */
 const DOT_COLOR: Record<MaintenanceOrder['status'], string> = {
-  OPEN: 'bg-emerald-500',
+  OPEN: 'bg-success',
   IN_PROGRESS: 'bg-brand-500',
-  DONE: 'bg-slate-300',
-  CANCELLED: 'bg-red-300',
+  DONE: 'bg-neutral-400',
+  CANCELLED: 'bg-danger',
 };
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -77,15 +77,15 @@ export function MaintenanceCalendar({
         <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-content-secondary"
             title="Mês anterior"
           >
             <ChevronLeft size={18} />
           </button>
-          <p className="text-sm font-semibold capitalize text-slate-800">{monthLabel}</p>
+          <p className="text-sm font-semibold capitalize text-content">{monthLabel}</p>
           <button
             onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-content-secondary"
             title="Próximo mês"
           >
             <ChevronRight size={18} />
@@ -93,7 +93,7 @@ export function MaintenanceCalendar({
         </div>
 
         {/* Cabeçalho dos dias da semana */}
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-content-muted">
           {WEEKDAYS.map((w) => (
             <div key={w} className="py-1">{w}</div>
           ))}
@@ -110,10 +110,10 @@ export function MaintenanceCalendar({
                 key={i}
                 className={cn(
                   'min-h-[72px] rounded-lg border p-1.5',
-                  isToday(d) ? 'border-brand-300 bg-brand-50/40' : 'border-slate-100',
+                  isToday(d) ? 'border-brand-300 bg-brand-50/40' : 'border-line',
                 )}
               >
-                <div className={cn('mb-1 text-xs font-medium', isToday(d) ? 'text-brand-700' : 'text-slate-500')}>
+                <div className={cn('mb-1 text-xs font-medium', isToday(d) ? 'text-brand-700 dark:text-brand-300' : 'text-content-muted')}>
                   {d}
                 </div>
                 <div className="space-y-0.5">
@@ -122,7 +122,7 @@ export function MaintenanceCalendar({
                       key={o.id}
                       onClick={() => onSelect(o)}
                       title={`${o.equipment ? o.equipment.code + ' — ' : ''}${o.title} (${MAINTENANCE_ORDER_STATUS[o.status].label})`}
-                      className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] text-slate-600 hover:bg-slate-100"
+                      className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800"
                     >
                       <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_COLOR[o.status])} />
                       <span className="truncate">{o.equipment?.code ?? o.title}</span>
@@ -131,7 +131,7 @@ export function MaintenanceCalendar({
                   {dayOrders.length > 3 && (
                     <button
                       onClick={() => onSelect(dayOrders[3])}
-                      className="px-1 text-[11px] text-slate-400 hover:text-slate-600"
+                      className="px-1 text-[11px] text-content-muted hover:text-content-secondary"
                     >
                       +{dayOrders.length - 3} mais
                     </button>
@@ -143,11 +143,11 @@ export function MaintenanceCalendar({
         </div>
 
         {/* Legenda */}
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Aberta</span>
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-content-muted">
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-success" /> Aberta</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-brand-500" /> Em andamento</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-300" /> Concluída</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-300" /> Cancelada</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-neutral-400" /> Concluída</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-danger" /> Cancelada</span>
           <span className="ml-auto">{scheduledCount} OM(s) agendada(s) no mês</span>
         </div>
       </CardContent>

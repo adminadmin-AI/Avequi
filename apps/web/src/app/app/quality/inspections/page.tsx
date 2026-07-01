@@ -134,19 +134,19 @@ export default function InspectionsPage() {
       cell: (i) => (
         <div className="flex items-center justify-end gap-1">
           {i.status === 'PENDING' && (
-            <button onClick={() => simple(i, 'start')} title="Iniciar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+            <button onClick={() => simple(i, 'start')} title="Iniciar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
               <Play size={15} />
             </button>
           )}
           {i.status === 'IN_PROGRESS' && (
             <>
-              <button onClick={() => simple(i, 'pass')} title="Aprovar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+              <button onClick={() => simple(i, 'pass')} title="Aprovar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
                 <Check size={15} />
               </button>
-              <button onClick={() => { setFailTarget(i); setFailTitle(''); setFailDesc(''); }} title="Reprovar (abre NCR)" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+              <button onClick={() => { setFailTarget(i); setFailTitle(''); setFailDesc(''); }} title="Reprovar (abre NCR)" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                 <X size={15} />
               </button>
-              <button onClick={() => simple(i, 'hold')} title="Em espera" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-warning">
+              <button onClick={() => simple(i, 'hold')} title="Em espera" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-warning">
                 <PauseCircle size={15} />
               </button>
             </>
@@ -169,7 +169,7 @@ export default function InspectionsPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           A inspeção é vinculada a Recebimento ou Produção (não há produto/lote/nota direto no modelo).
