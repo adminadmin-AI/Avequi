@@ -49,9 +49,9 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
+        {hint && <p className="mt-0.5 text-xs text-content-muted">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -63,14 +63,14 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
     { id: 'equipment', label: 'Equipamentos' },
   ];
   return (
-    <div className="mb-5 flex gap-1 border-b border-slate-200">
+    <div className="mb-5 flex gap-1 border-b border-line">
       {items.map((it) => (
         <button
           key={it.id}
           onClick={() => setTab(it.id)}
           className={cn(
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-            tab === it.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700',
+            tab === it.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
           {it.label}
@@ -272,20 +272,20 @@ export default function MaintenancePage() {
         <div className="flex items-center justify-end gap-1">
           {o.status === 'OPEN' && (
             <>
-              <button onClick={() => startOrder(o)} title="Iniciar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+              <button onClick={() => startOrder(o)} title="Iniciar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
                 <Play size={15} />
               </button>
-              <button onClick={() => cancelOrder(o)} title="Cancelar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+              <button onClick={() => cancelOrder(o)} title="Cancelar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                 <X size={15} />
               </button>
             </>
           )}
           {o.status === 'IN_PROGRESS' && (
             <>
-              <button onClick={() => { setCompleteTarget(o); setResolution(''); setCost(''); }} title="Concluir" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success">
+              <button onClick={() => { setCompleteTarget(o); setResolution(''); setCost(''); }} title="Concluir" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success">
                 <Check size={15} />
               </button>
-              <button onClick={() => cancelOrder(o)} title="Cancelar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+              <button onClick={() => cancelOrder(o)} title="Cancelar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
                 <X size={15} />
               </button>
             </>
@@ -419,11 +419,11 @@ export default function MaintenancePage() {
       align: 'right',
       cell: (e) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEditEq(e)} title="Editar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600">
+          <button onClick={() => openEditEq(e)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
             <Pencil size={15} />
           </button>
           {e.status !== 'INACTIVE' && (
-            <button onClick={() => deactivateEq(e)} title="Desativar" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+            <button onClick={() => deactivateEq(e)} title="Desativar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
               <PowerOff size={15} />
             </button>
           )}
@@ -470,7 +470,7 @@ export default function MaintenancePage() {
       {tab === 'orders' ? (
         <>
           {equipment.length === 0 && !equipmentQ.isLoading && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               <Info size={14} className="mt-0.5 shrink-0" />
               <span>
                 Cadastre ao menos um <strong>equipamento</strong> (aba Equipamentos) antes de abrir uma ordem de manutenção.
@@ -479,12 +479,12 @@ export default function MaintenancePage() {
           )}
 
           <div className="mb-3 flex items-center justify-end">
-            <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+            <div className="inline-flex rounded-lg border border-line p-0.5">
               <button
                 onClick={() => setView('table')}
                 className={cn(
                   'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  view === 'table' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700',
+                  view === 'table' ? 'bg-brand-50 text-brand-700' : 'text-content-muted hover:text-content-secondary',
                 )}
               >
                 <LayoutList size={15} /> Tabela
@@ -493,7 +493,7 @@ export default function MaintenancePage() {
                 onClick={() => setView('calendar')}
                 className={cn(
                   'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  view === 'calendar' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700',
+                  view === 'calendar' ? 'bg-brand-50 text-brand-700' : 'text-content-muted hover:text-content-secondary',
                 )}
               >
                 <CalendarDays size={15} /> Calendário
@@ -607,7 +607,7 @@ export default function MaintenancePage() {
               ))}
             </Select>
           </Field>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-content-muted">
             Manutenção <strong>corretiva</strong> coloca o equipamento em manutenção imediatamente.
           </p>
         </form>
@@ -695,34 +695,34 @@ export default function MaintenancePage() {
                   <Badge variant={MAINTENANCE_TYPE[selected.type].variant}>{MAINTENANCE_TYPE[selected.type].label}</Badge>
                   <Badge variant={MAINTENANCE_ORDER_STATUS[selected.status].variant}>{MAINTENANCE_ORDER_STATUS[selected.status].label}</Badge>
                 </div>
-                <p className="text-base font-medium text-slate-800">{selected.title}</p>
-                {selected.description && <p className="text-slate-600">{selected.description}</p>}
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-slate-600">
+                <p className="text-base font-medium text-content">{selected.title}</p>
+                {selected.description && <p className="text-content-secondary">{selected.description}</p>}
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-content-secondary">
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipamento</dt>
+                    <dt className="text-xs uppercase tracking-wide text-content-muted">Equipamento</dt>
                     <dd>{selected.equipment ? `${selected.equipment.code} — ${selected.equipment.name}` : '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Técnico</dt>
+                    <dt className="text-xs uppercase tracking-wide text-content-muted">Técnico</dt>
                     <dd>{selected.technician?.name ?? techName(selected.technicianId)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Data prevista</dt>
+                    <dt className="text-xs uppercase tracking-wide text-content-muted">Data prevista</dt>
                     <dd>{selected.scheduledAt ? formatDate(selected.scheduledAt) : '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Conclusão</dt>
+                    <dt className="text-xs uppercase tracking-wide text-content-muted">Conclusão</dt>
                     <dd>{selected.completedAt ? formatDate(selected.completedAt) : '—'}</dd>
                   </div>
                   {selected.resolution && (
                     <div className="col-span-2">
-                      <dt className="text-xs uppercase tracking-wide text-slate-400">Serviço realizado</dt>
+                      <dt className="text-xs uppercase tracking-wide text-content-muted">Serviço realizado</dt>
                       <dd>{selected.resolution}{selected.cost ? ` · ${formatBRL(selected.cost)}` : ''}</dd>
                     </div>
                   )}
                 </dl>
               </div>
-              <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
                 {selected.status === 'OPEN' && (
                   <>
                     <Button variant="secondary" onClick={() => { const o = selected; setSelected(null); cancelOrder(o); }}>Cancelar OM</Button>

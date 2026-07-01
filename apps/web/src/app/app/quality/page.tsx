@@ -16,11 +16,11 @@ interface Inspection { id: string; status: InspectionStatus; createdAt: string }
 interface Ncr { id: string; severity: NcrSeverity; status: NcrStatus; createdAt: string }
 
 function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'success' | 'danger' | 'warning' }) {
-  const cls = { neutral: 'text-slate-900', success: 'text-success', danger: 'text-danger', warning: 'text-warning' }[tone];
+  const cls = { neutral: 'text-content', success: 'text-success', danger: 'text-danger', warning: 'text-warning' }[tone];
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
       </CardContent>
     </Card>
@@ -96,7 +96,7 @@ export default function QualityDashboardPage() {
           <CardHeader><CardTitle className="text-base">Inspeções — aprovados vs reprovados (30d)</CardTitle></CardHeader>
           <CardContent>
             {stats.passed + stats.failed === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-400">Sem inspeções finalizadas no período.</p>
+              <p className="py-12 text-center text-sm text-content-muted">Sem inspeções finalizadas no período.</p>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>

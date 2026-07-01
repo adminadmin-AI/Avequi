@@ -23,10 +23,10 @@ const RESOURCE = '/fiscal';
 
 function Kpi({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
   return (
-    <Card className={alert ? 'border-red-200 bg-red-50/40' : undefined}>
+    <Card className={alert ? 'border-danger/30 bg-danger/10' : undefined}>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-tight ${alert ? 'text-danger' : 'text-slate-900'}`}>{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p className={`mt-1 text-2xl font-semibold tracking-tight ${alert ? 'text-danger' : 'text-content'}`}>{value}</p>
       </CardContent>
     </Card>
   );
@@ -102,7 +102,7 @@ export default function FiscalPage() {
               e.stopPropagation();
               copyChave(d.chave!);
             }}
-            className="inline-flex items-center gap-1 font-mono text-xs text-slate-600 hover:text-brand-600"
+            className="inline-flex items-center gap-1 font-mono text-xs text-content-secondary hover:text-brand-600"
             title={d.chave}
           >
             …{d.chave.slice(-12)} <Copy size={12} />

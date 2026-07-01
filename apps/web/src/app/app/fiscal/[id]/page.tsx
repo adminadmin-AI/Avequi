@@ -126,20 +126,20 @@ export default function FiscalDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Status</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Status</p>
                 <Badge variant={FISCAL_STATUS[doc.status].variant}>{FISCAL_STATUS[doc.status].label}</Badge>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Tipo</p>
-                <p className="text-slate-800">{FISCAL_TYPE_LABEL[doc.type]}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Tipo</p>
+                <p className="text-content">{FISCAL_TYPE_LABEL[doc.type]}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Emissão</p>
-                <p className="text-slate-800">{formatDateTime(doc.createdAt)}</p>
+                <p className="text-xs uppercase tracking-wide text-content-muted">Emissão</p>
+                <p className="text-content">{formatDateTime(doc.createdAt)}</p>
               </div>
               {doc.salesOrderId && (
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">OV vinculada</p>
+                  <p className="text-xs uppercase tracking-wide text-content-muted">OV vinculada</p>
                   <Link href={`/app/sales/${doc.salesOrderId}`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
                     <ExternalLink size={13} /> Ver OV
                   </Link>
@@ -166,14 +166,14 @@ export default function FiscalDetailPage() {
           </div>
 
           {doc.chave && (
-            <div className="border-t border-slate-100 pt-3">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Chave de acesso</p>
+            <div className="border-t border-line pt-3">
+              <p className="text-xs uppercase tracking-wide text-content-muted">Chave de acesso</p>
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(doc.chave!);
                   toast.success('Chave copiada');
                 }}
-                className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-sm text-slate-700 hover:text-brand-600"
+                className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-sm text-content-secondary hover:text-brand-600"
               >
                 {doc.chave} <Copy size={13} />
               </button>
@@ -181,13 +181,13 @@ export default function FiscalDetailPage() {
           )}
 
           {(doc.status === 'REJECTED' || doc.status === 'ERROR') && doc.rejectionReason && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger">
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               <strong>Motivo:</strong> {doc.rejectionCode ? `[${doc.rejectionCode}] ` : ''}
               {doc.rejectionReason}
             </div>
           )}
           {doc.status === 'CANCELLED' && doc.cancellationJustification && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <div className="rounded-lg border border-line bg-surface-secondary px-3 py-2 text-sm text-content-secondary">
               <strong>Cancelamento:</strong> {doc.cancellationJustification}
             </div>
           )}
@@ -200,11 +200,11 @@ export default function FiscalDetailPage() {
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Itens não disponíveis para este documento.</p>
+            <p className="py-6 text-center text-sm text-content-muted">Itens não disponíveis para este documento.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
                   <th className="py-2 text-left font-medium">Produto</th>
                   <th className="py-2 text-left font-medium">NCM</th>
                   <th className="py-2 text-right font-medium">Qtd</th>
@@ -214,12 +214,12 @@ export default function FiscalDetailPage() {
               </thead>
               <tbody>
                 {items.map((it) => (
-                  <tr key={it.id} className="border-b border-slate-50">
+                  <tr key={it.id} className="border-b border-line">
                     <td className="py-2">
-                      <p className="text-slate-800">{it.product?.name ?? '—'}</p>
-                      <p className="font-mono text-xs text-slate-400">{it.product?.sku}</p>
+                      <p className="text-content">{it.product?.name ?? '—'}</p>
+                      <p className="font-mono text-xs text-content-muted">{it.product?.sku}</p>
                     </td>
-                    <td className="py-2 font-mono text-xs text-slate-500">{it.product?.ncm ?? '—'}</td>
+                    <td className="py-2 font-mono text-xs text-content-muted">{it.product?.ncm ?? '—'}</td>
                     <td className="py-2 text-right tabular-nums">{Number(it.quantity)}</td>
                     <td className="py-2 text-right tabular-nums">{formatBRL(Number(it.unitPrice))}</td>
                     <td className="py-2 text-right font-medium tabular-nums">{formatBRL(Number(it.quantity) * Number(it.unitPrice))}</td>
@@ -228,7 +228,7 @@ export default function FiscalDetailPage() {
               </tbody>
             </table>
           )}
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-content-muted">
             Itens exibidos a partir da OV vinculada. Download do XML não disponível (sem endpoint no backend).
           </p>
         </CardContent>
