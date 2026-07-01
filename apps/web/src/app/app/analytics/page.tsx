@@ -79,11 +79,11 @@ function isoDaysAgo(days: number) {
 }
 
 function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'success' | 'danger' | 'warning' }) {
-  const cls = { neutral: 'text-slate-900', success: 'text-success', danger: 'text-danger', warning: 'text-warning' }[tone];
+  const cls = { neutral: 'text-content', success: 'text-success', danger: 'text-danger', warning: 'text-warning' }[tone];
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
       </CardContent>
     </Card>
@@ -187,13 +187,13 @@ export default function AnalyticsPage() {
         title="Analytics"
         description="Indicadores gerenciais de vendas, produção e estoque."
         actions={
-          <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+          <div className="inline-flex rounded-lg border border-line p-0.5">
             {PERIODS.map((p) => (
               <button
                 key={p.days}
                 onClick={() => setDays(p.days)}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  days === p.days ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
+                  days === p.days ? 'bg-brand-50 text-brand-700' : 'text-content-muted hover:text-content-secondary'
                 }`}
               >
                 {p.label}
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Gráficos sobre os endpoints reais de <code>/analytics</code> e <code>/finance</code> (sales-cube,
@@ -226,13 +226,13 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Comercial */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Comercial</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Comercial</h2>
           <div className="mb-6 grid gap-5 lg:grid-cols-2">
             <Card>
               <CardHeader><CardTitle className="text-base">Receita por mês</CardTitle></CardHeader>
               <CardContent>
                 {revenueByMonth.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Sem vendas no período.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Sem vendas no período.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={revenueByMonth} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
@@ -251,7 +251,7 @@ export default function AnalyticsPage() {
               <CardHeader><CardTitle className="text-base">Top 10 produtos por receita</CardTitle></CardHeader>
               <CardContent>
                 {topProducts.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Sem vendas no período.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Sem vendas no período.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={topProducts} layout="vertical" margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
@@ -268,7 +268,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Financeiro */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Financeiro</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Financeiro</h2>
           <div className="mb-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi label="Receita líquida" value={formatBRL(dre?.receitaLiquida ?? 0)} tone="success" />
             <Kpi label="Lucro bruto" value={formatBRL(dre?.lucroBruto ?? 0)} />
@@ -280,7 +280,7 @@ export default function AnalyticsPage() {
               <CardHeader><CardTitle className="text-base">DRE do período (valores realizados)</CardTitle></CardHeader>
               <CardContent>
                 {!dre || dre.receitaBruta === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Sem lançamentos pagos no período.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Sem lançamentos pagos no período.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={dreChart} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
@@ -301,13 +301,13 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Produção */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Produção</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Produção</h2>
           <div className="mb-6 grid gap-5 lg:grid-cols-2">
             <Card>
               <CardHeader><CardTitle className="text-base">Custo de produção por produto (top 10)</CardTitle></CardHeader>
               <CardContent>
                 {prodCostData.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Sem ordens concluídas no período.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Sem ordens concluídas no período.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={prodCostData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
