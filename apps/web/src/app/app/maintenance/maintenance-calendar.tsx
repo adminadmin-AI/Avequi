@@ -113,7 +113,7 @@ export function MaintenanceCalendar({
                   isToday(d) ? 'border-brand-300 bg-brand-50/40' : 'border-line',
                 )}
               >
-                <div className={cn('mb-1 text-xs font-medium', isToday(d) ? 'text-brand-700' : 'text-content-muted')}>
+                <div className={cn('mb-1 text-xs font-medium', isToday(d) ? 'text-brand-700 dark:text-brand-300' : 'text-content-muted')}>
                   {d}
                 </div>
                 <div className="space-y-0.5">
