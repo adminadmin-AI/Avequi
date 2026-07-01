@@ -73,6 +73,25 @@ body {
   --tw-ring-offset-color: var(--bg-primary);
 }
 
+/* Shake sutil para feedback de erro (ex.: credenciais inválidas no login) */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+.animate-shake {
+  animation: shake 0.4s var(--ease-precise, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
 /* Motion tokens respeitam preferência de redução de movimento */
 @media (prefers-reduced-motion: reduce) {
   *,
