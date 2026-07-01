@@ -98,7 +98,7 @@ export function DataTable<T>({
     <div className="space-y-3">
       {searchable && (
         <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
           <Input
             value={search}
             onChange={(e) => {
@@ -111,20 +111,20 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="avequi-scroll max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/60">
+            <tr className="border-b border-line">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => toggleSort(col)}
                   className={cn(
-                    'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500',
+                    'sticky top-0 z-10 bg-surface-secondary px-4 py-3 text-xs font-semibold uppercase tracking-wide text-content-muted',
                     col.align === 'right' && 'text-right',
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
-                    col.sortable && 'cursor-pointer select-none hover:text-slate-700',
+                    col.sortable && 'cursor-pointer select-none hover:text-content-secondary',
                   )}
                 >
                   <span
@@ -158,7 +158,7 @@ export function DataTable<T>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-slate-400"
+                  className="px-4 py-12 text-center text-content-muted"
                 >
                   {emptyMessage}
                 </td>
@@ -169,15 +169,15 @@ export function DataTable<T>({
                   key={rowKey(row)}
                   onClick={() => onRowClick?.(row)}
                   className={cn(
-                    'border-b border-slate-50 transition-colors duration-micro last:border-0',
-                    onRowClick && 'cursor-pointer hover:bg-brand-50/40',
+                    'border-b border-line/60 transition-colors duration-micro last:border-0',
+                    onRowClick && 'cursor-pointer hover:bg-brand-50/60 dark:hover:bg-brand-600/10',
                   )}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
                       className={cn(
-                        'px-4 py-3 text-slate-700',
+                        'px-4 py-3 text-content-secondary',
                         col.align === 'right' && 'text-right tabular-nums',
                         col.align === 'center' && 'text-center',
                         col.className,
@@ -196,7 +196,7 @@ export function DataTable<T>({
       </div>
 
       {pageCount > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex items-center justify-between text-sm text-content-secondary">
           <span>
             {sorted.length} registro{sorted.length === 1 ? '' : 's'}
           </span>
@@ -204,7 +204,7 @@ export function DataTable<T>({
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
-              className="rounded-md px-3 py-1 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded-md px-3 py-1 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
             >
               Anterior
             </button>
@@ -214,7 +214,7 @@ export function DataTable<T>({
             <button
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
-              className="rounded-md px-3 py-1 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded-md px-3 py-1 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
             >
               Próxima
             </button>

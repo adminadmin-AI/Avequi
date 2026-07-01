@@ -69,23 +69,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 !open && setItems((prev) => prev.filter((i) => i.id !== item.id))
               }
               className={cn(
-                'flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-md',
+                'flex items-start gap-3 rounded-xl border border-line bg-surface-elevated p-4 shadow-elevation-3',
                 'data-[state=open]:animate-in data-[state=open]:slide-in-from-right-full',
                 'data-[state=closed]:animate-out data-[state=closed]:fade-out',
               )}
             >
               <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', color)} />
               <div className="flex-1">
-                <ToastPrimitive.Title className="text-sm font-medium text-slate-900">
+                <ToastPrimitive.Title className="text-sm font-medium text-content">
                   {item.title}
                 </ToastPrimitive.Title>
                 {item.description && (
-                  <ToastPrimitive.Description className="mt-0.5 text-sm text-slate-500">
+                  <ToastPrimitive.Description className="mt-0.5 text-sm text-content-secondary">
                     {item.description}
                   </ToastPrimitive.Description>
                 )}
               </div>
-              <ToastPrimitive.Close className="text-slate-400 hover:text-slate-600">
+              <ToastPrimitive.Close className="text-content-muted hover:text-content">
                 <X className="h-4 w-4" />
               </ToastPrimitive.Close>
             </ToastPrimitive.Root>
