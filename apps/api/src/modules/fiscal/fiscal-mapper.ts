@@ -37,6 +37,20 @@ export interface FiscalItemTax {
   cofinsAliquota: number;
   cofinsValor: number;
   difal?: FiscalDifal;
+  // IBS/CBS — grupo UB, NT 2025.002-RTC (#415)
+  ibsCbs?: FiscalIbsCbs;
+}
+
+export interface FiscalIbsCbs {
+  cClassTrib: string;
+  cbsCst: string;
+  base: number;         // vBC comum a CBS/IBS (valor da operação)
+  cbsAliquota: number;
+  cbsValor: number;
+  ibsUfAliquota: number;
+  ibsUfValor: number;
+  ibsMunAliquota: number;
+  ibsMunValor: number;
 }
 
 export interface FiscalItem {
@@ -178,6 +192,19 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       cofins_base_calculo: t.cofinsBase,
       cofins_aliquota: t.cofinsAliquota,
       cofins_valor: t.cofinsValor,
+    }),
+    // IBS/CBS — grupo UB da NT 2025.002-RTC, campos flat da API Focus (#415)
+    // Totais (grupo W03) são calculados automaticamente pela Focus a partir dos itens
+    ...(t?.ibsCbs && {
+      ibs_cbs_situacao_tributaria: t.ibsCbs.cbsCst,
+      ibs_cbs_classificacao_tributaria: t.ibsCbs.cClassTrib,
+      ibs_cbs_base_calculo: t.ibsCbs.base,
+      cbs_aliquota: t.ibsCbs.cbsAliquota,
+      cbs_valor: t.ibsCbs.cbsValor,
+      ibs_uf_aliquota: t.ibsCbs.ibsUfAliquota,
+      ibs_uf_valor: t.ibsCbs.ibsUfValor,
+      ibs_mun_aliquota: t.ibsCbs.ibsMunAliquota,
+      ibs_mun_valor: t.ibsCbs.ibsMunValor,
     }),
     ...(item.vehicle && { veiculos_novos: mapVehicleToPayload(item.vehicle) }),
     // DIFAL — campos Focus NFe para ICMSUFDest (EC 87/2015)

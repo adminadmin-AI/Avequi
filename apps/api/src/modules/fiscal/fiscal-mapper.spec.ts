@@ -140,4 +140,52 @@ describe('fiscal-mapper', () => {
       expect(payload.natureza_operacao).toBe('TRANSFERÊNCIA DE MERCADORIA');
     });
   });
+
+  describe('grupo UB — IBS/CBS NT 2025.002 (#415)', () => {
+    const taxBase = {
+      cfop: '6101',
+      icmsCst: '00', icmsBase: 1000, icmsAliquota: 12, icmsValor: 120,
+      ipiCst: '51', ipiBase: 1000, ipiAliquota: 0, ipiValor: 0,
+      pisCst: '49', pisBase: 1000, pisAliquota: 0, pisValor: 0,
+      cofinsCst: '99', cofinsBase: 0, cofinsAliquota: 0, cofinsValor: 0,
+    };
+
+    it('mapeia campos ibs_cbs_* quando o item tem ibsCbs calculado', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{
+          ...baseInput.items[0],
+          tax: {
+            ...taxBase,
+            ibsCbs: {
+              cClassTrib: '000001', cbsCst: '000', base: 1000,
+              cbsAliquota: 0.9, cbsValor: 9,
+              ibsUfAliquota: 0.05, ibsUfValor: 0.5,
+              ibsMunAliquota: 0.05, ibsMunValor: 0.5,
+            },
+          },
+        }],
+      }) as any;
+      expect(payload.items[0]).toMatchObject({
+        ibs_cbs_situacao_tributaria: '000',
+        ibs_cbs_classificacao_tributaria: '000001',
+        ibs_cbs_base_calculo: 1000,
+        cbs_aliquota: 0.9,
+        cbs_valor: 9,
+        ibs_uf_aliquota: 0.05,
+        ibs_uf_valor: 0.5,
+        ibs_mun_aliquota: 0.05,
+        ibs_mun_valor: 0.5,
+      });
+    });
+
+    it('omite campos ibs_cbs_* quando o item não tem ibsCbs', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], tax: taxBase }],
+      }) as any;
+      expect(payload.items[0].ibs_cbs_situacao_tributaria).toBeUndefined();
+      expect(payload.items[0].cbs_valor).toBeUndefined();
+    });
+  });
 });

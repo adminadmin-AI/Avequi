@@ -385,4 +385,44 @@ describe('TaxCalculationService', () => {
     expect(result.cofins.baseCalculo).toBe(0); // CST 99: vBC zerada
     expect(result.cofins.valor).toBe(0);
   });
+
+  it('calcula IBS/CBS 2026 quando a regra tem cbsAliquota (CBS 0,9% + IBS 0,05/0,05) (#414)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        cClassTrib: '000001',
+        cbsCst: '000',
+        cbsAliquota: dec(0.9),
+        ibsUfCst: '000',
+        ibsUfAliquota: dec(0.05),
+        ibsMunCst: '000',
+        ibsMunAliquota: dec(0.05),
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      itemValue: 1000,
+    });
+    expect(result.cClassTrib).toBe('000001');
+    expect(result.cbs).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.9, valor: 9 });
+    expect(result.ibsUf).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.05, valor: 0.5 });
+    expect(result.ibsMun).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.05, valor: 0.5 });
+    // Fase teste 2026: IBS/CBS não entram no totalTributos (compensados com PIS/COFINS)
+    expect(result.totalTributos).toBe(189 + 50 + 6.5 + 30);
+  });
+
+  it('não calcula IBS/CBS quando a regra não tem cbsAliquota', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      itemValue: 1000,
+    });
+    expect(result.cbs).toBeUndefined();
+    expect(result.cClassTrib).toBeUndefined();
+  });
 });
