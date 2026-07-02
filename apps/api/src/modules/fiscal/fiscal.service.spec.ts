@@ -260,6 +260,60 @@ describe('FiscalService', () => {
       );
     });
 
+    it('deve persistir número, série e protocolo SEFAZ ao autorizar (#361)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.PROCESSING,
+      });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.AUTHORIZED,
+      });
+
+      await service.handleWebhook({
+        ref: 'GDR-SO-so-1',
+        status: 'autorizado',
+        chave_nfe: '35260412345678000190650010000000011234567890',
+        numero: '14237',
+        serie: '1',
+        protocolo: '141260000012345',
+      });
+
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            number: 14237,
+            series: 1,
+            protocolNumber: '141260000012345',
+            authorizedAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('deve extrair nProt do XML quando protocolo não vem no webhook (#361)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.PROCESSING,
+      });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.AUTHORIZED,
+      });
+
+      await service.handleWebhook({
+        ref: 'GDR-SO-so-1',
+        status: 'autorizado',
+        xml: '<protNFe><infProt><nProt>141260000054321</nProt></infProt></protNFe>',
+      });
+
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ protocolNumber: '141260000054321' }),
+        }),
+      );
+    });
+
     it('não deve sobrescrever documento já AUTHORIZED (idempotência do webhook)', async () => {
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
         ...baseFiscalDoc,

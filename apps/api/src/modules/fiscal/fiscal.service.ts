@@ -677,7 +677,16 @@ export class FiscalService {
 
   private async applyFocusResponse(
     fiscalDocId: string,
-    response: { status: string; chave_nfe?: string; xml?: string; motivo?: string; codigo?: string },
+    response: {
+      status: string;
+      chave_nfe?: string;
+      xml?: string;
+      motivo?: string;
+      codigo?: string;
+      numero?: string | number;
+      serie?: string | number;
+      protocolo?: string;
+    },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
       autorizado: FiscalStatus.AUTHORIZED,
@@ -689,12 +698,24 @@ export class FiscalService {
 
     const newStatus = statusMap[response.status] ?? FiscalStatus.ERROR;
 
+    // Número/série/protocolo SEFAZ (#361) — Focus retorna numero/serie no response;
+    // nProt pode vir no campo protocolo ou embutido no XML autorizado
+    const number = response.numero != null ? Number(response.numero) : null;
+    const series = response.serie != null ? Number(response.serie) : null;
+    const protocolNumber =
+      response.protocolo ?? response.xml?.match(/<nProt>(\d+)<\/nProt>/)?.[1] ?? null;
+
     await this.prisma.fiscalDocument.update({
       where: { id: fiscalDocId },
       data: {
         status: newStatus,
         chave: response.chave_nfe ?? null,
         xml: response.xml ?? null,
+        ...(number != null && { number }),
+        ...(series != null && { series }),
+        ...(protocolNumber && { protocolNumber }),
+        ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
+        ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
         rejectionCode: response.codigo ?? null,
         rejectionReason: newStatus === FiscalStatus.REJECTED ? (response.motivo ?? null) : null,
         lastError: newStatus === FiscalStatus.ERROR ? (response.motivo ?? null) : null,

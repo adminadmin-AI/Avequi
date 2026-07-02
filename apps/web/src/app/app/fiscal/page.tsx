@@ -79,6 +79,13 @@ export default function FiscalPage() {
   const columns: Column<FiscalDocument>[] = [
     { key: 'ref', header: 'Ref', cell: (d) => <span className="font-mono text-xs">{d.focusRef ?? '—'}</span> },
     {
+      key: 'number',
+      header: 'Nº / Série',
+      sortable: true,
+      accessor: (d) => d.number ?? 0,
+      cell: (d) => (d.number != null ? <span className="font-mono text-xs">{d.number}/{d.series ?? 1}</span> : '—'),
+    },
+    {
       key: 'type',
       header: 'Tipo',
       align: 'center',

@@ -805,6 +805,10 @@ model FiscalDocument {
   status           FiscalStatus       @default(PENDING)
   focusRef         String?
   chave            String?
+  number           Int?               // número da NF-e retornado pelo Focus (#361)
+  series           Int?               @default(1)
+  protocolNumber   String?            // nProt da SEFAZ (#361)
+  authorizedAt     DateTime?          // data/hora de autorização (#361)
   xml              String?
   rejectionCode    String?
   rejectionReason  String?
@@ -819,6 +823,7 @@ model FiscalDocument {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
   @@map("gdr_fiscal_documents")
 }
 
