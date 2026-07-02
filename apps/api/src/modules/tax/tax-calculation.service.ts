@@ -10,6 +10,14 @@ export interface TaxInput {
   ufOrigem: string;
   ufDestino: string;
   itemValue: number; // valor total do item (qty × unitPrice)
+  consumidorFinal?: boolean; // true quando destinatário é consumidor final (sem IE ou pessoa física)
+}
+
+export interface DifAlResult {
+  baseCalculo: number;
+  aliquotaInterna: number;
+  aliquotaInterestadual: number;
+  valor: number; // 100% destino (EC 87/2015 — desde 2019)
 }
 
 export interface TaxResult {
@@ -18,6 +26,7 @@ export interface TaxResult {
   ipi: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   pis: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   cofins: { cst: string; baseCalculo: number; aliquota: number; valor: number };
+  difal?: DifAlResult;
   totalTributos: number;
 }
 
@@ -33,6 +42,7 @@ const FALLBACK_RULE = {
   pisAliquota: new Prisma.Decimal(0.65),
   cofinsCst: '01',
   cofinsAliquota: new Prisma.Decimal(3),
+  icmsInternaDestino: null as Prisma.Decimal | null,
 };
 
 @Injectable()
@@ -74,7 +84,24 @@ export class TaxCalculationService {
     const cofinsBase = input.itemValue;
     const cofinsValor = round2(cofinsBase * cofinsAliquota / 100);
 
-    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor);
+    // DIFAL — EC 87/2015: operação interestadual para consumidor final não-contribuinte
+    // Desde 2019: 100% do diferencial vai para o UF destino
+    let difal: DifAlResult | undefined;
+    const isInterstate = input.ufOrigem !== input.ufDestino;
+    const icmsInternaDestino = r.icmsInternaDestino ? Number(r.icmsInternaDestino) : null;
+
+    if (isInterstate && input.consumidorFinal && icmsInternaDestino && icmsInternaDestino > icmsAliquota) {
+      const difalBase = icmsBaseFull; // base = valor + IPI (mesma base do ICMS)
+      const difalValor = round2(difalBase * (icmsInternaDestino - icmsAliquota) / 100);
+      difal = {
+        baseCalculo: difalBase,
+        aliquotaInterna: icmsInternaDestino,
+        aliquotaInterestadual: icmsAliquota,
+        valor: difalValor,
+      };
+    }
+
+    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0));
 
     return {
       cfop: r.cfop,
@@ -82,6 +109,7 @@ export class TaxCalculationService {
       ipi: { cst: r.ipiCst, baseCalculo: ipiBase, aliquota: ipiAliquota, valor: ipiValor },
       pis: { cst: r.pisCst, baseCalculo: pisBase, aliquota: pisAliquota, valor: pisValor },
       cofins: { cst: r.cofinsCst, baseCalculo: cofinsBase, aliquota: cofinsAliquota, valor: cofinsValor },
+      ...(difal && { difal }),
       totalTributos,
     };
   }
