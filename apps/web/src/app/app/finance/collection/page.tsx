@@ -59,13 +59,13 @@ const CHANNEL_LABEL: Record<string, string> = {
 const BOLETO_PENDENTE: BoletoStatus[] = ['PENDING', 'REGISTERED', 'OVERDUE'];
 
 function Kpi({ label, value, hint, tone = 'neutral' }: { label: string; value: string; hint?: string; tone?: 'neutral' | 'warning' | 'danger' | 'success' }) {
-  const cls = { neutral: 'text-slate-900', warning: 'text-warning', danger: 'text-danger', success: 'text-success' }[tone];
+  const cls = { neutral: 'text-content', warning: 'text-warning', danger: 'text-danger', success: 'text-success' }[tone];
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+        {hint && <p className="mt-0.5 text-xs text-content-muted">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -139,8 +139,8 @@ export default function CollectionMonitorPage() {
       header: 'Cliente',
       cell: (r) => (
         <div>
-          <p className="text-sm text-slate-800">{r.customerName ?? '—'}</p>
-          {r.description && <p className="text-xs text-slate-400">{r.description}</p>}
+          <p className="text-sm text-content">{r.customerName ?? '—'}</p>
+          {r.description && <p className="text-xs text-content-muted">{r.description}</p>}
         </div>
       ),
     },
@@ -170,15 +170,15 @@ export default function CollectionMonitorPage() {
       align: 'center',
       cell: (r) =>
         r.attemptCount > 0 ? (
-          <div className="text-xs text-slate-500">
-            <span className="font-medium text-slate-700">{r.attemptCount}</span>
+          <div className="text-xs text-content-muted">
+            <span className="font-medium text-content-secondary">{r.attemptCount}</span>
             {r.lastAttemptChannel && (
               <span> · {CHANNEL_LABEL[r.lastAttemptChannel] ?? r.lastAttemptChannel}</span>
             )}
             {r.lastAttemptDate && <span> · {formatDate(r.lastAttemptDate)}</span>}
           </div>
         ) : (
-          <span className="text-xs text-slate-300">—</span>
+          <span className="text-xs text-content-muted">—</span>
         ),
     },
     {
@@ -200,7 +200,7 @@ export default function CollectionMonitorPage() {
                 trigger.mutate({ id: r.id, channel: ch });
               }}
               title={`Registrar cobrança via ${CHANNEL_LABEL[ch]}`}
-              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Icon size={15} />
             </button>
@@ -275,7 +275,7 @@ export default function CollectionMonitorPage() {
               <CardHeader><CardTitle className="text-base">Boletos por status</CardTitle></CardHeader>
               <CardContent>
                 {boletoByStatus.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Nenhum boleto emitido.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Nenhum boleto emitido.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={boletoByStatus} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -294,7 +294,7 @@ export default function CollectionMonitorPage() {
               <CardHeader><CardTitle className="text-base">Cobranças PIX por status</CardTitle></CardHeader>
               <CardContent>
                 {pixByStatus.length === 0 ? (
-                  <p className="py-12 text-center text-sm text-slate-400">Nenhuma cobrança PIX emitida.</p>
+                  <p className="py-12 text-center text-sm text-content-muted">Nenhuma cobrança PIX emitida.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={pixByStatus} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>

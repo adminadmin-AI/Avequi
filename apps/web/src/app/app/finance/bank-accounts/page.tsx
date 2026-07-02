@@ -147,7 +147,7 @@ export default function BankAccountsPage() {
               setConfigTarget(a);
             }}
             title="Configurar cobrança (provider, PIX, saldo mínimo)"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Settings2 size={15} />
           </button>
@@ -158,7 +158,7 @@ export default function BankAccountsPage() {
               setDialogOpen(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -168,7 +168,7 @@ export default function BankAccountsPage() {
               deactivate(a);
             }}
             title="Desativar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Trash2 size={15} />
           </button>
@@ -202,8 +202,8 @@ export default function BankAccountsPage() {
               <Landmark size={20} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Saldo total</p>
-              <p className="text-2xl font-semibold tracking-tight text-slate-900">
+              <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Saldo total</p>
+              <p className="text-2xl font-semibold tracking-tight text-content">
                 {formatBRL(totalBalance)}
               </p>
             </div>

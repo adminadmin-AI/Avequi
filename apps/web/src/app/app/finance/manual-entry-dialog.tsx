@@ -130,10 +130,10 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
         >
           <Field label="Tipo" required error={errors.type?.message}>
             <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-content-secondary">
                 <input type="radio" value="RECEIVABLE" {...register('type')} /> Recebível
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-content-secondary">
                 <input type="radio" value="PAYABLE" {...register('type')} /> Pagável
               </label>
             </div>

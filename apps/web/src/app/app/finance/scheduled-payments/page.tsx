@@ -119,8 +119,8 @@ export default function ScheduledPaymentsPage() {
       header: 'Pagável vinculado',
       cell: (s) => (
         <div>
-          <p className="text-sm text-slate-800">{s.financialEntry?.description ?? '—'}</p>
-          {s.note && <p className="text-xs text-slate-400">{s.note}</p>}
+          <p className="text-sm text-content">{s.financialEntry?.description ?? '—'}</p>
+          {s.note && <p className="text-xs text-content-muted">{s.note}</p>}
         </div>
       ),
     },
@@ -161,7 +161,7 @@ export default function ScheduledPaymentsPage() {
               handleCancel(s);
             }}
             title="Cancelar agendamento"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Ban size={15} />
           </button>

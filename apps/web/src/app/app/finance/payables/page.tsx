@@ -66,18 +66,18 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? 'border-red-200 bg-red-50/40' : undefined}>
+    <Card className={highlight ? 'border-danger/30 bg-danger/10' : undefined}>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p
           className={`mt-1 text-2xl font-semibold tracking-tight ${
-            highlight ? 'text-danger' : 'text-slate-900'
+            highlight ? 'text-danger' : 'text-content'
           }`}
         >
           {formatBRL(value)}
         </p>
         {count != null && (
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-content-muted">
             {count} {count === 1 ? 'lançamento' : 'lançamentos'}
           </p>
         )}
@@ -193,7 +193,7 @@ export default function PayablesPage() {
       header: 'Fornecedor',
       cell: (e) => (
         <div className="flex items-center gap-2">
-          <span>{e.purchaseOrder?.supplier?.name ?? <span className="text-slate-400">—</span>}</span>
+          <span>{e.purchaseOrder?.supplier?.name ?? <span className="text-content-muted">—</span>}</span>
           {pendingApproval(e) && (
             <Badge variant="warning" className="whitespace-nowrap">
               Aprovação pendente
@@ -205,7 +205,7 @@ export default function PayablesPage() {
     {
       key: 'description',
       header: 'Descrição',
-      cell: (e) => e.description || <span className="text-slate-400">—</span>,
+      cell: (e) => e.description || <span className="text-content-muted">—</span>,
     },
     {
       key: 'amount',
@@ -246,7 +246,7 @@ export default function PayablesPage() {
             <ExternalLink size={13} /> Ver PO
           </Link>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-content-muted">—</span>
         ),
     },
     {
@@ -265,7 +265,7 @@ export default function PayablesPage() {
                   setPayTarget(e);
                 }}
                 title="Dar baixa manual"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success"
               >
                 <DollarSign size={15} />
               </button>
@@ -274,7 +274,7 @@ export default function PayablesPage() {
               href="/app/finance/scheduled-payments"
               onClick={(ev) => ev.stopPropagation()}
               title="Agendar pagamento"
-              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
             >
               <CalendarClock size={15} />
             </Link>
@@ -285,7 +285,7 @@ export default function PayablesPage() {
                   handleCancel(e);
                 }}
                 title="Cancelar"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
               >
                 <Ban size={15} />
               </button>

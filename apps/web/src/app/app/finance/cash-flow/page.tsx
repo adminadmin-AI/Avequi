@@ -74,10 +74,10 @@ function KpiCard({
   tone?: 'neutral' | 'success' | 'danger' | 'brand';
 }) {
   const toneCls = {
-    neutral: 'bg-slate-100 text-slate-600',
-    success: 'bg-green-50 text-success',
-    danger: 'bg-red-50 text-danger',
-    brand: 'bg-brand-50 text-brand-600',
+    neutral: 'bg-surface-secondary text-content-secondary',
+    success: 'bg-success/10 text-success',
+    danger: 'bg-danger/10 text-danger',
+    brand: 'bg-brand-500/10 text-brand-600 dark:text-brand-300',
   }[tone];
   return (
     <Card>
@@ -86,11 +86,11 @@ function KpiCard({
           <Icon size={20} />
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
           <p
             className={cn(
               'text-xl font-semibold tracking-tight',
-              value < 0 ? 'text-danger' : 'text-slate-900',
+              value < 0 ? 'text-danger' : 'text-content',
             )}
           >
             {formatBRL(value)}
@@ -206,14 +206,14 @@ export default function CashFlowPage() {
         title="Fluxo de Caixa"
         description="Projeção de entradas e saídas previstas (em aberto e vencidas)."
         actions={
-          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="flex rounded-lg border border-line bg-surface p-0.5">
             {PERIODS.map((p) => (
               <button
                 key={p.days}
                 onClick={() => setDays(p.days)}
                 className={cn(
                   'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  days === p.days ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100',
+                  days === p.days ? 'bg-brand-600 text-white' : 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
                 )}
               >
                 {p.label}
@@ -257,7 +257,7 @@ export default function CashFlowPage() {
               <Spinner size="lg" />
             </div>
           ) : chartData.length === 0 ? (
-            <div className="flex h-72 items-center justify-center text-sm text-slate-400">
+            <div className="flex h-72 items-center justify-center text-sm text-content-muted">
               Nenhum lançamento previsto no período.
             </div>
           ) : (
@@ -299,32 +299,32 @@ export default function CashFlowPage() {
         <Card className="h-fit">
           <CardHeader className="flex items-center justify-between">
             <CardTitle className="text-base">Posição por conta</CardTitle>
-            <span className="text-sm font-semibold tabular-nums text-slate-900">
+            <span className="text-sm font-semibold tabular-nums text-content">
               {formatBRL(totalBalance)}
             </span>
           </CardHeader>
           <CardContent className="space-y-2">
             {accounts.length === 0 ? (
-              <p className="py-2 text-sm text-slate-400">Nenhuma conta cadastrada.</p>
+              <p className="py-2 text-sm text-content-muted">Nenhuma conta cadastrada.</p>
             ) : (
               accounts.map((a) => (
-                <div key={a.id} className="flex items-center justify-between gap-2 border-b border-slate-50 pb-2 last:border-0">
+                <div key={a.id} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-slate-700">{a.name}</p>
-                    {a.bank && <p className="truncate text-xs text-slate-400">{a.bank}</p>}
+                    <p className="truncate text-sm text-content-secondary">{a.name}</p>
+                    {a.bank && <p className="truncate text-xs text-content-muted">{a.bank}</p>}
                   </div>
-                  <span className="text-sm font-medium tabular-nums text-slate-900">
+                  <span className="text-sm font-medium tabular-nums text-content">
                     {formatBRL(Number(a.balance ?? 0))}
                   </span>
                 </div>
               ))
             )}
-            <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-              <span className="text-sm font-medium text-slate-700">Projetado no período</span>
+            <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
+              <span className="text-sm font-medium text-content-secondary">Projetado no período</span>
               <span
                 className={cn(
                   'text-sm font-semibold tabular-nums',
-                  projectedAfter < 0 ? 'text-danger' : 'text-slate-900',
+                  projectedAfter < 0 ? 'text-danger' : 'text-content',
                 )}
               >
                 {formatBRL(projectedAfter)}

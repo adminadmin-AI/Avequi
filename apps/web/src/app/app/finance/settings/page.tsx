@@ -46,7 +46,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: 'categories' | 'cost-c
     { id: 'cost-centers', label: 'Centros de Custo' },
   ] as const;
   return (
-    <div className="mb-5 flex gap-1 border-b border-slate-200">
+    <div className="mb-5 flex gap-1 border-b border-line">
       {items.map((it) => (
         <button
           key={it.id}
@@ -55,7 +55,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: 'categories' | 'cost-c
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
             tab === it.id
               ? 'border-brand-600 text-brand-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700',
+              : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
           {it.label}
@@ -114,8 +114,8 @@ export default function FinanceSettingsPage() {
       key: 'name',
       header: 'Nome',
       cell: (c) => (
-        <span style={{ paddingLeft: c.depth * 16 }} className={c.depth ? 'text-slate-600' : 'font-medium'}>
-          {c.depth > 0 && <span className="mr-1 text-slate-300">└</span>}
+        <span style={{ paddingLeft: c.depth * 16 }} className={c.depth ? 'text-content-secondary' : 'font-medium'}>
+          {c.depth > 0 && <span className="mr-1 text-content-muted">└</span>}
           {c.name}
         </span>
       ),
@@ -145,7 +145,7 @@ export default function FinanceSettingsPage() {
               setCatDialog(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -155,7 +155,7 @@ export default function FinanceSettingsPage() {
               deactivateCategory(c);
             }}
             title="Desativar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Trash2 size={15} />
           </button>
@@ -207,8 +207,8 @@ export default function FinanceSettingsPage() {
       key: 'name',
       header: 'Nome',
       cell: (c) => (
-        <span style={{ paddingLeft: c.depth * 16 }} className={c.depth ? 'text-slate-600' : 'font-medium'}>
-          {c.depth > 0 && <span className="mr-1 text-slate-300">└</span>}
+        <span style={{ paddingLeft: c.depth * 16 }} className={c.depth ? 'text-content-secondary' : 'font-medium'}>
+          {c.depth > 0 && <span className="mr-1 text-content-muted">└</span>}
           {c.name}
         </span>
       ),
@@ -232,7 +232,7 @@ export default function FinanceSettingsPage() {
               setCcDialog(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
           >
             <Pencil size={15} />
           </button>
@@ -242,7 +242,7 @@ export default function FinanceSettingsPage() {
               deactivateCostCenter(c);
             }}
             title="Desativar"
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
           >
             <Trash2 size={15} />
           </button>

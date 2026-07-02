@@ -130,7 +130,7 @@ export default function ReconciliationPage() {
         description="Importe os retornos CNAB e acompanhe as transações ainda não conciliadas."
       />
 
-      <div className="mb-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-5 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Ao <strong>importar</strong> um retorno CNAB processado, os boletos liquidados são conciliados
@@ -149,7 +149,7 @@ export default function ReconciliationPage() {
           {retornosQ.isLoading ? (
             <div className="flex justify-center py-8"><Spinner /></div>
           ) : retornos.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">Nenhum arquivo de retorno CNAB processado.</p>
+            <p className="py-8 text-center text-sm text-content-muted">Nenhum arquivo de retorno CNAB processado.</p>
           ) : (
             <DataTable
               data={retornos}
