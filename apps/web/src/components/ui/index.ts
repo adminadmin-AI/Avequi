@@ -67,3 +67,17 @@ export {
   PopoverClose,
 } from './popover';
 export { Tooltip, TooltipContent, type TooltipProps } from './tooltip';
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  type TabsProps,
+  type TabsTriggerProps,
+} from './tabs';
+export {
+  SegmentedControl,
+  type SegmentedOption,
+  type SegmentedControlProps,
+} from './segmented-control';
+export { Toggle, type ToggleProps } from './toggle';
