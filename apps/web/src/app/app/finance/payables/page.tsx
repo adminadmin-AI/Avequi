@@ -17,6 +17,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
@@ -305,7 +306,7 @@ export default function PayablesPage() {
       />
 
       {/* KPIs */}
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiGrid className="mb-5">
         <KpiCard label="A vencer" value={summary.toComeValue} count={summary.toComeCount} />
         <KpiCard
           label="Vencido"
@@ -315,7 +316,7 @@ export default function PayablesPage() {
         />
         <KpiCard label="Pago no mês" value={summary.paidMonth} />
         <KpiCard label="Total em aberto" value={summary.totalOpen} />
-      </div>
+      </KpiGrid>
 
       {/* Filtros */}
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

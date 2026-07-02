@@ -26,6 +26,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { KpiGrid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils';
 import { formatDate, formatBRL } from '@/lib/format';
 import { MaintenanceCalendar } from './maintenance-calendar';
@@ -454,7 +455,7 @@ export default function MaintenancePage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiGrid className="mb-5">
         <Kpi label="Abertas" value={String(stats?.orders.open ?? 0)} />
         <Kpi label="Em andamento" value={String(stats?.orders.inProgress ?? 0)} />
         <Kpi label="Concluídas no mês" value={String(stats?.orders.doneThisMonth ?? 0)} />
@@ -463,7 +464,7 @@ export default function MaintenancePage() {
           value={String(stats?.equipment.underMaintenance ?? 0)}
           hint={stats?.overdueCount ? `${stats.overdueCount} com manutenção vencida` : undefined}
         />
-      </div>
+      </KpiGrid>
 
       <Tabs tab={tab} setTab={setTab} />
 

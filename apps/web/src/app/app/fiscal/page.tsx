@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/select';
 import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
+import { KpiGrid } from '@/components/ui/layout';
 import { formatDate } from '@/lib/format';
 import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL } from './fiscal-status';
 import { EmitNfeDialog } from './emit-nfe-dialog';
@@ -153,11 +154,11 @@ export default function FiscalPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-3">
+      <KpiGrid className="mb-5">
         <Kpi label="Emitidos hoje" value={String(kpis.emittedToday)} />
         <Kpi label="Autorizados no mês" value={String(kpis.authorizedMonth)} />
         <Kpi label="Rejeitados no mês" value={String(kpis.rejectedMonth)} alert={kpis.rejectedMonth > 0} />
-      </div>
+      </KpiGrid>
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>

@@ -72,6 +72,7 @@ export {
 export { FormDialog } from './form-dialog';
 export { FormSection, type FormSectionProps } from './form-section';
 export { Stepper, type Step, type StepperProps } from './stepper';
+export { PageContainer, KpiGrid, CardGrid, ContentWithSidebar, Section } from './layout';
 export { ConfirmDialogProvider, useConfirm } from './confirm-dialog';
 export { ToastProvider, useToast, type ToastPosition } from './toast';
 export { Alert, InlineMessage, type AlertProps, type AlertVariant } from './alert';

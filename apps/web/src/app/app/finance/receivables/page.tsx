@@ -17,6 +17,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { ReceivablePayForm, type PayFormValues } from './receivable-pay-form';
@@ -331,7 +332,7 @@ export default function ReceivablesPage() {
       />
 
       {/* KPIs */}
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiGrid className="mb-5">
         <KpiCard label="A vencer" value={summary.toComeValue} count={summary.toComeCount} />
         <KpiCard
           label="Vencido"
@@ -341,7 +342,7 @@ export default function ReceivablesPage() {
         />
         <KpiCard label="Recebido no mês" value={summary.receivedMonth} />
         <KpiCard label="Total em aberto" value={summary.totalOpen} />
-      </div>
+      </KpiGrid>
 
       <div className="grid gap-5 lg:grid-cols-4">
         {/* Tabela + filtros */}

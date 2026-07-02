@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { KpiGrid } from '@/components/ui/layout';
 import { formatNumber, formatDate } from '@/lib/format';
 import { PRODUCTION_STATUS, PRODUCTION_STATUS_OPTIONS } from './production-status';
 
@@ -110,11 +111,11 @@ export default function ProductionPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-3">
+      <KpiGrid className="mb-5">
         <Kpi label="Em produção" value={String(kpis.inProgress)} />
         <Kpi label="Planejadas" value={String(kpis.planned)} />
         <Kpi label="Concluídas no mês" value={String(kpis.doneMonth)} />
-      </div>
+      </KpiGrid>
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>

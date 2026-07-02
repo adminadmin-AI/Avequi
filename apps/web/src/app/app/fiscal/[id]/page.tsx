@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, RotateCcw, Ban, FileEdit, Copy } from 'lucide-react';
+import { ExternalLink, RotateCcw, Ban, FileEdit, Copy } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import type { FiscalDocument } from '@/types/api';
@@ -34,7 +34,6 @@ interface DocWithOrder extends FiscalDocument {
 
 export default function FiscalDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -110,14 +109,20 @@ export default function FiscalDetailPage() {
 
   return (
     <div>
+      {/* detail page pattern (F3.2 #317): back + metadata no header */}
       <PageHeader
         title={`${FISCAL_TYPE_LABEL[doc.type]} ${doc.focusRef ?? ''}`}
         description={doc.salesOrder?.customer?.name ?? '—'}
-        actions={
-          <Button variant="secondary" onClick={() => router.push('/app/fiscal')}>
-            <ArrowLeft size={16} />
-            Voltar
-          </Button>
+        backHref="/app/fiscal"
+        meta={
+          <>
+            <Badge variant={FISCAL_STATUS[doc.status].variant}>
+              {FISCAL_STATUS[doc.status].label}
+            </Badge>
+            <span className="text-caption text-content-muted">
+              Emitido em {formatDateTime(doc.createdAt)}
+            </span>
+          </>
         }
       />
 
