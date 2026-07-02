@@ -78,10 +78,11 @@ export class TaxCalculationService {
     const icmsValor = round2(icmsBase * icmsAliquota / 100);
 
     // PIS e COFINS: base = valor do item (cumulativo no Lucro Presumido)
-    const pisBase = input.itemValue;
+    // CST 99 (outras operações): NF-e real #14236 autorizada emite vBC=0 (#371)
+    const pisBase = r.pisCst === '99' ? 0 : input.itemValue;
     const pisValor = round2(pisBase * pisAliquota / 100);
 
-    const cofinsBase = input.itemValue;
+    const cofinsBase = r.cofinsCst === '99' ? 0 : input.itemValue;
     const cofinsValor = round2(cofinsBase * cofinsAliquota / 100);
 
     // DIFAL — EC 87/2015: operação interestadual para consumidor final não-contribuinte

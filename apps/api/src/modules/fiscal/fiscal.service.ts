@@ -120,7 +120,7 @@ export class FiscalService {
       const sn = i.serialNumber;
       if (sn?.chassi) {
         vehicle = {
-          tipoOperacao: sn.tipoOperacao ?? '1',
+          tipoOperacao: sn.tipoOperacao ?? '0', // 0=Outros — GDR não é concessionária (#372)
           chassi: sn.chassi,
           codigoCor: sn.codigoCor ?? '00',
           descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
@@ -129,8 +129,8 @@ export class FiscalService {
           pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
           pesoBruto: String(sn.pesoBruto ?? '0.000'),
           serie: sn.serial,
-          tipoCombustivel: sn.tipoCombustivel ?? '99',
-          numeroMotor: sn.numeroMotor ?? '000000000000000000000',
+          tipoCombustivel: sn.tipoCombustivel ?? '11', // conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+          numeroMotor: sn.numeroMotor ?? '0',
           cmt: sn.cmt ? String(sn.cmt) : undefined,
           distanciaEixos: sn.distanciaEixos ?? undefined,
           anoModelo: sn.anoModelo ?? new Date().getFullYear(),
@@ -140,7 +140,7 @@ export class FiscalService {
           especieVeiculo: sn.especieVeiculo ?? '2',
           vin: sn.vin ?? 'N',
           condicao: sn.condicaoVeiculo ?? '1',
-          codigoMarcaModelo: sn.codigoMarcaModelo ?? '999999',
+          codigoMarcaModelo: sn.codigoMarcaModelo ?? i.product.codigoMarcaModelo ?? '999999',
           corDenatran: sn.corDenatran ?? '00',
           lotacao: sn.lotacao ?? 0,
           restricao: sn.restricao ?? '0',
@@ -677,7 +677,16 @@ export class FiscalService {
 
   private async applyFocusResponse(
     fiscalDocId: string,
-    response: { status: string; chave_nfe?: string; xml?: string; motivo?: string; codigo?: string },
+    response: {
+      status: string;
+      chave_nfe?: string;
+      xml?: string;
+      motivo?: string;
+      codigo?: string;
+      numero?: string | number;
+      serie?: string | number;
+      protocolo?: string;
+    },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
       autorizado: FiscalStatus.AUTHORIZED,
@@ -689,12 +698,24 @@ export class FiscalService {
 
     const newStatus = statusMap[response.status] ?? FiscalStatus.ERROR;
 
+    // Número/série/protocolo SEFAZ (#361) — Focus retorna numero/serie no response;
+    // nProt pode vir no campo protocolo ou embutido no XML autorizado
+    const number = response.numero != null ? Number(response.numero) : null;
+    const series = response.serie != null ? Number(response.serie) : null;
+    const protocolNumber =
+      response.protocolo ?? response.xml?.match(/<nProt>(\d+)<\/nProt>/)?.[1] ?? null;
+
     await this.prisma.fiscalDocument.update({
       where: { id: fiscalDocId },
       data: {
         status: newStatus,
         chave: response.chave_nfe ?? null,
         xml: response.xml ?? null,
+        ...(number != null && { number }),
+        ...(series != null && { series }),
+        ...(protocolNumber && { protocolNumber }),
+        ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
+        ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
         rejectionCode: response.codigo ?? null,
         rejectionReason: newStatus === FiscalStatus.REJECTED ? (response.motivo ?? null) : null,
         lastError: newStatus === FiscalStatus.ERROR ? (response.motivo ?? null) : null,
