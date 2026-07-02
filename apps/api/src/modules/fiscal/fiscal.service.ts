@@ -120,7 +120,7 @@ export class FiscalService {
       const sn = i.serialNumber;
       if (sn?.chassi) {
         vehicle = {
-          tipoOperacao: sn.tipoOperacao ?? '1',
+          tipoOperacao: sn.tipoOperacao ?? '0', // 0=Outros — GDR não é concessionária (#372)
           chassi: sn.chassi,
           codigoCor: sn.codigoCor ?? '00',
           descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
@@ -129,8 +129,8 @@ export class FiscalService {
           pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
           pesoBruto: String(sn.pesoBruto ?? '0.000'),
           serie: sn.serial,
-          tipoCombustivel: sn.tipoCombustivel ?? '99',
-          numeroMotor: sn.numeroMotor ?? '000000000000000000000',
+          tipoCombustivel: sn.tipoCombustivel ?? '11', // conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+          numeroMotor: sn.numeroMotor ?? '0',
           cmt: sn.cmt ? String(sn.cmt) : undefined,
           distanciaEixos: sn.distanciaEixos ?? undefined,
           anoModelo: sn.anoModelo ?? new Date().getFullYear(),
@@ -140,7 +140,7 @@ export class FiscalService {
           especieVeiculo: sn.especieVeiculo ?? '2',
           vin: sn.vin ?? 'N',
           condicao: sn.condicaoVeiculo ?? '1',
-          codigoMarcaModelo: sn.codigoMarcaModelo ?? '999999',
+          codigoMarcaModelo: sn.codigoMarcaModelo ?? i.product.codigoMarcaModelo ?? '999999',
           corDenatran: sn.corDenatran ?? '00',
           lotacao: sn.lotacao ?? 0,
           restricao: sn.restricao ?? '0',

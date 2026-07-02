@@ -306,6 +306,7 @@ model Product {
   type        ProductType
   unit        UnitOfMeasure  @default(UN)
   ncm         String?
+  codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
@@ -1698,7 +1699,7 @@ model SerialNumber {
   pesoBruto          Decimal?         @map("peso_bruto") @db.Decimal(10, 3)   // PBT toneladas
   potenciaMotor      Int?             @default(0) @map("potencia_motor") // CV (0 p/ reboque)
   cilindrada         Int?             @default(0) // cm³ (0 p/ reboque)
-  tipoCombustivel    String?          @default("99") @map("tipo_combustivel") @db.VarChar(2) // 99=sem motor
+  tipoCombustivel    String?          @default("11") @map("tipo_combustivel") @db.VarChar(2) // 11 conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
   numeroMotor        String?          @map("numero_motor") @db.VarChar(21)
   cmt                Decimal?         @db.Decimal(10, 3) // capacidade máx. tração (ton)
   distanciaEixos     Int?             @map("distancia_eixos") // mm
@@ -1714,7 +1715,7 @@ model SerialNumber {
   lotacao            Int?             @default(0) // 0 p/ reboque
   restricao          String?          @default("0") @db.VarChar(1) // 0=Sem restrição
   qtdEixos           Int?             @map("qtd_eixos")
-  tipoOperacao       String?          @default("1") @map("tipo_operacao") @db.VarChar(1) // 1=Venda concessionária
+  tipoOperacao       String?          @default("0") @map("tipo_operacao") @db.VarChar(1) // 0=Outros — GDR não é concessionária (#372)
 
   createdAt          DateTime         @default(now()) @map("created_at")
   saleItems          SaleItem[]       @relation("SaleItemSerial")
