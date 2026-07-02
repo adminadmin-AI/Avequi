@@ -14,10 +14,10 @@
   --bg-elevated: #ffffff;
   --surface-overlay: rgb(15 23 42 / 0.45);
 
-  /* Texto */
+  /* Texto — valores WCAG AA (#322): muted 4.6:1+ e secondary 7:1+ no claro */
   --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
 
   /* Bordas */
   --border-default: #e2e8f0;
@@ -35,10 +35,10 @@
   --bg-elevated: #1e293b;
   --surface-overlay: rgb(0 0 0 / 0.6);
 
-  /* Texto */
+  /* Texto — valores WCAG AA (#322): muted 5.7:1+ mesmo sobre bg-elevated */
   --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
 
   /* Bordas */
   --border-default: #1e293b;
@@ -110,6 +110,18 @@ body {
 }
 .animate-toast-progress {
   animation: toast-progress linear forwards;
+}
+
+/* Acessibilidade (#322): respeita preferência do usuário por menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Barra de progresso indeterminada (desliza em loop) */

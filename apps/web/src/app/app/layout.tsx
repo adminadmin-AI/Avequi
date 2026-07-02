@@ -58,6 +58,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-surface-secondary">
+      {/* skip-to-content (WCAG 2.4.1, #322): invisível até receber foco via Tab */}
+      <a
+        href="#conteudo"
+        className="sr-only rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100]"
+      >
+        Pular para o conteúdo
+      </a>
       <Sidebar />
       <CommandPalette />
 
@@ -68,7 +75,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       >
         <Header />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main id="conteudo" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
