@@ -35,3 +35,17 @@ export {
 export { FormDialog } from './form-dialog';
 export { ConfirmDialogProvider, useConfirm } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  type TabsProps,
+  type TabsTriggerProps,
+} from './tabs';
+export {
+  SegmentedControl,
+  type SegmentedOption,
+  type SegmentedControlProps,
+} from './segmented-control';
+export { Toggle, type ToggleProps } from './toggle';

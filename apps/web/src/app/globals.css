@@ -90,6 +90,15 @@ body {
   background: transparent;
 }
 
+/* Esconde a scrollbar mantendo o scroll (ex.: TabsList com scroll horizontal) */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
 /* Shake sutil para feedback de erro (ex.: credenciais inválidas no login) */
 @keyframes shake {
   0%,
