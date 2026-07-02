@@ -264,8 +264,8 @@ export default function CollectionMonitorPage() {
           </Card>
 
           <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Recebíveis em aberto" value={formatBRL(overview?.receivables.openAmount ?? 0)} hint={`${overview?.receivables.openCount ?? 0} título(s)`} />
-            <Kpi label="Recebíveis vencidos" value={String(overview?.receivables.overdueCount ?? 0)} tone={(overview?.receivables.overdueCount ?? 0) > 0 ? 'danger' : 'neutral'} />
+            <Kpi label="Recebíveis em aberto" value={formatBRL(overview?.receivables?.openAmount ?? 0)} hint={`${overview?.receivables?.openCount ?? 0} título(s)`} />
+            <Kpi label="Recebíveis vencidos" value={String(overview?.receivables?.overdueCount ?? 0)} tone={(overview?.receivables?.overdueCount ?? 0) > 0 ? 'danger' : 'neutral'} />
             <Kpi label="Boletos a receber" value={String(boletoPendentes)} tone={boletoPendentes > 0 ? 'warning' : 'neutral'} />
             <Kpi label="Cobranças PIX ativas" value={String(pixAtivas)} />
           </div>
