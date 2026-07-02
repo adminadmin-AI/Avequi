@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -64,11 +65,19 @@ export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: 
   const {
     register,
     handleSubmit,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, touchedFields },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(schema),
+    // inline validation (F3.1 #316): valida ao sair do campo, sem esperar submit
+    mode: 'onBlur',
     defaultValues: { unit: 'UN', type: 'FINISHED_GOOD', ...defaultValues },
   });
+
+  // check verde quando o campo obrigatório foi tocado e está válido
+  const okIcon = (field: 'sku' | 'name') =>
+    touchedFields[field] && !errors[field] ? (
+      <CheckCircle2 className="h-4 w-4 text-success" />
+    ) : undefined;
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -78,7 +87,7 @@ export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: 
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
       <div className="grid grid-cols-2 gap-4">
         <Field label="SKU" required error={errors.sku?.message}>
-          <Input {...register('sku')} error={!!errors.sku} placeholder="Ex.: REB-0092" />
+          <Input {...register('sku')} error={!!errors.sku} rightIcon={okIcon('sku')} placeholder="Ex.: REB-0092" />
         </Field>
         <Field label="NCM" error={errors.ncm?.message}>
           <Input {...register('ncm')} placeholder="Ex.: 8716.39.00" />
@@ -86,7 +95,7 @@ export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: 
       </div>
 
       <Field label="Nome" required error={errors.name?.message}>
-        <Input {...register('name')} error={!!errors.name} placeholder="Nome do produto" />
+        <Input {...register('name')} error={!!errors.name} rightIcon={okIcon('name')} placeholder="Nome do produto" />
       </Field>
 
       <Field label="Descrição" error={errors.description?.message}>
