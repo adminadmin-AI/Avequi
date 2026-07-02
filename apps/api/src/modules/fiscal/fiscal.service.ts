@@ -173,6 +173,20 @@ export class FiscalService {
           cofinsAliquota: taxResult.cofins.aliquota,
           cofinsValor: taxResult.cofins.valor,
           ...(taxResult.difal && { difal: taxResult.difal }),
+          // IBS/CBS — NT 2025.002-RTC (#415)
+          ...(taxResult.cbs && {
+            ibsCbs: {
+              cClassTrib: taxResult.cClassTrib!,
+              cbsCst: taxResult.cbs.cst,
+              base: taxResult.cbs.baseCalculo,
+              cbsAliquota: taxResult.cbs.aliquota,
+              cbsValor: taxResult.cbs.valor,
+              ibsUfAliquota: taxResult.ibsUf?.aliquota ?? 0,
+              ibsUfValor: taxResult.ibsUf?.valor ?? 0,
+              ibsMunAliquota: taxResult.ibsMun?.aliquota ?? 0,
+              ibsMunValor: taxResult.ibsMun?.valor ?? 0,
+            },
+          }),
         },
         vehicle,
       });
@@ -239,11 +253,19 @@ export class FiscalService {
     // Persistir itens + impostos detalhados (#166)
     await this.persistFiscalItems(fiscalDoc.id, items, order.items);
 
-    // Salvar infCpl no FiscalDocument (#370)
-    if (infCpl) {
+    // Totais IBS/CBS — grupo W03 (#416): vIBS = Σ(vIBSUF + vIBSMun), vCBS = Σ vCBS
+    const vIBS = round2(items.reduce((s, it) => s + (it.tax?.ibsCbs ? it.tax.ibsCbs.ibsUfValor + it.tax.ibsCbs.ibsMunValor : 0), 0));
+    const vCBS = round2(items.reduce((s, it) => s + (it.tax?.ibsCbs?.cbsValor ?? 0), 0));
+    const hasIbsCbs = items.some((it) => it.tax?.ibsCbs);
+
+    // Salvar infCpl (#370) e totais IBS/CBS (#416) no FiscalDocument
+    if (infCpl || hasIbsCbs) {
       await this.prisma.fiscalDocument.update({
         where: { id: fiscalDoc.id },
-        data: { infCpl },
+        data: {
+          ...(infCpl && { infCpl }),
+          ...(hasIbsCbs && { vIBS, vCBS, vCredPres: 0, vCredPresCondSus: 0, vIBSMono: 0, vCBSMono: 0 }),
+        },
       });
     }
 
@@ -667,6 +689,22 @@ export class FiscalService {
               difalAliqInterest: fi.tax.difal.aliquotaInterestadual,
               difalValor: fi.tax.difal.valor,
             }),
+            ...(fi.tax.ibsCbs && {
+              cClassTrib: fi.tax.ibsCbs.cClassTrib,
+              cIndOp: '0',
+              cstCbs: fi.tax.ibsCbs.cbsCst,
+              baseCbs: fi.tax.ibsCbs.base,
+              aliquotaCbs: fi.tax.ibsCbs.cbsAliquota,
+              valorCbs: fi.tax.ibsCbs.cbsValor,
+              cstIbsUf: fi.tax.ibsCbs.cbsCst,
+              baseIbsUf: fi.tax.ibsCbs.base,
+              aliquotaIbsUf: fi.tax.ibsCbs.ibsUfAliquota,
+              valorIbsUf: fi.tax.ibsCbs.ibsUfValor,
+              cstIbsMun: fi.tax.ibsCbs.cbsCst,
+              baseIbsMun: fi.tax.ibsCbs.base,
+              aliquotaIbsMun: fi.tax.ibsCbs.ibsMunAliquota,
+              valorIbsMun: fi.tax.ibsCbs.ibsMunValor,
+            }),
           },
         });
       }
@@ -724,4 +762,8 @@ export class FiscalService {
 
     this.logger.log(`FiscalDocument ${fiscalDocId} → ${newStatus}`);
   }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }

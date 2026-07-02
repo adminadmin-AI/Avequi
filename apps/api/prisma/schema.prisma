@@ -165,6 +165,14 @@ model TaxRule {
   cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
   // DIFAL — alíquota interna do UF destino (para cálculo quando consumidor final interestadual)
   icmsInternaDestino Decimal?       @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
+  // IBS/CBS — Reforma Tributária NT 2025.002-RTC (#412)
+  cClassTrib       String?          @db.VarChar(6)  // código classificação tributária (tabela cClassTrib — #413)
+  cbsCst           String?          @db.VarChar(3)  // CST CBS (000 = tributação integral)
+  cbsAliquota      Decimal?         @db.Decimal(7, 4) // 0.9 em 2026 (fase teste)
+  ibsUfCst         String?          @db.VarChar(3)
+  ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
+  ibsMunCst        String?          @db.VarChar(3)
+  ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica
@@ -809,6 +817,13 @@ model FiscalDocument {
   series           Int?               @default(1)
   protocolNumber   String?            // nProt da SEFAZ (#361)
   authorizedAt     DateTime?          // data/hora de autorização (#361)
+  // Totais IBS/CBS — grupo W03 NT 2025.002-RTC (#412)
+  vIBS             Decimal?           @db.Decimal(14, 2) // Σ (vIBSUF + vIBSMun) dos itens
+  vCBS             Decimal?           @db.Decimal(14, 2) // Σ vCBS dos itens
+  vCredPres        Decimal?           @db.Decimal(14, 2)
+  vCredPresCondSus Decimal?           @db.Decimal(14, 2)
+  vIBSMono         Decimal?           @db.Decimal(14, 2)
+  vCBSMono         Decimal?           @db.Decimal(14, 2)
   xml              String?
   rejectionCode    String?
   rejectionReason  String?
@@ -903,6 +918,21 @@ model FiscalDocumentItemTax {
   difalAliqInterna     Decimal?           @db.Decimal(5, 2)
   difalAliqInterest    Decimal?           @db.Decimal(5, 2)
   difalValor           Decimal?           @db.Decimal(14, 4)
+  // IBS/CBS — NT 2025.002-RTC (#412)
+  cClassTrib           String?            @db.VarChar(6)
+  cIndOp               String?            @db.VarChar(1) // indicador de operação (B25d)
+  cstCbs               String?            @db.VarChar(3)
+  baseCbs              Decimal?           @db.Decimal(14, 4)
+  aliquotaCbs          Decimal?           @db.Decimal(7, 4)
+  valorCbs             Decimal?           @db.Decimal(14, 4)
+  cstIbsUf             String?            @db.VarChar(3)
+  baseIbsUf            Decimal?           @db.Decimal(14, 4)
+  aliquotaIbsUf        Decimal?           @db.Decimal(7, 4)
+  valorIbsUf           Decimal?           @db.Decimal(14, 4)
+  cstIbsMun            String?            @db.VarChar(3)
+  baseIbsMun           Decimal?           @db.Decimal(14, 4)
+  aliquotaIbsMun       Decimal?           @db.Decimal(7, 4)
+  valorIbsMun          Decimal?           @db.Decimal(14, 4)
 
   @@map("gdr_fiscal_document_item_taxes")
 }

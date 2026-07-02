@@ -20,6 +20,13 @@ export interface DifAlResult {
   valor: number; // 100% destino (EC 87/2015 — desde 2019)
 }
 
+export interface IbsCbsTax {
+  cst: string;
+  baseCalculo: number;
+  aliquota: number;
+  valor: number;
+}
+
 export interface TaxResult {
   cfop: string;
   icms: { cst: string; baseCalculo: number; aliquota: number; valor: number };
@@ -27,6 +34,11 @@ export interface TaxResult {
   pis: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   cofins: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   difal?: DifAlResult;
+  // Reforma Tributária NT 2025.002-RTC (#414) — presentes quando a TaxRule tem cbsAliquota
+  cClassTrib?: string;
+  cbs?: IbsCbsTax;
+  ibsUf?: IbsCbsTax;
+  ibsMun?: IbsCbsTax;
   totalTributos: number;
 }
 
@@ -43,6 +55,13 @@ const FALLBACK_RULE = {
   cofinsCst: '01',
   cofinsAliquota: new Prisma.Decimal(3),
   icmsInternaDestino: null as Prisma.Decimal | null,
+  cClassTrib: null as string | null,
+  cbsCst: null as string | null,
+  cbsAliquota: null as Prisma.Decimal | null,
+  ibsUfCst: null as string | null,
+  ibsUfAliquota: null as Prisma.Decimal | null,
+  ibsMunCst: null as string | null,
+  ibsMunAliquota: null as Prisma.Decimal | null,
 };
 
 @Injectable()
@@ -102,6 +121,39 @@ export class TaxCalculationService {
       };
     }
 
+    // IBS/CBS — Reforma Tributária, fase teste 2026 (NT 2025.002-RTC) (#414)
+    // Ativado por regra: só calcula quando a TaxRule tem cbsAliquota preenchida.
+    // Base = valor da operação; alíquotas 2026: CBS 0,9%, IBS 0,05% UF + 0,05% Mun.
+    // IBS/CBS não compõem totalTributos em 2026 — fase informativa, sem recolhimento
+    // (compensação com PIS/COFINS, LC 214/2025 art. 348).
+    let cbs: IbsCbsTax | undefined;
+    let ibsUf: IbsCbsTax | undefined;
+    let ibsMun: IbsCbsTax | undefined;
+    if (r.cbsAliquota != null) {
+      const ibsCbsBase = input.itemValue;
+      const cbsAliquota = Number(r.cbsAliquota);
+      const ibsUfAliquota = Number(r.ibsUfAliquota ?? 0);
+      const ibsMunAliquota = Number(r.ibsMunAliquota ?? 0);
+      cbs = {
+        cst: r.cbsCst ?? '000',
+        baseCalculo: ibsCbsBase,
+        aliquota: cbsAliquota,
+        valor: round2(ibsCbsBase * cbsAliquota / 100),
+      };
+      ibsUf = {
+        cst: r.ibsUfCst ?? r.cbsCst ?? '000',
+        baseCalculo: ibsCbsBase,
+        aliquota: ibsUfAliquota,
+        valor: round2(ibsCbsBase * ibsUfAliquota / 100),
+      };
+      ibsMun = {
+        cst: r.ibsMunCst ?? r.cbsCst ?? '000',
+        baseCalculo: ibsCbsBase,
+        aliquota: ibsMunAliquota,
+        valor: round2(ibsCbsBase * ibsMunAliquota / 100),
+      };
+    }
+
     const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0));
 
     return {
@@ -111,6 +163,12 @@ export class TaxCalculationService {
       pis: { cst: r.pisCst, baseCalculo: pisBase, aliquota: pisAliquota, valor: pisValor },
       cofins: { cst: r.cofinsCst, baseCalculo: cofinsBase, aliquota: cofinsAliquota, valor: cofinsValor },
       ...(difal && { difal }),
+      ...(cbs && {
+        cClassTrib: r.cClassTrib ?? '000001',
+        cbs,
+        ibsUf,
+        ibsMun,
+      }),
       totalTributos,
     };
   }
