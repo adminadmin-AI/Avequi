@@ -11,6 +11,13 @@
  * Esta função é pura (sem efeitos colaterais) para facilitar testes unitários.
  */
 
+export interface FiscalDifal {
+  baseCalculo: number;
+  aliquotaInterna: number;
+  aliquotaInterestadual: number;
+  valor: number;
+}
+
 export interface FiscalItemTax {
   cfop: string;
   icmsCst: string;
@@ -29,6 +36,21 @@ export interface FiscalItemTax {
   cofinsBase: number;
   cofinsAliquota: number;
   cofinsValor: number;
+  difal?: FiscalDifal;
+  // IBS/CBS — grupo UB, NT 2025.002-RTC (#415)
+  ibsCbs?: FiscalIbsCbs;
+}
+
+export interface FiscalIbsCbs {
+  cClassTrib: string;
+  cbsCst: string;
+  base: number;         // vBC comum a CBS/IBS (valor da operação)
+  cbsAliquota: number;
+  cbsValor: number;
+  ibsUfAliquota: number;
+  ibsUfValor: number;
+  ibsMunAliquota: number;
+  ibsMunValor: number;
 }
 
 export interface FiscalItem {
@@ -39,6 +61,7 @@ export interface FiscalItem {
   unitPrice: number;
   unit: string;
   tax?: FiscalItemTax;
+  vehicle?: FiscalVehicleData;
 }
 
 export interface FiscalEmitter {
@@ -60,7 +83,42 @@ export interface FiscalEmitter {
 export interface FiscalRecipient {
   name: string;
   document?: string; // CPF ou CNPJ
+  ie?: string; // inscrição estadual
+  address?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
   state?: string;
+  zipCode?: string;
+  ibgeCode?: string;
+}
+
+export interface FiscalVehicleData {
+  tipoOperacao: string;  // 1=Venda concessionária
+  chassi: string;        // VIN 17 chars
+  codigoCor: string;
+  descricaoCor: string;
+  potenciaMotor: number; // 0 p/ reboque
+  cilindrada: number;    // 0 p/ reboque
+  pesoLiquido: string;   // toneladas (decimal string)
+  pesoBruto: string;     // PBT toneladas
+  serie: string;
+  tipoCombustivel: string; // 99=sem motor
+  numeroMotor: string;
+  cmt?: string;
+  distanciaEixos?: number;
+  anoModelo: number;
+  anoFabricacao: number;
+  tipoPintura: string;   // S=Sólida, M=Metálica, P=Perolizada
+  tipoVeiculo: string;   // 10=Reboque
+  especieVeiculo: string; // 2=Carga
+  vin: string;           // N=Normal, R=Remarcado
+  condicao: string;      // 1=Acabado
+  codigoMarcaModelo: string; // 6 dígitos RENAVAM
+  corDenatran: string;
+  lotacao: number;       // 0 p/ reboque
+  restricao: string;     // 0=Sem restrição
 }
 
 export interface FiscalPayloadInput {
@@ -70,6 +128,37 @@ export interface FiscalPayloadInput {
   items: FiscalItem[];
   totalValue: number;
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
+  consumidorFinal?: boolean; // true = indicador_consumidor_final: 1 na NF-e
+  infCpl?: string; // informações complementares (#370)
+}
+
+function mapVehicleToPayload(v: FiscalVehicleData) {
+  return {
+    tipo_operacao: v.tipoOperacao,
+    chassi: v.chassi,
+    codigo_cor: v.codigoCor,
+    descricao_cor: v.descricaoCor,
+    potencia_motor: String(v.potenciaMotor),
+    cm3: String(v.cilindrada),
+    peso_liquido: v.pesoLiquido,
+    peso_bruto: v.pesoBruto,
+    serie: v.serie,
+    tipo_combustivel: v.tipoCombustivel,
+    numero_motor: v.numeroMotor,
+    ...(v.cmt && { cmt: v.cmt }),
+    ...(v.distanciaEixos && { distancia_eixos: String(v.distanciaEixos) }),
+    ano_modelo: v.anoModelo,
+    ano_fabricacao: v.anoFabricacao,
+    tipo_pintura: v.tipoPintura,
+    tipo: v.tipoVeiculo,
+    especie: v.especieVeiculo,
+    vin: v.vin,
+    condicao: v.condicao,
+    codigo_marca_modelo: v.codigoMarcaModelo,
+    codigo_cor_denatran: v.corDenatran,
+    lotacao: String(v.lotacao),
+    restricao: v.restricao,
+  };
 }
 
 function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
@@ -86,6 +175,7 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
     codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
     icms_origem: 0,
     icms_situacao_tributaria: t?.icmsCst ?? '00',
+    icms_modalidade_base_calculo: '3', // 3=Valor da operação
     ...(t && {
       icms_base_calculo: t.icmsBase,
       icms_aliquota: t.icmsAliquota,
@@ -103,6 +193,29 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       cofins_aliquota: t.cofinsAliquota,
       cofins_valor: t.cofinsValor,
     }),
+    // IBS/CBS — grupo UB da NT 2025.002-RTC, campos flat da API Focus (#415)
+    // Totais (grupo W03) são calculados automaticamente pela Focus a partir dos itens
+    ...(t?.ibsCbs && {
+      ibs_cbs_situacao_tributaria: t.ibsCbs.cbsCst,
+      ibs_cbs_classificacao_tributaria: t.ibsCbs.cClassTrib,
+      ibs_cbs_base_calculo: t.ibsCbs.base,
+      cbs_aliquota: t.ibsCbs.cbsAliquota,
+      cbs_valor: t.ibsCbs.cbsValor,
+      ibs_uf_aliquota: t.ibsCbs.ibsUfAliquota,
+      ibs_uf_valor: t.ibsCbs.ibsUfValor,
+      ibs_mun_aliquota: t.ibsCbs.ibsMunAliquota,
+      ibs_mun_valor: t.ibsCbs.ibsMunValor,
+    }),
+    ...(item.vehicle && { veiculos_novos: mapVehicleToPayload(item.vehicle) }),
+    // DIFAL — campos Focus NFe para ICMSUFDest (EC 87/2015)
+    ...(t?.difal && {
+      icms_base_calculo_uf_destino: t.difal.baseCalculo,
+      icms_aliquota_interna_uf_destino: t.difal.aliquotaInterna,
+      icms_aliquota_interestadual: t.difal.aliquotaInterestadual,
+      icms_valor_uf_destino: t.difal.valor,
+      icms_valor_uf_remetente: 0, // 100% destino desde 2019 (EC 87/2015)
+      icms_percentual_fcp: 0, // FCP não aplicável para reboques no PR
+    }),
   };
 }
 
@@ -111,6 +224,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
   return {
     natureza_operacao: 'VENDA A CONSUMIDOR',
     forma_pagamento: 0,
+    modalidade_frete: '9',
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
@@ -150,6 +264,9 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
   return {
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
     forma_pagamento: 0,
+    modalidade_frete: '9', // 9=Sem frete (default — ajustar quando houver transporte)
+    ...(input.consumidorFinal && { indicador_consumidor_final: '1' }),
+    ...(input.infCpl && { informacoes_adicionais_contribuinte: input.infCpl }),
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,
@@ -170,7 +287,17 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
       ...(input.recipient?.document && {
         cpf_cnpj: input.recipient.document.replace(/\D/g, ''),
       }),
+      ...(input.recipient?.ie
+        ? { inscricao_estadual: input.recipient.ie, indicador_inscricao_estadual_destinatario: '1' }
+        : { indicador_inscricao_estadual_destinatario: input.consumidorFinal ? '9' : '2' }),
+      ...(input.recipient?.address && { logradouro: input.recipient.address }),
+      ...(input.recipient?.number && { numero: input.recipient.number }),
+      ...(input.recipient?.complement && { complemento: input.recipient.complement }),
+      ...(input.recipient?.neighborhood && { bairro: input.recipient.neighborhood }),
+      ...(input.recipient?.city && { municipio: input.recipient.city }),
       ...(input.recipient?.state && { uf: input.recipient.state }),
+      ...(input.recipient?.zipCode && { cep: input.recipient.zipCode.replace(/\D/g, '') }),
+      ...(input.recipient?.ibgeCode && { codigo_municipio: input.recipient.ibgeCode }),
     },
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
     formas_pagamento: [
@@ -197,6 +324,7 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
   return {
     natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
     forma_pagamento: 0,
+    modalidade_frete: '9',
     emitente: {
       cnpj: input.emitter.cnpj.replace(/\D/g, ''),
       nome: input.emitter.name,

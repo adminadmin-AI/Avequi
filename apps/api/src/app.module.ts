@@ -45,6 +45,7 @@ import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { TaxModule } from './modules/tax/tax.module';
+import { VehicleTrackingModule } from './modules/vehicle-tracking/vehicle-tracking.module';
 import { PriceModule } from './modules/price/price.module';
 import { ApprovalModule } from './modules/approval/approval.module';
 import { CommissionModule } from './modules/commission/commission.module';
@@ -136,6 +137,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     CapacityModule,
     BatchModule,
     TaxModule,
+    VehicleTrackingModule,
     PriceModule,
     ApprovalModule,
     CommissionModule,

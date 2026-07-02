@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { CCLASSTRIB_TABLE } from '../src/modules/tax/data/cclasstrib.data';
 
 const prisma = new PrismaClient();
 
@@ -229,8 +230,8 @@ async function main() {
   // CFOPs de indústria: 5101/6101 (produção própria), 1101/2101 (compra MP), etc.
   const taxRules = [
     // ─── Vendas (produção própria) ──────────────────────────────────────────
-    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interna PR', priority: 0 },
-    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Venda produção própria — interestadual PR→Sul/Sudeste', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, cfop: '5101', icmsCst: '00', icmsAliquota: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Venda produção própria — interna PR', priority: 0 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ufOrigem: 'PR', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 18, ipiCst: '50', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Venda produção própria — interestadual PR→Sul/Sudeste (DIFAL 18% fallback)', priority: 0 },
 
     // ─── Devolução de venda ─────────────────────────────────────────────────
     { companyId: matriz.id, operationType: TaxOperationType.DEVOLUCAO_VENDA, cfop: '1202', icmsCst: '00', icmsAliquota: 18, ipiCst: '49', ipiAliquota: 5, pisCst: '01', pisAliquota: 0.65, cofinsCst: '01', cofinsAliquota: 3, description: 'Devolução de venda — interna', priority: 0 },
@@ -255,6 +256,23 @@ async function main() {
 
     // ─── Bonificação ────────────────────────────────────────────────────────
     { companyId: matriz.id, operationType: TaxOperationType.BONIFICACAO, cfop: '5910', icmsCst: '00', icmsAliquota: 18, ipiCst: '99', ipiAliquota: 0, pisCst: '06', pisAliquota: 0, cofinsCst: '06', cofinsAliquota: 0, description: 'Bonificação, doação — interna', priority: 0 },
+
+    // ─── NCM 8716.39.00 — Reboques (veículos) — prioridade 10 > genérica 0 ──
+    // IPI CST 51 (alíquota zero, TIPI Decreto 11.158/2022), ICMS sem ST
+    // PIS CST 49 / COFINS CST 99 alíquota zero, conforme NF-e real #14236 autorizada (#371)
+    // Fundamento legal pendente de confirmação com o contador da GDR
+    // icmsInternaDestino = alíquota interna do UF destino (para cálculo DIFAL — EC 87/2015)
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, ncm: '87163900', cfop: '5101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — venda interna PR (ICMS 12%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'SC', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 17, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→SC (ICMS 12%, interna SC 17%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'RS', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 17, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→RS (ICMS 12%, interna RS 17%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'SP', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 18, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→SP (ICMS 12%, interna SP 18%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'MG', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 18, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→MG (ICMS 12%, interna MG 18%)', priority: 10 },
+    // Demais UFs principais para DIFAL
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'RJ', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 20, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→RJ (ICMS 12%, interna RJ 20%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'BA', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 19, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→BA (ICMS 12%, interna BA 19%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'GO', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 17, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→GO (ICMS 12%, interna GO 17%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'MT', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 17, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→MT (ICMS 12%, interna MT 17%)', priority: 10 },
+    { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERESTADUAL, ncm: '87163900', ufOrigem: 'PR', ufDestino: 'MS', cfop: '6101', icmsCst: '00', icmsAliquota: 12, icmsInternaDestino: 17, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.05, ibsMunCst: '000', ibsMunAliquota: 0.05, description: 'Reboque NCM 8716 — PR→MS (ICMS 12%, interna MS 17%)', priority: 10 },
   ];
 
   for (const rule of taxRules) {
@@ -369,6 +387,32 @@ async function main() {
       });
     }
   }
+
+
+  // ─── Classificações Tributárias IBS/CBS — tabela oficial cClassTrib (#413) ──
+  const EXEMPT_CSTS = ['400', '410'];
+  const REDUCED_CSTS = ['011', '200', '222', '515'];
+  for (const entry of CCLASSTRIB_TABLE) {
+    const ctData = {
+      description: entry.description,
+      cst: entry.cst,
+      percRedIbs: entry.percRedIbs,
+      percRedCbs: entry.percRedCbs,
+      isExempt: EXEMPT_CSTS.includes(entry.cst),
+      isReduced: REDUCED_CSTS.includes(entry.cst) || entry.percRedIbs > 0 || entry.percRedCbs > 0,
+      isMonophase: entry.isMonophase,
+      allowsCredPres: entry.allowsCredPres,
+      allowsNfe: entry.allowsNfe,
+      validFrom: entry.validFrom ? new Date(entry.validFrom) : null,
+      validTo: entry.validTo ? new Date(entry.validTo) : null,
+    };
+    await prisma.tributaryClassification.upsert({
+      where: { code: entry.code },
+      update: ctData,
+      create: { code: entry.code, ...ctData },
+    });
+  }
+  console.log(`✅ cClassTrib: ${CCLASSTRIB_TABLE.length} códigos sincronizados`);
 
   console.log('✅ Seed concluído');
 }

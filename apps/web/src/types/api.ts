@@ -90,6 +90,10 @@ export interface FiscalDocument extends BaseEntity {
   status: FiscalStatus;
   focusRef?: string | null;
   chave?: string | null;
+  number?: number | null;
+  series?: number | null;
+  protocolNumber?: string | null;
+  authorizedAt?: string | null;
   rejectionCode?: string | null;
   rejectionReason?: string | null;
   cancelledAt?: string | null;

@@ -151,6 +151,37 @@ export default function ProductsPage() {
         </Badge>
       ),
     },
+    // botões inline (preferência do Rafael 02/07: com 1-2 ações, inline é
+    // melhor que menu ⋮; o rowActions do DataTable fica p/ telas com 3+ ações)
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (p) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openEdit(p);
+            }}
+            title="Editar"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleActive(p);
+            }}
+            title={p.isActive ? 'Desativar' : 'Reativar'}
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
+          >
+            <Power size={15} />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   // ações em massa da barra de seleção (F2.4 #310)
@@ -204,15 +235,6 @@ export default function ProductsPage() {
             Desativar selecionados
           </Button>
         )}
-        rowActions={(p) => [
-          { label: 'Editar', icon: <Pencil />, onClick: openEdit },
-          {
-            label: p.isActive ? 'Desativar' : 'Reativar',
-            icon: <Power />,
-            onClick: toggleActive,
-            danger: p.isActive,
-          },
-        ]}
         empty={
           <EmptyState
             icon={Package}

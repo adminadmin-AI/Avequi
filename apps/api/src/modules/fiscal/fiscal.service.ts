@@ -12,6 +12,7 @@ import {
   calcTotalValue,
   FiscalItem,
   FiscalPayloadInput,
+  FiscalVehicleData,
 } from './fiscal-mapper';
 
 const CANCEL_DEADLINE_HOURS = 24;
@@ -48,7 +49,7 @@ export class FiscalService {
       include: {
         company: true,
         customer: true,
-        items: { include: { product: true } },
+        items: { include: { product: true, serialNumber: true } },
       },
     });
 
@@ -96,6 +97,10 @@ export class FiscalService {
       ? 'VENDA_INTERESTADUAL' as any
       : 'VENDA_INTERNA' as any;
 
+    // Consumidor final: pessoa física (CPF, 11 dígitos) ou sem IE
+    const recipientDoc = order.customer?.document?.replace(/\D/g, '') ?? '';
+    const consumidorFinal = !order.customer?.ie || recipientDoc.length === 11;
+
     const items: FiscalItem[] = [];
     for (const i of order.items) {
       const itemValue = Number(i.quantity) * Number(i.unitPrice);
@@ -107,7 +112,52 @@ export class FiscalService {
         ufOrigem: order.company.state ?? 'SP',
         ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
         itemValue,
+        consumidorFinal,
       });
+
+      // Montar dados veiculares se o item tiver SerialNumber com chassi preenchido
+      let vehicle: FiscalVehicleData | undefined;
+      const sn = i.serialNumber;
+      if (sn?.chassi) {
+        vehicle = {
+          tipoOperacao: sn.tipoOperacao ?? '0', // 0=Outros — GDR não é concessionária (#372)
+          chassi: sn.chassi,
+          codigoCor: sn.codigoCor ?? '00',
+          descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
+          potenciaMotor: sn.potenciaMotor ?? 0,
+          cilindrada: sn.cilindrada ?? 0,
+          pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
+          pesoBruto: String(sn.pesoBruto ?? '0.000'),
+          serie: sn.serial,
+          tipoCombustivel: sn.tipoCombustivel ?? '11', // conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+          numeroMotor: sn.numeroMotor ?? '0',
+          cmt: sn.cmt ? String(sn.cmt) : undefined,
+          distanciaEixos: sn.distanciaEixos ?? undefined,
+          anoModelo: sn.anoModelo ?? new Date().getFullYear(),
+          anoFabricacao: sn.anoFabricacao ?? new Date().getFullYear(),
+          tipoPintura: sn.tipoPintura ?? 'S',
+          tipoVeiculo: sn.tipoVeiculo ?? '10',
+          especieVeiculo: sn.especieVeiculo ?? '2',
+          vin: sn.vin ?? 'N',
+          condicao: sn.condicaoVeiculo ?? '1',
+          codigoMarcaModelo: sn.codigoMarcaModelo ?? i.product.codigoMarcaModelo ?? '999999',
+          corDenatran: sn.corDenatran ?? '00',
+          lotacao: sn.lotacao ?? 0,
+          restricao: sn.restricao ?? '0',
+        };
+
+        // Alerta #362: sem BIN REGISTERED o reboque não entra no RENAVE nem pode
+        // ser emplacado — a NF-e sai, mas a pendência precisa aparecer na operação
+        const bin = await this.prisma.binRegistration.findUnique({
+          where: { serialNumberId: sn.id },
+          select: { status: true },
+        });
+        if (bin?.status !== 'REGISTERED') {
+          this.logger.warn(
+            `Faturando chassi ${sn.chassi} sem registro BIN REGISTERED (status: ${bin?.status ?? 'SEM_REGISTRO'}) — emplacamento bloqueado até o pré-cadastro na BIN (#362)`,
+          );
+        }
+      }
 
       items.push({
         sku: i.product.sku,
@@ -134,11 +184,45 @@ export class FiscalService {
           cofinsBase: taxResult.cofins.baseCalculo,
           cofinsAliquota: taxResult.cofins.aliquota,
           cofinsValor: taxResult.cofins.valor,
+          ...(taxResult.difal && { difal: taxResult.difal }),
+          // IBS/CBS — NT 2025.002-RTC (#415)
+          ...(taxResult.cbs && {
+            ibsCbs: {
+              cClassTrib: taxResult.cClassTrib!,
+              cbsCst: taxResult.cbs.cst,
+              base: taxResult.cbs.baseCalculo,
+              cbsAliquota: taxResult.cbs.aliquota,
+              cbsValor: taxResult.cbs.valor,
+              ibsUfAliquota: taxResult.ibsUf?.aliquota ?? 0,
+              ibsUfValor: taxResult.ibsUf?.valor ?? 0,
+              ibsMunAliquota: taxResult.ibsMun?.aliquota ?? 0,
+              ibsMunValor: taxResult.ibsMun?.valor ?? 0,
+            },
+          }),
         },
+        vehicle,
       });
     }
 
     const totalValue = calcTotalValue(items);
+
+    // Gerar informações complementares (#370)
+    const infCplParts: string[] = [];
+
+    // DIFAL: informar valor do diferencial se houver
+    const totalDifal = items.reduce((sum, it) => sum + (it.tax?.difal?.valor ?? 0), 0);
+    if (totalDifal > 0) {
+      infCplParts.push(`ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino`);
+    }
+
+    // Veículo: informar chassi
+    for (const it of items) {
+      if (it.vehicle) {
+        infCplParts.push(`Veículo: chassi ${it.vehicle.chassi}`);
+      }
+    }
+
+    const infCpl = infCplParts.length > 0 ? infCplParts.join('. ') : undefined;
 
     const input: FiscalPayloadInput = {
       ref,
@@ -161,15 +245,41 @@ export class FiscalService {
         ? {
             name: order.customer.name,
             document: order.customer.document ?? undefined,
+            ie: order.customer.ie ?? undefined,
+            address: order.customer.address ?? undefined,
+            number: order.customer.number ?? undefined,
+            complement: order.customer.complement ?? undefined,
+            neighborhood: order.customer.neighborhood ?? undefined,
+            city: order.customer.city ?? undefined,
             state: order.customer.state ?? undefined,
+            zipCode: order.customer.zipCode ?? undefined,
+            ibgeCode: order.customer.ibgeCode ?? undefined,
           }
         : undefined,
       items,
       totalValue,
+      consumidorFinal,
+      infCpl,
     };
 
     // Persistir itens + impostos detalhados (#166)
     await this.persistFiscalItems(fiscalDoc.id, items, order.items);
+
+    // Totais IBS/CBS — grupo W03 (#416): vIBS = Σ(vIBSUF + vIBSMun), vCBS = Σ vCBS
+    const vIBS = round2(items.reduce((s, it) => s + (it.tax?.ibsCbs ? it.tax.ibsCbs.ibsUfValor + it.tax.ibsCbs.ibsMunValor : 0), 0));
+    const vCBS = round2(items.reduce((s, it) => s + (it.tax?.ibsCbs?.cbsValor ?? 0), 0));
+    const hasIbsCbs = items.some((it) => it.tax?.ibsCbs);
+
+    // Salvar infCpl (#370) e totais IBS/CBS (#416) no FiscalDocument
+    if (infCpl || hasIbsCbs) {
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: {
+          ...(infCpl && { infCpl }),
+          ...(hasIbsCbs && { vIBS, vCBS, vCredPres: 0, vCredPresCondSus: 0, vIBSMono: 0, vCBSMono: 0 }),
+        },
+      });
+    }
 
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
@@ -585,6 +695,28 @@ export class FiscalService {
             baseCofins: fi.tax.cofinsBase,
             aliquotaCofins: fi.tax.cofinsAliquota,
             valorCofins: fi.tax.cofinsValor,
+            ...(fi.tax.difal && {
+              difalBase: fi.tax.difal.baseCalculo,
+              difalAliqInterna: fi.tax.difal.aliquotaInterna,
+              difalAliqInterest: fi.tax.difal.aliquotaInterestadual,
+              difalValor: fi.tax.difal.valor,
+            }),
+            ...(fi.tax.ibsCbs && {
+              cClassTrib: fi.tax.ibsCbs.cClassTrib,
+              cIndOp: '0',
+              cstCbs: fi.tax.ibsCbs.cbsCst,
+              baseCbs: fi.tax.ibsCbs.base,
+              aliquotaCbs: fi.tax.ibsCbs.cbsAliquota,
+              valorCbs: fi.tax.ibsCbs.cbsValor,
+              cstIbsUf: fi.tax.ibsCbs.cbsCst,
+              baseIbsUf: fi.tax.ibsCbs.base,
+              aliquotaIbsUf: fi.tax.ibsCbs.ibsUfAliquota,
+              valorIbsUf: fi.tax.ibsCbs.ibsUfValor,
+              cstIbsMun: fi.tax.ibsCbs.cbsCst,
+              baseIbsMun: fi.tax.ibsCbs.base,
+              aliquotaIbsMun: fi.tax.ibsCbs.ibsMunAliquota,
+              valorIbsMun: fi.tax.ibsCbs.ibsMunValor,
+            }),
           },
         });
       }
@@ -595,7 +727,16 @@ export class FiscalService {
 
   private async applyFocusResponse(
     fiscalDocId: string,
-    response: { status: string; chave_nfe?: string; xml?: string; motivo?: string; codigo?: string },
+    response: {
+      status: string;
+      chave_nfe?: string;
+      xml?: string;
+      motivo?: string;
+      codigo?: string;
+      numero?: string | number;
+      serie?: string | number;
+      protocolo?: string;
+    },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
       autorizado: FiscalStatus.AUTHORIZED,
@@ -607,12 +748,24 @@ export class FiscalService {
 
     const newStatus = statusMap[response.status] ?? FiscalStatus.ERROR;
 
+    // Número/série/protocolo SEFAZ (#361) — Focus retorna numero/serie no response;
+    // nProt pode vir no campo protocolo ou embutido no XML autorizado
+    const number = response.numero != null ? Number(response.numero) : null;
+    const series = response.serie != null ? Number(response.serie) : null;
+    const protocolNumber =
+      response.protocolo ?? response.xml?.match(/<nProt>(\d+)<\/nProt>/)?.[1] ?? null;
+
     await this.prisma.fiscalDocument.update({
       where: { id: fiscalDocId },
       data: {
         status: newStatus,
         chave: response.chave_nfe ?? null,
         xml: response.xml ?? null,
+        ...(number != null && { number }),
+        ...(series != null && { series }),
+        ...(protocolNumber && { protocolNumber }),
+        ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
+        ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
         rejectionCode: response.codigo ?? null,
         rejectionReason: newStatus === FiscalStatus.REJECTED ? (response.motivo ?? null) : null,
         lastError: newStatus === FiscalStatus.ERROR ? (response.motivo ?? null) : null,
@@ -621,4 +774,8 @@ export class FiscalService {
 
     this.logger.log(`FiscalDocument ${fiscalDocId} → ${newStatus}`);
   }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }

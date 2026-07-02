@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
 import { formatDate } from '@/lib/format';
@@ -78,6 +78,13 @@ export default function FiscalPage() {
 
   const columns: Column<FiscalDocument>[] = [
     { key: 'ref', header: 'Ref', cell: (d) => <span className="font-mono text-xs">{d.focusRef ?? '—'}</span> },
+    {
+      key: 'number',
+      header: 'Nº / Série',
+      sortable: true,
+      accessor: (d) => d.number ?? 0,
+      cell: (d) => (d.number != null ? <span className="font-mono text-xs">{d.number}/{d.series ?? 1}</span> : '—'),
+    },
     {
       key: 'type',
       header: 'Tipo',
@@ -172,13 +179,16 @@ export default function FiscalPage() {
             <option value="NFCE">NFC-e</option>
           </Select>
         </div>
-        <div>
-          <Label>Emissão de</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div>
-          <Label>Emissão até</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        <div className="min-w-[260px]">
+          <Label>Período de emissão</Label>
+          <DateRangePicker
+            value={from || to ? { from: isoToDate(from), to: isoToDate(to) } : undefined}
+            onValueChange={(r) => {
+              setFrom(dateToISO(r?.from));
+              setTo(dateToISO(r?.to));
+            }}
+            clearable
+          />
         </div>
       </div>
 

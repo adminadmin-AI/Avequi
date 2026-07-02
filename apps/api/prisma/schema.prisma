@@ -80,6 +80,8 @@ model Company {
   inspections      Inspection[]
   nonConformances  NonConformance[]
   serialNumbers    SerialNumber[]
+  binRegistrations BinRegistration[]
+  atpveRecords     AtpveRecord[]
   equipment        Equipment[]
   maintenanceOrders MaintenanceOrder[]
   quotations       Quotation[]
@@ -163,6 +165,16 @@ model TaxRule {
   // COFINS
   cofinsCst        String           @default("01") // Ex: 01, 06, 07, 49
   cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
+  // DIFAL — alíquota interna do UF destino (para cálculo quando consumidor final interestadual)
+  icmsInternaDestino Decimal?       @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
+  // IBS/CBS — Reforma Tributária NT 2025.002-RTC (#412)
+  cClassTrib       String?          @db.VarChar(6)  // código classificação tributária (tabela cClassTrib — #413)
+  cbsCst           String?          @db.VarChar(3)  // CST CBS (000 = tributação integral)
+  cbsAliquota      Decimal?         @db.Decimal(7, 4) // 0.9 em 2026 (fase teste)
+  ibsUfCst         String?          @db.VarChar(3)
+  ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
+  ibsMunCst        String?          @db.VarChar(3)
+  ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica
@@ -173,6 +185,29 @@ model TaxRule {
   @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino])
   @@index([companyId, operationType])
   @@map("gdr_tax_rules")
+}
+
+/// Tabela oficial de Classificação Tributária IBS/CBS (cClassTrib) — IT 2025.002-RTC (#413).
+/// Global (sem companyId): tabela de referência nacional, seedada de prisma/data/cclasstrib.ts.
+model TributaryClassification {
+  id             String    @id @default(cuid())
+  code           String    @unique @db.VarChar(6) // cClassTrib, ex: 000001
+  description    String
+  cst            String    @db.VarChar(3)  // CST IBS/CBS (comum aos dois na tabela oficial)
+  percRedIbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota IBS
+  percRedCbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota CBS
+  isExempt       Boolean   @default(false) // CST 400 (isenção) / 410 (imunidade)
+  isReduced      Boolean   @default(false) // redução de alíquota ou base
+  isMonophase    Boolean   @default(false)
+  allowsCredPres Boolean   @default(false) // permite crédito presumido
+  allowsNfe      Boolean   @default(true)  // código aplicável a NF-e/NFC-e
+  validFrom      DateTime?
+  validTo        DateTime? // null = vigente
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([cst])
+  @@map("gdr_tributary_classifications")
 }
 
 // ─── Usuário ──────────────────────────────────────────────────────────────────
@@ -304,6 +339,8 @@ model Product {
   type        ProductType
   unit        UnitOfMeasure  @default(UN)
   ncm         String?
+  codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
+  cClassTrib  String?        @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
@@ -390,9 +427,15 @@ model Customer {
   document     String?
   email        String?
   phone        String?
-  address      String?
+  address      String?       // logradouro (rua, av, etc.)
+  number       String?       @db.VarChar(10)
+  complement   String?       @db.VarChar(60)
+  neighborhood String?       @db.VarChar(60) // bairro
   city         String?
-  state        String?
+  state        String?       @db.VarChar(2)
+  zipCode      String?       @map("zip_code") @db.VarChar(8) // CEP sem máscara
+  ibgeCode     String?       @map("ibge_code") @db.VarChar(7) // código município IBGE
+  ie           String?       @db.VarChar(14) // inscrição estadual
   isActive     Boolean      @default(true)
   salesOrders  SalesOrder[]
   quotations   Quotation[]
@@ -747,6 +790,7 @@ model SalesOrder {
   quotation        Quotation?
   receivable       Receivable?
   commissions      Commission[]
+  atpveRecords     AtpveRecord[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -796,11 +840,23 @@ model FiscalDocument {
   status           FiscalStatus       @default(PENDING)
   focusRef         String?
   chave            String?
+  number           Int?               // número da NF-e retornado pelo Focus (#361)
+  series           Int?               @default(1)
+  protocolNumber   String?            // nProt da SEFAZ (#361)
+  authorizedAt     DateTime?          // data/hora de autorização (#361)
+  // Totais IBS/CBS — grupo W03 NT 2025.002-RTC (#412)
+  vIBS             Decimal?           @db.Decimal(14, 2) // Σ (vIBSUF + vIBSMun) dos itens
+  vCBS             Decimal?           @db.Decimal(14, 2) // Σ vCBS dos itens
+  vCredPres        Decimal?           @db.Decimal(14, 2)
+  vCredPresCondSus Decimal?           @db.Decimal(14, 2)
+  vIBSMono         Decimal?           @db.Decimal(14, 2)
+  vCBSMono         Decimal?           @db.Decimal(14, 2)
   xml              String?
   rejectionCode    String?
   rejectionReason  String?
   retryCount       Int                @default(0)
   lastError        String?
+  infCpl           String?            // Informações complementares da NF-e (#370)
   cancelledAt              DateTime?
   cancellationJustification String?
   financialEntry   FinancialEntry?
@@ -809,6 +865,7 @@ model FiscalDocument {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
   @@map("gdr_fiscal_documents")
 }
 
@@ -883,6 +940,26 @@ model FiscalDocumentItemTax {
   baseCofins           Decimal?           @db.Decimal(14, 4)
   aliquotaCofins       Decimal?           @db.Decimal(14, 4)
   valorCofins          Decimal?           @db.Decimal(14, 4)
+  // DIFAL (#369)
+  difalBase            Decimal?           @db.Decimal(14, 4)
+  difalAliqInterna     Decimal?           @db.Decimal(5, 2)
+  difalAliqInterest    Decimal?           @db.Decimal(5, 2)
+  difalValor           Decimal?           @db.Decimal(14, 4)
+  // IBS/CBS — NT 2025.002-RTC (#412)
+  cClassTrib           String?            @db.VarChar(6)
+  cIndOp               String?            @db.VarChar(1) // indicador de operação (B25d)
+  cstCbs               String?            @db.VarChar(3)
+  baseCbs              Decimal?           @db.Decimal(14, 4)
+  aliquotaCbs          Decimal?           @db.Decimal(7, 4)
+  valorCbs             Decimal?           @db.Decimal(14, 4)
+  cstIbsUf             String?            @db.VarChar(3)
+  baseIbsUf            Decimal?           @db.Decimal(14, 4)
+  aliquotaIbsUf        Decimal?           @db.Decimal(7, 4)
+  valorIbsUf           Decimal?           @db.Decimal(14, 4)
+  cstIbsMun            String?            @db.VarChar(3)
+  baseIbsMun           Decimal?           @db.Decimal(14, 4)
+  aliquotaIbsMun       Decimal?           @db.Decimal(7, 4)
+  valorIbsMun          Decimal?           @db.Decimal(14, 4)
 
   @@map("gdr_fiscal_document_item_taxes")
 }
@@ -1675,13 +1752,102 @@ model SerialNumber {
   engravingDoneAt    DateTime?        @map("engraving_done_at")
   engravingOperator  String?          @map("engraving_operator")
   observations       String?
+
+  // ─── Dados veiculares (NF-e grupo veiculos_novos) ────────────────────────────
+  chassi             String?          @db.VarChar(17)  // VIN 17 chars, idêntico ao BIN
+  codigoCor          String?          @map("codigo_cor") @db.VarChar(4)
+  descricaoCor       String?          @map("descricao_cor") @db.VarChar(40)
+  pesoLiquido        Decimal?         @map("peso_liquido") @db.Decimal(10, 3) // toneladas
+  pesoBruto          Decimal?         @map("peso_bruto") @db.Decimal(10, 3)   // PBT toneladas
+  potenciaMotor      Int?             @default(0) @map("potencia_motor") // CV (0 p/ reboque)
+  cilindrada         Int?             @default(0) // cm³ (0 p/ reboque)
+  tipoCombustivel    String?          @default("11") @map("tipo_combustivel") @db.VarChar(2) // 11 conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+  numeroMotor        String?          @map("numero_motor") @db.VarChar(21)
+  cmt                Decimal?         @db.Decimal(10, 3) // capacidade máx. tração (ton)
+  distanciaEixos     Int?             @map("distancia_eixos") // mm
+  anoFabricacao      Int?             @map("ano_fabricacao")
+  anoModelo          Int?             @map("ano_modelo")
+  tipoPintura        String?          @default("S") @map("tipo_pintura") @db.VarChar(1) // M=Metálica, S=Sólida, P=Perolizada
+  tipoVeiculo        String?          @default("10") @map("tipo_veiculo") @db.VarChar(2) // 10=Reboque (RENAVAM)
+  especieVeiculo     String?          @default("2") @map("especie_veiculo") @db.VarChar(1) // 2=Carga
+  vin                String?          @default("N") @db.VarChar(1) // N=Normal, R=Remarcado
+  condicaoVeiculo    String?          @default("1") @map("condicao_veiculo") @db.VarChar(1) // 1=Acabado
+  codigoMarcaModelo  String?          @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM
+  corDenatran        String?          @map("cor_denatran") @db.VarChar(2) // código cor DENATRAN
+  lotacao            Int?             @default(0) // 0 p/ reboque
+  restricao          String?          @default("0") @db.VarChar(1) // 0=Sem restrição
+  qtdEixos           Int?             @map("qtd_eixos")
+  tipoOperacao       String?          @default("0") @map("tipo_operacao") @db.VarChar(1) // 0=Outros — GDR não é concessionária (#372)
+
   createdAt          DateTime         @default(now()) @map("created_at")
   saleItems          SaleItem[]       @relation("SaleItemSerial")
   components         SerialComponent[] @relation("SerialChassisComponents")
+  binRegistration    BinRegistration?
+  atpveRecords       AtpveRecord[]
 
   @@index([companyId, status])
   @@index([productId, status])
   @@map("gdr_serial_number")
+}
+
+// ─── Rastreamento veicular pós-NF-e — BIN/SENATRAN e ATPV-e (#362, #363) ──────
+// O Avequi NÃO integra com BIN/SERPRO nem RENAVE — o cadastro é externo.
+// Estes models rastreiam o status para controle operacional do fluxo de emplacamento.
+
+enum BinRegistrationStatus {
+  PENDING    // aguardando envio à BIN
+  SUBMITTED  // enviado, aguardando confirmação
+  REGISTERED // registrado na BIN — libera ATPV-e
+  REJECTED
+  CANCELLED
+}
+
+enum AtpveStatus {
+  PENDING   // venda concluída, ATPV-e ainda não emitido na Revenda
+  ISSUED
+  CANCELLED
+}
+
+model BinRegistration {
+  id              String                @id @default(cuid())
+  companyId       String                @map("company_id")
+  company         Company               @relation(fields: [companyId], references: [id])
+  serialNumberId  String                @unique @map("serial_number_id")
+  serialNumber    SerialNumber          @relation(fields: [serialNumberId], references: [id])
+  binNumber       String?               @map("bin_number") // número do registro na BIN
+  status          BinRegistrationStatus @default(PENDING)
+  submittedAt     DateTime?             @map("submitted_at")
+  registeredAt    DateTime?             @map("registered_at")
+  rejectionReason String?               @map("rejection_reason")
+  notes           String?
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@map("gdr_bin_registrations")
+}
+
+model AtpveRecord {
+  id             String       @id @default(cuid())
+  companyId      String       @map("company_id")
+  company        Company      @relation(fields: [companyId], references: [id])
+  serialNumberId String       @map("serial_number_id")
+  serialNumber   SerialNumber @relation(fields: [serialNumberId], references: [id])
+  salesOrderId   String       @map("sales_order_id")
+  salesOrder     SalesOrder   @relation(fields: [salesOrderId], references: [id])
+  atpveNumber    String?      @map("atpve_number")
+  status         AtpveStatus  @default(PENDING)
+  clienteCpf     String       @map("cliente_cpf")
+  clienteNome    String       @map("cliente_nome")
+  issuedAt       DateTime?    @map("issued_at")
+  issuedBy       String?      @map("issued_by") // quem emitiu na Revenda (RENAVE)
+  notes          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@index([serialNumberId])
+  @@map("gdr_atpve_records")
 }
 
 model SerialComponent {
