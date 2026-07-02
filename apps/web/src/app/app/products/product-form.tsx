@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -32,6 +33,8 @@ interface ProductFormProps {
   formId: string;
   defaultValues?: Partial<ProductFormValues>;
   onSubmit: (values: ProductFormValues) => void;
+  /** Notifica o pai quando o form tem alterações não salvas (FormDialog dirty). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const typeOptions = enumOptions(PRODUCT_TYPE_LABELS);
@@ -57,15 +60,19 @@ function Field({
   );
 }
 
-export function ProductForm({ formId, defaultValues, onSubmit }: ProductFormProps) {
+export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: ProductFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(schema),
     defaultValues: { unit: 'UN', type: 'FINISHED_GOOD', ...defaultValues },
   });
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">

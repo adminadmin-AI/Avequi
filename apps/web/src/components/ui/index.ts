@@ -30,8 +30,22 @@ export {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogBody,
   DialogFooter,
+  type DialogSize,
 } from './dialog';
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetBody,
+  SheetFooter,
+  type SheetSize,
+} from './sheet';
 export { FormDialog } from './form-dialog';
 export { ConfirmDialogProvider, useConfirm } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';

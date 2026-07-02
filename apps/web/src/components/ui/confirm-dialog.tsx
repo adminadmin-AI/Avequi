@@ -52,7 +52,7 @@ export function ConfirmDialogProvider({ children }: { children: React.ReactNode 
     <ConfirmContext.Provider value={confirm}>
       {children}
       <Dialog open={open} onOpenChange={(o) => !o && settle(false)}>
-        <DialogContent className="max-w-md" showClose={false}>
+        <DialogContent size="sm" showClose={false}>
           <DialogHeader>
             <DialogTitle>{opts?.title}</DialogTitle>
             {opts?.description && <DialogDescription>{opts.description}</DialogDescription>}
