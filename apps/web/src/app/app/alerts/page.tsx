@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { KpiGrid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import {
@@ -169,11 +170,11 @@ export default function AlertsPage() {
       />
 
       {kpis && (
-        <div className="mb-5 grid gap-4 sm:grid-cols-3">
+        <KpiGrid className="mb-5">
           <Kpi label="Ativos" value={String(kpis.total)} />
           <Kpi label="Críticos" value={String(kpis.critical)} tone={kpis.critical > 0 ? 'danger' : 'neutral'} />
           <Kpi label="Avisos" value={String(kpis.warning)} tone={kpis.warning > 0 ? 'warning' : 'neutral'} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
