@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Power } from 'lucide-react';
+import { Plus, Pencil, Power, Users } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Customer } from '@/types/api';
@@ -177,7 +178,14 @@ export default function CustomersPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por nome ou documento..."
-        emptyMessage="Nenhum cliente cadastrado."
+        empty={
+          <EmptyState
+            icon={Users}
+            title="Nenhum cliente cadastrado"
+            description="Comece adicionando seu primeiro cliente."
+            action={{ label: 'Novo cliente', icon: <Plus size={16} />, onClick: openCreate }}
+          />
+        }
       />
 
       <FormDialog

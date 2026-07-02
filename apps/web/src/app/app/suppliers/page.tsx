@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Power } from 'lucide-react';
+import { Plus, Pencil, Power, Handshake } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Supplier } from '@/types/api';
@@ -168,7 +169,14 @@ export default function SuppliersPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por nome ou CNPJ..."
-        emptyMessage="Nenhum fornecedor cadastrado."
+        empty={
+          <EmptyState
+            icon={Handshake}
+            title="Nenhum fornecedor cadastrado"
+            description="Comece adicionando seu primeiro fornecedor."
+            action={{ label: 'Novo fornecedor', icon: <Plus size={16} />, onClick: openCreate }}
+          />
+        }
       />
 
       <FormDialog
