@@ -55,7 +55,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
     { id: 'pix', label: 'PIX Cobrança' },
   ];
   return (
-    <div className="mb-5 flex gap-1 border-b border-slate-200">
+    <div className="mb-5 flex gap-1 border-b border-line">
       {items.map((it) => (
         <button
           key={it.id}
@@ -64,7 +64,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
             tab === it.id
               ? 'border-brand-600 text-brand-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700',
+              : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
           {it.label}
@@ -179,7 +179,7 @@ export default function CollectionToolsPage() {
       align: 'right',
       cell: (b) =>
         BOLETO_CANCELLABLE.includes(b.status) ? (
-          <button onClick={() => handleCancelBoleto(b)} title="Cancelar boleto" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+          <button onClick={() => handleCancelBoleto(b)} title="Cancelar boleto" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
             <Ban size={15} />
           </button>
         ) : null,
@@ -221,7 +221,7 @@ export default function CollectionToolsPage() {
             </button>
           )}
           {p.status === 'ACTIVE' && (
-            <button onClick={() => handleCancelPix(p)} title="Cancelar PIX" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger">
+            <button onClick={() => handleCancelPix(p)} title="Cancelar PIX" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
               <Ban size={15} />
             </button>
           )}
@@ -248,7 +248,7 @@ export default function CollectionToolsPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={15} className="mt-0.5 shrink-0" />
         <span>
           A emissão usa o <strong>adaptador do banco configurado</strong> na conta (BB/Bradesco/Itaú);

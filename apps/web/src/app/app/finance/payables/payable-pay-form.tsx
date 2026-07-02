@@ -79,8 +79,8 @@ export function PayablePayForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
-      <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-        Saldo em aberto: <span className="font-semibold text-slate-900">{formatBRL(remaining)}</span>
+      <div className="rounded-lg bg-surface-secondary px-3 py-2 text-sm text-content-secondary">
+        Saldo em aberto: <span className="font-semibold text-content">{formatBRL(remaining)}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

@@ -39,7 +39,7 @@ function Field({
     <div>
       <Label>{label}</Label>
       {children}
-      {hint && !error && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {hint && !error && <p className="mt-1 text-xs text-content-muted">{hint}</p>}
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );

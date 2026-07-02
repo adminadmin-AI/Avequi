@@ -69,18 +69,18 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? 'border-red-200 bg-red-50/40' : undefined}>
+    <Card className={highlight ? 'border-danger/30 bg-danger/10' : undefined}>
       <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
         <p
           className={`mt-1 text-2xl font-semibold tracking-tight ${
-            highlight ? 'text-danger' : 'text-slate-900'
+            highlight ? 'text-danger' : 'text-content'
           }`}
         >
           {formatBRL(value)}
         </p>
         {count != null && (
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-content-muted">
             {count} {count === 1 ? 'lançamento' : 'lançamentos'}
           </p>
         )}
@@ -209,12 +209,12 @@ export default function ReceivablesPage() {
     {
       key: 'client',
       header: 'Cliente',
-      cell: (e) => e.salesOrder?.customer?.name ?? <span className="text-slate-400">—</span>,
+      cell: (e) => e.salesOrder?.customer?.name ?? <span className="text-content-muted">—</span>,
     },
     {
       key: 'description',
       header: 'Descrição',
-      cell: (e) => e.description || <span className="text-slate-400">—</span>,
+      cell: (e) => e.description || <span className="text-content-muted">—</span>,
     },
     {
       key: 'amount',
@@ -234,12 +234,12 @@ export default function ReceivablesPage() {
     {
       key: 'paidAt',
       header: 'Pago em',
-      cell: (e) => (e.paidAt ? formatDate(e.paidAt) : <span className="text-slate-400">—</span>),
+      cell: (e) => (e.paidAt ? formatDate(e.paidAt) : <span className="text-content-muted">—</span>),
     },
     {
       key: 'source',
       header: 'Origem',
-      cell: (e) => <span className="text-xs text-slate-500">{SOURCE_LABEL[e.source] ?? e.source}</span>,
+      cell: (e) => <span className="text-xs text-content-muted">{SOURCE_LABEL[e.source] ?? e.source}</span>,
     },
     {
       key: 'status',
@@ -268,7 +268,7 @@ export default function ReceivablesPage() {
                   setPayTarget(e);
                 }}
                 title="Dar baixa"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-success"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-success"
               >
                 <DollarSign size={15} />
               </button>
@@ -276,14 +276,14 @@ export default function ReceivablesPage() {
             <button
               disabled
               title="Gerar boleto — em breve (F2-9)"
-              className="rounded-md p-1.5 text-slate-300 cursor-not-allowed"
+              className="rounded-md p-1.5 text-content-muted cursor-not-allowed"
             >
               <Barcode size={15} />
             </button>
             <button
               disabled
               title="Gerar PIX — em breve (F2-9)"
-              className="rounded-md p-1.5 text-slate-300 cursor-not-allowed"
+              className="rounded-md p-1.5 text-content-muted cursor-not-allowed"
             >
               <QrCode size={15} />
             </button>
@@ -292,7 +292,7 @@ export default function ReceivablesPage() {
                 href={`/app/sales/${e.salesOrderId}`}
                 onClick={(ev) => ev.stopPropagation()}
                 title="Ver OV vinculada"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
               >
                 <ExternalLink size={15} />
               </Link>
@@ -304,7 +304,7 @@ export default function ReceivablesPage() {
                   handleCancel(e);
                 }}
                 title="Cancelar"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-danger"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
               >
                 <Ban size={15} />
               </button>
@@ -396,19 +396,19 @@ export default function ReceivablesPage() {
           <CardContent className="space-y-3">
             {agingRows.map((r) => (
               <div key={r.label} className="flex items-center justify-between gap-2">
-                <span className="text-sm text-slate-600">{r.label}</span>
+                <span className="text-sm text-content-secondary">{r.label}</span>
                 <span
                   className={`text-sm font-medium tabular-nums ${
-                    r.danger && r.value > 0 ? 'text-danger' : 'text-slate-900'
+                    r.danger && r.value > 0 ? 'text-danger' : 'text-content'
                   }`}
                 >
                   {formatBRL(r.value)}
                 </span>
               </div>
             ))}
-            <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-              <span className="text-sm font-medium text-slate-700">Total em aberto</span>
-              <span className="text-sm font-semibold tabular-nums text-slate-900">
+            <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
+              <span className="text-sm font-medium text-content-secondary">Total em aberto</span>
+              <span className="text-sm font-semibold tabular-nums text-content">
                 {formatBRL(summary.totalOpen)}
               </span>
             </div>
