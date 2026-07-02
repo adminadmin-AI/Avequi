@@ -352,4 +352,37 @@ describe('TaxCalculationService', () => {
     expect(result.pis.valor).toBe(0);
     expect(result.cofins.valor).toBe(0);
   });
+
+  it('reboque usa PIS CST 49 (vBC cheia, alíq 0) e COFINS CST 99 (vBC=0) — NF-e real #14236 (#371)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        ncm: '87163900',
+        cfop: '6101',
+        icmsAliquota: dec(12),
+        ipiCst: '51',
+        ipiAliquota: dec(0),
+        pisCst: '49',
+        pisAliquota: dec(0),
+        cofinsCst: '99',
+        cofinsAliquota: dec(0),
+        ufOrigem: 'PR',
+        ufDestino: 'SP',
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ncm: '87163900',
+      ufOrigem: 'PR',
+      ufDestino: 'SP',
+      itemValue: 1000,
+    });
+    expect(result.pis.cst).toBe('49');
+    expect(result.pis.baseCalculo).toBe(1000); // CST 49: vBC cheia
+    expect(result.pis.valor).toBe(0);
+    expect(result.cofins.cst).toBe('99');
+    expect(result.cofins.baseCalculo).toBe(0); // CST 99: vBC zerada
+    expect(result.cofins.valor).toBe(0);
+  });
 });
