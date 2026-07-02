@@ -51,7 +51,9 @@ const dayPickerClassNames = {
   weekdays: 'flex',
   weekday: 'w-9 text-caption font-medium capitalize text-content-muted',
   week: 'mt-1 flex',
-  day: 'p-0 text-center',
+  // largura fixa na CÉLULA (não só no botão): células vazias/outside não
+  // colapsam e a 1ª semana alinha com o dia da semana certo
+  day: 'h-9 w-9 p-0 text-center',
   day_button:
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-sm text-content transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800',
   selected:
@@ -127,6 +129,7 @@ export function DatePicker({
         <DayPicker
           mode="single"
           locale={ptBR}
+          showOutsideDays
           selected={value}
           defaultMonth={value}
           onSelect={(d) => {
@@ -247,12 +250,21 @@ export function DateRangePicker({
           mode="range"
           locale={ptBR}
           numberOfMonths={2}
+          showOutsideDays
           selected={value}
           defaultMonth={value?.from}
-          onSelect={(r) => {
-            onValueChange(r ?? undefined);
-            // fecha quando o período está completo
-            if (r?.from && r?.to) setOpen(false);
+          // fluxo de 2 cliques controlado por nós: o addToRange da lib devolve
+          // {from: dia, to: dia} já no 1º clique, o que fechava o popover na hora
+          onSelect={(_r, day) => {
+            if (!value?.from || (value.from && value.to)) {
+              // 1º clique (ou reinício após período completo): fixa o início
+              onValueChange({ from: day, to: undefined });
+            } else {
+              // 2º clique: completa o período (ordenado) e fecha
+              const [from, to] = day < value.from ? [day, value.from] : [value.from, day];
+              onValueChange({ from, to });
+              setOpen(false);
+            }
           }}
           classNames={dayPickerClassNames}
         />
