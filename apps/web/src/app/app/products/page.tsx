@@ -151,6 +151,8 @@ export default function ProductsPage() {
         </Badge>
       ),
     },
+    // botões inline (preferência do Rafael 02/07: com 1-2 ações, inline é
+    // melhor que menu ⋮; o rowActions do DataTable fica p/ telas com 3+ ações)
     {
       key: 'actions',
       header: '',
@@ -182,6 +184,29 @@ export default function ProductsPage() {
     },
   ];
 
+  // ações em massa da barra de seleção (F2.4 #310)
+  async function bulkDeactivate(rows: Product[], clear: () => void) {
+    const active = rows.filter((p) => p.isActive);
+    if (active.length === 0) {
+      toast.info('Nenhum produto ativo na seleção');
+      return;
+    }
+    const ok = await confirm({
+      title: `Desativar ${active.length} produto${active.length === 1 ? '' : 's'}?`,
+      description: 'Eles deixarão de aparecer nas operações.',
+      confirmLabel: 'Desativar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    const results = await Promise.allSettled(
+      active.map((p) => update.mutateAsync({ id: p.id, data: { isActive: false } })),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed) toast.error(`${failed} produto(s) falharam ao desativar`);
+    else toast.success(`${active.length} produto(s) desativado(s)`);
+    clear();
+  }
+
   return (
     <div>
       <PageHeader
@@ -201,6 +226,15 @@ export default function ProductsPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por SKU ou nome..."
+        selectable
+        viewOptions
+        exportCsv="produtos.csv"
+        bulkActions={(rows, clear) => (
+          <Button variant="danger" size="sm" onClick={() => bulkDeactivate(rows, clear)}>
+            <Power size={14} />
+            Desativar selecionados
+          </Button>
+        )}
         empty={
           <EmptyState
             icon={Package}
