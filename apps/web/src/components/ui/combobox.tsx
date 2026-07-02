@@ -145,7 +145,9 @@ function ComboboxPanel({
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-content',
                       'disabled:pointer-events-none disabled:opacity-50',
-                      isActive && 'bg-neutral-100 dark:bg-neutral-800',
+                      // highlight forte (teclado e hover) — tinta brand visível nos 2 temas
+                      isActive &&
+                        'bg-brand-600/10 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300',
                     )}
                   >
                     <span className="flex-1 truncate">{opt.label}</span>
@@ -206,7 +208,9 @@ export function Combobox({
   const selectedOption = options.find((o) => o.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // modal: necessário p/ funcionar dentro de Dialog (o Dialog bloqueia
+    // pointer-events fora dele; o painel do popover é portalizado pro body)
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} className={cn(triggerClass(error, disabled), className)}>
           <span className={cn('flex-1 truncate', !selectedOption && 'text-content-muted')}>
@@ -282,7 +286,9 @@ export function MultiCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // modal: necessário p/ funcionar dentro de Dialog (o Dialog bloqueia
+    // pointer-events fora dele; o painel do popover é portalizado pro body)
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
