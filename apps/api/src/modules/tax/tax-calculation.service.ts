@@ -123,7 +123,7 @@ export class TaxCalculationService {
 
     // IBS/CBS — Reforma Tributária, fase teste 2026 (NT 2025.002-RTC) (#414)
     // Ativado por regra: só calcula quando a TaxRule tem cbsAliquota preenchida.
-    // Base = valor da operação; alíquotas 2026: CBS 0,9%, IBS 0,05% UF + 0,05% Mun.
+    // Base = valor da operação; alíquotas 2026: CBS 0,9%, IBS 0,1% UF + 0% Mun (LC 214/2025 art. 343).
     // IBS/CBS não compõem totalTributos em 2026 — fase informativa, sem recolhimento
     // (compensação com PIS/COFINS, LC 214/2025 art. 348).
     let cbs: IbsCbsTax | undefined;

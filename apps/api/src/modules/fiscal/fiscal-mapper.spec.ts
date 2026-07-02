@@ -161,8 +161,8 @@ describe('fiscal-mapper', () => {
             ibsCbs: {
               cClassTrib: '000001', cbsCst: '000', base: 1000,
               cbsAliquota: 0.9, cbsValor: 9,
-              ibsUfAliquota: 0.05, ibsUfValor: 0.5,
-              ibsMunAliquota: 0.05, ibsMunValor: 0.5,
+              ibsUfAliquota: 0.1, ibsUfValor: 1,
+              ibsMunAliquota: 0, ibsMunValor: 0,
             },
           },
         }],
@@ -173,10 +173,10 @@ describe('fiscal-mapper', () => {
         ibs_cbs_base_calculo: 1000,
         cbs_aliquota: 0.9,
         cbs_valor: 9,
-        ibs_uf_aliquota: 0.05,
-        ibs_uf_valor: 0.5,
-        ibs_mun_aliquota: 0.05,
-        ibs_mun_valor: 0.5,
+        ibs_uf_aliquota: 0.1,
+        ibs_uf_valor: 1,
+        ibs_mun_aliquota: 0,
+        ibs_mun_valor: 0,
       });
     });
 
