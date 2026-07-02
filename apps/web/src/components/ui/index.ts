@@ -17,6 +17,13 @@ export {
   type CardProps,
 } from './card';
 export { Input, type InputProps } from './input';
+export {
+  MaskedInput,
+  maskValue,
+  unmaskValue,
+  type MaskType,
+  type MaskedInputProps,
+} from './masked-input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Select, type SelectProps } from './select';

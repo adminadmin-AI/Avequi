@@ -4,10 +4,11 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { CUSTOMER_TYPE_LABELS, enumOptions } from '@/lib/enums';
-import { formatCNPJ, formatCPF, unmask } from '@/lib/format';
+import { unmask } from '@/lib/format';
 import { isValidCPF, isValidCNPJ } from '@/lib/validators';
 
 const UF = [
@@ -103,11 +104,12 @@ export function CustomerForm({
             name="document"
             control={control}
             render={({ field }) => (
-              <Input
+              <MaskedInput
+                mask={isPF ? 'cpf' : 'cnpj'}
                 value={field.value ?? ''}
-                onChange={(e) => field.onChange(isPF ? formatCPF(e.target.value) : formatCNPJ(e.target.value))}
+                onChange={(e) => field.onChange(e.target.value)}
                 error={!!errors.document}
-                inputMode="numeric"
+                clearable
                 placeholder={isPF ? '000.000.000-00' : '00.000.000/0000-00'}
               />
             )}
@@ -124,7 +126,18 @@ export function CustomerForm({
           <Input {...register('email')} type="email" error={!!errors.email} placeholder="cliente@email.com" />
         </Field>
         <Field label="Telefone" error={errors.phone?.message}>
-          <Input {...register('phone')} placeholder="(00) 00000-0000" />
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => (
+              <MaskedInput
+                mask="phone"
+                value={field.value ?? ''}
+                onChange={(e) => field.onChange(e.target.value)}
+                placeholder="(00) 00000-0000"
+              />
+            )}
+          />
         </Field>
       </div>
 
