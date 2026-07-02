@@ -151,36 +151,30 @@ export default function ProductsPage() {
         </Badge>
       ),
     },
-    {
-      key: 'actions',
-      header: '',
-      align: 'right',
-      cell: (p) => (
-        <div className="flex items-center justify-end gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              openEdit(p);
-            }}
-            title="Editar"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleActive(p);
-            }}
-            title={p.isActive ? 'Desativar' : 'Reativar'}
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
-          >
-            <Power size={15} />
-          </button>
-        </div>
-      ),
-    },
   ];
+
+  // ações em massa da barra de seleção (F2.4 #310)
+  async function bulkDeactivate(rows: Product[], clear: () => void) {
+    const active = rows.filter((p) => p.isActive);
+    if (active.length === 0) {
+      toast.info('Nenhum produto ativo na seleção');
+      return;
+    }
+    const ok = await confirm({
+      title: `Desativar ${active.length} produto${active.length === 1 ? '' : 's'}?`,
+      description: 'Eles deixarão de aparecer nas operações.',
+      confirmLabel: 'Desativar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    const results = await Promise.allSettled(
+      active.map((p) => update.mutateAsync({ id: p.id, data: { isActive: false } })),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed) toast.error(`${failed} produto(s) falharam ao desativar`);
+    else toast.success(`${active.length} produto(s) desativado(s)`);
+    clear();
+  }
 
   return (
     <div>
@@ -201,6 +195,24 @@ export default function ProductsPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por SKU ou nome..."
+        selectable
+        viewOptions
+        exportCsv="produtos.csv"
+        bulkActions={(rows, clear) => (
+          <Button variant="danger" size="sm" onClick={() => bulkDeactivate(rows, clear)}>
+            <Power size={14} />
+            Desativar selecionados
+          </Button>
+        )}
+        rowActions={(p) => [
+          { label: 'Editar', icon: <Pencil />, onClick: openEdit },
+          {
+            label: p.isActive ? 'Desativar' : 'Reativar',
+            icon: <Power />,
+            onClick: toggleActive,
+            danger: p.isActive,
+          },
+        ]}
         empty={
           <EmptyState
             icon={Package}

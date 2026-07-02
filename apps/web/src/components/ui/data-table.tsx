@@ -1,11 +1,55 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search, SearchX } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+  Check,
+  Download,
+  MoreVertical,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from './input';
 import { Skeleton } from './skeleton';
 import { EmptyState } from './empty-state';
+import { Button } from './button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from './dropdown-menu';
+
+/**
+ * DataTable enterprise — F2.4 (#310)
+ *
+ * Novos recursos (todos opt-in — API 100% compatível com as telas atuais):
+ *  - `selectable` + `bulkActions`: checkbox por linha, select-all da página,
+ *    "selecionar todos os N filtrados" e barra de ações em massa
+ *  - `rowActions`: menu ⋮ por linha (Editar/Excluir/etc. via DropdownMenu)
+ *  - Toolbar ⚙: densidade (compacta/normal/ampla) + visibilidade de colunas
+ *  - `exportCsv`: exporta o resultado filtrado/ordenado (CSV ; com BOM,
+ *    abre direto no Excel pt-BR)
+ *  - Paginação completa: page size (10/25/50/100), "Mostrando x–y de z",
+ *    botões primeira/última página
+ *  - Zebra striping sutil + sort indicator em cor brand
+ *
+ * Fora de escopo (follow-up na #310): column resizing, card view mobile,
+ * virtualização (>100 linhas já paginadas), filtros por coluna (as telas
+ * têm filter bars próprias acima da tabela).
+ */
 
 export interface Column<T> {
   /** chave do dado ou id sintético da coluna */
@@ -13,12 +57,35 @@ export interface Column<T> {
   header: string;
   /** render customizado da célula */
   cell?: (row: T) => React.ReactNode;
-  /** valor usado para ordenar/filtrar; default = row[key] */
+  /** valor usado para ordenar/filtrar/exportar; default = row[key] */
   accessor?: (row: T) => string | number | null | undefined;
   sortable?: boolean;
   align?: 'left' | 'right' | 'center';
   className?: string;
 }
+
+export interface RowAction<T> {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: (row: T) => void;
+  danger?: boolean;
+}
+
+type Density = 'compact' | 'comfortable' | 'spacious';
+
+const DENSITY_PAD: Record<Density, string> = {
+  compact: 'py-1.5',
+  comfortable: 'py-3',
+  spacious: 'py-4',
+};
+
+const DENSITY_LABEL: Record<Density, string> = {
+  compact: 'Compacta',
+  comfortable: 'Normal',
+  spacious: 'Ampla',
+};
+
+const PAGE_SIZES = [10, 25, 50, 100];
 
 interface DataTableProps<T> {
   data: T[];
@@ -33,6 +100,16 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   /** estado vazio rico p/ "sem dados" (ex.: <EmptyState .../>); fallback = emptyMessage */
   empty?: React.ReactNode;
+  /** checkbox por linha + barra de ações em massa */
+  selectable?: boolean;
+  /** renderiza as ações da barra em massa; receba as linhas e um clear() */
+  bulkActions?: (selected: T[], clear: () => void) => React.ReactNode;
+  /** menu ⋮ por linha */
+  rowActions?: (row: T) => RowAction<T>[];
+  /** toolbar ⚙ com densidade + visibilidade de colunas */
+  viewOptions?: boolean;
+  /** botão de exportar CSV (true = "export.csv" ou passe o nome do arquivo) */
+  exportCsv?: boolean | string;
 }
 
 export function DataTable<T>({
@@ -43,14 +120,26 @@ export function DataTable<T>({
   onRowClick,
   searchable = true,
   searchPlaceholder = 'Buscar...',
-  pageSize = 10,
+  pageSize: initialPageSize = 10,
   emptyMessage = 'Nenhum registro encontrado.',
   empty,
+  selectable,
+  bulkActions,
+  rowActions,
+  viewOptions,
+  exportCsv,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [density, setDensity] = useState<Density>('comfortable');
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const headerCheckRef = useRef<HTMLInputElement>(null);
+
+  const visibleColumns = columns.filter((c) => !hiddenCols.has(c.key));
 
   const accessorFor = (col: Column<T>) =>
     col.accessor ?? ((row: T) => (row as Record<string, unknown>)[col.key] as string | number);
@@ -88,6 +177,38 @@ export function DataTable<T>({
   const safePage = Math.min(page, pageCount - 1);
   const paged = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
 
+  // ─── seleção ────────────────────────────────────────────────────────────────
+  const selectedRows = useMemo(
+    () => sorted.filter((row) => selected.has(rowKey(row))),
+    [sorted, selected, rowKey],
+  );
+  const pageKeys = paged.map(rowKey);
+  const allPageSelected = pageKeys.length > 0 && pageKeys.every((k) => selected.has(k));
+  const somePageSelected = pageKeys.some((k) => selected.has(k));
+  if (headerCheckRef.current) {
+    headerCheckRef.current.indeterminate = somePageSelected && !allPageSelected;
+  }
+
+  const clearSelection = () => setSelected(new Set());
+
+  function togglePageSelection() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageKeys.forEach((k) => next.delete(k));
+      else pageKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }
+
+  function toggleRow(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   function toggleSort(col: Column<T>) {
     if (!col.sortable) return;
     if (sortKey === col.key) {
@@ -98,20 +219,130 @@ export function DataTable<T>({
     }
   }
 
+  // ─── export CSV (resultado filtrado/ordenado, colunas visíveis) ─────────────
+  function downloadCsv() {
+    const esc = (v: unknown) => {
+      const s = String(v ?? '');
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = visibleColumns.map((c) => esc(c.header)).join(';');
+    const lines = sorted.map((row) =>
+      visibleColumns.map((c) => esc(accessorFor(c)(row))).join(';'),
+    );
+    // BOM p/ Excel pt-BR reconhecer UTF-8; separador ; (padrão pt-BR)
+    const blob = new Blob(['﻿' + [header, ...lines].join('\r\n')], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = typeof exportCsv === 'string' ? exportCsv : 'export.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  const colSpan =
+    visibleColumns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
+  const checkboxClass =
+    'h-4 w-4 cursor-pointer rounded border-line accent-brand-600';
+  const from = sorted.length === 0 ? 0 : safePage * pageSize + 1;
+  const to = Math.min(sorted.length, (safePage + 1) * pageSize);
+
   return (
     <div className="space-y-3">
-      {searchable && (
-        <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            placeholder={searchPlaceholder}
-            className="pl-9"
-          />
+      {(searchable || viewOptions || exportCsv) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {searchable && (
+            <div className="relative max-w-xs flex-1 basis-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                placeholder={searchPlaceholder}
+                className="pl-9"
+              />
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {exportCsv && (
+              <Button variant="ghost" size="sm" onClick={downloadCsv} leftIcon={<Download size={15} />}>
+                CSV
+              </Button>
+            )}
+            {viewOptions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" leftIcon={<SlidersHorizontal size={15} />}>
+                    Exibição
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Densidade</DropdownMenuLabel>
+                  {(Object.keys(DENSITY_LABEL) as Density[]).map((d) => (
+                    <DropdownMenuItem
+                      key={d}
+                      icon={density === d ? <Check /> : <span className="w-4" />}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setDensity(d);
+                      }}
+                    >
+                      {DENSITY_LABEL[d]}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Colunas</DropdownMenuLabel>
+                  {columns.map((c) => (
+                    <DropdownMenuCheckboxItem
+                      key={c.key}
+                      checked={!hiddenCols.has(c.key)}
+                      onSelect={(e) => e.preventDefault()}
+                      onCheckedChange={(checked) => {
+                        setHiddenCols((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.delete(c.key);
+                          else next.add(c.key);
+                          // nunca esconder todas
+                          return next.size >= columns.length ? prev : next;
+                        });
+                      }}
+                    >
+                      {c.header || c.key}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* barra de ações em massa */}
+      {selectable && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-600/30 bg-brand-600/10 px-4 py-2.5 text-sm">
+          <span className="font-medium text-brand-700 dark:text-brand-300">
+            {selected.size} selecionado{selected.size === 1 ? '' : 's'}
+          </span>
+          {selected.size < sorted.length && (
+            <button
+              onClick={() => setSelected(new Set(sorted.map(rowKey)))}
+              className="text-brand-600 hover:underline dark:text-brand-400"
+            >
+              Selecionar todos os {sorted.length} filtrados
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {bulkActions?.(selectedRows, clearSelection)}
+            <button
+              onClick={clearSelection}
+              aria-label="Limpar seleção"
+              className="rounded-md p-1 text-content-muted transition-colors hover:text-content"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -119,7 +350,19 @@ export function DataTable<T>({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line">
-              {columns.map((col) => (
+              {selectable && (
+                <th className="sticky top-0 z-10 w-10 bg-surface-secondary px-4 py-3">
+                  <input
+                    ref={headerCheckRef}
+                    type="checkbox"
+                    aria-label="Selecionar página"
+                    checked={allPageSelected}
+                    onChange={togglePageSelection}
+                    className={checkboxClass}
+                  />
+                </th>
+              )}
+              {visibleColumns.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => toggleSort(col)}
@@ -129,6 +372,7 @@ export function DataTable<T>({
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
                     col.sortable && 'cursor-pointer select-none hover:text-content-secondary',
+                    sortKey === col.key && 'text-brand-600 dark:text-brand-400',
                   )}
                 >
                   <span
@@ -149,13 +393,19 @@ export function DataTable<T>({
                   </span>
                 </th>
               ))}
+              {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface-secondary" />}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`skeleton-${i}`} className="border-b border-line/60 last:border-0">
-                  {columns.map((col) => (
+                  {selectable && (
+                    <td className="px-4 py-3">
+                      <Skeleton className="h-4 w-4" />
+                    </td>
+                  )}
+                  {visibleColumns.map((col) => (
                     <td
                       key={col.key}
                       className={cn(
@@ -176,11 +426,12 @@ export function DataTable<T>({
                       />
                     </td>
                   ))}
+                  {rowActions && <td />}
                 </tr>
               ))
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4">
+                <td colSpan={colSpan} className="px-4">
                   {data.length > 0 && search.trim() ? (
                     <EmptyState
                       compact
@@ -197,61 +448,142 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              paged.map((row) => (
-                <tr
-                  key={rowKey(row)}
-                  onClick={() => onRowClick?.(row)}
-                  className={cn(
-                    'border-b border-line/60 transition-colors duration-micro last:border-0',
-                    onRowClick && 'cursor-pointer hover:bg-brand-50/60 dark:hover:bg-brand-600/10',
-                  )}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        'px-4 py-3 text-content-secondary',
-                        col.align === 'right' && 'text-right tabular-nums',
-                        col.align === 'center' && 'text-center',
-                        col.className,
-                      )}
-                    >
-                      {col.cell
-                        ? col.cell(row)
-                        : String(accessorFor(col)(row) ?? '—')}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              paged.map((row) => {
+                const key = rowKey(row);
+                const isSelected = selected.has(key);
+                return (
+                  <tr
+                    key={key}
+                    onClick={() => onRowClick?.(row)}
+                    className={cn(
+                      'border-b border-line/60 transition-colors duration-micro last:border-0',
+                      // zebra sutil
+                      'even:bg-neutral-500/[0.04]',
+                      onRowClick && 'cursor-pointer hover:bg-brand-50/60 dark:hover:bg-brand-600/10',
+                      isSelected && 'bg-brand-600/10 even:bg-brand-600/10',
+                    )}
+                  >
+                    {selectable && (
+                      <td className="w-10 px-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label="Selecionar linha"
+                          checked={isSelected}
+                          onChange={() => toggleRow(key)}
+                          className={checkboxClass}
+                        />
+                      </td>
+                    )}
+                    {visibleColumns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={cn(
+                          'px-4 text-content-secondary',
+                          DENSITY_PAD[density],
+                          col.align === 'right' && 'text-right tabular-nums',
+                          col.align === 'center' && 'text-center',
+                          col.className,
+                        )}
+                      >
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                      </td>
+                    ))}
+                    {rowActions && (
+                      <td className="w-12 px-2 text-right" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              aria-label="Ações da linha"
+                              className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {rowActions(row).map((a) => (
+                              <DropdownMenuItem
+                                key={a.label}
+                                icon={a.icon}
+                                danger={a.danger}
+                                onSelect={() => a.onClick(row)}
+                              >
+                                {a.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between text-sm text-content-secondary">
+      {/* rodapé: contagem + page size + navegação */}
+      {sorted.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-sm text-content-secondary">
           <span>
-            {sorted.length} registro{sorted.length === 1 ? '' : 's'}
+            Mostrando {from}–{to} de {sorted.length}
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={safePage === 0}
-              className="rounded-md px-3 py-1 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+          <label className="flex items-center gap-1.5">
+            <span className="text-content-muted">Por página:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(0);
+              }}
+              className="rounded-md border border-line bg-surface px-1.5 py-0.5 text-sm text-content focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
             >
-              Anterior
-            </button>
-            <span className="px-2 tabular-nums">
-              {safePage + 1} / {pageCount}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-              disabled={safePage >= pageCount - 1}
-              className="rounded-md px-3 py-1 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
-            >
-              Próxima
-            </button>
-          </div>
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          {pageCount > 1 && (
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                onClick={() => setPage(0)}
+                disabled={safePage === 0}
+                aria-label="Primeira página"
+                className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+              >
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                aria-label="Página anterior"
+                className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2 tabular-nums">
+                {safePage + 1} / {pageCount}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={safePage >= pageCount - 1}
+                aria-label="Próxima página"
+                className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={() => setPage(pageCount - 1)}
+                disabled={safePage >= pageCount - 1}
+                aria-label="Última página"
+                className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+              >
+                <ChevronsRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

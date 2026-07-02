@@ -35,7 +35,7 @@ export {
   type MultiComboboxProps,
 } from './combobox';
 export { Spinner } from './spinner';
-export { DataTable, type Column } from './data-table';
+export { DataTable, type Column, type RowAction } from './data-table';
 export {
   Dialog,
   DialogTrigger,
