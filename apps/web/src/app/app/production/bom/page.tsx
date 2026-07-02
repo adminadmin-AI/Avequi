@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Spinner } from '@/components/ui/spinner';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
@@ -103,21 +103,18 @@ export default function BomPage() {
       <Card className="mb-5">
         <CardContent className="py-5">
           <Label>Produto pai</Label>
-          <Select
+          <Combobox
+            options={products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
             value={productId}
-            onChange={(e) => {
-              setProductId(e.target.value);
+            onValueChange={(v) => {
+              setProductId(v);
               setSelectedVersionId('');
             }}
+            placeholder="— Selecione um produto —"
+            searchPlaceholder="Buscar por SKU ou nome..."
+            clearable
             className="max-w-md"
-          >
-            <option value="">— Selecione um produto —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.sku} — {p.name}
-              </option>
-            ))}
-          </Select>
+          />
         </CardContent>
       </Card>
 
@@ -235,14 +232,15 @@ export default function BomPage() {
           <div className="flex flex-wrap items-end gap-2 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[180px] flex-1">
               <Label>Componente</Label>
-              <Select value={newComp} onChange={(e) => setNewComp(e.target.value)}>
-                <option value="">— Selecione —</option>
-                {products.filter((p) => p.id !== productId).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
-                  </option>
-                ))}
-              </Select>
+              <Combobox
+                options={products
+                  .filter((p) => p.id !== productId)
+                  .map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
+                value={newComp}
+                onValueChange={setNewComp}
+                placeholder="— Selecione —"
+                searchPlaceholder="Buscar por SKU ou nome..."
+              />
             </div>
             <div className="w-20">
               <Label>Qtd</Label>

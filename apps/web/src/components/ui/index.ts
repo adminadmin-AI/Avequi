@@ -27,6 +27,13 @@ export {
 export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Select, type SelectProps } from './select';
+export {
+  Combobox,
+  MultiCombobox,
+  type ComboboxOption,
+  type ComboboxProps,
+  type MultiComboboxProps,
+} from './combobox';
 export { Spinner } from './spinner';
 export { DataTable, type Column } from './data-table';
 export {
