@@ -41,7 +41,6 @@ interface PanelProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   loading?: boolean;
-  searchRef?: React.Ref<HTMLInputElement>;
 }
 
 /** Painel interno compartilhado (busca + lista) do Combobox e MultiCombobox. */
@@ -52,7 +51,6 @@ function ComboboxPanel({
   searchPlaceholder = 'Buscar...',
   emptyMessage = 'Nenhum resultado',
   loading,
-  searchRef,
 }: PanelProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -105,8 +103,6 @@ function ComboboxPanel({
       <div className="relative border-b border-line">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
         <input
-          ref={searchRef}
-          autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={searchPlaceholder}
@@ -208,7 +204,6 @@ export function Combobox({
   className,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
   const selectedOption = options.find((o) => o.value === value);
 
   return (
@@ -237,16 +232,10 @@ export function Combobox({
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-content-muted" />
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[var(--radix-popover-trigger-width)] p-0"
-        // foca a busca DEPOIS do focus-trap do Dialog agir (rAF) — dentro de
-        // modais, o autoFocus de mount perde a disputa e as setas iam pro Dialog
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          requestAnimationFrame(() => searchRef.current?.focus());
-        }}
-      >
+      {/* sem onOpenAutoFocus custom: o FocusScope do popover (modal) pausa o
+          focus-trap do Dialog e então foca o primeiro tabbable (a busca) —
+          na ordem certa. Focar manualmente perde essa corrida de timing. */}
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
         <ComboboxPanel
           options={options}
           selected={new Set(value ? [value] : [])}
@@ -257,7 +246,6 @@ export function Combobox({
           searchPlaceholder={searchPlaceholder}
           emptyMessage={emptyMessage}
           loading={loading}
-          searchRef={searchRef}
         />
       </PopoverContent>
     </Popover>
@@ -286,7 +274,6 @@ export function MultiCombobox({
   className,
 }: MultiComboboxProps) {
   const [open, setOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
   const selectedSet = useMemo(() => new Set(values), [values]);
   const selectedOptions = options.filter((o) => selectedSet.has(o.value));
   const visibleTags = selectedOptions.slice(0, maxTags);
@@ -355,10 +342,6 @@ export function MultiCombobox({
       <PopoverContent
         align="start"
         className="w-[var(--radix-popover-trigger-width)] p-0"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          requestAnimationFrame(() => searchRef.current?.focus());
-        }}
       >
         <ComboboxPanel
           options={options}
@@ -367,7 +350,6 @@ export function MultiCombobox({
           searchPlaceholder={searchPlaceholder}
           emptyMessage={emptyMessage}
           loading={loading}
-          searchRef={searchRef}
         />
       </PopoverContent>
     </Popover>
