@@ -18,9 +18,9 @@ if (!FOCUS_TOKEN) {
 
 // ─── Dados GDR Matriz (emitente) ───────────────────────────────────────────
 const emitter = {
-  cnpj: '10.518.598/0001-04',
-  name: 'GDR INDUSTRIA DE REBOQUES LTDA',
-  ie: '9074228252',
+  cnpj: '46.247.069/0001-15',
+  name: 'GDR INDUSTRIA E COMERCIO DE REBOQUES LTDA',
+  ie: '9095313067',
   crt: 3, // Lucro Presumido
   address: 'RUA FRANCISCO STRAPASSON',
   number: '303',
@@ -35,9 +35,8 @@ const emitter = {
 
 // ─── Destinatário teste (empresa SC — interestadual p/ testar DIFAL) ───────
 const recipient = {
-  name: 'EMPRESA TESTE LTDA',
-  document: '11.222.333/0001-81', // CNPJ fictício (homologação aceita)
-  ie: 'ISENTO',
+  name: 'CLIENTE CONSUMIDOR FINAL TESTE',
+  document: '030.550.549-11', // CPF de teste — consumidor final não contribuinte (cenário DIFAL, NF-e real #14236)
   address: 'RUA DOS TESTES',
   number: '100',
   neighborhood: 'CENTRO',
@@ -109,7 +108,7 @@ const input: FiscalPayloadInput = {
         },
       },
       vehicle: {
-        tipoOperacao: '1',
+        tipoOperacao: '0',
         chassi: '9BGRD08X0XG000001', // chassi fictício
         codigoCor: '09',
         descricaoCor: 'PRATA',
@@ -118,8 +117,8 @@ const input: FiscalPayloadInput = {
         pesoLiquido: '1.200',
         pesoBruto: '6.000',
         serie: 'SN-TESTE-001',
-        tipoCombustivel: '99',
-        numeroMotor: '000000000000000000000',
+        tipoCombustivel: '11',
+        numeroMotor: '0',
         cmt: '7.200',
         distanciaEixos: 0,
         anoModelo: 2026,
@@ -129,7 +128,7 @@ const input: FiscalPayloadInput = {
         especieVeiculo: '2',
         vin: 'N',
         condicao: '1',
-        codigoMarcaModelo: '999999',
+        codigoMarcaModelo: '600657',
         corDenatran: '09',
         lotacao: 0,
         restricao: '0',
@@ -137,7 +136,7 @@ const input: FiscalPayloadInput = {
     },
   ],
   totalValue: itemValue,
-  consumidorFinal: false,
+  consumidorFinal: true, // PF sem IE — indIEDest=9 (cenário DIFAL da NF-e real #14236)
   infCpl: `ICMS DIFAL recolhido: R$ ${difalValor.toFixed(2)} — EC 87/2015, 100% UF destino. Veículo: chassi 9BGRD08X0XG000001`,
 };
 

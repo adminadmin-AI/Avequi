@@ -29,7 +29,7 @@ describe('fiscal-mapper', () => {
 
     it('converte CNPJ removendo pontuação', () => {
       const payload = buildNFCePayload(baseInput) as any;
-      expect(payload.emitente.cnpj).toBe('12345678000190');
+      expect(payload.cnpj_emitente).toBe('12345678000190');
     });
 
     it('mapeia itens com cfop 5101 (produção própria), NCM e valores corretos', () => {
@@ -48,7 +48,8 @@ describe('fiscal-mapper', () => {
 
     it('não inclui destinatario quando cliente não tem CPF/CNPJ', () => {
       const payload = buildNFCePayload({ ...baseInput, recipient: { name: 'João', document: undefined } }) as any;
-      expect(payload.destinatario).toBeUndefined();
+      expect(payload.nome_destinatario).toBeUndefined();
+      expect(payload.cpf_destinatario).toBeUndefined();
     });
 
     it('inclui destinatario com CPF formatado quando informado', () => {
@@ -56,7 +57,7 @@ describe('fiscal-mapper', () => {
         ...baseInput,
         recipient: { name: 'João', document: '123.456.789-09' },
       }) as any;
-      expect(payload.destinatario.cpf_cnpj).toBe('12345678909');
+      expect(payload.cpf_destinatario).toBe('12345678909');
     });
   });
 
@@ -79,7 +80,7 @@ describe('fiscal-mapper', () => {
 
     it('preenche destinatario com CONSUMIDOR NÃO IDENTIFICADO quando recipient é undefined', () => {
       const payload = buildNFePayload({ ...baseInput, recipient: undefined }) as any;
-      expect(payload.destinatario.nome).toBe('CONSUMIDOR NÃO IDENTIFICADO');
+      expect(payload.nome_destinatario).toBe('CONSUMIDOR NÃO IDENTIFICADO');
     });
 
     it('preenche NCM com zeros quando produto não tem NCM', () => {
