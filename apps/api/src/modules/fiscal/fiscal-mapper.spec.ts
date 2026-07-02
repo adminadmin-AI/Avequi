@@ -90,7 +90,6 @@ describe('fiscal-mapper', () => {
       const payload = buildNFePayload(inputSemNcm) as any;
       expect(payload.items[0].codigo_ncm).toBe('00000000');
     });
-  });
 
     it('usa natureza_operacao VENDA DE PRODUÇÃO PRÓPRIA', () => {
       const payload = buildNFePayload(baseInput) as any;
