@@ -28,6 +28,15 @@ export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
 export { Select, type SelectProps } from './select';
 export {
+  DatePicker,
+  DateRangePicker,
+  dateToISO,
+  isoToDate,
+  type DatePickerProps,
+  type DateRangePickerProps,
+  type DateRange,
+} from './date-picker';
+export {
   Combobox,
   MultiCombobox,
   type ComboboxOption,
