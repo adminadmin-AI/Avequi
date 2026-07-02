@@ -35,3 +35,35 @@ export {
 export { FormDialog } from './form-dialog';
 export { ConfirmDialogProvider, useConfirm } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  type DropdownMenuItemProps,
+} from './dropdown-menu';
+export {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuGroup,
+  type ContextMenuItemProps,
+} from './context-menu';
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverAnchor,
+  PopoverClose,
+} from './popover';
+export { Tooltip, TooltipContent, type TooltipProps } from './tooltip';
