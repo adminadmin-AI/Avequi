@@ -357,7 +357,7 @@ export default function DashboardPage() {
         <Panel>
           <PanelHeader
             action={
-              <Link href="/app/alerts" className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+              <Link href="/app/alerts" className="text-caption font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 dark:text-brand-400">
                 ver todos
               </Link>
             }

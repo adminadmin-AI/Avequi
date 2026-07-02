@@ -74,7 +74,7 @@ export default function ApprovalsPage() {
             e.stopPropagation();
             router.push(`/app/purchases/${i.id}`);
           }}
-          className="inline-flex items-center gap-1 font-mono text-xs text-brand-600 hover:underline"
+          className="inline-flex items-center gap-1 font-mono text-xs text-brand-600 dark:text-brand-400 hover:underline"
         >
           <ExternalLink size={12} /> PO #{shortId(i.id)}
         </button>

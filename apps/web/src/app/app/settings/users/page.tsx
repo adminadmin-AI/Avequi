@@ -125,7 +125,7 @@ export default function UsersPage() {
               openEdit(u);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Pencil size={15} />
           </button>

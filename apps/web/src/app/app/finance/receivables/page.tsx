@@ -292,7 +292,7 @@ export default function ReceivablesPage() {
                 href={`/app/sales/${e.salesOrderId}`}
                 onClick={(ev) => ev.stopPropagation()}
                 title="Ver OV vinculada"
-                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
               >
                 <ExternalLink size={15} />
               </Link>

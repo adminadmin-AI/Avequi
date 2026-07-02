@@ -98,7 +98,7 @@ export default function MrpPage() {
       header: 'Sugestão',
       cell: (s) => (
         <span className="inline-flex items-center gap-1.5 text-sm">
-          {s.type === 'PURCHASE' ? <ShoppingCart size={14} className="text-info" /> : <Factory size={14} className="text-brand-600" />}
+          {s.type === 'PURCHASE' ? <ShoppingCart size={14} className="text-info" /> : <Factory size={14} className="text-brand-600 dark:text-brand-400" />}
           {s.type === 'PURCHASE' ? 'Comprar' : 'Produzir'} {formatNumber(Number(s.netQty))}
         </span>
       ),

@@ -241,7 +241,7 @@ export default function PayablesPage() {
           <Link
             href={`/app/purchase/${e.purchaseOrderId}`}
             onClick={(ev) => ev.stopPropagation()}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ExternalLink size={13} /> Ver PO
           </Link>
@@ -274,7 +274,7 @@ export default function PayablesPage() {
               href="/app/finance/scheduled-payments"
               onClick={(ev) => ev.stopPropagation()}
               title="Agendar pagamento"
-              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
             >
               <CalendarClock size={15} />
             </Link>

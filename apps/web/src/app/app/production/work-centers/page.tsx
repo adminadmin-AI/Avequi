@@ -174,7 +174,7 @@ export default function WorkCentersPage() {
       align: 'right',
       cell: (w) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEdit(w)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+          <button onClick={() => openEdit(w)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
             <Pencil size={15} />
           </button>
           {w.isActive ? (

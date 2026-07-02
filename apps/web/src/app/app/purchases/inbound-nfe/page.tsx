@@ -184,7 +184,7 @@ export default function InboundNfePage() {
                 setLinkPoId('');
               }}
               title="Vincular a PO"
-              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
             >
               <Link2 size={15} />
             </button>
@@ -195,7 +195,7 @@ export default function InboundNfePage() {
               downloadXml(n);
             }}
             title="Baixar XML"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <FileDown size={15} />
           </button>

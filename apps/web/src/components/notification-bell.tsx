@@ -105,7 +105,7 @@ export function NotificationBell() {
               <button
                 onClick={() => markAll.mutate()}
                 disabled={markAll.isPending}
-                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:opacity-50"
               >
                 <CheckCheck size={13} /> Marcar todas
               </button>
@@ -147,7 +147,7 @@ export function NotificationBell() {
 
           <button
             onClick={() => { setOpen(false); router.push('/app/alerts'); }}
-            className="block w-full border-t border-slate-100 py-2.5 text-center text-xs font-medium text-brand-600 hover:bg-slate-50"
+            className="block w-full border-t border-slate-100 py-2.5 text-center text-xs font-medium text-brand-600 dark:text-brand-400 hover:bg-slate-50"
           >
             Ver todos os alertas
           </button>

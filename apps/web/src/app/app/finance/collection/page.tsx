@@ -200,7 +200,7 @@ export default function CollectionMonitorPage() {
                 trigger.mutate({ id: r.id, channel: ch });
               }}
               title={`Registrar cobrança via ${CHANNEL_LABEL[ch]}`}
-              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Icon size={15} />
             </button>
@@ -313,7 +313,7 @@ export default function CollectionMonitorPage() {
           <div className="mt-4 flex justify-end">
             <button
               onClick={() => router.push('/app/finance/receivables')}
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
               Ver carteira de recebíveis <ExternalLink size={14} />
             </button>

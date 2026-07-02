@@ -272,7 +272,7 @@ export default function SalesDetailPage() {
               <p className="text-xs uppercase tracking-wide text-content-muted">Conta a receber</p>
               <Link
                 href="/app/finance/receivables"
-                className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+                className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
                 <ExternalLink size={14} /> Ver em Recebíveis
               </Link>

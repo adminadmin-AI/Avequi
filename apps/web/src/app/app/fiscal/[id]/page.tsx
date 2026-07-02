@@ -140,7 +140,7 @@ export default function FiscalDetailPage() {
               {doc.salesOrderId && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-content-muted">OV vinculada</p>
-                  <Link href={`/app/sales/${doc.salesOrderId}`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+                  <Link href={`/app/sales/${doc.salesOrderId}`} className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
                     <ExternalLink size={13} /> Ver OV
                   </Link>
                 </div>
@@ -173,7 +173,7 @@ export default function FiscalDetailPage() {
                   navigator.clipboard?.writeText(doc.chave!);
                   toast.success('Chave copiada');
                 }}
-                className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-sm text-content-secondary hover:text-brand-600"
+                className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-sm text-content-secondary hover:text-brand-600 dark:hover:text-brand-400"
               >
                 {doc.chave} <Copy size={13} />
               </button>

@@ -240,7 +240,7 @@ export default function PurchaseDetailPage() {
               <p className="text-xs uppercase tracking-wide text-content-muted">Conta a pagar</p>
               <Link
                 href="/app/finance/payables"
-                className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+                className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
                 <ExternalLink size={14} /> Ver em Pagáveis
               </Link>

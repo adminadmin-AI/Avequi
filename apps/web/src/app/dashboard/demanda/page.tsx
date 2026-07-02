@@ -151,7 +151,7 @@ export default function DemandaPage() {
       <div className="flex gap-1 border-b border-slate-200">
         {(['filial', 'consolidado'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-brand-600 text-brand-600' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-brand-600 text-brand-600 dark:text-brand-400' : 'text-slate-500 hover:text-slate-700'}`}>
             {t === 'filial' ? 'Minha Filial' : 'Consolidado (PCP)'}
           </button>
         ))}
@@ -223,7 +223,7 @@ export default function DemandaPage() {
                   <tr key={`${row.productId}::${row.period}`} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">{row.productName}</td>
                     <td className="px-4 py-3 font-mono text-slate-500 text-xs">{row.productSku}</td>
-                    <td className="px-4 py-3 text-right font-bold text-brand-700 text-base">{row.totalQty.toLocaleString('pt-BR')}</td>
+                    <td className="px-4 py-3 text-right font-bold text-brand-700 dark:text-brand-300 text-base">{row.totalQty.toLocaleString('pt-BR')}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{row.entries}</td>
                   </tr>
                 ))}
