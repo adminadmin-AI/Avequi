@@ -328,3 +328,17 @@ export enum ReceivableStatus {
   OVERDUE = 'OVERDUE',
 }
 
+
+export enum BinRegistrationStatus {
+  PENDING = 'PENDING',
+  SUBMITTED = 'SUBMITTED',
+  REGISTERED = 'REGISTERED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum AtpveStatus {
+  PENDING = 'PENDING',
+  ISSUED = 'ISSUED',
+  CANCELLED = 'CANCELLED',
+}

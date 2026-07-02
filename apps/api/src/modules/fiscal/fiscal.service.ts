@@ -145,6 +145,18 @@ export class FiscalService {
           lotacao: sn.lotacao ?? 0,
           restricao: sn.restricao ?? '0',
         };
+
+        // Alerta #362: sem BIN REGISTERED o reboque não entra no RENAVE nem pode
+        // ser emplacado — a NF-e sai, mas a pendência precisa aparecer na operação
+        const bin = await this.prisma.binRegistration.findUnique({
+          where: { serialNumberId: sn.id },
+          select: { status: true },
+        });
+        if (bin?.status !== 'REGISTERED') {
+          this.logger.warn(
+            `Faturando chassi ${sn.chassi} sem registro BIN REGISTERED (status: ${bin?.status ?? 'SEM_REGISTRO'}) — emplacamento bloqueado até o pré-cadastro na BIN (#362)`,
+          );
+        }
       }
 
       items.push({
