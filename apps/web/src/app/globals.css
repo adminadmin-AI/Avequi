@@ -99,6 +99,32 @@ body {
   display: none; /* Chrome/Safari */
 }
 
+/* Timer visual do auto-dismiss dos toasts (largura 100% → 0 na duração do toast) */
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+.animate-toast-progress {
+  animation: toast-progress linear forwards;
+}
+
+/* Barra de progresso indeterminada (desliza em loop) */
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
 /* Shake sutil para feedback de erro (ex.: credenciais inválidas no login) */
 @keyframes shake {
   0%,

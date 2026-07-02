@@ -81,7 +81,23 @@ export default function ProductsPage() {
     update.mutate(
       { id: p.id, data: { isActive: !p.isActive } },
       {
-        onSuccess: () => toast.success(turningOff ? 'Produto desativado' : 'Produto reativado'),
+        onSuccess: () =>
+          toast.success(
+            turningOff ? 'Produto desativado' : 'Produto reativado',
+            `"${p.name}"`,
+            // undo: reverte para o status anterior direto do toast
+            {
+              label: 'Desfazer',
+              onClick: () =>
+                update.mutate(
+                  { id: p.id, data: { isActive: p.isActive } },
+                  {
+                    onSuccess: () => toast.info('Ação desfeita'),
+                    onError: () => toast.error('Erro ao desfazer'),
+                  },
+                ),
+            },
+          ),
         onError: () => toast.error('Erro ao alterar status'),
       },
     );
