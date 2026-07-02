@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, SearchX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from './input';
 import { Spinner } from './spinner';
+import { EmptyState } from './empty-state';
 
 export interface Column<T> {
   /** chave do dado ou id sintético da coluna */
@@ -30,6 +31,8 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   pageSize?: number;
   emptyMessage?: string;
+  /** estado vazio rico p/ "sem dados" (ex.: <EmptyState .../>); fallback = emptyMessage */
+  empty?: React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -42,6 +45,7 @@ export function DataTable<T>({
   searchPlaceholder = 'Buscar...',
   pageSize = 10,
   emptyMessage = 'Nenhum registro encontrado.',
+  empty,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -156,11 +160,20 @@ export function DataTable<T>({
               </tr>
             ) : paged.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-content-muted"
-                >
-                  {emptyMessage}
+                <td colSpan={columns.length} className="px-4">
+                  {data.length > 0 && search.trim() ? (
+                    <EmptyState
+                      compact
+                      icon={SearchX}
+                      title="Nenhum resultado"
+                      description={`Nada encontrado para “${search.trim()}”.`}
+                      action={{ label: 'Limpar busca', onClick: () => setSearch('') }}
+                    />
+                  ) : empty ? (
+                    empty
+                  ) : (
+                    <div className="py-12 text-center text-content-muted">{emptyMessage}</div>
+                  )}
                 </td>
               </tr>
             ) : (

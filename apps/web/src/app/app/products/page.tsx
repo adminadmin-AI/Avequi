@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Power } from 'lucide-react';
+import { Plus, Pencil, Power, Package } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Product } from '@/types/api';
@@ -183,7 +184,14 @@ export default function ProductsPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por SKU ou nome..."
-        emptyMessage="Nenhum produto cadastrado."
+        empty={
+          <EmptyState
+            icon={Package}
+            title="Nenhum produto cadastrado"
+            description="Comece adicionando seu primeiro produto ao catálogo."
+            action={{ label: 'Novo produto', icon: <Plus size={16} />, onClick: openCreate }}
+          />
+        }
       />
 
       <FormDialog
