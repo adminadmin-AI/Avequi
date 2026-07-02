@@ -172,9 +172,9 @@ model TaxRule {
   cbsCst           String?          @db.VarChar(3)  // CST CBS (000 = tributação integral)
   cbsAliquota      Decimal?         @db.Decimal(7, 4) // 0.9 em 2026 (fase teste)
   ibsUfCst         String?          @db.VarChar(3)
-  ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
+  ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.1 em 2026 (LC 214/2025 art. 343)
   ibsMunCst        String?          @db.VarChar(3)
-  ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0.05 em 2026
+  ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0 em 2026 — IBS teste é 100% estadual
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica

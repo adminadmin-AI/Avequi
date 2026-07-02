@@ -55,12 +55,19 @@ const icmsValor = Number((icmsBase * icmsAliquota / 100).toFixed(2));
 const ipiAliquota = 0; // reboque IPI zero (CST 51)
 const ipiBase = itemValue;
 const ipiValor = 0;
-const pisAliquota = 0.65;
-const pisBase = itemValue;
-const pisValor = Number((pisBase * pisAliquota / 100).toFixed(2));
-const cofinsAliquota = 3;
-const cofinsBase = itemValue;
-const cofinsValor = Number((cofinsBase * cofinsAliquota / 100).toFixed(2));
+// PIS CST 49 / COFINS CST 99 alíquota zero — conforme NF-e real #14236 (#371)
+const pisAliquota = 0;
+const pisBase = itemValue; // CST 49: vBC cheia
+const pisValor = 0;
+const cofinsAliquota = 0;
+const cofinsBase = 0; // CST 99: vBC zerada
+const cofinsValor = 0;
+
+// IBS/CBS — fase teste 2026 (NT 2025.002-RTC): CBS 0,9%, IBS 0,1% UF + 0% Mun (LC 214/2025 art. 343) (#417)
+const ibsCbsBase = itemValue;
+const cbsValor = Number((ibsCbsBase * 0.9 / 100).toFixed(2));
+const ibsUfValor = Number((ibsCbsBase * 0.1 / 100).toFixed(2));
+const ibsMunValor = 0;
 
 // DIFAL: SC alíquota interna 17%, interestadual 12%
 const difalBase = itemValue + ipiValor;
@@ -92,11 +99,11 @@ const input: FiscalPayloadInput = {
         ipiBase,
         ipiAliquota,
         ipiValor,
-        pisCst: '01',
+        pisCst: '49',
         pisBase,
         pisAliquota,
         pisValor,
-        cofinsCst: '01',
+        cofinsCst: '99',
         cofinsBase,
         cofinsAliquota,
         cofinsValor,
@@ -105,6 +112,17 @@ const input: FiscalPayloadInput = {
           aliquotaInterna: difalAliqInterna,
           aliquotaInterestadual: difalAliqInterest,
           valor: difalValor,
+        },
+        ibsCbs: {
+          cClassTrib: '000001', // tributação integral
+          cbsCst: '000',
+          base: ibsCbsBase,
+          cbsAliquota: 0.9,
+          cbsValor,
+          ibsUfAliquota: 0.1,
+          ibsUfValor,
+          ibsMunAliquota: 0,
+          ibsMunValor,
         },
       },
       vehicle: {

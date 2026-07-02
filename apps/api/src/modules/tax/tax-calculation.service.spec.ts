@@ -386,16 +386,16 @@ describe('TaxCalculationService', () => {
     expect(result.cofins.valor).toBe(0);
   });
 
-  it('calcula IBS/CBS 2026 quando a regra tem cbsAliquota (CBS 0,9% + IBS 0,05/0,05) (#414)', async () => {
+  it('calcula IBS/CBS 2026 quando a regra tem cbsAliquota (CBS 0,9% + IBS UF 0,1% / Mun 0%) (#414)', async () => {
     prisma.taxRule.findMany.mockResolvedValue([
       makeRule({
         cClassTrib: '000001',
         cbsCst: '000',
         cbsAliquota: dec(0.9),
         ibsUfCst: '000',
-        ibsUfAliquota: dec(0.05),
+        ibsUfAliquota: dec(0.1),
         ibsMunCst: '000',
-        ibsMunAliquota: dec(0.05),
+        ibsMunAliquota: dec(0),
       }),
     ]);
     const result = await service.calculateTaxes({
@@ -407,8 +407,8 @@ describe('TaxCalculationService', () => {
     });
     expect(result.cClassTrib).toBe('000001');
     expect(result.cbs).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.9, valor: 9 });
-    expect(result.ibsUf).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.05, valor: 0.5 });
-    expect(result.ibsMun).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.05, valor: 0.5 });
+    expect(result.ibsUf).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0.1, valor: 1 });
+    expect(result.ibsMun).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0, valor: 0 });
     // Fase teste 2026: IBS/CBS não entram no totalTributos (compensados com PIS/COFINS)
     expect(result.totalTributos).toBe(189 + 50 + 6.5 + 30);
   });
