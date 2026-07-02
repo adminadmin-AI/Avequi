@@ -185,6 +185,29 @@ model TaxRule {
   @@map("gdr_tax_rules")
 }
 
+/// Tabela oficial de Classificação Tributária IBS/CBS (cClassTrib) — IT 2025.002-RTC (#413).
+/// Global (sem companyId): tabela de referência nacional, seedada de prisma/data/cclasstrib.ts.
+model TributaryClassification {
+  id             String    @id @default(cuid())
+  code           String    @unique @db.VarChar(6) // cClassTrib, ex: 000001
+  description    String
+  cst            String    @db.VarChar(3)  // CST IBS/CBS (comum aos dois na tabela oficial)
+  percRedIbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota IBS
+  percRedCbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota CBS
+  isExempt       Boolean   @default(false) // CST 400 (isenção) / 410 (imunidade)
+  isReduced      Boolean   @default(false) // redução de alíquota ou base
+  isMonophase    Boolean   @default(false)
+  allowsCredPres Boolean   @default(false) // permite crédito presumido
+  allowsNfe      Boolean   @default(true)  // código aplicável a NF-e/NFC-e
+  validFrom      DateTime?
+  validTo        DateTime? // null = vigente
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([cst])
+  @@map("gdr_tributary_classifications")
+}
+
 // ─── Usuário ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -315,6 +338,7 @@ model Product {
   unit        UnitOfMeasure  @default(UN)
   ncm         String?
   codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
+  cClassTrib  String?        @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
