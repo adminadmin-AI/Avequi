@@ -147,7 +147,7 @@ export default function BomPage() {
                 onClick={() => setSelectedVersionId(v.id)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                  selected?.id === v.id ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-line text-content-secondary hover:bg-surface-secondary',
+                  selected?.id === v.id ? 'border-brand-400 bg-brand-50 text-brand-700 dark:text-brand-300' : 'border-line text-content-secondary hover:bg-surface-secondary',
                 )}
               >
                 v{v.version}

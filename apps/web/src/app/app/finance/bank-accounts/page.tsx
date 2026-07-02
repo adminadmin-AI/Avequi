@@ -147,7 +147,7 @@ export default function BankAccountsPage() {
               setConfigTarget(a);
             }}
             title="Configurar cobrança (provider, PIX, saldo mínimo)"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Settings2 size={15} />
           </button>
@@ -158,7 +158,7 @@ export default function BankAccountsPage() {
               setDialogOpen(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Pencil size={15} />
           </button>
@@ -198,7 +198,7 @@ export default function BankAccountsPage() {
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:text-brand-400">
               <Landmark size={20} />
             </div>
             <div>

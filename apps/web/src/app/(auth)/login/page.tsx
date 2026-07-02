@@ -219,13 +219,13 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-line text-brand-600 accent-brand-600 focus-ring"
+                  className="h-4 w-4 rounded border-line text-brand-600 dark:text-brand-400 accent-brand-600 focus-ring"
                 />
                 Lembrar-me
               </label>
               <a
                 href="#"
-                className="text-caption font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                className="text-caption font-medium text-brand-600 dark:text-brand-400 transition-colors hover:text-brand-700 dark:hover:text-brand-300 dark:text-brand-400 dark:hover:text-brand-300"
               >
                 Esqueci minha senha
               </a>

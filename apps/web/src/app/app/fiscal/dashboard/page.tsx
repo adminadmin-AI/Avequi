@@ -171,7 +171,7 @@ export default function FiscalDashboardPage() {
               <div className="space-y-2">
                 {errorOld.map((d) => (
                   <div key={d.id} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
-                    <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 hover:underline">
+                    <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 dark:text-brand-400 hover:underline">
                       {FISCAL_TYPE_LABEL[d.type]} {d.focusRef ?? d.id.slice(-6)}
                     </button>
                     <div className="flex items-center gap-2">
@@ -200,7 +200,7 @@ export default function FiscalDashboardPage() {
               <div className="space-y-2">
                 {stuckProcessing.map((d) => (
                   <div key={d.id} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
-                    <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 hover:underline">
+                    <button onClick={() => router.push(`/app/fiscal/${d.id}`)} className="text-sm text-brand-600 dark:text-brand-400 hover:underline">
                       {FISCAL_TYPE_LABEL[d.type]} {d.focusRef ?? d.id.slice(-6)}
                     </button>
                     <span className="text-xs text-content-muted">{formatDateTime(d.createdAt)}</span>

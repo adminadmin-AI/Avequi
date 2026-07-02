@@ -63,7 +63,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
           className={cn(
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
             tab === it.id
-              ? 'border-brand-600 text-brand-700'
+              ? 'border-brand-600 text-brand-700 dark:text-brand-300'
               : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
@@ -215,7 +215,7 @@ export default function CollectionToolsPage() {
           {p.qrCode && (
             <button
               onClick={(e) => { e.stopPropagation(); copy(p.qrCode); }}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-600 dark:text-brand-400 hover:bg-brand-50"
             >
               <Copy size={13} /> Copiar
             </button>

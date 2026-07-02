@@ -54,7 +54,7 @@ function Tabs({ tab, setTab }: { tab: string; setTab: (t: 'categories' | 'cost-c
           className={cn(
             'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
             tab === it.id
-              ? 'border-brand-600 text-brand-700'
+              ? 'border-brand-600 text-brand-700 dark:text-brand-300'
               : 'border-transparent text-content-muted hover:text-content-secondary',
           )}
         >
@@ -145,7 +145,7 @@ export default function FinanceSettingsPage() {
               setCatDialog(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Pencil size={15} />
           </button>
@@ -232,7 +232,7 @@ export default function FinanceSettingsPage() {
               setCcDialog(true);
             }}
             title="Editar"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600"
+            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Pencil size={15} />
           </button>

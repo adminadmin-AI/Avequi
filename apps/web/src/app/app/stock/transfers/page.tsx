@@ -93,7 +93,7 @@ export default function TransfersPage() {
       cell: (t) => (
         <div className="flex items-center justify-end gap-1">
           {t.status === 'DRAFT' && (
-            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'dispatch'); }} title="Despachar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+            <button onClick={(e) => { e.stopPropagation(); runAction(t, 'dispatch'); }} title="Despachar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
               <Send size={15} />
             </button>
           )}

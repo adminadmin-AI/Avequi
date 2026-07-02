@@ -277,7 +277,7 @@ export default function VendasPage() {
               <button
                 type="button"
                 onClick={() => setItems((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])}
-                className="text-sm text-brand-600 hover:underline"
+                className="text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
                 + Adicionar item
               </button>

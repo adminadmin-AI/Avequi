@@ -162,7 +162,7 @@ export default function TransferenciasPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Itens *</label>
-              <button className="text-xs text-brand-600 hover:underline" onClick={() => setForm((p) => ({ ...p, items: [...p.items, { productId: '', quantity: 1 }] }))}>+ Adicionar</button>
+              <button className="text-xs text-brand-600 dark:text-brand-400 hover:underline" onClick={() => setForm((p) => ({ ...p, items: [...p.items, { productId: '', quantity: 1 }] }))}>+ Adicionar</button>
             </div>
             {form.items.map((item, idx) => (
               <div key={idx} className="flex gap-3 items-center">

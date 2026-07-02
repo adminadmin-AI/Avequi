@@ -66,7 +66,7 @@ function DirectReportCard({ report }: { report: (typeof DIRECT_REPORTS)[number] 
     <Card>
       <CardContent className="flex h-full flex-col py-5">
         <div className="mb-3 flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:text-brand-400">
             <FileSpreadsheet size={18} />
           </div>
           <div>

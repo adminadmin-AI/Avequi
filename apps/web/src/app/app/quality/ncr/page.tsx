@@ -135,7 +135,7 @@ export default function NcrPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             {!closedOrCancelled && (
-              <button onClick={() => { setEditTarget(n); setEditForm({ rootCause: n.rootCause ?? '', correctiveAction: n.correctiveAction ?? '' }); }} title="Editar causa/ação" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+              <button onClick={() => { setEditTarget(n); setEditForm({ rootCause: n.rootCause ?? '', correctiveAction: n.correctiveAction ?? '' }); }} title="Editar causa/ação" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
                 <Pencil size={15} />
               </button>
             )}
@@ -145,7 +145,7 @@ export default function NcrPage() {
               </button>
             )}
             {n.status === 'UNDER_ANALYSIS' && (
-              <button onClick={() => lifecycle(n, 'corrective-action')} title="Ação corretiva" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+              <button onClick={() => lifecycle(n, 'corrective-action')} title="Ação corretiva" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
                 <Wrench size={15} />
               </button>
             )}

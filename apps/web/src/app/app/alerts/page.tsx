@@ -141,7 +141,7 @@ export default function AlertsPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             {link && (
-              <button onClick={() => router.push(link)} title="Ver item relacionado" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+              <button onClick={() => router.push(link)} title="Ver item relacionado" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
                 <ExternalLink size={15} />
               </button>
             )}
@@ -184,7 +184,7 @@ export default function AlertsPage() {
               onClick={() => setTab(id)}
               className={cn(
                 'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-content-muted hover:text-content-secondary',
+                tab === id ? 'border-brand-600 text-brand-700 dark:text-brand-300' : 'border-transparent text-content-muted hover:text-content-secondary',
               )}
             >
               {label}

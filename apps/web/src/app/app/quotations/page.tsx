@@ -159,7 +159,7 @@ export default function QuotationsPage() {
                 }}
                 title={a.label}
                 className={`rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                  a.variant === 'danger' ? 'hover:text-danger' : 'hover:text-brand-600'
+                  a.variant === 'danger' ? 'hover:text-danger' : 'hover:text-brand-600 dark:hover:text-brand-400'
                 }`}
               >
                 {ACTION_ICON[a.endpoint]}

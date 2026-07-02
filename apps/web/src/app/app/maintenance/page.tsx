@@ -272,7 +272,7 @@ export default function MaintenancePage() {
         <div className="flex items-center justify-end gap-1">
           {o.status === 'OPEN' && (
             <>
-              <button onClick={() => startOrder(o)} title="Iniciar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+              <button onClick={() => startOrder(o)} title="Iniciar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
                 <Play size={15} />
               </button>
               <button onClick={() => cancelOrder(o)} title="Cancelar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger">
@@ -419,7 +419,7 @@ export default function MaintenancePage() {
       align: 'right',
       cell: (e) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEditEq(e)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600">
+          <button onClick={() => openEditEq(e)} title="Editar" className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400">
             <Pencil size={15} />
           </button>
           {e.status !== 'INACTIVE' && (

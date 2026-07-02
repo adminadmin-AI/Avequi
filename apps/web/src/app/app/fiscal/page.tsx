@@ -102,7 +102,7 @@ export default function FiscalPage() {
               e.stopPropagation();
               copyChave(d.chave!);
             }}
-            className="inline-flex items-center gap-1 font-mono text-xs text-content-secondary hover:text-brand-600"
+            className="inline-flex items-center gap-1 font-mono text-xs text-content-secondary hover:text-brand-600 dark:hover:text-brand-400"
             title={d.chave}
           >
             …{d.chave.slice(-12)} <Copy size={12} />
@@ -119,7 +119,7 @@ export default function FiscalPage() {
           <Link
             href={`/app/sales/${d.salesOrderId}`}
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ExternalLink size={12} /> {d.salesOrder?.customer?.name ?? 'Ver OV'}
           </Link>
