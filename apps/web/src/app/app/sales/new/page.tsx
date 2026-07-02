@@ -158,7 +158,7 @@ export default function NewSalePage() {
         >
           <div>
             <Label>Cliente</Label>
-            <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+            <Select aria-label="Cliente" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
               <option value="">— Sem cliente —</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -170,7 +170,7 @@ export default function NewSalePage() {
           </div>
           <div>
             <Label required>Depósito</Label>
-            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+            <Select aria-label="Depósito" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
               <option value="">— Selecione —</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
@@ -196,7 +196,7 @@ export default function NewSalePage() {
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
-              <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
+              <Select aria-label="Produto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
                 <option value="">— Selecione —</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>

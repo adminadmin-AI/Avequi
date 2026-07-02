@@ -163,7 +163,7 @@ export default function FiscalPage() {
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>Status</Label>
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | FiscalStatus)}>
+          <Select aria-label="Filtrar por status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | FiscalStatus)}>
             <option value="">Todos</option>
             {FISCAL_STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -174,7 +174,7 @@ export default function FiscalPage() {
         </div>
         <div>
           <Label>Tipo</Label>
-          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as '' | FiscalDocumentType)}>
+          <Select aria-label="Filtrar por tipo" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as '' | FiscalDocumentType)}>
             <option value="">Todos</option>
             <option value="NFE">NF-e</option>
             <option value="NFCE">NFC-e</option>
