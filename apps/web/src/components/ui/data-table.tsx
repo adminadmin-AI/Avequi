@@ -346,7 +346,125 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="avequi-scroll max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface shadow-sm">
+      {/* mobile (< sm): card view — tabela é ilegível em 375px (F5.1 #321) */}
+      <div className="space-y-2 sm:hidden">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={`card-skel-${i}`} className="rounded-xl border border-line bg-surface p-4">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="mt-3 h-3 w-1/2" />
+              <Skeleton className="mt-2 h-3 w-1/3" />
+            </div>
+          ))
+        ) : paged.length === 0 ? (
+          <div className="rounded-xl border border-line bg-surface px-4">
+            {data.length > 0 && search.trim() ? (
+              <EmptyState
+                compact
+                icon={SearchX}
+                title="Nenhum resultado"
+                description={`Nada encontrado para “${search.trim()}”.`}
+                action={{ label: 'Limpar busca', onClick: () => setSearch('') }}
+              />
+            ) : empty ? (
+              empty
+            ) : (
+              <div className="py-12 text-center text-content-muted">{emptyMessage}</div>
+            )}
+          </div>
+        ) : (
+          paged.map((row) => {
+            const key = rowKey(row);
+            const isSelected = selected.has(key);
+            // 1ª coluna visível vira o título do card; colunas sem header
+            // (ações inline) vão pro rodapé
+            const [titleCol, ...restCols] = visibleColumns.filter((c) => c.header);
+            const footerCols = visibleColumns.filter((c) => !c.header);
+            return (
+              <div
+                key={key}
+                onClick={() => onRowClick?.(row)}
+                className={cn(
+                  'rounded-xl border border-line bg-surface p-4 shadow-xs',
+                  onRowClick && 'cursor-pointer active:bg-brand-50/60 dark:active:bg-brand-600/10',
+                  isSelected && 'border-brand-600/40 bg-brand-600/10',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {selectable && (
+                    <span onClick={(e) => e.stopPropagation()} className="mt-0.5">
+                      <input
+                        type="checkbox"
+                        aria-label="Selecionar"
+                        checked={isSelected}
+                        onChange={() => toggleRow(key)}
+                        className={checkboxClass}
+                      />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1 text-sm font-medium text-content">
+                    {titleCol &&
+                      (titleCol.cell
+                        ? titleCol.cell(row)
+                        : String(accessorFor(titleCol)(row) ?? '—'))}
+                  </div>
+                  {rowActions && (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            aria-label="Ações"
+                            className="rounded-md p-1 text-content-muted hover:text-content"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {rowActions(row).map((a) => (
+                            <DropdownMenuItem
+                              key={a.label}
+                              icon={a.icon}
+                              danger={a.danger}
+                              onSelect={() => a.onClick(row)}
+                            >
+                              {a.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </span>
+                  )}
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {restCols.map((col) => (
+                    <div key={col.key} className="min-w-0">
+                      <dt className="text-helper uppercase tracking-wide text-content-muted">
+                        {col.header}
+                      </dt>
+                      <dd className="truncate text-sm text-content-secondary">
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {footerCols.length > 0 && (
+                  <div
+                    className="mt-2 flex justify-end border-t border-line/60 pt-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {footerCols.map((col) => (
+                      <span key={col.key}>{col.cell?.(row)}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* desktop (>= sm): tabela */}
+      <div className="avequi-scroll hidden max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface shadow-sm sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line">
