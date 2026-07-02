@@ -14,8 +14,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Stepper, type Step } from '@/components/ui/stepper';
+import { FormSection } from '@/components/ui/form-section';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL } from '@/lib/format';
+
+// wizard F3.1 (#316): dados → itens → revisão
+const STEPS: Step[] = [
+  { id: 'dados', label: 'Dados da venda' },
+  { id: 'itens', label: 'Itens' },
+  { id: 'revisao', label: 'Revisão' },
+];
 
 interface DraftItem {
   productId: string;
@@ -39,6 +48,7 @@ export default function NewSalePage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [step, setStep] = useState(0);
 
   // Linha de adição de item
   const [newProductId, setNewProductId] = useState('');
@@ -77,19 +87,32 @@ export default function NewSalePage() {
 
   const total = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
 
-  function submit() {
-    if (!warehouseId) {
+  // validação por etapa: não avança se a etapa atual estiver inválida
+  function validateStep(s: number): boolean {
+    if (s === 0 && !warehouseId) {
       toast.error('Selecione o depósito');
-      return;
+      return false;
     }
-    if (items.length === 0) {
-      toast.error('Adicione ao menos um item');
-      return;
+    if (s === 1) {
+      if (items.length === 0) {
+        toast.error('Adicione ao menos um item');
+        return false;
+      }
+      if (items.some((it) => !(it.quantity > 0) || !(it.unitPrice > 0))) {
+        toast.error('Quantidade e preço devem ser maiores que zero');
+        return false;
+      }
     }
-    if (items.some((it) => !(it.quantity > 0) || !(it.unitPrice > 0))) {
-      toast.error('Quantidade e preço devem ser maiores que zero');
-      return;
-    }
+    return true;
+  }
+
+  function next() {
+    if (!validateStep(step)) return;
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+  }
+
+  function submit() {
+    if (!validateStep(0) || !validateStep(1)) return;
     const payload = {
       companyId,
       warehouseId,
@@ -123,9 +146,16 @@ export default function NewSalePage() {
         }
       />
 
-      {/* Cabeçalho */}
-      <Card className="mb-5">
-        <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
+      {/* Wizard F3.1 (#316) */}
+      <Stepper steps={STEPS} current={step} onStepClick={setStep} className="mx-auto mb-6 max-w-2xl" />
+
+      {/* Etapa 1 — Dados */}
+      {step === 0 && (
+        <FormSection
+          title="Dados da venda"
+          description="Cliente é opcional; o depósito define de onde sai o estoque."
+          className="mb-5"
+        >
           <div>
             <Label>Cliente</Label>
             <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -153,10 +183,11 @@ export default function NewSalePage() {
             <Label>Observações</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
           </div>
-        </CardContent>
-      </Card>
+        </FormSection>
+      )}
 
-      {/* Itens */}
+      {/* Etapa 2 — Itens */}
+      {step === 1 && (
       <Card className="mb-5">
         <CardContent className="py-5">
           <h3 className="mb-3 text-sm font-semibold text-content-secondary">Itens</h3>
@@ -260,15 +291,91 @@ export default function NewSalePage() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.push('/app/sales')} disabled={create.isPending}>
-          Cancelar
+      {/* Etapa 3 — Revisão */}
+      {step === 2 && (
+        <div className="mb-5 space-y-5">
+          <FormSection title="Dados da venda" columns={3}>
+            <Summary label="Cliente" value={customers.find((c) => c.id === customerId)?.name ?? 'Sem cliente'} />
+            <Summary
+              label="Depósito"
+              value={(() => {
+                const w = warehouses.find((x) => x.id === warehouseId);
+                return w ? `${w.code} — ${w.name}` : '—';
+              })()}
+            />
+            <Summary label="Observações" value={notes || '—'} />
+          </FormSection>
+          <FormSection title={`Itens (${items.length})`} columns={1}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
+                  <th className="py-2 text-left font-medium">Produto</th>
+                  <th className="py-2 text-right font-medium">Qtd</th>
+                  <th className="py-2 text-right font-medium">Preço unit.</th>
+                  <th className="py-2 text-right font-medium">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, idx) => {
+                  const p = productMap.get(it.productId);
+                  return (
+                    <tr key={idx} className="border-b border-line/60 last:border-0">
+                      <td className="py-2">
+                        <p className="text-content">{p?.name ?? '—'}</p>
+                        <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{it.quantity}</td>
+                      <td className="py-2 text-right tabular-nums">{formatBRL(it.unitPrice)}</td>
+                      <td className="py-2 text-right font-medium tabular-nums">
+                        {formatBRL(it.quantity * it.unitPrice)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3} className="py-3 text-right text-sm font-medium text-content-secondary">
+                    Total geral
+                  </td>
+                  <td className="py-3 text-right text-base font-semibold tabular-nums text-content">
+                    {formatBRL(total)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </FormSection>
+        </div>
+      )}
+
+      {/* navegação do wizard */}
+      <div className="flex justify-between gap-3">
+        <Button
+          variant="secondary"
+          onClick={() => (step === 0 ? router.push('/app/sales') : setStep((s) => s - 1))}
+          disabled={create.isPending}
+        >
+          {step === 0 ? 'Cancelar' : 'Voltar'}
         </Button>
-        <Button onClick={submit} loading={create.isPending} disabled={items.length === 0}>
-          Criar ordem de venda
-        </Button>
+        {step < STEPS.length - 1 ? (
+          <Button onClick={next}>Próximo</Button>
+        ) : (
+          <Button onClick={submit} loading={create.isPending}>
+            Criar ordem de venda
+          </Button>
+        )}
       </div>
+    </div>
+  );
+}
+
+function Summary({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-caption font-medium uppercase tracking-wide text-content-muted">{label}</p>
+      <p className="mt-0.5 text-sm text-content">{value}</p>
     </div>
   );
 }
