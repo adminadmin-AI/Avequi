@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, Search, SearchX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from './input';
-import { Spinner } from './spinner';
+import { Skeleton } from './skeleton';
 import { EmptyState } from './empty-state';
 
 export interface Column<T> {
@@ -153,11 +153,31 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center">
-                  <Spinner className="mx-auto" />
-                </td>
-              </tr>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skeleton-${i}`} className="border-b border-line/60 last:border-0">
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={cn(
+                        'px-4 py-3',
+                        col.align === 'right' && 'text-right',
+                        col.align === 'center' && 'text-center',
+                      )}
+                    >
+                      <Skeleton
+                        className={cn(
+                          'h-4',
+                          col.align === 'right'
+                            ? 'ml-auto w-16'
+                            : col.align === 'center'
+                              ? 'mx-auto w-10'
+                              : 'w-3/4',
+                        )}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : paged.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4">
