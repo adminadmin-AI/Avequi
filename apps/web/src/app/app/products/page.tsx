@@ -30,6 +30,7 @@ export default function ProductsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [formDirty, setFormDirty] = useState(false);
 
   function openCreate() {
     setEditing(null);
@@ -196,15 +197,20 @@ export default function ProductsPage() {
 
       <FormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setFormDirty(false);
+        }}
         title={editing ? 'Editar produto' : 'Novo produto'}
         description={editing ? `Editando "${editing.name}"` : 'Preencha os dados do produto.'}
         formId="product-form"
         loading={create.isPending || update.isPending}
+        dirty={formDirty}
       >
         <ProductForm
           key={editing?.id ?? 'new'}
           formId="product-form"
+          onDirtyChange={setFormDirty}
           defaultValues={
             editing
               ? {
