@@ -37,8 +37,4 @@ export class CreateProductDto {
   @ApiPropertyOptional()
   @IsOptional()
   salePrice?: number;
-
-  @ApiProperty()
-  @IsString()
-  companyId: string;
 }

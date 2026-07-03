@@ -11,7 +11,10 @@ import { UpdateRoutingStepDto } from './dto/update-routing-step.dto';
 export class RoutingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateRoutingStepDto, user?: any) {
+  async create(dto: CreateRoutingStepDto, user: { id?: string; companyId: string }) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    const companyId = user.companyId;
+
     // 1. Check stepOrder uniqueness per product
     const existing = await this.prisma.routingStep.findUnique({
       where: { productId_stepOrder: { productId: dto.productId, stepOrder: dto.stepOrder } },
@@ -22,20 +25,22 @@ export class RoutingService {
 
     // 2. Verify product exists and belongs to companyId
     const product = await this.prisma.product.findFirst({
-      where: { id: dto.productId, companyId: dto.companyId },
+      where: { id: dto.productId, companyId },
     });
     if (!product) {
       throw new NotFoundException(`Produto ${dto.productId} não encontrado`);
     }
 
     // 3. Create RoutingStep
-    const step = await this.prisma.routingStep.create({ data: dto });
+    const step = await this.prisma.routingStep.create({
+      data: { ...dto, companyId },
+    });
 
     // 4. AuditLog
     await this.prisma.auditLog.create({
       data: {
         userId: user?.id,
-        companyId: dto.companyId,
+        companyId,
         entity: 'RoutingStep',
         action: 'CREATE',
         payload: { stepId: step.id, productId: dto.productId, stepOrder: dto.stepOrder },
@@ -52,13 +57,17 @@ export class RoutingService {
     });
   }
 
-  async update(id: string, dto: UpdateRoutingStepDto, user?: any) {
-    const existing = await this.prisma.routingStep.findFirst({ where: { id } });
+  async update(id: string, dto: UpdateRoutingStepDto, user: { id?: string; companyId: string }) {
+    // Busca escopada pela empresa do usuário — impede editar etapa de outro tenant
+    const existing = await this.prisma.routingStep.findFirst({
+      where: { id, companyId: user.companyId },
+    });
     if (!existing) {
       throw new NotFoundException(`RoutingStep ${id} não encontrado`);
     }
 
-    const companyId = dto.companyId || existing.companyId;
+    // companyId é imutável: registro nunca muda de empresa via update
+    const companyId = existing.companyId;
 
     // If stepOrder changes, check uniqueness
     const newStepOrder = dto.stepOrder ?? existing.stepOrder;
@@ -72,9 +81,12 @@ export class RoutingService {
       }
     }
 
+    // Defesa em profundidade: descarta qualquer companyId injetado no payload
+    const { companyId: _ignored, ...data } = dto as any;
+
     const step = await this.prisma.routingStep.update({
       where: { id },
-      data: dto,
+      data,
     });
 
     await this.prisma.auditLog.create({

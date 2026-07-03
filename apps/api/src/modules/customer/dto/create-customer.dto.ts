@@ -41,8 +41,4 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   state?: string;
-
-  @ApiProperty()
-  @IsString()
-  companyId: string;
 }

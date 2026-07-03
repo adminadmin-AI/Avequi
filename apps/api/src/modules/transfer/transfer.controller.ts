@@ -20,9 +20,9 @@ export class TransferController {
   @Post()
   create(
     @Body() dto: CreateTransferDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { companyId: string; sub: string } },
   ) {
-    return this.transferService.create(dto, req.user.sub);
+    return this.transferService.create(dto, req.user.companyId, req.user.sub);
   }
 
   @Get()

@@ -16,14 +16,15 @@ export class TransferService {
 
   // ─── S10.01: Criar transferência em DRAFT ────────────────────────────────
 
-  async create(dto: CreateTransferDto, userId?: string) {
+  async create(dto: CreateTransferDto, companyId: string, userId?: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     if (dto.fromWarehouseId === dto.toWarehouseId) {
       throw new BadRequestException('Origem e destino não podem ser o mesmo depósito');
     }
 
     const transfer = await this.prisma.storeTransfer.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         fromWarehouseId: dto.fromWarehouseId,
         toWarehouseId: dto.toWarehouseId,
         notes: dto.notes,
@@ -43,7 +44,7 @@ export class TransferService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'StoreTransfer',
         action: 'CREATE',
         payload: { storeTransferId: transfer.id, itemCount: dto.items.length },

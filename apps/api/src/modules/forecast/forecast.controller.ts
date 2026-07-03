@@ -20,13 +20,13 @@ export class ForecastController {
   constructor(private readonly forecastService: ForecastService) {}
 
   // POST /forecast/generate
-  // Body: { companyId, targetPeriod?, windowMonths?, productId? }
+  // Body: { targetPeriod?, windowMonths?, productId? } — companyId vem do JWT
   @Post('generate')
   generate(
     @Body() dto: GenerateForecastDto,
-    @Request() req: { user: { id: string } },
+    @Request() req: { user: { companyId: string; id: string } },
   ) {
-    return this.forecastService.generateForecasts(dto, req.user.id);
+    return this.forecastService.generateForecasts(dto, req.user.companyId, req.user.id);
   }
 
   // GET /forecast/backtest?companyId=&testMonths=3&windowMonths=3&productId=

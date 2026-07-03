@@ -25,10 +25,10 @@ export class SalesService {
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
-  async createOrder(dto: CreateSalesOrderDto, userId?: string) {
+  async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string) {
     const order = await this.prisma.salesOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
@@ -49,7 +49,7 @@ export class SalesService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'SalesOrder',
         action: 'CREATE',
         payload: { salesOrderId: order.id, itemCount: dto.items.length },

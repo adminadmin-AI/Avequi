@@ -24,8 +24,11 @@ export class WmsController {
 
   // POST /wms/locations
   @Post('locations')
-  createLocation(@Body() dto: CreateLocationDto) {
-    return this.wmsService.createLocation(dto);
+  createLocation(
+    @Body() dto: CreateLocationDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.createLocation(dto, req.user.companyId);
   }
 
   // GET /wms/locations?warehouseId=...

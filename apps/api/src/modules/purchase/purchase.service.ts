@@ -25,10 +25,10 @@ export class PurchaseService {
 
   // ─── Pedido de Compra ────────────────────────────────────────────────────
 
-  async createPO(dto: CreatePurchaseOrderDto, userId?: string) {
+  async createPO(dto: CreatePurchaseOrderDto, companyId: string, userId?: string) {
     const po = await this.prisma.purchaseOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         supplierId: dto.supplierId,
         expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : undefined,
         notes: dto.notes,
@@ -49,7 +49,7 @@ export class PurchaseService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'PurchaseOrder',
         action: 'CREATE',
         payload: { purchaseOrderId: po.id, supplierId: dto.supplierId, itemCount: dto.items.length },
@@ -473,10 +473,10 @@ export class PurchaseService {
 
   // ─── S05.07: PurchaseRequest CRUD ────────────────────────────────────────
 
-  async createRequest(dto: CreatePurchaseRequestDto, userId?: string) {
+  async createRequest(dto: CreatePurchaseRequestDto, companyId: string, userId?: string) {
     return this.prisma.purchaseRequest.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         productId: dto.productId,
         quantity: dto.quantity,
         neededBy: dto.neededBy ? new Date(dto.neededBy) : undefined,

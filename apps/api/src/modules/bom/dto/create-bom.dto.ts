@@ -10,7 +10,6 @@ export class BomItemDto {
 
 export class CreateBomDto {
   @ApiProperty() @IsString() productId: string;
-  @ApiProperty() @IsString() companyId: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
   @ApiProperty({ type: [BomItemDto] })
   @IsArray()

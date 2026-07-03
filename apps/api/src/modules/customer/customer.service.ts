@@ -14,12 +14,15 @@ export class CustomerService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateCustomerDto, user?: any) {
+  async create(dto: CreateCustomerDto, user: { id?: string; companyId: string }) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    const companyId = user.companyId;
+
     // Check document uniqueness per company
     if (dto.document) {
       const existing = await this.prisma.customer.findUnique({
         where: {
-          companyId_document: { companyId: dto.companyId, document: dto.document },
+          companyId_document: { companyId, document: dto.document },
         },
       });
       if (existing) {
@@ -27,12 +30,14 @@ export class CustomerService {
       }
     }
 
-    const customer = await this.prisma.customer.create({ data: dto });
+    const customer = await this.prisma.customer.create({
+      data: { ...dto, companyId },
+    });
 
     await this.prisma.auditLog.create({
       data: {
         userId: user?.id,
-        companyId: dto.companyId,
+        companyId,
         entity: 'Customer',
         action: 'CREATE',
         payload: { ...dto },
@@ -77,15 +82,22 @@ export class CustomerService {
     return customer;
   }
 
-  async update(id: string, dto: UpdateCustomerDto, user?: any) {
-    const existing = await this.prisma.customer.findFirst({ where: { id } });
+  async update(id: string, dto: UpdateCustomerDto, user: { id?: string; companyId: string }) {
+    // Busca escopada pela empresa do usuário — impede editar cliente de outro tenant
+    const existing = await this.prisma.customer.findFirst({
+      where: { id, companyId: user.companyId },
+    });
     if (!existing) throw new NotFoundException(`Cliente ${id} não encontrado`);
 
-    const companyId = dto.companyId || existing.companyId;
+    // companyId é imutável: registro nunca muda de empresa via update
+    const companyId = existing.companyId;
+
+    // Defesa em profundidade: descarta qualquer companyId injetado no payload
+    const { companyId: _ignored, ...data } = dto as any;
 
     const customer = await this.prisma.customer.update({
       where: { id },
-      data: dto,
+      data,
     });
 
     await this.prisma.auditLog.create({
