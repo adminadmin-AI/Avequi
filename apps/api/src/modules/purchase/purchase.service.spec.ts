@@ -189,7 +189,7 @@ describe('PurchaseService', () => {
 
   describe('createReceipt', () => {
     it('deve rejeitar recebimento de PO não aprovada (DRAFT)', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(basePO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(basePO);
 
       await expect(
         service.createReceipt(
@@ -207,7 +207,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar recebimento de PO cancelada', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.CANCELLED,
       });
@@ -221,7 +221,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar item de PO inexistente no pedido', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -239,7 +239,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar divergência de quantidade sem motivo obrigatório', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -258,7 +258,7 @@ describe('PurchaseService', () => {
 
     // S06.02 + S06.03: estoque atualizado e custo médio recalculado
     it('deve criar entrada no estoque, recalcular avgCost e emitir evento', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -338,7 +338,7 @@ describe('PurchaseService', () => {
 
     // S06.03: custo médio zero quando saldo anterior é zero (primeiro recebimento)
     it('deve usar custo unitário como avgCost no primeiro recebimento (saldo zero)', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -380,7 +380,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve aceitar divergência com motivo informado', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -446,7 +446,7 @@ describe('PurchaseService', () => {
     };
 
     it('PO 100 un, recebe 60 → PARTIALLY_RECEIVED', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(approvedPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(approvedPO);
       setupReceiptMocks();
       // After receiving 60, only 60 of 100 received
       mockPrisma.pOItem.findMany.mockResolvedValue([
@@ -486,7 +486,7 @@ describe('PurchaseService', () => {
           { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 60 },
         ],
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(partialPO);
       setupReceiptMocks();
       // After receiving 40 more, 100 of 100 received
       mockPrisma.pOItem.findMany.mockResolvedValue([
@@ -518,7 +518,7 @@ describe('PurchaseService', () => {
           { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 80 },
         ],
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(partialPO);
 
       await expect(
         service.createReceipt(
