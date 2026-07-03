@@ -1,6 +1,5 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -11,6 +10,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
@@ -165,13 +165,17 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
       useClass: ThrottlerGuard,
     },
     {
+      // Roda DEPOIS dos guards (req.user já populado pelo JwtAuthGuard) e
+      // ANTES do AuditInterceptor. Substitui o antigo TenantMiddleware, que
+      // era código morto: middleware roda antes dos guards, então req.user
+      // era sempre undefined e o SET LOCAL nunca era executado.
+      provide: APP_INTERCEPTOR,
+      useClass: TenantContextInterceptor,
+    },
+    {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}
