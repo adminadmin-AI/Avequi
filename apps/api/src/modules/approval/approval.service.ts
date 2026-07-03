@@ -49,6 +49,7 @@ export class ApprovalService {
   ) {
     // #227: Validate document exists, is in approvable status, and compute amount
     let amount = 0;
+    let creatorId: string | null = null;
     if (documentType === 'PO') {
       const po = await this.prisma.purchaseOrder.findFirst({
         where: { id: documentId, companyId },
@@ -59,6 +60,7 @@ export class ApprovalService {
         throw new BadRequestException(`PO não está em DRAFT (status: ${po.status})`);
       }
       amount = po.items.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unitCost), 0);
+      creatorId = po.createdById;
     } else if (documentType === 'PR') {
       const pr = await this.prisma.purchaseRequest.findFirst({
         where: { id: documentId, companyId },
@@ -69,8 +71,17 @@ export class ApprovalService {
         throw new BadRequestException(`PR não está em OPEN (status: ${pr.status})`);
       }
       amount = Number(pr.quantity) * Number(pr.product.costPrice ?? 0);
+      creatorId = pr.requestedById;
     } else {
       throw new BadRequestException(`Tipo de documento não suportado: ${documentType}`);
+    }
+
+    // SoD (#160): quem criou o documento não pode aprová-lo — em NENHUM nível.
+    // Aplica-se inclusive a SUPER_ADMIN (segregação de funções vale para todos os perfis).
+    if (creatorId && creatorId === userId) {
+      throw new ForbiddenException(
+        'Segregação de funções: o criador do documento não pode aprová-lo. Solicite a aprovação a outro usuário com alçada.',
+      );
     }
 
     const requiredLevels = await this.getRequiredLevels(companyId, documentType, amount);
@@ -93,6 +104,14 @@ export class ApprovalService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // SoD (#160): um usuário que já aprovou um nível não pode aprovar outro nível
+    // do mesmo documento — cada nível exige um aprovador distinto.
+    if (existingApprovals.some((a) => a.userId === userId)) {
+      throw new ForbiddenException(
+        'Segregação de funções: você já aprovou um nível deste documento. Cada nível de alçada exige um aprovador distinto.',
+      );
+    }
 
     const approvedLevels = existingApprovals.map(
       (a) => (a.payload as any)?.level ?? 0,
