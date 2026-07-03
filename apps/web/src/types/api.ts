@@ -522,22 +522,14 @@ export interface CostCenter extends BaseEntity {
 }
 
 // ─── Inputs (create/update) ───────────────────────────────────────────────────
-export type CreateProductInput = Omit<
-  Product,
-  keyof BaseEntity | 'companyId'
-> & { companyId: string };
+// companyId NÃO é mais enviado no body: a API deriva a empresa do JWT.
+export type CreateProductInput = Omit<Product, keyof BaseEntity | 'companyId'>;
 
-export type CreateSupplierInput = Omit<Supplier, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateSupplierInput = Omit<Supplier, keyof BaseEntity | 'companyId'>;
 
-export type CreateCustomerInput = Omit<Customer, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateCustomerInput = Omit<Customer, keyof BaseEntity | 'companyId'>;
 
-export type CreateWarehouseInput = Omit<Warehouse, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateWarehouseInput = Omit<Warehouse, keyof BaseEntity | 'companyId'>;
 
 // ─── Erro padrão da API ───────────────────────────────────────────────────────
 export interface ApiError {

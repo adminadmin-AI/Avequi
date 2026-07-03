@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { Customer, Warehouse, Product, SalesOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -36,7 +35,6 @@ export default function NewSalePage() {
   const router = useRouter();
   const toast = useToast();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
@@ -114,7 +112,6 @@ export default function NewSalePage() {
   function submit() {
     if (!validateStep(0) || !validateStep(1)) return;
     const payload = {
-      companyId,
       warehouseId,
       customerId: customerId || undefined,
       notes: notes || undefined,

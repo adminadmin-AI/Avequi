@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Users } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Customer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -20,12 +19,11 @@ import { CustomerForm, type CustomerFormValues } from './customer-form';
 const RESOURCE = '/customers';
 
 export default function CustomersPage() {
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
 
   const { data: customers = [], isLoading } = useList<Customer>(RESOURCE);
-  const create = useCreate<Customer, CustomerFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<Customer, CustomerFormValues>(RESOURCE);
   const update = useUpdate<Customer>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,7 +57,7 @@ export default function CustomersPage() {
       );
     } else {
       create.mutate(
-        { ...payload, companyId },
+        payload,
         {
           onSuccess: () => {
             toast.success('Cliente criado');

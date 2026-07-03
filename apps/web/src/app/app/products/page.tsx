@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Package } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -20,12 +19,11 @@ import { ProductForm, type ProductFormValues } from './product-form';
 const RESOURCE = '/products';
 
 export default function ProductsPage() {
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
 
   const { data: products = [], isLoading } = useList<Product>(RESOURCE);
-  const create = useCreate<Product, ProductFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<Product, ProductFormValues>(RESOURCE);
   const update = useUpdate<Product, Partial<Product> | ProductFormValues>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -55,7 +53,7 @@ export default function ProductsPage() {
       );
     } else {
       create.mutate(
-        { ...values, companyId },
+        values,
         {
           onSuccess: () => {
             toast.success('Produto criado');

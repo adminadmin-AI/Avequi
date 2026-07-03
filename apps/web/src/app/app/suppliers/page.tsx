@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Handshake } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Supplier } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -19,12 +18,11 @@ import { SupplierForm, type SupplierFormValues } from './supplier-form';
 const RESOURCE = '/suppliers';
 
 export default function SuppliersPage() {
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
 
   const { data: suppliers = [], isLoading } = useList<Supplier>(RESOURCE);
-  const create = useCreate<Supplier, SupplierFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<Supplier, SupplierFormValues>(RESOURCE);
   const update = useUpdate<Supplier>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -58,7 +56,7 @@ export default function SuppliersPage() {
       );
     } else {
       create.mutate(
-        { ...payload, companyId },
+        payload,
         {
           onSuccess: () => {
             toast.success('Fornecedor criado');

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { Product, Warehouse, StockBalance, StoreTransfer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -26,7 +25,6 @@ export default function NewTransferPage() {
   const router = useRouter();
   const toast = useToast();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const { data: products = [] } = useList<Product>('/products');
@@ -72,7 +70,6 @@ export default function NewTransferPage() {
 
     create.mutate(
       {
-        companyId,
         fromWarehouseId,
         toWarehouseId,
         notes: notes || undefined,
