@@ -4,9 +4,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { CUSTOMER_TYPE_LABELS, enumOptions } from '@/lib/enums';
 import { unmask } from '@/lib/format';
 import { isValidCPF, isValidCNPJ } from '@/lib/validators';
@@ -43,26 +43,6 @@ const schema = z
 export type CustomerFormValues = z.infer<typeof schema>;
 
 const typeOptions = enumOptions(CUSTOMER_TYPE_LABELS);
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
 
 export function CustomerForm({
   formId,

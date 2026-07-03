@@ -6,8 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { PRODUCT_TYPE_LABELS, UNIT_LABELS, enumOptions } from '@/lib/enums';
 
 const schema = z.object({
@@ -40,26 +40,6 @@ interface ProductFormProps {
 
 const typeOptions = enumOptions(PRODUCT_TYPE_LABELS);
 const unitOptions = enumOptions(UNIT_LABELS);
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
 
 export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: ProductFormProps) {
   const {

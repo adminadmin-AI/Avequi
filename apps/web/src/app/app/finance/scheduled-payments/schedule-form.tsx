@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { FinancialEntry, BankAccount } from '@/types/api';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { formatBRL } from '@/lib/format';
 
@@ -16,26 +16,6 @@ const schema = z.object({
 });
 
 export type ScheduleFormValues = z.infer<typeof schema>;
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
 
 /**
  * Formulário de novo agendamento. Os seletores usam dados REAIS (pagáveis em

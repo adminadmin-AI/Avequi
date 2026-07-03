@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { CompanyType } from '@/types/api';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { formatCNPJ, unmask } from '@/lib/format';
 import { isValidCNPJ } from '@/lib/validators';
@@ -21,26 +21,6 @@ const schema = z.object({
 export type CompanyFormValues = z.infer<typeof schema>;
 
 const TYPE_LABEL: Record<CompanyType, string> = { MATRIZ: 'Matriz', FILIAL: 'Filial' };
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
 
 export function CompanyForm({
   formId,
