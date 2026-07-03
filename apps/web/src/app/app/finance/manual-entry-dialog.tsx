@@ -10,8 +10,8 @@ import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialCategory, CostCenter, FinancialEntryType } from '@/types/api';
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
@@ -40,26 +40,6 @@ function flattenOptions<T extends { id: string; name: string; children?: T[] }>(
   };
   walk(roots, 0);
   return out;
-}
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
 }
 
 /**

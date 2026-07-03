@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
 import { formatCNPJ, unmask } from '@/lib/format';
 import { isValidCNPJ } from '@/lib/validators';
 
@@ -20,26 +20,6 @@ const schema = z.object({
 });
 
 export type SupplierFormValues = z.infer<typeof schema>;
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      {children}
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
 
 export function SupplierForm({
   formId,

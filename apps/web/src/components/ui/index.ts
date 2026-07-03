@@ -26,6 +26,7 @@ export {
 } from './masked-input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Label } from './label';
+export { Field } from './field';
 export { Select, type SelectProps } from './select';
 export {
   DatePicker,

@@ -225,7 +225,7 @@ export default function LoginPage() {
               </label>
               <a
                 href="#"
-                className="text-caption font-medium text-brand-600 dark:text-brand-400 transition-colors hover:text-brand-700 dark:hover:text-brand-300 dark:text-brand-400 dark:hover:text-brand-300"
+                className="text-caption font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
               >
                 Esqueci minha senha
               </a>
