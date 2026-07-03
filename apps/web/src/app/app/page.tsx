@@ -3,19 +3,18 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+// recharts fora do chunk inicial (F7.1 #323): carrega atrás de skeleton
+const RevenueLineChart = dynamic(
+  () => import('./dashboard-charts').then((m) => m.RevenueLineChart),
+  { ssr: false, loading: () => <div className="h-[240px] animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" /> },
+);
+const ProductionBarChart = dynamic(
+  () => import('./dashboard-charts').then((m) => m.ProductionBarChart),
+  { ssr: false, loading: () => <div className="h-[240px] animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" /> },
+);
 import { useQuery } from '@tanstack/react-query';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import {
   AlertTriangle,
   ArrowRight,
@@ -324,31 +323,7 @@ export default function DashboardPage() {
             ) : revenueSeries.length === 0 ? (
               <EmptyChart label="Sem dados de faturamento no período." />
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={revenueSeries} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} vertical={false} />
-                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: colors.neutral[400] }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={64}
-                    tickFormatter={(v) => formatBRL(v).replace('R$', '').trim()}
-                  />
-                  <Tooltip
-                    formatter={(v) => [formatBRL(Number(v)), 'Faturamento']}
-                    contentStyle={tooltipStyle}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={colors.brand[600]}
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <RevenueLineChart data={revenueSeries} />
             )}
           </PanelBody>
         </Panel>
@@ -407,19 +382,7 @@ export default function DashboardPage() {
             {productionQ.isLoading ? (
               <ChartSkeleton />
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={prodByStatus} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} vertical={false} />
-                  <XAxis dataKey="status" tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
-                  <Tooltip formatter={(v) => [Number(v), 'OPs']} contentStyle={tooltipStyle} cursor={{ fill: colors.neutral[100] }} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {prodByStatus.map((_, i) => (
-                      <Cell key={i} fill={colors.brand[500]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <ProductionBarChart data={prodByStatus} />
             )}
           </PanelBody>
         </Panel>
