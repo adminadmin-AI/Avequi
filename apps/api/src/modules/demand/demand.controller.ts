@@ -8,19 +8,18 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { DemandService } from './demand.service';
 import { UpsertDemandDto } from './dto/upsert-demand.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('demand')
 export class DemandController {
   constructor(private readonly demandService: DemandService) {}
 
   // POST /demand — cria ou atualiza previsão de demanda (companyId vem do JWT)
   @Post()
+  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
   upsert(
     @Body() dto: UpsertDemandDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -73,6 +72,7 @@ export class DemandController {
 
   // PATCH /demand/horizon — configura mrp_horizon_days
   @Patch('horizon')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   setHorizon(
     @Request() req: { user: { companyId: string } },
     @Body('days') days: number,
@@ -82,6 +82,7 @@ export class DemandController {
 
   // DELETE /demand/:id
   @Delete(':id')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
   remove(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },

@@ -140,6 +140,7 @@ export class PurchaseController {
   }
 
   @Post('requests/:id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE')
   @ApiOperation({ summary: 'Cancelar solicitação de compra' })
   cancelRequest(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.cancelRequest(id, user.companyId);

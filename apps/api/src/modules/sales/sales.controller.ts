@@ -15,6 +15,8 @@ import { SalesService } from './sales.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
+const SALES_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'COMMERCIAL'];
+
 @ApiTags('Sales')
 @ApiBearerAuth()
 @Controller('sales')
@@ -22,6 +24,7 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Post()
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
     return this.salesService.createOrder(dto, user.companyId, user.id);
@@ -50,24 +53,28 @@ export class SalesController {
   }
 
   @Patch(':id/reserve')
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Reservar estoque para a venda (DRAFT → RESERVED)' })
   reserve(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.reserveOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/confirm')
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.confirmOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/invoice')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'FINANCIAL')
   @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (READY_TO_INVOICE → INVOICED)' })
   invoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.invoiceOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/return')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Devolver venda faturada: estorna estoque (INVOICED → RETURNED)' })
   return(
     @Param('id') id: string,
@@ -78,6 +85,7 @@ export class SalesController {
   }
 
   @Patch(':id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Cancelar venda (até CONFIRMED). Faturadas usam /return.' })
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.cancelOrder(id, user.companyId, user?.id);

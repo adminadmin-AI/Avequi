@@ -21,7 +21,7 @@ export class RoutingController {
   constructor(private readonly routingService: RoutingService) {}
 
   @Post()
-  @Roles('DIRECTOR', 'MANAGER', 'PRODUCTION')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Criar etapa de roteiro de produção' })
   create(@Body() dto: CreateRoutingStepDto, @CurrentUser() user: any) {
     return this.routingService.create(dto, user);
@@ -37,7 +37,7 @@ export class RoutingController {
   }
 
   @Patch(':id')
-  @Roles('DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Atualizar etapa de roteiro' })
   update(
     @Param('id') id: string,
@@ -48,7 +48,7 @@ export class RoutingController {
   }
 
   @Delete(':id')
-  @Roles('DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Remover etapa de roteiro' })
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.routingService.remove(id, user.companyId, user);

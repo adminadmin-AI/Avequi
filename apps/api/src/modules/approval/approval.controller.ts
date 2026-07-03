@@ -29,6 +29,7 @@ export class ApprovalController {
   }
 
   @Get('pending')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Listar itens pendentes de aprovação (#188)' })
   getPending(@CurrentUser() user: any) {
     return this.approvalService.getPending(user.companyId, user.role);

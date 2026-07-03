@@ -8,11 +8,10 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -21,9 +20,13 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
+// Leitura restrita: dados financeiros são sensíveis (READER e roles operacionais não acessam)
+const FINANCE_READ_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL'];
+const FINANCE_WRITE_ROLES = ['SUPER_ADMIN', 'FINANCIAL'];
+
 @ApiTags('Finance')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@Roles(...FINANCE_READ_ROLES)
 @Controller('finance')
 export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
@@ -47,6 +50,7 @@ export class FinanceController {
   }
 
   @Post('entries/manual')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar lançamento manual (avulso)' })
   createManualEntry(
     @Body() dto: CreateManualEntryDto,
@@ -103,6 +107,7 @@ export class FinanceController {
   }
 
   @Patch(':id/pay')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Registrar pagamento/recebimento' })
   pay(
     @Param('id') id: string,
@@ -113,6 +118,7 @@ export class FinanceController {
   }
 
   @Post(':id/installments')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Parcelar lançamento em N parcelas' })
   createInstallments(
     @Param('id') id: string,
@@ -123,6 +129,7 @@ export class FinanceController {
   }
 
   @Patch(':id/cancel')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancelar lançamento' })
   cancel(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
     return this.financeService.cancel(id, req.user.companyId);
@@ -131,6 +138,7 @@ export class FinanceController {
   // ─── Contas bancárias ─────────────────────────────────────────────────────
 
   @Post('bank-accounts')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar conta bancária' })
   createBankAccount(
     @Body() dto: CreateBankAccountDto,
@@ -146,6 +154,7 @@ export class FinanceController {
   }
 
   @Patch('bank-accounts/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Atualizar conta bancária' })
   updateBankAccount(
     @Param('id') id: string,
@@ -156,6 +165,7 @@ export class FinanceController {
   }
 
   @Delete('bank-accounts/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Desativar conta bancária' })
   deactivateBankAccount(
     @Param('id') id: string,
@@ -186,6 +196,7 @@ export class FinanceController {
   // ─── Categorias gerenciais ───────────────────────────────────────────────
 
   @Post('categories')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar categoria financeira' })
   createCategory(
     @Body() dto: CreateCategoryDto,
@@ -201,6 +212,7 @@ export class FinanceController {
   }
 
   @Patch('categories/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Atualizar categoria' })
   updateCategory(
     @Param('id') id: string,
@@ -211,6 +223,7 @@ export class FinanceController {
   }
 
   @Delete('categories/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Desativar categoria' })
   deactivateCategory(
     @Param('id') id: string,
@@ -222,6 +235,7 @@ export class FinanceController {
   // ─── Centros de custo ────────────────────────────────────────────────────
 
   @Post('cost-centers')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar centro de custo' })
   createCostCenter(
     @Body() dto: CreateCostCenterDto,
@@ -237,6 +251,7 @@ export class FinanceController {
   }
 
   @Patch('cost-centers/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Atualizar centro de custo' })
   updateCostCenter(
     @Param('id') id: string,
@@ -247,6 +262,7 @@ export class FinanceController {
   }
 
   @Delete('cost-centers/:id')
+  @Roles(...FINANCE_WRITE_ROLES)
   @ApiOperation({ summary: 'Desativar centro de custo' })
   deactivateCostCenter(
     @Param('id') id: string,

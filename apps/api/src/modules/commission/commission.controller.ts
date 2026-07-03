@@ -6,6 +6,7 @@ import { CommissionService } from './commission.service';
 
 @ApiTags('commissions')
 @ApiBearerAuth()
+@Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL', 'COMMERCIAL')
 @Controller('commissions')
 export class CommissionController {
   constructor(private readonly commissionService: CommissionService) {}
