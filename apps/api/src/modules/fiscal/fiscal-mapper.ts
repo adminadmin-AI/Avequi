@@ -21,6 +21,16 @@ export interface FiscalDifal {
 /** CSTs de IPI tributado (grupo IPITrib) — os demais (01-05, 51-55) geram IPINT */
 const IPI_TRIBUTED_CSTS = ['00', '49', '50', '99'];
 
+/**
+ * Data de emissão no fuso de Brasília (-03:00, sem DST desde 2019).
+ * UTC puro faz a nota "pular" para o dia seguinte após as 21h locais —
+ * SEFAZ então rejeita cancelamento/CC-e do mesmo dia com cód 577
+ * ("data do evento menor que a data de emissão").
+ */
+function nowBrasilia(): string {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, '-03:00');
+}
+
 export interface FiscalItemTax {
   cfop: string;
   icmsCst: string;
@@ -282,7 +292,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
   const doc = input.recipient?.document?.replace(/\D/g, '') ?? '';
   return {
     natureza_operacao: 'VENDA A CONSUMIDOR',
-    data_emissao: new Date().toISOString(),
+    data_emissao: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
     consumidor_final: '1',
@@ -310,7 +320,7 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
 
   return {
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
-    data_emissao: new Date().toISOString(),
+    data_emissao: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
     consumidor_final: input.consumidorFinal ? '1' : '0',
@@ -320,10 +330,11 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     ...mapEmitterFlat(input.emitter),
     ...mapRecipientFlat(input.recipient, input.consumidorFinal),
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
+    // forma 90 (sem pagamento) — obrigatória em devolução/entrada (rejeição SEFAZ 871) — exige valor 0
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
-        valor: input.totalValue,
+        valor: input.paymentMethod === '90' ? 0 : input.totalValue,
       },
     ],
   };
@@ -344,7 +355,7 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
   const doc = input.recipient?.document?.replace(/\D/g, '') ?? '';
   return {
     natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
-    data_emissao: new Date().toISOString(),
+    data_emissao: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
     consumidor_final: '0',
