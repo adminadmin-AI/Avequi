@@ -8,6 +8,9 @@ export class PrismaClient {
   $queryRaw = jest.fn();
   $executeRaw = jest.fn();
   $transaction = jest.fn();
+  // Client extensions ($extends) retornam o próprio client no stub —
+  // suficiente para o PrismaService construir o extendedClient em testes.
+  $extends = jest.fn(() => this);
 }
 
 // Re-export Prisma namespace with sql tag
@@ -15,6 +18,9 @@ export const Prisma = {
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
   join: jest.fn(),
   raw: jest.fn(),
+  // defineExtension é identidade no client real quando recebe um objeto de
+  // definição; o stub replica isso para a extensão RLS.
+  defineExtension: (definition: unknown) => definition,
   Decimal: class Decimal {
     constructor(public val: unknown) {}
     toNumber() { return Number(this.val); }
