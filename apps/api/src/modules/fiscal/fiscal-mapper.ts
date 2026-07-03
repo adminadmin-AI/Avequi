@@ -135,32 +135,37 @@ export interface FiscalPayloadInput {
   infCpl?: string; // informações complementares (#370)
 }
 
+/**
+ * Grupo veicProd (JA) — campos flat com prefixo veiculo_ dentro do item,
+ * conforme dicionário oficial (campos.focusnfe.com.br/nfe/ItemNotaFiscalXML.html).
+ * Objeto aninhado `veiculos_novos` é IGNORADO silenciosamente pela Focus.
+ */
 function mapVehicleToPayload(v: FiscalVehicleData) {
   return {
-    tipo_operacao: v.tipoOperacao,
-    chassi: v.chassi,
-    codigo_cor: v.codigoCor,
-    descricao_cor: v.descricaoCor,
-    potencia_motor: String(v.potenciaMotor),
-    cm3: String(v.cilindrada),
-    peso_liquido: v.pesoLiquido,
-    peso_bruto: v.pesoBruto,
-    serie: v.serie,
-    tipo_combustivel: v.tipoCombustivel,
-    numero_motor: v.numeroMotor,
-    ...(v.cmt && { cmt: v.cmt }),
-    ...(v.distanciaEixos && { distancia_eixos: String(v.distanciaEixos) }),
-    ano_modelo: v.anoModelo,
-    ano_fabricacao: v.anoFabricacao,
-    tipo_pintura: v.tipoPintura,
-    tipo: v.tipoVeiculo,
-    especie: v.especieVeiculo,
-    vin: v.vin,
-    condicao: v.condicao,
-    codigo_marca_modelo: v.codigoMarcaModelo,
-    codigo_cor_denatran: v.corDenatran,
-    lotacao: String(v.lotacao),
-    restricao: v.restricao,
+    veiculo_tipo_operacao: v.tipoOperacao,
+    veiculo_chassi: v.chassi,
+    veiculo_codigo_cor: v.codigoCor,
+    veiculo_descricao_cor: v.descricaoCor,
+    veiculo_potencia_motor: String(v.potenciaMotor),
+    veiculo_cm3: String(v.cilindrada),
+    veiculo_peso_liquido: v.pesoLiquido,
+    veiculo_peso_bruto: v.pesoBruto,
+    veiculo_serie: v.serie.slice(0, 9), // nSerie: máx 9 chars no XSD
+    veiculo_tipo_combustivel: v.tipoCombustivel,
+    veiculo_numero_motor: v.numeroMotor,
+    veiculo_cmt: v.cmt ?? '0', // CMT e dist são obrigatórios no veicProd
+    veiculo_distancia_eixos: String(v.distanciaEixos ?? 0),
+    veiculo_ano_modelo: v.anoModelo,
+    veiculo_ano_fabricacao: v.anoFabricacao,
+    veiculo_tipo_pintura: v.tipoPintura,
+    veiculo_tipo: v.tipoVeiculo,
+    veiculo_especie: v.especieVeiculo,
+    veiculo_codigo_vin: v.vin,
+    veiculo_condicao: v.condicao,
+    veiculo_codigo_marca_modelo: v.codigoMarcaModelo,
+    veiculo_codigo_cor_denatran: v.corDenatran,
+    veiculo_lotacao: String(v.lotacao),
+    veiculo_restricao: v.restricao,
   };
 }
 
@@ -213,7 +218,7 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       ibs_mun_aliquota: t.ibsCbs.ibsMunAliquota,
       ibs_mun_valor: t.ibsCbs.ibsMunValor,
     }),
-    ...(item.vehicle && { veiculos_novos: mapVehicleToPayload(item.vehicle) }),
+    ...(item.vehicle && mapVehicleToPayload(item.vehicle)),
     // DIFAL — campos Focus NFe para ICMSUFDest (EC 87/2015)
     ...(t?.difal && {
       icms_base_calculo_uf_destino: t.difal.baseCalculo,
