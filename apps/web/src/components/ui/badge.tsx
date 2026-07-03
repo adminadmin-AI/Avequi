@@ -36,7 +36,9 @@ const COLORS: Record<BadgeVariant, { soft: string; outline: string; dot: string 
   },
 };
 
-const BASE = 'inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium leading-none';
+// transition-colors: morph suave quando o status muda (F8.1 #324)
+const BASE =
+  'inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium leading-none transition-colors duration-flow';
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;

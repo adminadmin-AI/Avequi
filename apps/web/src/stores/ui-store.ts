@@ -14,6 +14,10 @@ interface UiState {
   /** command palette (Ctrl+K) (#305) */
   commandOpen: boolean;
   setCommandOpen: (v: boolean) => void;
+
+  /** modal de atalhos de teclado (Ctrl+/) (#325) */
+  shortcutsOpen: boolean;
+  setShortcutsOpen: (v: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -28,6 +32,9 @@ export const useUiStore = create<UiState>()(
 
       commandOpen: false,
       setCommandOpen: (v) => set({ commandOpen: v }),
+
+      shortcutsOpen: false,
+      setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
     }),
     {
       name: 'avequi:ui',

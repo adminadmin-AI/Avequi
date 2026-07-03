@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui-store';
 import { Sidebar } from '@/components/shell/sidebar';
 import { Header } from '@/components/shell/header';
 import { CommandPalette } from '@/components/shell/command-palette';
+import { ShortcutsHelp } from '@/components/shell/shortcuts-help';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
@@ -14,8 +15,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const { sidebarCollapsed, toggleSidebarCollapsed, setCommandOpen, setMobileNavOpen } =
-    useUiStore();
+  const {
+    sidebarCollapsed,
+    toggleSidebarCollapsed,
+    setCommandOpen,
+    setMobileNavOpen,
+    setShortcutsOpen,
+  } = useUiStore();
   const [mounted, setMounted] = useState(false);
 
   // Aguarda a rehidratação do zustand/persist antes de decidir o guard.
@@ -25,28 +31,77 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (mounted && !isAuthenticated) router.replace('/login');
   }, [mounted, isAuthenticated, router]);
 
-  // Fecha o drawer mobile ao navegar.
+  // Fecha o drawer mobile ao navegar + registra a página nos Recentes (#325).
   useEffect(() => {
     setMobileNavOpen(false);
+    try {
+      const key = 'avequi:recent-pages';
+      const prev: string[] = JSON.parse(localStorage.getItem(key) ?? '[]');
+      const next = [pathname, ...prev.filter((p) => p !== pathname)].slice(0, 8);
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* storage indisponível — recentes são só conveniência */
+    }
   }, [pathname, setMobileNavOpen]);
 
-  // Atalhos globais: Ctrl/⌘+K (command palette) e Ctrl/⌘+B (recolher sidebar).
+  // Atalhos globais (#325): Ctrl+K palette · Ctrl+B sidebar · Ctrl+/ atalhos
+  // · G+tecla navegação vim-style (fora de campos de texto).
   useEffect(() => {
+    let gPending = 0; // timestamp do último "g" solto
+
+    const G_ROUTES: Record<string, string> = {
+      h: '/app',
+      p: '/app/products',
+      c: '/app/customers',
+      v: '/app/sales',
+      o: '/app/production',
+      f: '/app/fiscal',
+    };
+
+    function isTyping(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      return (
+        !!el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable)
+      );
+    }
+
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
       const key = e.key.toLowerCase();
-      if (key === 'k') {
-        e.preventDefault();
-        setCommandOpen(true);
-      } else if (key === 'b') {
-        e.preventDefault();
-        toggleSidebarCollapsed();
+
+      if (mod) {
+        if (key === 'k') {
+          e.preventDefault();
+          setCommandOpen(true);
+        } else if (key === 'b') {
+          e.preventDefault();
+          toggleSidebarCollapsed();
+        } else if (key === '/') {
+          e.preventDefault();
+          setShortcutsOpen(true);
+        }
+        return;
       }
+
+      // navegação G+tecla (1,2s de janela; ignora quando digitando)
+      if (isTyping(e) || e.altKey) return;
+      if (key === 'g') {
+        gPending = Date.now();
+        return;
+      }
+      if (gPending && Date.now() - gPending < 1200 && G_ROUTES[key]) {
+        e.preventDefault();
+        router.push(G_ROUTES[key]);
+      }
+      gPending = 0;
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setCommandOpen, toggleSidebarCollapsed]);
+  }, [setCommandOpen, toggleSidebarCollapsed, setShortcutsOpen, router]);
 
   if (!mounted || !isAuthenticated) {
     return (
@@ -67,6 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </a>
       <Sidebar />
       <CommandPalette />
+      <ShortcutsHelp />
 
       <div
         className={cn(
