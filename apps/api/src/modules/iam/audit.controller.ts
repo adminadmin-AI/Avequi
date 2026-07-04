@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditService } from './audit.service';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
@@ -17,8 +18,13 @@ import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
+  // #341 (F5.1, dogfooding): primeira rota com enforcement RBAC v2. Os dois
+  // decorators convivem: @Roles (enum legado) corta primeiro no RolesGuard;
+  // @RequirePermission refina no PermissionGuard (exige o code do catálogo,
+  // resolvido via UserRoleAssignment/UserPermission com cache Redis).
   @Get()
   @Roles('SUPER_ADMIN')
+  @RequirePermission('iam.audit-logs.view')
   @ApiOperation({
     summary:
       'Listar audit logs v2 (paginado; filtros por entidade, usuário, ação e período) — SUPER_ADMIN',

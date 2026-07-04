@@ -2,6 +2,8 @@ import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { AuditAction } from '@prisma/client';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
+import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { allPermissionCodes } from './permissions.catalog';
 import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
 
@@ -32,6 +34,16 @@ describe('AuditController — GET /iam/audit-logs (#343)', () => {
     const reflector = new Reflector();
     const roles = reflector.get<string[]>(ROLES_KEY, controller.list);
     expect(roles).toEqual(['SUPER_ADMIN']);
+  });
+
+  it('exige iam.audit-logs.view via @RequirePermission (metadata lida pelo PermissionGuard global) — #341', () => {
+    const reflector = new Reflector();
+    const required = reflector.get<string[]>(REQUIRE_PERMISSION_KEY, controller.list);
+    expect(required).toEqual(['iam.audit-logs.view']);
+    // Convivência: os DOIS decorators presentes (RolesGuard corta primeiro,
+    // PermissionGuard refina) e o code exigido existe no catálogo.
+    expect(reflector.get<string[]>(ROLES_KEY, controller.list)).toEqual(['SUPER_ADMIN']);
+    expect(allPermissionCodes()).toContain('iam.audit-logs.view');
   });
 
   it('escopa a consulta pela companyId do JWT (nunca por query — anti-IDOR)', async () => {
