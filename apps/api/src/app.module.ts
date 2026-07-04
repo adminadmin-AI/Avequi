@@ -9,6 +9,7 @@ import * as Joi from 'joi';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionGuard } from './common/guards/permission.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
@@ -182,6 +183,13 @@ import { IamModule } from './modules/iam/iam.module';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    // #341 (IAM v2, F5.1): enforcement RBAC granular. DEPOIS do RolesGuard de
+    // propósito — @Roles (enum legado) corta primeiro, @RequirePermission
+    // refina. Endpoint sem @RequirePermission → o guard libera (nada muda).
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard,
     },
     {
       provide: APP_GUARD,
