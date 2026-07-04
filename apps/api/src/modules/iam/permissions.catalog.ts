@@ -443,6 +443,13 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['assign', 'atribuir perfis e exceções a usuários', 'POST/DELETE /iam/users/:userId/roles, POST/DELETE /iam/users/:userId/permissions'],
   ]),
 
+  // ── iam ── (iam/org-structure.controller.ts, #347 F5.2 fase 1) 🔒
+  ...r('iam', 'org', 'Estrutura organizacional', [
+    ['view', 'ver', 'GET /iam/{branches,departments,teams}, /iam/users/:userId/{departments,teams} (leitura restrita 🔒)'],
+    ['manage', 'criar/editar/excluir filiais, departamentos e equipes', 'POST/PATCH/DELETE /iam/branches, /iam/departments, /iam/teams'],
+    ['assign', 'vincular usuários a departamentos e equipes', 'POST/DELETE /iam/users/:userId/departments, /iam/users/:userId/teams'],
+  ]),
+
   // ── vehicle-tracking ── (vehicle-tracking.controller.ts)
   ...r('vehicle-tracking', 'bin', 'BIN veicular', [
     ['view', 'ver', 'GET /vehicle-tracking/bin, /bin/pending, /bin/serial/:serialNumberId'],

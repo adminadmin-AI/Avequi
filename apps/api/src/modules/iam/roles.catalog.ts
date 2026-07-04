@@ -114,6 +114,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'settings.users.view',
       'settings.companies.view',
       ...moduleCodes('analytics'),
+      // #347 (F5.2 fase 1): enxerga a estrutura organizacional da empresa
+      // (o recorte por filial vem na fase 2 do enforcement).
+      'iam.org.view',
     ]),
   },
 
@@ -149,10 +152,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.reports.create',
       'analytics.export.execute',
       'suppliers.portal-tokens.view',
-      // #352 (decisão Rafael): DIRETOR NÃO administra acessos — sem
+      // #352 (decisão Rafael): DIRETOR NÃO administra acessos IAM — sem
       // iam.roles.manage e sem iam.roles.assign. Gestão de perfis e exceções
       // individuais por usuário ficam restritas a ADMIN_GLOBAL/ADMIN_EMPRESA.
       // O iam.roles.view (leitura) entra pelo actionCodes('view') acima.
+      // #347 (F5.2 fase 1, decisão Rafael): estrutura organizacional é CADASTRO
+      // da empresa — regra SEPARADA da segurança IAM. Por isso o DIRETOR PODE
+      // gerenciar filiais/departamentos/equipes e vínculos, mesmo sem poder
+      // gerenciar perfis/permissões. iam.org.view entra pelo actionCodes('view').
+      'iam.org.manage',
+      'iam.org.assign',
     ]),
   },
 
@@ -519,11 +528,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'RH',
     name: 'RH',
     description:
-      'Gestão de usuários (ver, criar, editar — sem excluir; desativação é edição). Departamentos entram na fase 2 do multi-tenant (#347).',
+      'Gestão de usuários (ver, criar, editar — sem excluir; desativação é edição) e da alocação organizacional (#347 F5.2): vê a estrutura (filiais/departamentos/equipes) e vincula usuários a departamentos e equipes. NÃO cria/edita a estrutura em si (isso é do DIRETOR/admins).',
     permissions: dedupe([
       'dashboard.executive.view',
       ...resourceCodes('settings', 'users'),
       'settings.companies.view',
+      // #347 (F5.2 fase 1): RH aloca pessoas na estrutura organizacional
+      'iam.org.view',
+      'iam.org.assign',
     ]),
   },
   {
