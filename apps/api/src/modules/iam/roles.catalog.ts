@@ -67,7 +67,9 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     code !== 'settings.users.view' &&
     code !== 'approvals.requests.view' &&
     code !== 'dashboard.finance.view' &&
-    code !== 'suppliers.portal-tokens.view',
+    code !== 'suppliers.portal-tokens.view' &&
+    // Trilha de auditoria (iam.*) é sensível: fora do perfil somente-leitura
+    !code.startsWith('iam.'),
 );
 
 export const SYSTEM_ROLES: SystemRoleDef[] = [
@@ -561,7 +563,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'AUDITOR',
     name: 'Auditor',
     description:
-      'Vê TUDO (inclusive financeiro, comissões, usuários, LGPD e fila de aprovações) e exporta; nenhuma mutação. As permissões de auditoria (audit.logs.*) entram na F5 (#343), quando os endpoints existirem.',
+      'Vê TUDO (inclusive financeiro, comissões, usuários, LGPD, fila de aprovações e a trilha de auditoria iam.audit-logs) e exporta; nenhuma mutação.',
     permissions: dedupe([
       ...actionCodes('view'),
       'analytics.export.execute',

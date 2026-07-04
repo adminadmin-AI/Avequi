@@ -54,6 +54,7 @@ describe('Catálogo de permissões (#338)', () => {
       'settings',
       'approvals',
       'lgpd',
+      'iam',
       'vehicle-tracking',
     ];
     expect(catalogModules().sort()).toEqual([...esperados].sort());
@@ -65,7 +66,7 @@ describe('Catálogo de permissões (#338)', () => {
   it('tem o total esperado de permissões (guarda contra edição acidental)', () => {
     // Se este número mudar, foi intencional? Atualize junto com o PR que
     // adiciona/remove endpoints.
-    expect(PERMISSIONS_CATALOG.length).toBe(225);
+    expect(PERMISSIONS_CATALOG.length).toBe(226);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
@@ -98,6 +99,7 @@ describe('Catálogo de permissões (#338)', () => {
       'approvals.requests.approve',
       'lgpd.anonymization.process',
       'settings.users.create',
+      'iam.audit-logs.view',
     ])('%s está no catálogo', (code) => {
       expect(allPermissionCodes()).toContain(code);
     });

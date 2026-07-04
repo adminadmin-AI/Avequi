@@ -100,6 +100,8 @@ describe('Catálogo de perfis system (#339)', () => {
     expect(auditor.permissions).toContain('finance.entries.view');
     expect(auditor.permissions).toContain('settings.users.view');
     expect(auditor.permissions).toContain('sales.commissions.view');
+    // F5.1 (#341): a trilha de auditoria agora tem code no catálogo
+    expect(auditor.permissions).toContain('iam.audit-logs.view');
   });
 
   it('SOMENTE_LEITURA só tem leitura e NÃO vê módulos sensíveis', () => {
@@ -113,6 +115,7 @@ describe('Catálogo de perfis system (#339)', () => {
       'settings.users.view',
       'approvals.requests.view',
       'lgpd.consents.view',
+      'iam.audit-logs.view',
     ]) {
       expect(leitura.permissions).not.toContain(sensivel);
     }

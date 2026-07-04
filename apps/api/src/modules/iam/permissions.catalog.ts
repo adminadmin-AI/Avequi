@@ -14,9 +14,9 @@
  * endpoint que não existe. Quando um endpoint novo nascer, a permissão nasce
  * junto, aqui, no mesmo PR.
  *
- * Módulo `audit` (logs/security-events): intencionalmente AUSENTE — os
- * endpoints de consulta de auditoria só nascem na F5 (#343). As permissões
- * entram no catálogo naquele PR.
+ * Módulo `iam` (auditoria/segurança): entrou na F5.1 (#341), junto com o
+ * PermissionGuard — o endpoint GET /iam/audit-logs nasceu na #343 e é a
+ * primeira rota com enforcement @RequirePermission (dogfooding).
  */
 
 export interface PermissionDef {
@@ -430,6 +430,11 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver solicitações', 'GET /lgpd/anonymization-requests'],
     ['request', 'solicitar', 'POST /lgpd/anonymize/:document'],
     ['process', 'processar (irreversível)', 'POST /lgpd/anonymize/:requestId/process'],
+  ]),
+
+  // ── iam ── (iam/audit.controller.ts) — trilha de auditoria 🔒
+  ...r('iam', 'audit-logs', 'Audit logs', [
+    ['view', 'ver', 'GET /iam/audit-logs (leitura restrita 🔒 — trilha de auditoria v2)'],
   ]),
 
   // ── vehicle-tracking ── (vehicle-tracking.controller.ts)
