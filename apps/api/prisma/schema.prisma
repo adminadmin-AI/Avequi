@@ -123,6 +123,8 @@ model Company {
   auditLogsV2          AuditLogV2[]
   securityEvents       SecurityEvent[]
   permissionChangeLogs PermissionChangeLog[]
+  // IAM v2 — F4.3 (#346): SSO prep
+  authProviderConfigs  AuthProviderConfig[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -285,6 +287,8 @@ model User {
   securityEvents            SecurityEvent[]
   permissionChangesReceived PermissionChangeLog[] @relation("PermissionChangeTarget")
   permissionChangesMade     PermissionChangeLog[] @relation("PermissionChangeAuthor")
+  // IAM v2 — F4.3 (#346): identidades externas (SSO prep — só LOCAL hoje)
+  identities                UserIdentity[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -3201,4 +3205,61 @@ model PermissionChangeLog {
   @@index([companyId, createdAt])
   @@index([targetUserId, createdAt])
   @@map("gdr_permission_change_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IAM v2 — F4.3 (#346): Preparação OAuth/SSO — arquitetura extensível.
+// NENHUM fluxo OAuth real existe ainda: estas tabelas são o alicerce para
+// Google/Microsoft/SAML no futuro, sem rewrite. Ver docs/iam/SSO-READINESS.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Tipo de provedor de identidade. LOCAL = e-mail+senha (único ativo hoje).
+/// MICROSOFT cobre o Entra ID (ex-Azure AD) — não há valor AZURE_AD separado.
+enum IdentityProviderType {
+  LOCAL
+  GOOGLE
+  MICROSOFT
+  SAML
+}
+
+/// Vínculo usuário ↔ identidade externa (1 usuário pode ter N identidades:
+/// senha local + conta Google, por exemplo). Preferida sobre os campos
+/// authProvider/externalId direto no User (sugestão original da #346) porque
+/// suporta MÚLTIPLAS identidades por usuário e mantém o User intacto.
+/// User.passwordHash CONTINUA obrigatório: contas criadas via SSO (JIT)
+/// recebem uma senha aleatória inutilizável (padrão comum) — tornar o campo
+/// nullable é decisão futura, não desta fase.
+model UserIdentity {
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       IdentityProviderType
+  providerUserId String               // `sub` do OIDC / NameID do SAML / userId local
+  email          String               // e-mail informado pelo provider no momento do vínculo
+  metadata       Json?                // claims extras do provider (picture, hd, tid…)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("gdr_user_identities")
+}
+
+/// Configuração de provedor SSO por empresa (issue #346): clientId público,
+/// domínio permitido etc. em `config` (JSON). Segredos (clientSecret) NÃO
+/// entram aqui — ficam em env vars. enabled nasce false: nenhum provider
+/// externo liga sem ação explícita.
+model AuthProviderConfig {
+  id        String               @id @default(cuid())
+  type      IdentityProviderType
+  config    Json?
+  enabled   Boolean              @default(false)
+  companyId String
+  company   Company              @relation(fields: [companyId], references: [id])
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([companyId, type])
+  @@index([companyId])
+  @@map("gdr_auth_provider_configs")
 }

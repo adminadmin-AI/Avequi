@@ -410,3 +410,11 @@ export enum PermissionChangeType {
   PERMISSION_GRANTED = 'PERMISSION_GRANTED',
   PERMISSION_REVOKED = 'PERMISSION_REVOKED',
 }
+
+// IAM v2 — F4.3 (#346): SSO prep
+export enum IdentityProviderType {
+  LOCAL = 'LOCAL',
+  GOOGLE = 'GOOGLE',
+  MICROSOFT = 'MICROSOFT',
+  SAML = 'SAML',
+}
