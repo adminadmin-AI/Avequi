@@ -13,6 +13,25 @@ export class PrismaClient {
   $extends = jest.fn(() => this);
 }
 
+// Mirror of Prisma.PrismaClientKnownRequestError (same shape as @prisma/client/runtime)
+// so filters/services can be tested against Prisma errors (P2002, P2025, P2003...).
+class PrismaClientKnownRequestError extends Error {
+  code: string;
+  meta?: Record<string, unknown>;
+  clientVersion: string;
+
+  constructor(
+    message: string,
+    options: { code: string; clientVersion: string; meta?: Record<string, unknown> },
+  ) {
+    super(message);
+    this.name = 'PrismaClientKnownRequestError';
+    this.code = options.code;
+    this.clientVersion = options.clientVersion;
+    this.meta = options.meta;
+  }
+}
+
 // Re-export Prisma namespace with sql tag
 export const Prisma = {
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
@@ -26,6 +45,7 @@ export const Prisma = {
     toNumber() { return Number(this.val); }
     toString() { return String(this.val); }
   },
+  PrismaClientKnownRequestError,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
