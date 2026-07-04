@@ -8,6 +8,7 @@ import { AuditProcessor } from './audit.processor';
 import { AuditService } from './audit.service';
 import { AUDIT_QUEUE } from './audit.types';
 import { MfaService } from './mfa.service';
+import { PasswordPolicyService } from './password-policy.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { PermissionService } from './permission.service';
 import { SessionDenylistService } from './session-denylist.service';
@@ -18,7 +19,8 @@ import { ShadowModeService } from './shadow-mode.service';
  * Módulo IAM v2 — motor de autorização RBAC (issue #340, Fase F3.1/M2)
  * + sessões/dispositivos/lockout (issue #342, Fase F3.3/M4)
  * + auditoria persistida com fila Bull (issue #343, Fase F3.4/M5)
- * + MFA/2FA TOTP com backup codes e EncryptionService (issue #344, Fase F4.1).
+ * + MFA/2FA TOTP com backup codes e EncryptionService (issue #344, Fase F4.1)
+ * + password policy: complexidade, histórico e rotação (issue #345, F4.2).
  *
  * O PermissionService segue em shadow mode (nenhum guard novo). O
  * SessionService já é CONSUMIDO pelo AuthModule (login cria sessão, refresh
@@ -41,6 +43,7 @@ import { ShadowModeService } from './shadow-mode.service';
     AuditService,
     EncryptionService,
     MfaService,
+    PasswordPolicyService,
     PermissionCacheService,
     PermissionService,
     SessionDenylistService,
@@ -51,6 +54,7 @@ import { ShadowModeService } from './shadow-mode.service';
     AuditService,
     EncryptionService,
     MfaService,
+    PasswordPolicyService,
     PermissionCacheService,
     PermissionService,
     SessionDenylistService,
