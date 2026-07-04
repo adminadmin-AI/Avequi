@@ -26,10 +26,11 @@ export class WmsService {
 
   // ─── S17.01: Criar endereço físico ────────────────────────────────────────
 
-  async createLocation(dto: CreateLocationDto) {
+  async createLocation(dto: CreateLocationDto, companyId: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     return this.prisma.location.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         warehouseId: dto.warehouseId,
         code: dto.code,
         description: dto.description ?? null,

@@ -26,8 +26,4 @@ export class CreateSupplierDto {
   @IsInt()
   @Min(0)
   leadTimeDays?: number;
-
-  @ApiProperty()
-  @IsString()
-  companyId: string;
 }

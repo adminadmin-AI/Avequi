@@ -3,10 +3,6 @@ import { IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Min } from 'class-
 export class UpsertDemandDto {
   @IsString()
   @IsNotEmpty()
-  companyId: string;
-
-  @IsString()
-  @IsNotEmpty()
   productId: string;
 
   @IsString()

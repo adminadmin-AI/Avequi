@@ -19,9 +19,6 @@ export class PriceTableItemDto {
 
 export class CreatePriceTableDto {
   @IsString()
-  companyId: string;
-
-  @IsString()
   name: string;
 
   @IsOptional()

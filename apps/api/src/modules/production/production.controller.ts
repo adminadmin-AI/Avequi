@@ -24,9 +24,9 @@ export class ProductionController {
   @Post()
   create(
     @Body() dto: CreateProductionOrderDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { companyId: string; sub: string } },
   ) {
-    return this.productionService.create(dto, req.user.sub);
+    return this.productionService.create(dto, req.user.companyId, req.user.sub);
   }
 
   // GET /production/metrics/scrap — métricas de refugo (#184)

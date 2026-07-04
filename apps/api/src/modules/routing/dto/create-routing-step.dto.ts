@@ -3,7 +3,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRoutingStepDto {
   @ApiProperty() @IsString() productId: string;
-  @ApiProperty() @IsString() companyId: string;
   @ApiProperty() @IsInt() @IsPositive() stepOrder: number;
   @ApiProperty() @IsString() name: string;
   @ApiPropertyOptional() @IsOptional() @IsString() workCenter?: string;

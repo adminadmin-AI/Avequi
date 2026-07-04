@@ -102,7 +102,7 @@ describe('ProductionService', () => {
   // ─── create ───────────────────────────────────────────────────────────────
 
   describe('create', () => {
-    const dto = { companyId: 'co-1', productId: 'p-1', warehouseId: 'wh-1', plannedQty: 5 };
+    const dto = { productId: 'p-1', warehouseId: 'wh-1', plannedQty: 5 };
 
     it('deve criar OP com itens do BOM ativo', async () => {
       mockPrisma.product.findFirst.mockResolvedValue(product);
@@ -115,7 +115,7 @@ describe('ProductionService', () => {
       });
       mockPrisma.productionOrder.create.mockResolvedValue(baseOrder);
 
-      const result = await service.create(dto, 'u-1');
+      const result = await service.create(dto, 'co-1', 'u-1');
 
       expect(mockPrisma.productionOrder.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -140,7 +140,7 @@ describe('ProductionService', () => {
       mockPrisma.bomVersion.findFirst.mockResolvedValue(null);
       mockPrisma.productionOrder.create.mockResolvedValue({ ...baseOrder, items: [] });
 
-      await service.create(dto, 'u-1');
+      await service.create(dto, 'co-1', 'u-1');
 
       expect(mockPrisma.productionOrder.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -151,13 +151,29 @@ describe('ProductionService', () => {
 
     it('deve lançar NotFoundException para produto inexistente', async () => {
       mockPrisma.product.findFirst.mockResolvedValue(null);
-      await expect(service.create(dto, 'u-1')).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto, 'co-1', 'u-1')).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar NotFoundException para armazém inexistente', async () => {
       mockPrisma.product.findFirst.mockResolvedValue(product);
       mockPrisma.warehouse.findFirst.mockResolvedValue(null);
-      await expect(service.create(dto, 'u-1')).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto, 'co-1', 'u-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('IDOR: ignora companyId externo injetado no payload e usa o do JWT', async () => {
+      mockPrisma.product.findFirst.mockResolvedValue(product);
+      mockPrisma.warehouse.findFirst.mockResolvedValue(warehouse);
+      mockPrisma.bomVersion.findFirst.mockResolvedValue(null);
+      mockPrisma.productionOrder.create.mockResolvedValue({ ...baseOrder, items: [] });
+
+      await service.create({ ...dto, companyId: 'co-VITIMA' } as any, 'co-1', 'u-1');
+
+      // Validações e criação usam a empresa do JWT
+      expect(mockPrisma.product.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ companyId: 'co-1' }) }),
+      );
+      const createArg = mockPrisma.productionOrder.create.mock.calls[0][0];
+      expect(createArg.data.companyId).toBe('co-1');
     });
   });
 

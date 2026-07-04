@@ -32,7 +32,7 @@ export class UserController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Criar novo usuário' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
-    return this.userService.create({ ...dto, companyId: user.companyId });
+    return this.userService.create(dto, user.companyId);
   }
 
   @Get()

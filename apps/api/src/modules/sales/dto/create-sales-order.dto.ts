@@ -19,7 +19,6 @@ export class CreateSaleItemDto {
 }
 
 export class CreateSalesOrderDto {
-  @ApiPropertyOptional() @IsString() @IsOptional() companyId?: string;
   @ApiProperty() @IsString() @IsNotEmpty() warehouseId: string;
   @ApiPropertyOptional() @IsString() @IsOptional() customerId?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() notes?: string;
