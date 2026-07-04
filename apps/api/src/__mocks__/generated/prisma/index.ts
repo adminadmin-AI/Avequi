@@ -342,3 +342,19 @@ export enum AtpveStatus {
   ISSUED = 'ISSUED',
   CANCELLED = 'CANCELLED',
 }
+
+// IAM v2 - F1 (#336): sessoes e login attempts
+
+export enum SessionRevokedReason {
+  LOGOUT = 'LOGOUT',
+  EXPIRED = 'EXPIRED',
+  ADMIN_REVOKE = 'ADMIN_REVOKE',
+  SECURITY = 'SECURITY',
+}
+
+export enum LoginFailReason {
+  WRONG_PASSWORD = 'WRONG_PASSWORD',
+  INACTIVE = 'INACTIVE',
+  LOCKED = 'LOCKED',
+  MFA_FAILED = 'MFA_FAILED',
+}

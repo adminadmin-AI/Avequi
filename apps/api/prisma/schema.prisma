@@ -119,6 +119,7 @@ model Company {
   userPermissions      UserPermission[]
   orgBranches          Branch[]
   departments          Department[]
+  userSessions         UserSession[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -263,12 +264,15 @@ model User {
   nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
   anonymizationRequests     AnonymizationRequest[] @relation("AnonymizationRequestedBy")
   // IAM v2 — F1 (#335/#336/#337) — campos e relações aditivas
+  lockedUntil   DateTime? // lockout de conta (#336) — null = não bloqueado
   roleAssignments           UserRoleAssignment[]
   permissionExceptions      UserPermission[]
   departmentLinks           UserDepartment[]
   teamLinks                 UserTeam[]
   managedDepartments        Department[]          @relation("DepartmentManager")
   ledTeams                  Team[]                @relation("TeamLeader")
+  sessions                  UserSession[]
+  trustedDevices            TrustedDevice[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -298,6 +302,8 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
+  // IAM v2 (#336): sessão amarrada ao refresh token (Decisão 4 — híbrido)
+  session   UserSession?
 
   @@map("gdr_refresh_tokens")
 }
@@ -2923,5 +2929,88 @@ model UserTeam {
 
   @@unique([userId, teamId])
   @@map("gdr_user_teams")
+}
+
+// ─── #336 — Sessões, dispositivos e tentativas de login ──────────────────────
+
+enum SessionRevokedReason {
+  LOGOUT       // logout voluntário
+  EXPIRED      // inatividade / expiração
+  ADMIN_REVOKE // revogada remotamente por admin
+  SECURITY     // evento de segurança (reuso de refresh, lockout, etc.)
+}
+
+/// Sessão de usuário (Decisão 4 — híbrido): o access token JWT continua
+/// stateless (15 min) e ganha o claim sessionId; o REFRESH é amarrado à
+/// sessão — revogar a sessão mata o refresh. refreshTokenId aponta para o
+/// RefreshToken vigente (atualizado a cada rotação).
+model UserSession {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId         String
+  company           Company       @relation(fields: [companyId], references: [id])
+  refreshTokenId    String?       @unique
+  refreshToken      RefreshToken? @relation(fields: [refreshTokenId], references: [id])
+  ipAddress         String?
+  userAgent         String?
+  deviceFingerprint String?
+  city              String?       // GeoIP lookup (quando disponível)
+  country           String?
+  expiresAt         DateTime?
+  lastActivityAt    DateTime      @default(now())
+  revokedAt         DateTime?
+  revokedReason     SessionRevokedReason?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+
+  @@index([userId, revokedAt])
+  @@index([companyId])
+  @@index([deviceFingerprint])
+  @@map("gdr_user_sessions")
+}
+
+enum LoginFailReason {
+  WRONG_PASSWORD
+  INACTIVE
+  LOCKED
+  MFA_FAILED
+}
+
+/// Tentativa de login (sucesso ou falha) — base do lockout (#342):
+/// 5 falhas em 15min → User.lockedUntil. Sem FK para User de propósito:
+/// registra também tentativas com e-mail inexistente.
+model LoginAttempt {
+  id         String           @id @default(cuid())
+  email      String
+  ipAddress  String?
+  userAgent  String?
+  success    Boolean
+  failReason LoginFailReason?
+  createdAt  DateTime         @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("gdr_login_attempts")
+}
+
+/// Dispositivo confiável do usuário (fingerprint). Dispositivo novo gera
+/// SecurityEvent(WARNING) no login.
+model TrustedDevice {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint String
+  name        String?   // ex: "Notebook do Rafael"
+  trusted     Boolean   @default(false)
+  trustedAt   DateTime?
+  trustedBy   String?   // userId de quem marcou como confiável
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, fingerprint])
+  @@map("gdr_trusted_devices")
 }
 
