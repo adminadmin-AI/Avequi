@@ -87,6 +87,29 @@ import { IamModule } from './modules/iam/iam.module';
             'string.pattern.base':
               'ENCRYPTION_KEY deve ter exatamente 64 caracteres hexadecimais (32 bytes)',
           }),
+        // #346 (SSO prep): flags de Just-In-Time provisioning — TODAS com
+        // defaults seguros (JIT desligado; perfil default READER; SUPER_ADMIN
+        // proibido como default de JIT). Nenhum provider OAuth real existe
+        // ainda — ver docs/iam/SSO-READINESS.md.
+        SSO_JIT_PROVISIONING: Joi.boolean().default(false),
+        SSO_JIT_DEFAULT_ROLE: Joi.string()
+          .valid(
+            'DIRECTOR',
+            'MANAGER',
+            'COMMERCIAL',
+            'PRODUCTION',
+            'QUALITY',
+            'WAREHOUSE',
+            'FINANCIAL',
+            'STORE',
+            'READER',
+          )
+          .default('READER')
+          .messages({
+            'any.only':
+              'SSO_JIT_DEFAULT_ROLE inválido (SUPER_ADMIN é proibido como perfil default de JIT)',
+          }),
+        SSO_JIT_DEFAULT_COMPANY_ID: Joi.string().optional(),
       }),
       validationOptions: {
         abortEarly: false,

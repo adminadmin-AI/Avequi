@@ -20,6 +20,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { IdentityProviderRegistry } from './providers/identity-provider.registry';
+import { SsoJitProvisioningService } from './providers/sso-jit-provisioning.service';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -29,6 +31,8 @@ export class AuthController {
     private readonly sessionService: SessionService,
     private readonly mfaService: MfaService,
     private readonly passwordPolicy: PasswordPolicyService,
+    private readonly identityProviders: IdentityProviderRegistry,
+    private readonly jitProvisioning: SsoJitProvisioningService,
   ) {}
 
   @Public()
@@ -60,6 +64,27 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
   async logout(@Body('refreshToken') refreshToken: string) {
     await this.authService.logout(refreshToken);
+  }
+
+  // ─── SSO prep (#346) ───────────────────────────────────────────────────────
+
+  /**
+   * Placeholder da preparação OAuth/SSO (#346): lista os provedores de
+   * identidade habilitados — hoje só LOCAL. Quando Google/Microsoft forem
+   * implementados, aparecerão aqui automaticamente (o frontend usa esta
+   * lista para renderizar os botões "Entrar com…"). NENHUM callback OAuth
+   * existe ainda. Ver docs/iam/SSO-READINESS.md.
+   */
+  @Public()
+  @Get('sso/providers')
+  @ApiOperation({
+    summary: 'Listar provedores de identidade habilitados (SSO prep — hoje só LOCAL)',
+  })
+  listSsoProviders() {
+    return {
+      providers: this.identityProviders.listEnabled(),
+      jitProvisioning: this.jitProvisioning.isJitEnabled(),
+    };
   }
 
   // ─── Password policy (#345) ────────────────────────────────────────────────
