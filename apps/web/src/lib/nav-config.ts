@@ -21,6 +21,7 @@ import {
   Gauge,
   Handshake,
   History,
+  KeyRound,
   Landmark,
   LayoutDashboard,
   LineChart,
@@ -201,6 +202,7 @@ export const NAV: NavSection[] = [
     title: 'Configurações',
     items: [
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog, roles: ADMIN_ROLES },
+      { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound, roles: ['SUPER_ADMIN', 'DIRECTOR'] },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, roles: ADMIN_ROLES },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, roles: ['SUPER_ADMIN', 'DIRECTOR'] },
       { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, roles: ['SUPER_ADMIN'] },
@@ -326,6 +328,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   inspections: 'Inspeções',
   ncr: 'Não Conformidades',
   audit: 'Log de Auditoria',
+  roles: 'Perfis e Permissões',
   users: 'Usuários',
   warehouses: 'Depósitos',
   company: 'Empresa',
