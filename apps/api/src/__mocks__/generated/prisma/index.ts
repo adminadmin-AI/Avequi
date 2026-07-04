@@ -32,6 +32,65 @@ class PrismaClientKnownRequestError extends Error {
   }
 }
 
+// Decimal mock com semântica compatível com Decimal.js (comparações, aritmética).
+// Armazena um único campo numérico normalizado (`d`) para que `toEqual` do Jest
+// considere iguais instâncias construídas a partir de string, number ou Decimal.
+// Limitação conhecida: usa `number` por baixo (IEEE-754), suficiente para testes
+// unitários; NÃO replica precisão arbitrária do Decimal.js real.
+class DecimalMock {
+  private readonly d: number;
+
+  constructor(value: unknown) {
+    this.d = DecimalMock.toNum(value);
+  }
+
+  private static toNum(value: unknown): number {
+    if (value instanceof DecimalMock) return value.d;
+    return Number(value);
+  }
+
+  // ── Aritmética ──
+  plus(other: unknown) { return new DecimalMock(this.d + DecimalMock.toNum(other)); }
+  add(other: unknown) { return this.plus(other); }
+  minus(other: unknown) { return new DecimalMock(this.d - DecimalMock.toNum(other)); }
+  sub(other: unknown) { return this.minus(other); }
+  times(other: unknown) { return new DecimalMock(this.d * DecimalMock.toNum(other)); }
+  mul(other: unknown) { return this.times(other); }
+  div(other: unknown) { return new DecimalMock(this.d / DecimalMock.toNum(other)); }
+  dividedBy(other: unknown) { return this.div(other); }
+  abs() { return new DecimalMock(Math.abs(this.d)); }
+  negated() { return new DecimalMock(-this.d); }
+  neg() { return this.negated(); }
+
+  // ── Comparações ──
+  comparedTo(other: unknown) {
+    const o = DecimalMock.toNum(other);
+    return this.d < o ? -1 : this.d > o ? 1 : 0;
+  }
+  cmp(other: unknown) { return this.comparedTo(other); }
+  equals(other: unknown) { return this.d === DecimalMock.toNum(other); }
+  eq(other: unknown) { return this.equals(other); }
+  greaterThan(other: unknown) { return this.d > DecimalMock.toNum(other); }
+  gt(other: unknown) { return this.greaterThan(other); }
+  greaterThanOrEqualTo(other: unknown) { return this.d >= DecimalMock.toNum(other); }
+  gte(other: unknown) { return this.greaterThanOrEqualTo(other); }
+  lessThan(other: unknown) { return this.d < DecimalMock.toNum(other); }
+  lt(other: unknown) { return this.lessThan(other); }
+  lessThanOrEqualTo(other: unknown) { return this.d <= DecimalMock.toNum(other); }
+  lte(other: unknown) { return this.lessThanOrEqualTo(other); }
+  isZero() { return this.d === 0; }
+  isNegative() { return this.d < 0; }
+  isPositive() { return this.d > 0; }
+
+  // ── Conversões ──
+  toNumber() { return this.d; }
+  toString() { return String(this.d); }
+  toFixed(dp?: number) { return dp !== undefined ? this.d.toFixed(dp) : String(this.d); }
+  toDecimalPlaces(dp: number) { return new DecimalMock(Number(this.d.toFixed(dp))); }
+  toJSON() { return this.toString(); }
+  valueOf() { return this.d; }
+}
+
 // Re-export Prisma namespace with sql tag
 export const Prisma = {
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
@@ -40,11 +99,7 @@ export const Prisma = {
   // defineExtension é identidade no client real quando recebe um objeto de
   // definição; o stub replica isso para a extensão RLS.
   defineExtension: (definition: unknown) => definition,
-  Decimal: class Decimal {
-    constructor(public val: unknown) {}
-    toNumber() { return Number(this.val); }
-    toString() { return String(this.val); }
-  },
+  Decimal: DecimalMock,
   PrismaClientKnownRequestError,
 };
 
@@ -114,6 +169,7 @@ export enum PurchaseRequestStatus {
 export enum PurchaseOrderStatus {
   DRAFT = 'DRAFT',
   APPROVED = 'APPROVED',
+  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
   RECEIVED = 'RECEIVED',
   CANCELLED = 'CANCELLED',
 }
@@ -122,6 +178,8 @@ export enum SalesOrderStatus {
   DRAFT = 'DRAFT',
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
+  AWAITING_PICKING = 'AWAITING_PICKING',
+  READY_TO_INVOICE = 'READY_TO_INVOICE',
   INVOICED = 'INVOICED',
   RETURNED = 'RETURNED',
   CANCELLED = 'CANCELLED',

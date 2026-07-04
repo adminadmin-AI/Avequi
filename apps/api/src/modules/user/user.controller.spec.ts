@@ -32,6 +32,9 @@ describe('UserController', () => {
     it('forca o companyId do JWT, ignorando o do body (anti-IDOR)', async () => {
       mockUserService.create.mockResolvedValue({ id: 'novo' });
 
+      // Desde o fix de IDOR, companyId nem existe mais no CreateUserDto
+      // (ValidationPipe rejeita); o controller passa o companyId do JWT
+      // como argumento separado e o service o força sobre qualquer resíduo.
       await controller.create(
         {
           name: 'X',
@@ -39,12 +42,13 @@ describe('UserController', () => {
           password: 'senha123',
           role: 'READER' as any,
           companyId: 'empresa-de-outro', // atacante tenta criar user em outra empresa
-        },
+        } as any,
         CURRENT_USER,
       );
 
       expect(mockUserService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ companyId: 'co-1' }),
+        expect.anything(),
+        'co-1', // companyId SEMPRE do JWT, nunca do body
       );
     });
   });
