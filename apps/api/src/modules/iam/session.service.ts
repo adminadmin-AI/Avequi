@@ -587,10 +587,22 @@ export class SessionService {
     );
   }
 
-  /** Logout global: revoga TODAS as sessões ativas do usuário. */
-  async revokeAllSessions(userId: string, reason: SessionRevokedReason): Promise<number> {
+  /**
+   * Logout global: revoga TODAS as sessões ativas do usuário.
+   * `exceptSessionId` (#345): preserva a sessão informada — usado na troca de
+   * senha para derrubar todos os OUTROS dispositivos sem deslogar o atual.
+   */
+  async revokeAllSessions(
+    userId: string,
+    reason: SessionRevokedReason,
+    exceptSessionId?: string,
+  ): Promise<number> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { userId, revokedAt: null },
+      where: {
+        userId,
+        revokedAt: null,
+        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+      },
       select: { id: true, companyId: true, refreshTokenId: true },
     });
     if (sessions.length === 0) return 0;

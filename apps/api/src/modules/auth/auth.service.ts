@@ -1,10 +1,16 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { LoginFailReason, SessionRevokedReason } from '@prisma/client';
+import {
+  LoginFailReason,
+  SecurityEventSeverity,
+  SecurityEventType,
+  SessionRevokedReason,
+} from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
+import { PasswordPolicyService } from '../iam/password-policy.service';
 import { LoginContext, SessionService } from '../iam/session.service';
 
 /**
@@ -15,6 +21,17 @@ import { LoginContext, SessionService } from '../iam/session.service';
 export const MFA_PENDING_SCOPE = 'mfa_pending';
 /** Vida do mfaPendingToken: 2 minutos (só o intervalo de digitar o código). */
 export const MFA_PENDING_TOKEN_TTL = '2m';
+
+/**
+ * Claim `scope` do token restrito de troca de senha (#345) — mesmo padrão do
+ * mfaPendingToken (#344): vida curta, REJEITADO pelo JwtStrategy como access
+ * token, aceito SOMENTE por POST /auth/change-password. Emitido no login
+ * quando a senha venceu (rotação por perfil) ou mustChangePassword=true
+ * (primeiro acesso / reset por admin).
+ */
+export const PASSWORD_CHANGE_SCOPE = 'password_change';
+/** Vida do passwordChangeToken: 10 minutos (tempo de escolher a senha nova). */
+export const PASSWORD_CHANGE_TOKEN_TTL = '10m';
 
 /**
  * AuthService — login/refresh/logout com rotação de refresh token (SHA-256
@@ -33,11 +50,14 @@ export const MFA_PENDING_TOKEN_TTL = '2m';
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     private readonly mfaService: MfaService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   private hashToken(token: string): string {
@@ -122,6 +142,12 @@ export class AuthService {
       return { mfaRequired: true, mfaPendingToken };
     }
 
+    // #345: senha vencida (rotação por perfil) ou troca obrigatória
+    // (primeiro acesso / reset por admin) → NÃO emite tokens finais; devolve
+    // token restrito de troca de senha (scope=password_change).
+    const gate = await this.passwordGate(user);
+    if (gate) return gate;
+
     const result = await this.issueTokens(user, ctx);
     // Enforcement suave por perfil (Role.requireMfa): sinaliza sem bloquear.
     const mfaSetupRequired = await this.mfaService.roleRequiresMfa(user.id);
@@ -173,7 +199,50 @@ export class AuthService {
     await this.sessionService.clearLockout(user.id);
 
     const { passwordHash: _ph, ...safeUser } = user;
+
+    // #345: gate de senha DEPOIS do MFA — não vaza estado de senha antes do
+    // segundo fator; senha vencida/troca obrigatória → token restrito.
+    const gate = await this.passwordGate(safeUser);
+    if (gate) return gate;
+
     return this.issueTokens(safeUser, ctx);
+  }
+
+  /**
+   * Gate de política de senha no login (#345). Retorna null quando a senha
+   * está OK; caso contrário devolve a resposta restrita do login:
+   * `passwordExpired` (rotação por perfil vencida) e/ou `mustChangePassword`
+   * (primeiro acesso / reset por admin) + `passwordChangeToken` de 10 min
+   * aceito só por POST /auth/change-password. Best-effort na consulta de
+   * rotação: indisponibilidade nunca derruba o login.
+   */
+  private async passwordGate(user: {
+    id: string;
+    mustChangePassword?: boolean;
+    passwordChangedAt?: Date | null;
+    createdAt?: Date | null;
+  }) {
+    const mustChange = user.mustChangePassword === true;
+    let expired = false;
+    if (!mustChange) {
+      try {
+        expired = await this.passwordPolicy.isPasswordExpired(user);
+      } catch {
+        expired = false;
+      }
+    }
+    if (!mustChange && !expired) return null;
+
+    const passwordChangeToken = this.jwtService.sign(
+      { sub: user.id, scope: PASSWORD_CHANGE_SCOPE },
+      { expiresIn: PASSWORD_CHANGE_TOKEN_TTL },
+    );
+    return {
+      passwordChangeRequired: true,
+      passwordExpired: expired,
+      mustChangePassword: mustChange,
+      passwordChangeToken,
+    };
   }
 
   /**
@@ -307,5 +376,146 @@ export class AuthService {
       stored.id,
       SessionRevokedReason.LOGOUT,
     );
+  }
+
+  // ─── Troca de senha (#345 — IAM v2 F4.2) ───────────────────────────────────
+
+  /**
+   * POST /auth/change-password. Dois modos de autenticação:
+   *
+   * 1. NORMAL: Bearer access token no header → exige `currentPassword`
+   *    (bcrypt compare) — mesmo logado, trocar senha reconfirma identidade.
+   * 2. RESTRITO: `passwordChangeToken` (scope=password_change, 10 min) no
+   *    body — emitido pelo login quando a senha venceu ou
+   *    mustChangePassword=true. NÃO exige currentPassword: o usuário acabou
+   *    de prová-la no login.
+   *
+   * Sempre: valida complexidade + histórico (reuso das últimas 5),
+   * atualiza passwordChangedAt, zera mustChangePassword, registra
+   * gdr_password_history, revoga TODAS as OUTRAS sessões (a atual sobrevive
+   * no modo normal) e grava SecurityEvent PASSWORD_CHANGED.
+   */
+  async changePassword(input: {
+    authorizationHeader?: string;
+    passwordChangeToken?: string;
+    currentPassword?: string;
+    newPassword: string;
+  }) {
+    const { userId, sessionId, restricted } = this.resolveChangePasswordIdentity(input);
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Sessão inválida. Faça login novamente.');
+    }
+
+    if (!restricted) {
+      // Modo normal: reconfirma a senha atual.
+      if (!input.currentPassword) {
+        throw new UnauthorizedException('Informe a senha atual.');
+      }
+      const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      if (!valid) {
+        throw new UnauthorizedException('Senha atual incorreta.');
+      }
+    }
+
+    // Política de complexidade (mensagens PT-BR do que faltou) + histórico.
+    this.passwordPolicy.validateComplexity(input.newPassword, {
+      email: user.email,
+      name: user.name,
+    });
+    await this.passwordPolicy.assertNotReused(user.id, input.newPassword);
+
+    const newHash = await bcrypt.hash(input.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: newHash,
+        passwordChangedAt: new Date(),
+        mustChangePassword: false,
+      },
+    });
+
+    // Histórico (inclui o hash ANTERIOR na primeira troca) — best-effort.
+    await this.passwordPolicy.recordPasswordChange(user.id, user.passwordHash, newHash);
+
+    // Revoga TODAS as OUTRAS sessões (reason SECURITY → denylist: access
+    // tokens das outras sessões morrem imediatamente, não só o refresh).
+    try {
+      await this.sessionService.revokeAllSessions(
+        user.id,
+        SessionRevokedReason.SECURITY,
+        sessionId,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao revogar sessões após troca de senha (best-effort): ${(err as Error).message}`,
+      );
+    }
+
+    // SecurityEvent PASSWORD_CHANGED (best-effort — nunca desfaz a troca).
+    try {
+      await this.prisma.securityEvent.create({
+        data: {
+          companyId: user.companyId,
+          userId: user.id,
+          eventType: SecurityEventType.PASSWORD_CHANGED,
+          severity: SecurityEventSeverity.INFO,
+          metadata: { restricted, otherSessionsRevoked: true },
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao gravar SecurityEvent PASSWORD_CHANGED (best-effort): ${(err as Error).message}`,
+      );
+    }
+
+    return { success: true, message: 'Senha alterada com sucesso.' };
+  }
+
+  /**
+   * Resolve QUEM está trocando a senha: token restrito (body) OU access
+   * token normal (header). Token restrito no header e access token no body
+   * são ambos rejeitados — cada credencial só vale no seu canal.
+   */
+  private resolveChangePasswordIdentity(input: {
+    authorizationHeader?: string;
+    passwordChangeToken?: string;
+  }): { userId: string; sessionId?: string; restricted: boolean } {
+    if (input.passwordChangeToken) {
+      let payload: any;
+      try {
+        payload = this.jwtService.verify(input.passwordChangeToken);
+      } catch {
+        throw new UnauthorizedException(
+          'Token de troca de senha inválido ou expirado. Faça login novamente.',
+        );
+      }
+      if (payload?.scope !== PASSWORD_CHANGE_SCOPE || !payload?.sub) {
+        throw new UnauthorizedException(
+          'Token de troca de senha inválido ou expirado. Faça login novamente.',
+        );
+      }
+      return { userId: payload.sub, restricted: true };
+    }
+
+    const header = input.authorizationHeader ?? '';
+    if (header.startsWith('Bearer ')) {
+      const token = header.slice('Bearer '.length).trim();
+      let payload: any;
+      try {
+        payload = this.jwtService.verify(token);
+      } catch {
+        throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
+      }
+      // Tokens restritos (mfa_pending, password_change) NÃO valem como
+      // access token — mesmo comportamento do JwtStrategy.
+      if (payload?.scope || !payload?.sub) {
+        throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
+      }
+      return { userId: payload.sub, sessionId: payload.sessionId, restricted: false };
+    }
+
+    throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
   }
 }
