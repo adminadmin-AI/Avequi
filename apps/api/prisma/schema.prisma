@@ -276,6 +276,7 @@ model User {
   ledTeams                  Team[]                @relation("TeamLeader")
   sessions                  UserSession[]
   trustedDevices            TrustedDevice[]
+  mfa                       UserMFA?
   auditLogsV2               AuditLogV2[]
   securityEvents            SecurityEvent[]
   permissionChangesReceived PermissionChangeLog[] @relation("PermissionChangeTarget")
@@ -2770,6 +2771,11 @@ model Role {
   companyId   String?  // null = global
   company     Company? @relation(fields: [companyId], references: [id])
   isActive    Boolean  @default(true)
+  // IAM v2 — F4.1 (#344): enforcement de MFA por perfil. true = usuários com
+  // este perfil DEVEM ter MFA habilitado. Enforcement SUAVE por ora: o login
+  // responde mfaSetupRequired=true mas NÃO bloqueia — o enforcement duro
+  // (bloquear login sem MFA após grace period) é decisão pendente do Rafael.
+  requireMfa  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -3024,6 +3030,28 @@ model TrustedDevice {
   @@map("gdr_trusted_devices")
 }
 
+// ─── #344 — MFA/2FA TOTP (Bloco D da arquitetura) ────────────────────────────
+
+/// MFA TOTP do usuário (#344). `secret` é o secret TOTP em base32 CRIPTOGRAFADO
+/// com AES-256-GCM (EncryptionService, env ENCRYPTION_KEY) — nunca em claro.
+/// `enabled` só vira true depois que o usuário CONFIRMA o setup com um código
+/// válido (setup → confirm). `backupCodes` guarda os hashes bcrypt dos 10
+/// códigos de recuperação (uso único: o hash é removido do array ao ser usado;
+/// o código em claro é mostrado UMA vez, no confirm/regenerate).
+model UserMFA {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret      String // secret TOTP criptografado (formato v1:<iv>:<tag>:<ct>)
+  enabled     Boolean   @default(false)
+  verifiedAt  DateTime? // quando o usuário confirmou o setup
+  backupCodes String[]  @default([]) // hashes bcrypt, uso único
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_user_mfa")
+}
+
 // ─── #337 — Auditoria enterprise (v2 nasce AO LADO da v1 — sem DROP) ─────────
 
 enum AuditAction {
@@ -3088,6 +3116,7 @@ enum SecurityEventType {
   ACCOUNT_UNLOCKED
   MFA_ENABLED
   MFA_DISABLED
+  MFA_BACKUP_CODES_REGENERATED
   TOKEN_REUSE_DETECTED
   NEW_DEVICE
   SUSPICIOUS_ACTIVITY
