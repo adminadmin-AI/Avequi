@@ -35,6 +35,7 @@
     "class-validator": "^0.14.1",
     "exceljs": "^4.4.0",
     "helmet": "^8.2.0",
+    "ioredis": "^5.10.1",
     "joi": "^18.2.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
