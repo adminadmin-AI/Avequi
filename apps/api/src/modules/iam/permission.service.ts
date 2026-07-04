@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionCacheService } from './permission-cache.service';
+import {
+  ENUM_ROLE_TO_SYSTEM_ROLE,
+  findSystemRole,
+  resolveEffectivePermissions,
+} from './roles.catalog';
 
 /**
  * PermissionService — motor de autorização RBAC do IAM v2. Issue #340
@@ -39,6 +44,22 @@ export interface PermissionSet {
   roles: string[];
   /** Codes de permissão efetivos, já com herança e exceções aplicadas. */
   permissions: string[];
+}
+
+/**
+ * Payload do GET /auth/me/permissions (#351) — o que o frontend consome
+ * para o usePermission()/<Can>.
+ */
+export interface MyEffectivePermissions extends PermissionSet {
+  /**
+   * true quando o usuário NÃO tem nada no RBAC v2 (nenhum UserRoleAssignment
+   * nem UserPermission) e as permissões foram derivadas do perfil-espelho do
+   * enum `User.role` legado (ENUM_ROLE_TO_SYSTEM_ROLE + catálogo em código).
+   * Garante que usuário ainda não migrado nunca fica sem permissão nenhuma.
+   */
+  legacyFallback: boolean;
+  /** Timestamp ISO da resolução — o frontend usa para invalidar/depurar. */
+  resolvedAt: string;
 }
 
 /** Limite defensivo da caminhada na cadeia de herança (os catálogos garantem
@@ -117,6 +138,51 @@ export class PermissionService {
   async hasRole(userId: string, companyId: string, roleCode: string): Promise<boolean> {
     const { roles } = await this.getUserPermissions(userId, companyId);
     return roles.includes(roleCode);
+  }
+
+  /**
+   * Permissões efetivas do PRÓPRIO usuário para o frontend (#351,
+   * GET /auth/me/permissions), com fallback de compatibilidade para
+   * usuários legados ainda não migrados para o RBAC v2.
+   *
+   * Fallback (NUNCA deixar usuário legado sem permissão nenhuma):
+   * se o usuário não tem NADA no RBAC v2 (zero UserRoleAssignment e zero
+   * UserPermission → roles e permissions vazios), resolvemos o perfil-espelho
+   * do enum `User.role` (ENUM_ROLE_TO_SYSTEM_ROLE, mesmo mapeamento que o
+   * seed #463 usou no espelhamento) direto do catálogo em código — sem tocar
+   * o banco e sem poluir o cache Redis (o cache guarda apenas o estado REAL
+   * do RBAC v2; o fallback é recalculado por request, custo O(catálogo)).
+   *
+   * Se o usuário TEM qualquer coisa no v2 (mesmo que só um deny individual),
+   * o v2 é a fonte da verdade e o fallback NÃO se aplica — remover todos os
+   * perfis de alguém é uma decisão administrativa que deve valer.
+   */
+  async getMyEffectivePermissions(
+    userId: string,
+    companyId: string,
+    legacyEnumRole?: string,
+  ): Promise<MyEffectivePermissions> {
+    const resolved = await this.getUserPermissions(userId, companyId);
+    const resolvedAt = new Date().toISOString();
+
+    const isEmptyInV2 = resolved.roles.length === 0 && resolved.permissions.length === 0;
+    if (isEmptyInV2 && legacyEnumRole) {
+      const mirrorCode = ENUM_ROLE_TO_SYSTEM_ROLE[legacyEnumRole];
+      if (mirrorCode && findSystemRole(mirrorCode)) {
+        return {
+          roles: [mirrorCode],
+          permissions: [...resolveEffectivePermissions(mirrorCode)].sort(),
+          legacyFallback: true,
+          resolvedAt,
+        };
+      }
+      this.logger.warn(
+        `Usuário ${userId} sem RBAC v2 e com enum role desconhecido ` +
+          `('${legacyEnumRole}') — respondendo conjunto vazio (fail-closed).`,
+      );
+    }
+
+    return { ...resolved, legacyFallback: false, resolvedAt };
   }
 
   // ─── Invalidação ativa (Decisão 2) ────────────────────────────────────────

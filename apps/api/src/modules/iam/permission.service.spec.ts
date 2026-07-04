@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PermissionService, permissionMatches } from './permission.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ENUM_ROLE_TO_SYSTEM_ROLE, resolveEffectivePermissions } from './roles.catalog';
 
 /**
  * Testes do PermissionService (#340) — PrismaService e cache mockados
@@ -375,6 +376,66 @@ describe('PermissionService', () => {
       expect(mockCache.del).toHaveBeenCalledTimes(2);
       expect(mockCache.del).toHaveBeenCalledWith('c1', 'u1');
       expect(mockCache.del).toHaveBeenCalledWith('c1', 'u2');
+    });
+  });
+
+  // ─── getMyEffectivePermissions (#351 — GET /auth/me/permissions) ───────────
+
+  describe('getMyEffectivePermissions — efetivas + fallback legado', () => {
+    it('RBAC v2 populado: responde o efetivo do banco com legacyFallback=false', async () => {
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([
+        { roleId: 'r-vend', role: { code: 'VENDEDOR_CUSTOM' } },
+      ]);
+      mockRoleChain({
+        'r-vend': roleRow('r-vend', null, [['sales.orders.view'], ['sales.orders.create']]),
+      });
+
+      const result = await service.getMyEffectivePermissions('u1', 'c1', 'COMMERCIAL');
+
+      expect(result.legacyFallback).toBe(false);
+      expect(result.roles).toEqual(['VENDEDOR_CUSTOM']);
+      expect(result.permissions).toEqual(['sales.orders.create', 'sales.orders.view']);
+      expect(typeof result.resolvedAt).toBe('string');
+    });
+
+    it('usuário legado (RBAC v2 vazio): deriva do perfil-espelho do enum role', async () => {
+      const result = await service.getMyEffectivePermissions('u1', 'c1', 'SUPER_ADMIN');
+
+      expect(result.legacyFallback).toBe(true);
+      expect(result.roles).toEqual([ENUM_ROLE_TO_SYSTEM_ROLE.SUPER_ADMIN]); // ADMIN_GLOBAL
+      // NUNCA vazio: espelho vem do catálogo em código
+      expect(result.permissions.length).toBeGreaterThan(0);
+      expect(result.permissions).toEqual(
+        [...resolveEffectivePermissions(ENUM_ROLE_TO_SYSTEM_ROLE.SUPER_ADMIN)].sort(),
+      );
+    });
+
+    it('todos os 10 valores do enum têm espelho no catálogo (nenhum legado fica sem nada)', async () => {
+      for (const enumRole of Object.keys(ENUM_ROLE_TO_SYSTEM_ROLE)) {
+        const result = await service.getMyEffectivePermissions('u1', 'c1', enumRole);
+        expect(result.legacyFallback).toBe(true);
+        expect(result.permissions.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('RBAC v2 vazio + enum desconhecido: conjunto vazio (fail-closed), sem lançar', async () => {
+      const result = await service.getMyEffectivePermissions('u1', 'c1', 'ROLE_INEXISTENTE');
+
+      expect(result.legacyFallback).toBe(false);
+      expect(result.roles).toEqual([]);
+      expect(result.permissions).toEqual([]);
+    });
+
+    it('usuário SÓ com grant individual (sem perfil): v2 é fonte da verdade, sem fallback', async () => {
+      mockPrisma.userPermission.findMany.mockResolvedValue([
+        { granted: true, permission: { code: 'stock.balances.view' } },
+      ]);
+
+      const result = await service.getMyEffectivePermissions('u1', 'c1', 'SUPER_ADMIN');
+
+      expect(result.legacyFallback).toBe(false);
+      expect(result.roles).toEqual([]);
+      expect(result.permissions).toEqual(['stock.balances.view']);
     });
   });
 });
