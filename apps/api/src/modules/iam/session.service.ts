@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import {
   LoginFailReason,
   SecurityEventSeverity,
@@ -7,8 +7,10 @@ import {
   TrustedDevice,
   UserSession,
 } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from './audit.service';
 import { SessionDenylistService } from './session-denylist.service';
 
 /**
@@ -83,6 +85,9 @@ export class SessionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly denylist: SessionDenylistService,
+    // #343: @Optional() de propósito — auditoria é best-effort e a ausência
+    // do serviço (ex.: testes existentes) nunca pode quebrar o fluxo.
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   // ─── Fingerprint ───────────────────────────────────────────────────────────
@@ -562,6 +567,24 @@ export class SessionService {
     if (this.isCriticalRevocation(reason)) {
       await this.denylist.deny(session.id);
     }
+
+    // #343 — EXEMPLO DE ADOÇÃO do AuditService.logWithDiff() em um service:
+    // o "antes" e o "depois" reais da entidade geram o diff (só os campos
+    // alterados são gravados). O AuditService nunca lança (fila → fallback
+    // síncrono → log de erro), então o await aqui é seguro.
+    await this.audit?.logWithDiff(
+      { revokedAt: null, revokedReason: null },
+      { revokedAt: new Date(), revokedReason: reason },
+      {
+        companyId: session.companyId,
+        userId: expectedUserId ?? session.userId,
+        sessionId: session.id,
+        entity: 'UserSession',
+        entityId: session.id,
+        action: AuditAction.UPDATE,
+        module: 'iam',
+      },
+    );
   }
 
   /** Logout global: revoga TODAS as sessões ativas do usuário. */
