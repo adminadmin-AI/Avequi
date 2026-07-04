@@ -3,8 +3,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
-import { AuthService } from './auth.service';
+import { AuthService, MFA_PENDING_SCOPE } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MfaService } from '../iam/mfa.service';
 import { SessionService } from '../iam/session.service';
 
 function hashToken(token: string): string {
@@ -38,6 +39,14 @@ const mockSessionService = {
   revokeSessionByRefreshTokenId: jest.fn(),
 };
 
+// #344: MfaService mockado — default SEM MFA (fluxo antigo intacto).
+const mockMfaService = {
+  isEnabled: jest.fn(),
+  roleRequiresMfa: jest.fn(),
+  verifyCode: jest.fn(),
+  recordFailedVerify: jest.fn(),
+};
+
 const mockUser = {
   id: 'user-1',
   email: 'admin@gdr.com.br',
@@ -60,6 +69,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: SessionService, useValue: mockSessionService },
+        { provide: MfaService, useValue: mockMfaService },
       ],
     }).compile();
 
@@ -76,6 +86,11 @@ describe('AuthService', () => {
     });
     mockSessionService.attachRefreshToSession.mockResolvedValue(undefined);
     mockSessionService.revokeSessionByRefreshTokenId.mockResolvedValue(undefined);
+    // Defaults #344: MFA desabilitado — login segue o fluxo de sempre.
+    mockMfaService.isEnabled.mockResolvedValue(false);
+    mockMfaService.roleRequiresMfa.mockResolvedValue(false);
+    mockMfaService.verifyCode.mockResolvedValue(false);
+    mockMfaService.recordFailedVerify.mockResolvedValue(undefined);
   });
 
   // ─── validateUser ──────────────────────────────────────────────────────────
@@ -449,6 +464,135 @@ describe('AuthService', () => {
       await service.logout('not-found-token');
 
       expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── MFA — login em 2 passos (#344) ────────────────────────────────────────
+
+  describe('login com MFA habilitado (#344)', () => {
+    const user = { id: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1' };
+
+    it('should return mfaPendingToken WITHOUT final tokens, session or refresh', async () => {
+      mockMfaService.isEnabled.mockResolvedValue(true);
+      mockJwt.sign.mockReturnValue('pending-tk');
+
+      const result = await service.login(user);
+
+      expect(result).toEqual({ mfaRequired: true, mfaPendingToken: 'pending-tk' });
+      // pending token com claim de escopo restrito e vida de 2min
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        { sub: 'user-1', scope: MFA_PENDING_SCOPE },
+        { expiresIn: '2m' },
+      );
+      // NENHUM token final antes do 2º passo
+      expect(mockPrisma.refreshToken.create).not.toHaveBeenCalled();
+      expect(mockSessionService.createSession).not.toHaveBeenCalled();
+    });
+
+    it('should flag mfaSetupRequired (soft enforcement) when role requires MFA and user has none', async () => {
+      mockMfaService.isEnabled.mockResolvedValue(false);
+      mockMfaService.roleRequiresMfa.mockResolvedValue(true);
+      mockJwt.sign.mockReturnValueOnce('refresh-tk').mockReturnValueOnce('access-tk');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const result = await service.login(user);
+
+      // enforcement SUAVE: tokens saem normalmente, só sinaliza
+      expect(result.accessToken).toBe('access-tk');
+      expect(result.mfaSetupRequired).toBe(true);
+    });
+
+    it('should NOT change legacy login response when MFA is disabled (compatibilidade)', async () => {
+      mockJwt.sign.mockReturnValueOnce('refresh-tk').mockReturnValueOnce('access-tk');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const result = await service.login(user);
+
+      expect(result).not.toHaveProperty('mfaRequired');
+      expect(result).not.toHaveProperty('mfaSetupRequired');
+      expect(result.accessToken).toBe('access-tk');
+    });
+  });
+
+  describe('loginWithMfa (#344)', () => {
+    const dbUser = { ...mockUser };
+
+    it('should issue final tokens when pending token and TOTP code are valid', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: MFA_PENDING_SCOPE });
+      mockPrisma.user.findUnique.mockResolvedValue(dbUser);
+      mockMfaService.verifyCode.mockResolvedValue(true);
+      mockJwt.sign.mockReturnValueOnce('refresh-tk').mockReturnValueOnce('access-tk');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const result = await service.loginWithMfa('pending-tk', '123456', { ipAddress: '1.2.3.4' });
+
+      expect(result.accessToken).toBe('access-tk');
+      expect(result.refreshToken).toBe('refresh-tk');
+      expect(result.user).not.toHaveProperty('passwordHash');
+      expect(mockMfaService.verifyCode).toHaveBeenCalledWith('user-1', '123456');
+      // sessão criada só AGORA (2º passo)
+      expect(mockSessionService.createSession).toHaveBeenCalled();
+      expect(mockSessionService.recordLoginAttempt).toHaveBeenCalledWith(
+        dbUser.email,
+        expect.anything(),
+        true,
+      );
+    });
+
+    it('should reject invalid code with 401, LoginAttempt(MFA_FAILED) and SecurityEvent', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: MFA_PENDING_SCOPE });
+      mockPrisma.user.findUnique.mockResolvedValue(dbUser);
+      mockMfaService.verifyCode.mockResolvedValue(false);
+
+      await expect(service.loginWithMfa('pending-tk', '000000')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockSessionService.recordLoginAttempt).toHaveBeenCalledWith(
+        dbUser.email,
+        expect.anything(),
+        false,
+        'MFA_FAILED',
+      );
+      expect(mockMfaService.recordFailedVerify).toHaveBeenCalled();
+      expect(mockSessionService.createSession).not.toHaveBeenCalled();
+    });
+
+    it('should reject a token WITHOUT the mfa_pending scope (access token no lugar do pending)', async () => {
+      // um access token normal verificado com sucesso, mas sem o scope
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', email: 'a@b.c', role: 'READER' });
+
+      await expect(service.loginWithMfa('access-tk', '123456')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockMfaService.verifyCode).not.toHaveBeenCalled();
+    });
+
+    it('should reject expired/invalid pending token', async () => {
+      mockJwt.verify.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+
+      await expect(service.loginWithMfa('expired', '123456')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should reject when user is inactive', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: MFA_PENDING_SCOPE });
+      mockPrisma.user.findUnique.mockResolvedValue({ ...dbUser, isActive: false });
+
+      await expect(service.loginWithMfa('pending-tk', '123456')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should respect lockout on the 2nd step (brute-force de TOTP)', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: MFA_PENDING_SCOPE });
+      mockPrisma.user.findUnique.mockResolvedValue(dbUser);
+      mockSessionService.assertNotLocked.mockRejectedValue(new HttpException('locked', 423));
+
+      await expect(service.loginWithMfa('pending-tk', '123456')).rejects.toThrow(HttpException);
+      expect(mockMfaService.verifyCode).not.toHaveBeenCalled();
     });
   });
 });

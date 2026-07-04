@@ -17,6 +17,7 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { MfaService } from '../iam/mfa.service';
 import { SessionService } from '../iam/session.service';
 
 @ApiTags('auth')
@@ -25,6 +26,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
+    private readonly mfaService: MfaService,
   ) {}
 
   @Public()
@@ -56,6 +58,76 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
   async logout(@Body('refreshToken') refreshToken: string) {
     await this.authService.logout(refreshToken);
+  }
+
+  // ─── MFA/2FA TOTP (#344) ───────────────────────────────────────────────────
+
+  @Public()
+  @Post('mfa/verify')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      '2º passo do login MFA — troca mfaPendingToken (2min) + código TOTP/backup code pelos tokens finais',
+  })
+  async verifyMfa(
+    @Request() req: any,
+    @Body('mfaPendingToken') mfaPendingToken: string,
+    @Body('code') code: string,
+  ) {
+    return this.authService.loginWithMfa(mfaPendingToken, code, {
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+  }
+
+  @Post('mfa/setup')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Iniciar setup de MFA — gera secret TOTP + otpauth:// URI (QR code no frontend)',
+  })
+  async setupMfa(@CurrentUser() user: any) {
+    return this.mfaService.setup({ id: user.id, email: user.email });
+  }
+
+  @Post('mfa/confirm')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Confirmar setup com código TOTP → ativa o MFA e devolve os 10 backup codes (mostrados UMA vez)',
+  })
+  async confirmMfa(@CurrentUser() user: any, @Body('code') code: string) {
+    return this.mfaService.confirm({ id: user.id, companyId: user.companyId }, code);
+  }
+
+  @Post('mfa/disable')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Desabilitar MFA — exige senha + código TOTP/backup code válido' })
+  async disableMfa(
+    @CurrentUser() user: any,
+    @Body('password') password: string,
+    @Body('code') code: string,
+  ) {
+    await this.mfaService.disable({ id: user.id, companyId: user.companyId }, password, code);
+  }
+
+  @Post('mfa/backup-codes/regenerate')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Regenerar os 10 backup codes (invalida os antigos) — exige código MFA válido',
+  })
+  async regenerateBackupCodes(@CurrentUser() user: any, @Body('code') code: string) {
+    return this.mfaService.regenerateBackupCodes(
+      { id: user.id, companyId: user.companyId },
+      code,
+    );
   }
 
   // ─── Sessões e dispositivos (#342) ─────────────────────────────────────────
