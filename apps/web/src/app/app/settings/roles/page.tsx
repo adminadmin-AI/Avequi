@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
+import { usePermission } from '@/hooks/use-permission';
 import {
   apiErrorMessage,
   useCreateIamRole,
@@ -12,18 +12,18 @@ import {
   useUpdateIamRole,
 } from '@/hooks/use-iam';
 import type { IamRole } from '@/types/api';
+import { Can } from '@/components/can';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { AssignmentsTab } from './assignments-tab';
 import { RoleForm, type RoleFormValues } from './role-form';
-
-const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
 
 /**
  * Tela de gestão de perfis e permissões — issue #352 (IAM F7.2).
@@ -32,15 +32,20 @@ const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
  * personalizados da empresa (criar/renomear/duplicar/excluir; a árvore de
  * permissões fica na página de detalhe /app/settings/roles/[id]).
  * Aba "Atribuições": vincula usuários a perfis e gerencia exceções.
+ *
+ * Gating por PERMISSÃO (RBAC v2, #351 — dogfooding do usePermission/<Can>):
+ * iam.roles.view abre a tela; iam.roles.manage libera criar/editar/excluir.
+ * O backend revalida tudo (@RequirePermission) — aqui é só UX.
  */
 export default function RolesPage() {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
-  const currentUser = useAuthStore((s) => s.user);
-  const canManage = !!currentUser && ALLOWED_ROLES.includes(currentUser.role);
+  const { can, isLoading: loadingPerms } = usePermission();
+  const canView = can('iam.roles.view');
+  const canManage = can('iam.roles.manage');
 
-  const { data: roles = [], isLoading } = useIamRoles(canManage);
+  const { data: roles = [], isLoading } = useIamRoles(canView);
   const createRole = useCreateIamRole();
   const updateRole = useUpdateIamRole();
   const deleteRole = useDeleteIamRole();
@@ -172,17 +177,19 @@ export default function RolesPage() {
           >
             <KeyRound size={15} />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              openCreate(r);
-            }}
-            title="Duplicar como perfil personalizado"
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 hover:text-brand-600 dark:hover:bg-neutral-800 dark:hover:text-brand-400"
-          >
-            <Copy size={15} />
-          </button>
-          {!r.isSystem && (
+          {canManage && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openCreate(r);
+              }}
+              title="Duplicar como perfil personalizado"
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 hover:text-brand-600 dark:hover:bg-neutral-800 dark:hover:text-brand-400"
+            >
+              <Copy size={15} />
+            </button>
+          )}
+          {!r.isSystem && canManage && (
             <>
               <button
                 onClick={(e) => {
@@ -211,7 +218,24 @@ export default function RolesPage() {
     },
   ];
 
-  if (!canManage) {
+  // Fail-closed com UX: enquanto as permissões carregam, esqueleto (nunca
+  // "Acesso restrito" piscando para quem TEM acesso).
+  if (loadingPerms) {
+    return (
+      <div>
+        <PageHeader
+          title="Perfis e Permissões"
+          description="Gestão de perfis de acesso (RBAC) e permissões granulares."
+        />
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!canView) {
     return (
       <div>
         <PageHeader
@@ -223,7 +247,8 @@ export default function RolesPage() {
           <div>
             <p className="text-sm font-medium text-content-secondary">Acesso restrito</p>
             <p className="text-xs text-content-muted">
-              Apenas Super Admin e Diretor podem gerenciar perfis e permissões.
+              Você não tem a permissão necessária (iam.roles.view) para ver perfis e
+              permissões.
             </p>
           </div>
         </div>
@@ -237,10 +262,12 @@ export default function RolesPage() {
         title="Perfis e Permissões"
         description="Perfis de acesso (RBAC v2), permissões granulares e atribuições por usuário."
         actions={
-          <Button onClick={() => openCreate()}>
-            <Plus size={16} />
-            Novo perfil
-          </Button>
+          <Can permission="iam.roles.manage">
+            <Button onClick={() => openCreate()}>
+              <Plus size={16} />
+              Novo perfil
+            </Button>
+          </Can>
         }
       />
 
