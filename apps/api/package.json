@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:seed:iam": "ts-node -r tsconfig-paths/register prisma/seed-iam.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
