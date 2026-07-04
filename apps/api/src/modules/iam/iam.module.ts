@@ -1,11 +1,13 @@
 import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EncryptionService } from '../../common/encryption/encryption.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AuditController } from './audit.controller';
 import { AuditProcessor } from './audit.processor';
 import { AuditService } from './audit.service';
 import { AUDIT_QUEUE } from './audit.types';
+import { MfaService } from './mfa.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { PermissionService } from './permission.service';
 import { SessionDenylistService } from './session-denylist.service';
@@ -15,7 +17,8 @@ import { ShadowModeService } from './shadow-mode.service';
 /**
  * Módulo IAM v2 — motor de autorização RBAC (issue #340, Fase F3.1/M2)
  * + sessões/dispositivos/lockout (issue #342, Fase F3.3/M4)
- * + auditoria persistida com fila Bull (issue #343, Fase F3.4/M5).
+ * + auditoria persistida com fila Bull (issue #343, Fase F3.4/M5)
+ * + MFA/2FA TOTP com backup codes e EncryptionService (issue #344, Fase F4.1).
  *
  * O PermissionService segue em shadow mode (nenhum guard novo). O
  * SessionService já é CONSUMIDO pelo AuthModule (login cria sessão, refresh
@@ -36,6 +39,8 @@ import { ShadowModeService } from './shadow-mode.service';
   providers: [
     AuditProcessor,
     AuditService,
+    EncryptionService,
+    MfaService,
     PermissionCacheService,
     PermissionService,
     SessionDenylistService,
@@ -44,6 +49,8 @@ import { ShadowModeService } from './shadow-mode.service';
   ],
   exports: [
     AuditService,
+    EncryptionService,
+    MfaService,
     PermissionCacheService,
     PermissionService,
     SessionDenylistService,
