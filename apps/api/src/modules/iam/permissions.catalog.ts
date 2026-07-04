@@ -436,6 +436,12 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ...r('iam', 'audit-logs', 'Audit logs', [
     ['view', 'ver', 'GET /iam/audit-logs (leitura restrita 🔒 — trilha de auditoria v2)'],
   ]),
+  // ── iam ── (iam/roles-admin.controller.ts + iam/user-access.controller.ts, #352) 🔒
+  ...r('iam', 'roles', 'Perfis e permissões', [
+    ['view', 'ver', 'GET /iam/roles, /iam/roles/:id/permissions, /iam/permissions, /iam/users/:userId/{roles,permissions} (leitura restrita 🔒)'],
+    ['manage', 'criar/editar/excluir perfis', 'POST/PATCH/DELETE /iam/roles, PUT /iam/roles/:id/permissions'],
+    ['assign', 'atribuir perfis e exceções a usuários', 'POST/DELETE /iam/users/:userId/roles, POST/DELETE /iam/users/:userId/permissions'],
+  ]),
 
   // ── vehicle-tracking ── (vehicle-tracking.controller.ts)
   ...r('vehicle-tracking', 'bin', 'BIN veicular', [

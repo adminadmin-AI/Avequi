@@ -3546,6 +3546,12 @@ enum PermissionChangeType {
   ROLE_REMOVED
   PERMISSION_GRANTED
   PERMISSION_REVOKED
+  // #352 — eventos de ciclo de vida de PERFIL (mudança de acesso em nível de
+  // perfil afeta todos os usuários vinculados; targetUserId = autor da ação)
+  ROLE_CREATED
+  ROLE_UPDATED
+  ROLE_DELETED
+  ROLE_PERMISSIONS_CHANGED
 }
 
 /// Trilha de mudanças de acesso — gravação SÍNCRONA (Decisão 5): auditoria

@@ -146,6 +146,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.reports.create',
       'analytics.export.execute',
       'suppliers.portal-tokens.view',
+      // #352: DIRETOR administra acessos (a rota também exige o enum
+      // SUPER_ADMIN/DIRECTOR via @Roles). iam.roles.view já entra pelo
+      // actionCodes('view') acima.
+      'iam.roles.manage',
+      'iam.roles.assign',
     ]),
   },
 
