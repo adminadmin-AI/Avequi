@@ -120,6 +120,9 @@ model Company {
   orgBranches          Branch[]
   departments          Department[]
   userSessions         UserSession[]
+  auditLogsV2          AuditLogV2[]
+  securityEvents       SecurityEvent[]
+  permissionChangeLogs PermissionChangeLog[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -273,6 +276,10 @@ model User {
   ledTeams                  Team[]                @relation("TeamLeader")
   sessions                  UserSession[]
   trustedDevices            TrustedDevice[]
+  auditLogsV2               AuditLogV2[]
+  securityEvents            SecurityEvent[]
+  permissionChangesReceived PermissionChangeLog[] @relation("PermissionChangeTarget")
+  permissionChangesMade     PermissionChangeLog[] @relation("PermissionChangeAuthor")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -2741,6 +2748,7 @@ model Permission {
 
   rolePermissions      RolePermission[]
   userPermissions      UserPermission[]
+  permissionChangeLogs PermissionChangeLog[]
 
   @@index([module])
   @@index([module, resource])
@@ -2767,6 +2775,7 @@ model Role {
 
   rolePermissions      RolePermission[]
   userAssignments      UserRoleAssignment[]
+  permissionChangeLogs PermissionChangeLog[]
 
   @@index([companyId])
   @@map("gdr_roles")
@@ -2964,6 +2973,7 @@ model UserSession {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
+  auditLogsV2 AuditLogV2[]
 
   @@index([userId, revokedAt])
   @@index([companyId])
@@ -3014,3 +3024,130 @@ model TrustedDevice {
   @@map("gdr_trusted_devices")
 }
 
+// ─── #337 — Auditoria enterprise (v2 nasce AO LADO da v1 — sem DROP) ─────────
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  CANCEL
+  FINALIZE
+  REOPEN
+  EXPORT
+  IMPORT
+  PRINT
+  EXECUTE
+  PROCESS
+  LOGIN
+  LOGOUT
+  OTHER
+}
+
+/// Auditoria v2 (redesign da #337). A tabela gdr_audit_logs (v1) NÃO é
+/// alterada nem removida — a v2 nasce ao lado e a v1 será aposentada depois,
+/// sem DROP. Escrita async via fila Bull (Decisão 5); registros NUNCA são
+/// deletados (retenção 5–7 anos).
+model AuditLogV2 {
+  id        String       @id @default(cuid())
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id])
+  sessionId String?
+  session   UserSession? @relation(fields: [sessionId], references: [id])
+  entity    String       // ex: "Product"
+  entityId  String?
+  action    AuditAction
+  module    String?      // ex: "production"
+  oldValue  Json?        // diff: estado anterior
+  newValue  Json?        // diff: estado novo
+  ipAddress String?
+  userAgent String?
+  requestId String?      // correlação de request
+  duration  Int?         // ms
+  createdAt DateTime     @default(now())
+
+  @@index([companyId, entity, entityId])
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([requestId])
+  @@map("gdr_audit_logs_v2")
+}
+
+enum SecurityEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  PASSWORD_CHANGED
+  ROLE_CHANGED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+  SESSION_REVOKED
+  LOCKOUT
+  ACCOUNT_UNLOCKED
+  MFA_ENABLED
+  MFA_DISABLED
+  TOKEN_REUSE_DETECTED
+  NEW_DEVICE
+  SUSPICIOUS_ACTIVITY
+}
+
+enum SecurityEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// Evento de segurança — gravação SÍNCRONA (mesma transação da ação, Decisão 5).
+/// companyId/userId opcionais: login falho de e-mail desconhecido não tem nenhum dos dois.
+model SecurityEvent {
+  id        String                @id @default(cuid())
+  companyId String?
+  company   Company?              @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?                 @relation(fields: [userId], references: [id])
+  eventType SecurityEventType
+  severity  SecurityEventSeverity @default(INFO)
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime              @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("gdr_security_events")
+}
+
+enum PermissionChangeType {
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+}
+
+/// Trilha de mudanças de acesso — gravação SÍNCRONA (Decisão 5): auditoria
+/// de permissão que se perde numa fila é auditoria que não existe.
+model PermissionChangeLog {
+  id              String      @id @default(cuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  targetUserId    String
+  targetUser      User        @relation("PermissionChangeTarget", fields: [targetUserId], references: [id])
+  changedByUserId String
+  changedByUser   User        @relation("PermissionChangeAuthor", fields: [changedByUserId], references: [id])
+  changeType      PermissionChangeType
+  roleId          String?
+  role            Role?       @relation(fields: [roleId], references: [id])
+  permissionId    String?
+  permission      Permission? @relation(fields: [permissionId], references: [id])
+  previousState   Json?
+  newState        Json?
+  reason          String?
+  createdAt       DateTime    @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@map("gdr_permission_change_logs")
+}
