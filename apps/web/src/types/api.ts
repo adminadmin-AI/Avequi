@@ -609,6 +609,106 @@ export type CreateCustomerInput = Omit<Customer, keyof BaseEntity | 'companyId'>
 
 export type CreateWarehouseInput = Omit<Warehouse, keyof BaseEntity | 'companyId'>;
 
+// ─── IAM v2 — perfis e permissões (#352) ──────────────────────────────────────
+
+export interface IamPermission {
+  id: string;
+  code: string; // modulo.recurso.acao
+  name: string;
+  description?: string | null;
+  module: string;
+  resource: string;
+  action: string;
+}
+
+/** Catálogo agrupado (GET /iam/permissions) — árvore módulo → recurso. */
+export interface IamPermissionCatalogModule {
+  module: string;
+  resources: Array<{
+    resource: string;
+    permissions: IamPermission[];
+  }>;
+}
+
+export interface IamRole {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+  requireMfa: boolean;
+  companyId?: string | null;
+  parentId?: string | null;
+  parent?: { id: string; code: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { userAssignments: number; rolePermissions: number };
+}
+
+/** GET /iam/roles/:id/permissions */
+export interface IamRolePermissions {
+  roleId: string;
+  code: string;
+  name: string;
+  isSystem: boolean;
+  /** codes concedidos DIRETAMENTE ao perfil */
+  codes: string[];
+  /** denies em nível de perfil (raros; vencem grants de perfil) */
+  deniedCodes: string[];
+  /** codes herdados via perfil pai (somente leitura na UI) */
+  inheritedCodes: string[];
+}
+
+/** GET /iam/users/:userId/roles */
+export interface IamUserRoleAssignment {
+  id: string;
+  roleId: string;
+  role: { id: string; code: string; name: string; isSystem: boolean; isActive: boolean };
+  branchId?: string | null;
+  branch?: { id: string; code: string; name: string } | null;
+  expiresAt?: string | null;
+  grantedBy: string;
+  createdAt: string;
+}
+
+/** GET /iam/users/:userId/permissions (exceções individuais) */
+export interface IamUserPermission {
+  id: string;
+  granted: boolean;
+  expiresAt?: string | null;
+  reason?: string | null;
+  grantedBy: string;
+  createdAt: string;
+  permission: Pick<IamPermission, 'id' | 'code' | 'name' | 'module' | 'resource' | 'action'>;
+}
+
+export interface CreateIamRoleInput {
+  name: string;
+  code?: string;
+  description?: string;
+  copyFromRoleId?: string;
+}
+
+export interface UpdateIamRoleInput {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface AssignIamRoleInput {
+  roleId: string;
+  branchId?: string;
+  expiresAt?: string;
+}
+
+export interface GrantIamPermissionInput {
+  permissionCode: string;
+  granted?: boolean;
+  expiresAt?: string;
+  reason?: string;
+}
+
 // ─── Erro padrão da API ───────────────────────────────────────────────────────
 export interface ApiError {
   statusCode: number;
