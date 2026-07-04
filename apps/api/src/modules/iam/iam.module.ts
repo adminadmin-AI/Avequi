@@ -11,9 +11,13 @@ import { MfaService } from './mfa.service';
 import { PasswordPolicyService } from './password-policy.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { PermissionService } from './permission.service';
+import { RolesAdminController } from './roles-admin.controller';
+import { RolesAdminService } from './roles-admin.service';
 import { SessionDenylistService } from './session-denylist.service';
 import { SessionService } from './session.service';
 import { ShadowModeService } from './shadow-mode.service';
+import { UserAccessController } from './user-access.controller';
+import { UserAccessService } from './user-access.service';
 
 /**
  * Módulo IAM v2 — motor de autorização RBAC (issue #340, Fase F3.1/M2)
@@ -41,7 +45,7 @@ import { ShadowModeService } from './shadow-mode.service';
     PrismaModule,
     BullModule.registerQueue({ name: AUDIT_QUEUE }),
   ],
-  controllers: [AuditController],
+  controllers: [AuditController, RolesAdminController, UserAccessController],
   providers: [
     AuditProcessor,
     AuditService,
@@ -50,9 +54,11 @@ import { ShadowModeService } from './shadow-mode.service';
     PasswordPolicyService,
     PermissionCacheService,
     PermissionService,
+    RolesAdminService,
     SessionDenylistService,
     SessionService,
     ShadowModeService,
+    UserAccessService,
   ],
   exports: [
     AuditService,
