@@ -54,6 +54,7 @@ import { ManifestModule } from './modules/manifest/manifest.module';
 import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { IamModule } from './modules/iam/iam.module';
 
 @Module({
   imports: [
@@ -146,6 +147,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     LgpdModule,
     BudgetModule,
     SchedulingModule,
+    IamModule,
   ],
   providers: [
     {
