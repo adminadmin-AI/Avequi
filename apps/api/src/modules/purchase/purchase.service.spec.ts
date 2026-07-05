@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PurchaseOrderStatus } from '@prisma/client';
 import { PurchaseService } from './purchase.service';
@@ -63,6 +64,11 @@ const mockEventEmitter = {
   emit: jest.fn(),
 };
 
+// SOD_ENFORCE default OFF (env ausente) — mesma semântica do approval.service
+const mockConfig = {
+  get: jest.fn().mockReturnValue(undefined),
+};
+
 const basePO = {
   id: 'po-1',
   companyId: 'co-1',
@@ -82,6 +88,7 @@ describe('PurchaseService', () => {
         PurchaseService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
 
@@ -161,6 +168,30 @@ describe('PurchaseService', () => {
 
       const result = await service.approvePO('po-1', 'co-1', 'user-2', 'MANAGER');
       expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
+    });
+
+    // SoD atrás de SOD_ENFORCE (decisão Rafael 05/07) — coerente com approval.service
+    it('com SOD_ENFORCE ausente (default OFF): criador PODE aprovar a própria PO', async () => {
+      mockConfig.get.mockReturnValue(undefined);
+      const ownPO = { ...basePO, createdById: 'user-1' };
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(ownPO);
+      mockPrisma.pOItem.count.mockResolvedValue(1);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ ...ownPO, status: PurchaseOrderStatus.APPROVED });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result = await service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR');
+      expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
+    });
+
+    it('com SOD_ENFORCE=true: criador NÃO pode aprovar a própria PO', async () => {
+      mockConfig.get.mockReturnValue('true');
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({ ...basePO, createdById: 'user-1' });
+      mockPrisma.pOItem.count.mockResolvedValue(1);
+
+      await expect(
+        service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR'),
+      ).rejects.toThrow(ForbiddenException);
+      mockConfig.get.mockReturnValue(undefined); // restaura default para os demais testes
     });
   });
 
