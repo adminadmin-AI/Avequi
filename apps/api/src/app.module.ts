@@ -74,6 +74,9 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
           .default('development'),
         FOCUS_NFE_TOKEN: Joi.string().optional(),
         FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
+        // SoD (#160/#350): trava de segregação de funções nas aprovações.
+        // DESLIGADA por padrão — regra vigente permite criar e aprovar.
+        SOD_ENFORCE: Joi.boolean().default(false),
       }),
       validationOptions: {
         abortEarly: false,
