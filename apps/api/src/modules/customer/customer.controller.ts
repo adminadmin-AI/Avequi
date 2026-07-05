@@ -21,7 +21,8 @@ export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
+  // STORE cria cliente na venda de balcão (decisão Rafael 04/07/2026)
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
   @ApiOperation({ summary: 'Criar cliente' })
   create(@Body() dto: CreateCustomerDto, @CurrentUser() user: any) {
     return this.customerService.create(dto, user);

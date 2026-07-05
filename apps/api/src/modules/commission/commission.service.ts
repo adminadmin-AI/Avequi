@@ -132,6 +132,14 @@ export class CommissionService {
     validFrom: string;
     validTo?: string;
   }) {
+    // O vendedor da regra precisa pertencer à mesma empresa (anti-IDOR)
+    const seller = await this.prisma.user.findFirst({
+      where: { id: data.userId, companyId: data.companyId },
+      select: { id: true },
+    });
+    if (!seller) {
+      throw new NotFoundException('Vendedor não encontrado nesta empresa');
+    }
     return this.prisma.commissionRule.create({
       data: {
         companyId: data.companyId,
@@ -145,9 +153,9 @@ export class CommissionService {
     });
   }
 
-  async findRules(companyId: string) {
+  async findRules(companyId: string, userId?: string) {
     return this.prisma.commissionRule.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId, isActive: true, ...(userId ? { userId } : {}) },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });

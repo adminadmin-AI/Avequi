@@ -41,14 +41,14 @@ export class StockController {
   }
 
   @Post('move')
-  @Roles('DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION')
   @ApiOperation({ summary: 'Registrar movimentação de estoque' })
   move(@Body() dto: CreateMovementDto, @CurrentUser() user: any) {
     return this.stockService.move({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Post('reverse/:movementId')
-  @Roles('DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Estornar movimentação de estoque' })
   reverse(
     @Param('movementId') movementId: string,

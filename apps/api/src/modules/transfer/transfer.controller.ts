@@ -6,18 +6,19 @@ import {
   Patch,
   Post,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { TransferService } from './transfer.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 
-@UseGuards(JwtAuthGuard)
+const TRANSFER_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE'];
+
 @Controller('transfers')
 export class TransferController {
   constructor(private readonly transferService: TransferService) {}
 
   @Post()
+  @Roles(...TRANSFER_WRITE_ROLES)
   create(
     @Body() dto: CreateTransferDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -39,6 +40,7 @@ export class TransferController {
   }
 
   @Patch(':id/dispatch')
+  @Roles(...TRANSFER_WRITE_ROLES)
   dispatch(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -47,6 +49,7 @@ export class TransferController {
   }
 
   @Patch(':id/receive')
+  @Roles(...TRANSFER_WRITE_ROLES)
   receive(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -55,6 +58,7 @@ export class TransferController {
   }
 
   @Patch(':id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   cancel(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },

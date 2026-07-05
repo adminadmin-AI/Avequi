@@ -15,6 +15,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { FiscalService } from './fiscal.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
 import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
@@ -61,6 +62,7 @@ export class FiscalController {
 
   /** #164 — Cancelar NF-e autorizada (prazo de 24h) */
   @Post(':id/cancel')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
   @HttpCode(200)
   @ApiOperation({ summary: 'Cancelar documento fiscal autorizado (prazo de 24h)' })
   async cancel(
@@ -74,6 +76,7 @@ export class FiscalController {
 
   /** #165 — CC-e (Carta de Correção) */
   @Post(':id/correction')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
   @HttpCode(200)
   @ApiOperation({ summary: 'Emitir Carta de Correção (CC-e) para NF-e autorizada' })
   async correction(
@@ -87,6 +90,7 @@ export class FiscalController {
 
   /** #165 — Inutilização de faixa de numeração */
   @Post('void-range')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
   @HttpCode(200)
   @ApiOperation({ summary: 'Inutilizar faixa de numeração de NF-e' })
   async voidRange(@Body() dto: VoidRangeFiscalDto, @CurrentUser() user: any) {
@@ -98,6 +102,7 @@ export class FiscalController {
 
   /** S08.05 — Reprocessar documento rejeitado ou em erro */
   @Post(':id/retry')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'FINANCIAL')
   @ApiOperation({ summary: 'Reprocessar documento fiscal rejeitado' })
   async retry(@Param('id') id: string, @CurrentUser() user: any) {
     await this.fiscalService.retry(id, user.companyId);

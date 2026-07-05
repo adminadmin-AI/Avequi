@@ -426,3 +426,19 @@ export enum AtpveStatus {
   ISSUED = 'ISSUED',
   CANCELLED = 'CANCELLED',
 }
+
+export enum PaymentMethod {
+  BOLETO = 'BOLETO',
+  PIX = 'PIX',
+  TED = 'TED',
+  DINHEIRO = 'DINHEIRO',
+  CARTAO = 'CARTAO',
+  CHEQUE = 'CHEQUE',
+}
+
+export enum ScheduledPaymentStatus {
+  PENDING = 'PENDING',
+  DONE = 'DONE',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}

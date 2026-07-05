@@ -8,16 +8,16 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { QuotationStatus } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { RejectQuotationDto } from './dto/reject-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationService } from './quotation.service';
 
-@UseGuards(JwtAuthGuard)
+const QUOTATION_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'COMMERCIAL'];
+
 @Controller('quotations')
 export class QuotationController {
   constructor(private readonly quotationService: QuotationService) {}
@@ -37,6 +37,7 @@ export class QuotationController {
 
   // POST /quotations
   @Post()
+  @Roles(...QUOTATION_WRITE_ROLES)
   create(
     @Request() req: { user: { companyId: string; id?: string } },
     @Body() dto: CreateQuotationDto,
@@ -61,6 +62,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id
   @Patch(':id')
+  @Roles(...QUOTATION_WRITE_ROLES)
   update(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -71,6 +73,7 @@ export class QuotationController {
 
   // DELETE /quotations/:id
   @Delete(':id')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   delete(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -80,6 +83,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/send
   @Patch(':id/send')
+  @Roles(...QUOTATION_WRITE_ROLES)
   send(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -89,6 +93,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/approve
   @Patch(':id/approve')
+  @Roles(...QUOTATION_WRITE_ROLES)
   approve(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -98,6 +103,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/reject
   @Patch(':id/reject')
+  @Roles(...QUOTATION_WRITE_ROLES)
   reject(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -108,6 +114,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/convert
   @Patch(':id/convert')
+  @Roles(...QUOTATION_WRITE_ROLES)
   convert(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id?: string } },
@@ -117,6 +124,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/expire
   @Patch(':id/expire')
+  @Roles(...QUOTATION_WRITE_ROLES)
   expire(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
