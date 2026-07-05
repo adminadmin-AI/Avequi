@@ -721,6 +721,117 @@ export interface GrantIamPermissionInput {
   reason?: string;
 }
 
+// ─── IAM v2 — estrutura organizacional (#347 F5.2, fase 1) ────────────────────
+
+/** GET /iam/branches */
+export interface IamBranch {
+  id: string;
+  code: string;
+  name: string;
+  cnpj?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { userRoleAssignments: number };
+}
+
+/** GET /iam/departments */
+export interface IamDepartment {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  parentId?: string | null;
+  parent?: { id: string; code: string; name: string } | null;
+  managerId?: string | null;
+  manager?: { id: string; name: string; email: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { teams: number; users: number; children: number };
+}
+
+/** GET /iam/teams */
+export interface IamTeam {
+  id: string;
+  name: string;
+  isActive: boolean;
+  departmentId: string;
+  department?: { id: string; code: string; name: string } | null;
+  leaderId?: string | null;
+  leader?: { id: string; name: string; email: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { members: number };
+}
+
+/** GET /iam/users/:userId/departments */
+export interface IamUserDepartment {
+  id: string;
+  isPrimary: boolean;
+  createdAt: string;
+  department: { id: string; code: string; name: string; isActive: boolean };
+}
+
+/** GET /iam/users/:userId/teams */
+export interface IamUserTeam {
+  id: string;
+  createdAt: string;
+  team: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    department: { id: string; code: string; name: string };
+  };
+}
+
+export interface CreateIamBranchInput {
+  name: string;
+  code: string;
+  cnpj?: string;
+}
+
+export interface UpdateIamBranchInput {
+  name?: string;
+  cnpj?: string;
+  isActive?: boolean;
+}
+
+export interface CreateIamDepartmentInput {
+  name: string;
+  code: string;
+  parentId?: string;
+  managerId?: string;
+}
+
+export interface UpdateIamDepartmentInput {
+  name?: string;
+  parentId?: string | null;
+  managerId?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateIamTeamInput {
+  name: string;
+  departmentId: string;
+  leaderId?: string;
+}
+
+export interface UpdateIamTeamInput {
+  name?: string;
+  departmentId?: string;
+  leaderId?: string | null;
+  isActive?: boolean;
+}
+
+export interface AddIamUserDepartmentInput {
+  departmentId: string;
+  isPrimary?: boolean;
+}
+
+export interface AddIamUserTeamInput {
+  teamId: string;
+}
+
 // ─── Erro padrão da API ───────────────────────────────────────────────────────
 export interface ApiError {
   statusCode: number;
