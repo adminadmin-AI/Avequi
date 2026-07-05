@@ -24,7 +24,15 @@ export class CommissionController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.commissionService.findAll(user.companyId, { userId, status, from, to });
+    // Vendedor (COMMERCIAL) só vê as próprias comissões — o filtro userId da
+    // query é ignorado e forçado para o usuário logado (decisão Rafael 04/07/2026)
+    const effectiveUserId = user.role === 'COMMERCIAL' ? user.id : userId;
+    return this.commissionService.findAll(user.companyId, {
+      userId: effectiveUserId,
+      status,
+      from,
+      to,
+    });
   }
 
   @Post('approve-batch')
@@ -47,6 +55,9 @@ export class CommissionController {
   @Get('rules')
   @ApiOperation({ summary: 'Listar regras de comissão' })
   findRules(@CurrentUser() user: any) {
-    return this.commissionService.findRules(user.companyId);
+    // Mesma privacidade: COMMERCIAL só vê a própria regra (percentuais dos
+    // demais vendedores são sensíveis)
+    const onlyUserId = user.role === 'COMMERCIAL' ? user.id : undefined;
+    return this.commissionService.findRules(user.companyId, onlyUserId);
   }
 }

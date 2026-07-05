@@ -145,9 +145,9 @@ export class CommissionService {
     });
   }
 
-  async findRules(companyId: string) {
+  async findRules(companyId: string, userId?: string) {
     return this.prisma.commissionRule.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId, isActive: true, ...(userId ? { userId } : {}) },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
