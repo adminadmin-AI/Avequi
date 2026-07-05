@@ -19,7 +19,7 @@ export class BomController {
   constructor(private readonly bomService: BomService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Criar nova versão de BOM' })
   create(@Body() dto: CreateBomDto, @CurrentUser() user: any) {
     return this.bomService.create(dto, user);

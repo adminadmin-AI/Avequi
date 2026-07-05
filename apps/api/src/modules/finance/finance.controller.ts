@@ -22,7 +22,11 @@ import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
 
 // Leitura restrita: dados financeiros são sensíveis (READER e roles operacionais não acessam)
 const FINANCE_READ_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL'];
+// Configuração financeira (contas bancárias, categorias, centros de custo): só SA + FIN
 const FINANCE_WRITE_ROLES = ['SUPER_ADMIN', 'FINANCIAL'];
+// Operacional de lançamento (criar manual, pagar, parcelar, cancelar):
+// DIRECTOR opera no dia a dia (decisão Rafael 04/07/2026)
+const FINANCE_ENTRY_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL'];
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -50,7 +54,7 @@ export class FinanceController {
   }
 
   @Post('entries/manual')
-  @Roles(...FINANCE_WRITE_ROLES)
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar lançamento manual (avulso)' })
   createManualEntry(
     @Body() dto: CreateManualEntryDto,
@@ -107,7 +111,7 @@ export class FinanceController {
   }
 
   @Patch(':id/pay')
-  @Roles(...FINANCE_WRITE_ROLES)
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
   @ApiOperation({ summary: 'Registrar pagamento/recebimento' })
   pay(
     @Param('id') id: string,
@@ -118,7 +122,7 @@ export class FinanceController {
   }
 
   @Post(':id/installments')
-  @Roles(...FINANCE_WRITE_ROLES)
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
   @ApiOperation({ summary: 'Parcelar lançamento em N parcelas' })
   createInstallments(
     @Param('id') id: string,
@@ -129,7 +133,7 @@ export class FinanceController {
   }
 
   @Patch(':id/cancel')
-  @Roles(...FINANCE_WRITE_ROLES)
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancelar lançamento' })
   cancel(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
     return this.financeService.cancel(id, req.user.companyId);

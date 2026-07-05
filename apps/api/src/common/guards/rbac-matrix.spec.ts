@@ -12,6 +12,7 @@ import { QualityController } from '../../modules/quality/quality.controller';
 import { TransferController } from '../../modules/transfer/transfer.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
 import { ProductionController } from '../../modules/production/production.controller';
+import { BomController } from '../../modules/bom/bom.controller';
 
 /**
  * Testes da matriz RBAC (docs/RBAC.md).
@@ -69,18 +70,20 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
       }
     });
 
-    it('só SUPER_ADMIN e FINANCIAL registram pagamento', () => {
+    it('SUPER_ADMIN, DIRECTOR e FINANCIAL registram pagamento (DIRECTOR operacional — decisão Rafael 04/07)', () => {
       expectAllowed(FinanceController, 'pay', 'FINANCIAL');
       expectAllowed(FinanceController, 'pay', 'SUPER_ADMIN');
+      expectAllowed(FinanceController, 'pay', 'DIRECTOR');
       expectDenied(FinanceController, 'pay', 'MANAGER');
-      expectDenied(FinanceController, 'pay', 'DIRECTOR');
       expectDenied(FinanceController, 'pay', 'READER');
     });
 
-    it('só SUPER_ADMIN e FINANCIAL criam lançamento manual e conta bancária', () => {
+    it('lançamento manual: SA/DIR/FIN; conta bancária (config) segue só SA/FIN', () => {
       expectAllowed(FinanceController, 'createManualEntry', 'FINANCIAL');
+      expectAllowed(FinanceController, 'createManualEntry', 'DIRECTOR');
       expectDenied(FinanceController, 'createManualEntry', 'MANAGER');
       expectAllowed(FinanceController, 'createBankAccount', 'FINANCIAL');
+      expectDenied(FinanceController, 'createBankAccount', 'DIRECTOR');
       expectDenied(FinanceController, 'createBankAccount', 'COMMERCIAL');
     });
   });
@@ -137,8 +140,8 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
       expectDenied(StockController, 'move', 'COMMERCIAL');
     });
 
-    it('WAREHOUSE, PRODUCTION, MANAGER e SUPER_ADMIN movimentam estoque', () => {
-      for (const role of ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'PRODUCTION']) {
+    it('WAREHOUSE, PRODUCTION, MANAGER, DIRECTOR e SUPER_ADMIN movimentam estoque', () => {
+      for (const role of ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION']) {
         expectAllowed(StockController, 'move', role);
       }
     });
@@ -188,10 +191,18 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
       expectDenied(SalesController, 'create', 'WAREHOUSE');
     });
 
-    it('faturamento (NF-e) restrito a SUPER_ADMIN/MANAGER/FINANCIAL', () => {
+    it('DIRECTOR opera venda: cria, confirma e fatura (decisão Rafael 04/07)', () => {
+      expectAllowed(SalesController, 'create', 'DIRECTOR');
+      expectAllowed(SalesController, 'reserve', 'DIRECTOR');
+      expectAllowed(SalesController, 'confirm', 'DIRECTOR');
+      expectAllowed(SalesController, 'invoice', 'DIRECTOR');
+    });
+
+    it('faturamento (NF-e): COMMERCIAL não fatura (decisão Rafael mantida)', () => {
       expectAllowed(SalesController, 'invoice', 'FINANCIAL');
       expectAllowed(SalesController, 'invoice', 'MANAGER');
       expectDenied(SalesController, 'invoice', 'COMMERCIAL');
+      expectDenied(SalesController, 'invoice', 'READER');
     });
 
     it('devolução e cancelamento só SUPER_ADMIN/MANAGER', () => {
@@ -248,6 +259,20 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
       expectDenied(WmsController, 'confirmPutaway', 'READER');
       expectAllowed(WmsController, 'reconcile', 'MANAGER');
       expectDenied(WmsController, 'reconcile', 'WAREHOUSE');
+    });
+  });
+
+  describe('BOM (/bom)', () => {
+    it('DIRECTOR cria BOM (operacional — decisão Rafael 04/07); READER não', () => {
+      expectAllowed(BomController, 'create', 'DIRECTOR');
+      expectAllowed(BomController, 'create', 'PRODUCTION');
+      expectDenied(BomController, 'create', 'READER');
+      expectDenied(BomController, 'create', 'COMMERCIAL');
+    });
+
+    it('ativar versão de BOM (aprovação): SA/DIR/MGR', () => {
+      expectAllowed(BomController, 'activate', 'DIRECTOR');
+      expectDenied(BomController, 'activate', 'PRODUCTION');
     });
   });
 
