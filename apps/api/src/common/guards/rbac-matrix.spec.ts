@@ -13,6 +13,7 @@ import { TransferController } from '../../modules/transfer/transfer.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
 import { ProductionController } from '../../modules/production/production.controller';
 import { BomController } from '../../modules/bom/bom.controller';
+import { CustomerController } from '../../modules/customer/customer.controller';
 
 /**
  * Testes da matriz RBAC (docs/RBAC.md).
@@ -205,6 +206,15 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
       expectDenied(SalesController, 'invoice', 'READER');
     });
 
+    it('STORE vende e fatura no balcão (decisão Rafael 04/07); sem devolução/cancelamento', () => {
+      expectAllowed(SalesController, 'create', 'STORE');
+      expectAllowed(SalesController, 'reserve', 'STORE');
+      expectAllowed(SalesController, 'confirm', 'STORE');
+      expectAllowed(SalesController, 'invoice', 'STORE');
+      expectDenied(SalesController, 'return', 'STORE');
+      expectDenied(SalesController, 'cancel', 'STORE');
+    });
+
     it('devolução e cancelamento só SUPER_ADMIN/MANAGER', () => {
       expectAllowed(SalesController, 'return', 'MANAGER');
       expectDenied(SalesController, 'return', 'COMMERCIAL');
@@ -273,6 +283,15 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     it('ativar versão de BOM (aprovação): SA/DIR/MGR', () => {
       expectAllowed(BomController, 'activate', 'DIRECTOR');
       expectDenied(BomController, 'activate', 'PRODUCTION');
+    });
+  });
+
+  describe('Customer (/customers)', () => {
+    it('STORE cria cliente para venda de balcão (decisão Rafael 04/07), mas não edita', () => {
+      expectAllowed(CustomerController, 'create', 'STORE');
+      expectAllowed(CustomerController, 'create', 'COMMERCIAL');
+      expectDenied(CustomerController, 'create', 'READER');
+      expectDenied(CustomerController, 'update', 'STORE');
     });
   });
 

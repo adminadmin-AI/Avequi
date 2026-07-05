@@ -15,8 +15,8 @@ import { SalesService } from './sales.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
-// DIRECTOR opera venda no dia a dia (decisão Rafael 04/07/2026)
-const SALES_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL'];
+// DIRECTOR opera venda no dia a dia; STORE vende no balcão (decisões Rafael 04/07/2026)
+const SALES_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE'];
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -68,7 +68,7 @@ export class SalesController {
   }
 
   @Patch(':id/invoice')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL', 'STORE')
   @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (READY_TO_INVOICE → INVOICED)' })
   invoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.invoiceOrder(id, user.companyId, user?.id);
