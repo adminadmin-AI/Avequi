@@ -90,4 +90,24 @@ describe('CommissionController — vendedor só vê a própria comissão', () =>
       expect(service.findRules).toHaveBeenCalledWith(COMPANY, undefined);
     });
   });
+
+  describe('POST /commissions/rules (createRule)', () => {
+    const DIRECTOR = { id: 'dir-1', role: 'DIRECTOR', companyId: COMPANY };
+
+    it('força o companyId do JWT, ignorando o do body (anti-IDOR, padrão #450)', () => {
+      controller.createRule(
+        {
+          userId: 'seller-1',
+          percentRate: 5,
+          validFrom: '2026-01-01',
+          companyId: 'empresa-de-outro', // atacante tenta criar regra em outra empresa
+        },
+        DIRECTOR,
+      );
+
+      expect(service.createRule).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: COMPANY }),
+      );
+    });
+  });
 });

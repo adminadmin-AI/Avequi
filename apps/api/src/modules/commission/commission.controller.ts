@@ -48,8 +48,9 @@ export class CommissionController {
   @Post('rules')
   @Roles('SUPER_ADMIN', 'DIRECTOR')
   @ApiOperation({ summary: 'Criar regra de comissão (#191)' })
-  createRule(@Body() body: any) {
-    return this.commissionService.createRule(body);
+  createRule(@Body() body: any, @CurrentUser() user: any) {
+    // companyId SEMPRE do JWT (padrão anti-IDOR do #450), nunca do body
+    return this.commissionService.createRule({ ...body, companyId: user.companyId });
   }
 
   @Get('rules')
