@@ -517,3 +517,54 @@ export enum IcmsIndicator {
   ISENTO = 'ISENTO',
   NAO_CONTRIBUINTE = 'NAO_CONTRIBUINTE',
 }
+
+// CRM de Lojas — F1.1 (#507)
+export enum LeadSource {
+  WHATSAPP = 'WHATSAPP',
+  META_ADS = 'META_ADS',
+  OLX = 'OLX',
+  MERCADO_LIVRE = 'MERCADO_LIVRE',
+  SITE = 'SITE',
+  TELEFONE = 'TELEFONE',
+}
+
+export enum PipelineStageType {
+  OPEN = 'OPEN',
+  WON = 'WON',
+  LOST = 'LOST',
+}
+
+export enum LeadActivityType {
+  MESSAGE_IN = 'MESSAGE_IN',
+  MESSAGE_OUT = 'MESSAGE_OUT',
+  STAGE_CHANGE = 'STAGE_CHANGE',
+  ASSIGNMENT = 'ASSIGNMENT',
+  NOTE = 'NOTE',
+  CALL = 'CALL',
+  CONVERSION = 'CONVERSION',
+}
+
+export enum WaMessageDirection {
+  IN = 'IN',
+  OUT = 'OUT',
+}
+
+export enum WaMessageType {
+  TEXT = 'TEXT',
+  AUDIO = 'AUDIO',
+  IMAGE = 'IMAGE',
+  DOCUMENT = 'DOCUMENT',
+  VIDEO = 'VIDEO',
+  STICKER = 'STICKER',
+  LOCATION = 'LOCATION',
+  CONTACTS = 'CONTACTS',
+  UNSUPPORTED = 'UNSUPPORTED',
+}
+
+export enum WaMessageStatus {
+  PENDING = 'PENDING',
+  SENT = 'SENT',
+  DELIVERED = 'DELIVERED',
+  READ = 'READ',
+  FAILED = 'FAILED',
+}
