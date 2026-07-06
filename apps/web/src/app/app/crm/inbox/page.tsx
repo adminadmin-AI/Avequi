@@ -10,6 +10,7 @@ import {
   Info,
   Loader2,
   MessageCircle,
+  Plus,
   Search,
   Send,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { useToast } from '@/components/ui/toast';
 import { ConversationSummary, WaMessage, windowRemaining } from './inbox-types';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
+import { NewLeadDialog } from './new-lead-dialog';
 
 /**
  * Inbox WhatsApp (CRM F1.3 #509) — a tela do vendedor. Resposta 100% LIVRE:
@@ -38,6 +40,7 @@ export default function InboxPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
   const [draft, setDraft] = useState('');
+  const [newLeadOpen, setNewLeadOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const knownLeads = useRef<Set<string>>(new Set());
 
@@ -108,9 +111,15 @@ export default function InboxPage() {
         }`}
       >
         <div className="space-y-2 border-b p-3">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5" />
-            <h1 className="font-semibold">Inbox WhatsApp</h1>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" />
+              <h1 className="font-semibold">Inbox WhatsApp</h1>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setNewLeadOpen(true)} aria-label="Novo lead">
+              <Plus className="h-4 w-4" />
+              <span className="ml-1 hidden sm:inline">Novo</span>
+            </Button>
           </div>
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -315,6 +324,12 @@ export default function InboxPage() {
           <LeadPanel leadId={selected.leadId} onClose={() => setShowPanel(false)} />
         </aside>
       )}
+
+      <NewLeadDialog
+        open={newLeadOpen}
+        onOpenChange={setNewLeadOpen}
+        onOpenLead={(leadId) => setSelectedLeadId(leadId)}
+      />
     </div>
   );
 }
