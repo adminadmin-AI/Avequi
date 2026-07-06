@@ -188,5 +188,41 @@ describe('fiscal-mapper', () => {
       expect(payload.items[0].ibs_cbs_situacao_tributaria).toBeUndefined();
       expect(payload.items[0].cbs_valor).toBeUndefined();
     });
+
+    it('mapeia FCP do UF destino com os nomes oficiais fcp_* (#445)', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{
+          ...baseInput.items[0],
+          tax: {
+            ...taxBase,
+            difal: { baseCalculo: 1000, aliquotaInterna: 18, aliquotaInterestadual: 12, valor: 60, fcpAliquota: 2, fcpValor: 20 },
+          },
+        }],
+      }) as any;
+      expect(payload.items[0]).toMatchObject({
+        icms_valor_uf_destino: 60,
+        fcp_base_calculo_uf_destino: 1000,
+        fcp_percentual_uf_destino: 2,
+        fcp_valor_uf_destino: 20,
+      });
+      expect(payload.items[0].icms_percentual_fcp).toBeUndefined(); // campo fantasma removido
+    });
+
+    it('DIFAL sem FCP envia percentual e valor zerados', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{
+          ...baseInput.items[0],
+          tax: {
+            ...taxBase,
+            difal: { baseCalculo: 1000, aliquotaInterna: 17, aliquotaInterestadual: 12, valor: 50, fcpAliquota: 0, fcpValor: 0 },
+          },
+        }],
+      }) as any;
+      expect(payload.items[0].fcp_percentual_uf_destino).toBe(0);
+      expect(payload.items[0].fcp_valor_uf_destino).toBe(0);
+      expect(payload.items[0].fcp_base_calculo_uf_destino).toBeUndefined();
+    });
   });
 });

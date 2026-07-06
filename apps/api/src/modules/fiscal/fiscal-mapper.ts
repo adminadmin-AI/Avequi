@@ -16,6 +16,8 @@ export interface FiscalDifal {
   aliquotaInterna: number;
   aliquotaInterestadual: number;
   valor: number;
+  fcpAliquota?: number; // % FCP do UF destino (#445)
+  fcpValor?: number;
 }
 
 /** CSTs de IPI tributado (grupo IPITrib) — os demais (01-05, 51-55) geram IPINT */
@@ -236,7 +238,18 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
       icms_aliquota_interestadual: t.difal.aliquotaInterestadual,
       icms_valor_uf_destino: t.difal.valor,
       icms_valor_uf_remetente: 0, // 100% destino desde 2019 (EC 87/2015)
-      icms_percentual_fcp: 0, // FCP não aplicável para reboques no PR
+      // FCP do UF destino (#445) — nomes oficiais do dicionário Focus
+      // (o antigo `icms_percentual_fcp` não existe na API e era ignorado)
+      ...(t.difal.fcpValor && t.difal.fcpValor > 0
+        ? {
+            fcp_base_calculo_uf_destino: t.difal.baseCalculo,
+            fcp_percentual_uf_destino: t.difal.fcpAliquota,
+            fcp_valor_uf_destino: t.difal.fcpValor,
+          }
+        : {
+            fcp_percentual_uf_destino: 0,
+            fcp_valor_uf_destino: 0,
+          }),
     }),
   };
 }
