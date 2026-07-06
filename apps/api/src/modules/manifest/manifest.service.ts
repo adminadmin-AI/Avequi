@@ -1,12 +1,13 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FiscalClientService } from '../fiscal/fiscal-client.service';
+import { EMISSOR_PORT, EmissorPort } from '../fiscal/emissor.port';
 
 /** Focus NFe manifest event codes */
 const MANIFEST_EVENTS = {
@@ -40,7 +41,7 @@ export class ManifestService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fiscalClient: FiscalClientService,
+    @Inject(EMISSOR_PORT) private readonly fiscalClient: EmissorPort,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 

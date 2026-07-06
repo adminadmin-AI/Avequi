@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { FiscalService } from './fiscal.service';
 import { FiscalController } from './fiscal.controller';
 import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT } from './emissor.port';
 import { FiscalListener } from './fiscal.listener';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { TaxModule } from '../tax/tax.module';
@@ -14,7 +15,13 @@ import { TaxModule } from '../tax/tax.module';
     TaxModule,
   ],
   controllers: [FiscalController],
-  providers: [FiscalService, FiscalClientService, FiscalListener],
-  exports: [FiscalService, FiscalClientService],
+  providers: [
+    FiscalService,
+    FiscalClientService,
+    FiscalListener,
+    // #501: o domínio depende do contrato; a Focus é o adapter atual
+    { provide: EMISSOR_PORT, useExisting: FiscalClientService },
+  ],
+  exports: [FiscalService, FiscalClientService, EMISSOR_PORT],
 })
 export class FiscalModule {}

@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FiscalService } from './fiscal.service';
-import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT } from './emissor.port';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT } from './events/fiscal-cancelled.event';
@@ -97,7 +97,7 @@ describe('FiscalService', () => {
       providers: [
         FiscalService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: FiscalClientService, useValue: mockClient },
+        { provide: EMISSOR_PORT, useValue: mockClient },
         { provide: TaxCalculationService, useValue: mockTaxCalc },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
