@@ -69,7 +69,7 @@ const baseOrder = {
   id: 'so-1',
   companyId: 'co-1',
   customer: null,
-  company: { cnpj: '12.345.678/0001-90', name: 'GDR Indústria Ltda', razaoSocial: 'GDR Ltda', ie: 'ISENTO', crt: 3, street: 'Rua A', number: '1', complement: null, neighborhood: 'Centro', city: 'Cascavel', state: 'PR', zipCode: '85807-030', ibgeCode: '4104808', phone: '4532221234' },
+  company: { cnpj: '11.222.333/0001-81', name: 'GDR Indústria Ltda', razaoSocial: 'GDR Ltda', ie: 'ISENTO', crt: 3, street: 'Rua A', number: '1', complement: null, neighborhood: 'Centro', city: 'Cascavel', state: 'PR', zipCode: '85807-030', ibgeCode: '4104808', phone: '4532221234' },
   items: [
     {
       product: { sku: 'COD001', name: 'Produto A', ncm: '61099000', unit: 'UN', type: 'FINISHED_GOOD' },
@@ -568,14 +568,14 @@ describe('FiscalService', () => {
 
   describe('voidRange', () => {
     it('deve inutilizar faixa com sucesso', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12.345.678/0001-90' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '11.222.333/0001-81' });
       mockClient.voidRange.mockResolvedValue({ status: 'autorizado', ref: 'PROT-VOID' });
       mockPrisma.fiscalVoidRange.create.mockResolvedValue({ id: 'vr-1' });
 
       const result = await service.voidRange('co-1', '1', 101, 104, 'Gap de numeração no sistema fiscal');
 
       expect(mockClient.voidRange).toHaveBeenCalledWith(
-        expect.objectContaining({ cnpj: '12345678000190', serie: '1', numero_inicial: 101, numero_final: 104 }),
+        expect.objectContaining({ cnpj: '11222333000181', serie: '1', numero_inicial: 101, numero_final: 104 }),
       );
       expect(result.protocol).toBe('PROT-VOID');
     });
@@ -587,7 +587,7 @@ describe('FiscalService', () => {
     });
 
     it('deve lançar erro quando SEFAZ rejeita inutilização', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12345678000190' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '11222333000181' });
       mockClient.voidRange.mockResolvedValue({ status: 'erro', motivo: 'Número já utilizado' });
 
       await expect(
