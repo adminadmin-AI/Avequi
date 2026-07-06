@@ -12,6 +12,7 @@ export interface TaxInput {
   itemValue: number; // valor total do item (qty × unitPrice)
   consumidorFinal?: boolean; // true quando destinatário é consumidor final (sem IE ou pessoa física)
   origem?: string; // origem da mercadoria 0-8 — 1/2/3/8 = importado → interestadual 4% (RSF 13/2012) (#480)
+  emissionDate?: Date; // data de emissão — resolve a vigência da regra (#500); default: agora
 }
 
 /** Origens de mercadoria importada — alíquota interestadual fixa de 4% (Resolução Senado Federal 13/2012) */
@@ -194,19 +195,30 @@ export class TaxCalculationService {
     input: Omit<TaxInput, 'itemValue'> & { itemValue?: number },
     client: Pick<PrismaService, 'taxRule'> = this.prisma,
   ) {
+    // #500: vigência resolvida pela data de emissão — regra fora da janela
+    // [validFrom, validTo] não existe para esta nota (null = sem limite)
+    const emissao = input.emissionDate ?? new Date();
     const rules = await client.taxRule.findMany({
       where: {
         companyId: input.companyId,
         operationType: input.operationType,
         isActive: true,
-        // Filtrar regras que se aplicam (campo null = aplica a qualquer)
-        OR: [
-          { ufOrigem: input.ufOrigem, ufDestino: input.ufDestino },
-          { ufOrigem: input.ufOrigem, ufDestino: null },
-          { ufOrigem: null, ufDestino: null },
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: emissao } }] },
+          { OR: [{ validTo: null }, { validTo: { gte: emissao } }] },
+          {
+            // Filtrar regras que se aplicam (campo null = aplica a qualquer)
+            OR: [
+              { ufOrigem: input.ufOrigem, ufDestino: input.ufDestino },
+              { ufOrigem: input.ufOrigem, ufDestino: null },
+              { ufOrigem: null, ufDestino: null },
+            ],
+          },
         ],
       },
-      orderBy: { priority: 'desc' },
+      // empate de prioridade: vence a versão mais recente (validFrom maior);
+      // regras sem vigência (null) perdem para versões datadas
+      orderBy: [{ priority: 'desc' }, { validFrom: { sort: 'desc', nulls: 'last' } }],
     });
 
     if (rules.length === 0) return null;
