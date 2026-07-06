@@ -341,7 +341,8 @@ describe('fiscal-mapper', () => {
     it('mapeia transportador com campos flat oficiais e placa normalizada', () => {
       const payload = buildNFePayload({ ...baseInput, freight }) as any;
       expect(payload.modalidade_frete).toBe('2');
-      expect(payload.valor_frete).toBe(350);
+      // frete não vai no cabeçalho — é rateado por item (rejeição SEFAZ 535)
+      expect(payload.valor_frete).toBeUndefined();
       expect(payload.cnpj_transportador).toBe('11444777000161');
       expect(payload.nome_transportador).toBe('TRANSPORTES XYZ LTDA');
       expect(payload.inscricao_estadual_transportador).toBe('123456789');
@@ -367,6 +368,29 @@ describe('fiscal-mapper', () => {
       expect(payload.modalidade_frete).toBe('3');
       expect(payload.cnpj_transportador).toBeUndefined();
       expect(payload.volumes).toEqual([{ quantidade: 1, especie: 'REBOQUE' }]);
+    });
+
+    it('detPag soma o vFrete ao total (vPag deve bater com o vNF)', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      // 250 (itens) + 350 (frete) — SEFAZ rejeita pagamento ≠ total da nota
+      expect(payload.formas_pagamento[0].valor_pagamento).toBe(600);
+    });
+
+    it('rateia o vFrete pelos itens proporcional ao valor, resíduo no último (rej. 535)', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      // itens de 200 e 50 (total 250) com frete 350 → 280 + 70
+      expect(payload.items[0].valor_frete).toBe(280);
+      expect(payload.items[1].valor_frete).toBe(70);
+      const soma = payload.items.reduce((s: number, i: any) => s + (i.valor_frete ?? 0), 0);
+      expect(soma).toBe(350);
+    });
+
+    it('sem valor de frete não emite valor_frete nos itens', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '3', volumes: [{ quantidade: 1 }] },
+      }) as any;
+      expect(payload.items[0].valor_frete).toBeUndefined();
     });
 
     it('transportador PF usa cpf_transportador', () => {

@@ -122,7 +122,7 @@ describe('FiscalService', () => {
 
       const payload = mockClient.emitNFCe.mock.calls[0][1] as any;
       expect(payload.formas_pagamento[0].forma_pagamento).toBe('17');
-      expect(payload.formas_pagamento[0].valor).toBe(300);
+      expect(payload.formas_pagamento[0].valor_pagamento).toBe(300);
     });
 
     it('mapeia BOLETO → 15', async () => {

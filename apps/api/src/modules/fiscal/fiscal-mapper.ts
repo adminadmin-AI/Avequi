@@ -233,10 +233,32 @@ function mapVehicleToPayload(v: FiscalVehicleData) {
   };
 }
 
-function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
+/**
+ * Rateia o frete total pelos itens proporcionalmente ao valor (2 casas),
+ * jogando o resíduo de arredondamento no último item. A SEFAZ valida
+ * vFrete do total = Σ vFrete dos itens (rejeição 535) — o frete é
+ * SEMPRE informado por item, nunca só no cabeçalho (#481).
+ */
+function allocateFreight(items: FiscalItem[], value?: number): number[] | undefined {
+  if (!value || value <= 0) return undefined;
+  const totals = items.map((i) => i.quantity * i.unitPrice);
+  const grand = totals.reduce((s, v) => s + v, 0);
+  if (grand <= 0) return undefined;
+  let allocated = 0;
+  return totals.map((t, i) => {
+    if (i === totals.length - 1) return Number((value - allocated).toFixed(2));
+    const share = Number(((value * t) / grand).toFixed(2));
+    allocated = Number((allocated + share).toFixed(2));
+    return share;
+  });
+}
+
+function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, freightShare?: number) {
   const t = item.tax;
   return {
     numero_item: idx + 1,
+    // vFrete rateado do item — o vFrete do ICMSTot é o somatório (#481)
+    ...(freightShare != null && freightShare > 0 && { valor_frete: freightShare }),
     codigo_produto: item.sku,
     descricao: item.name,
     cfop: t?.cfop ?? defaultCfop,
@@ -383,7 +405,8 @@ function mapFreightFlat(f?: FiscalFreight): Record<string, unknown> {
   const doc = f.carrier?.document?.replace(/\D/g, '') ?? '';
   return {
     modalidade_frete: f.modality,
-    ...(f.value != null && f.value > 0 && { valor_frete: Number(f.value.toFixed(2)) }),
+    // valor do frete NÃO vai no cabeçalho: é rateado por item (rej. 535) e a
+    // Focus totaliza o vFrete do ICMSTot a partir dos itens
     ...(f.carrier && {
       ...(doc && (doc.length === 11 ? { cpf_transportador: doc } : { cnpj_transportador: doc })),
       ...(f.carrier.name && { nome_transportador: f.carrier.name }),
@@ -447,7 +470,8 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
-        valor: input.totalValue,
+        // nome oficial Focus é valor_pagamento — `valor` era ignorado e o vPag saía 0
+        valor_pagamento: input.totalValue,
       },
     ],
   };
@@ -457,6 +481,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
 export function buildNFePayload(input: FiscalPayloadInput): Record<string, unknown> {
   const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
   const cfop = isInterstate ? '6101' : '5101';
+  const freightShares = allocateFreight(input.items, input.freight?.value);
 
   return {
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
@@ -471,12 +496,18 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     ...mapRecipientFlat(input.recipient, input.consumidorFinal),
     // Grupo <entrega> — endereço de entrega ≠ fiscal (#474), campos flat oficiais
     ...(input.delivery && mapDeliveryFlat(input.delivery, input.recipient)),
-    items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
-    // forma 90 (sem pagamento) — obrigatória em devolução/entrada (rejeição SEFAZ 871) — exige valor 0
+    items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop, freightShares?.[idx])),
+    // forma 90 (sem pagamento) — obrigatória em devolução/entrada (rejeição SEFAZ 871) — exige valor 0.
+    // vFrete compõe o vNF — o detPag precisa somar o frete ou a SEFAZ rejeita
+    // pagamento ≠ total da nota (#481)
     formas_pagamento: [
       {
         forma_pagamento: input.paymentMethod ?? '99',
-        valor: input.paymentMethod === '90' ? 0 : input.totalValue,
+        // nome oficial Focus é valor_pagamento — `valor` era ignorado e o vPag saía 0
+        valor_pagamento:
+          input.paymentMethod === '90'
+            ? 0
+            : Number((input.totalValue + (input.freight?.value ?? 0)).toFixed(2)),
       },
     ],
   };
@@ -514,6 +545,6 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
     ...(input.recipient?.state && { uf_destinatario: input.recipient.state }),
     ...(input.recipient?.zipCode && { cep_destinatario: input.recipient.zipCode.replace(/\D/g, '') }),
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
-    formas_pagamento: [{ forma_pagamento: '99', valor: input.totalValue }],
+    formas_pagamento: [{ forma_pagamento: '99', valor_pagamento: input.totalValue }],
   };
 }
