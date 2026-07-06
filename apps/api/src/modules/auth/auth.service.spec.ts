@@ -1,10 +1,11 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SessionService } from '../iam/session.service';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -24,6 +25,17 @@ const mockPrisma = {
 const mockJwt = {
   sign: jest.fn(),
   verify: jest.fn(),
+};
+
+// #342: SessionService mockado — o AuthService delega sessões/lockout a ele.
+const mockSessionService = {
+  assertNotLocked: jest.fn(),
+  recordLoginAttempt: jest.fn(),
+  clearLockout: jest.fn(),
+  createSession: jest.fn(),
+  validateSessionForRefresh: jest.fn(),
+  attachRefreshToSession: jest.fn(),
+  revokeSessionByRefreshTokenId: jest.fn(),
 };
 
 const mockUser = {
@@ -47,11 +59,23 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
+        { provide: SessionService, useValue: mockSessionService },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
     jest.clearAllMocks();
+    // Defaults #342: conta não trancada, sessão criada, sessão ativa no refresh
+    mockSessionService.assertNotLocked.mockResolvedValue(undefined);
+    mockSessionService.recordLoginAttempt.mockResolvedValue(undefined);
+    mockSessionService.clearLockout.mockResolvedValue(undefined);
+    mockSessionService.createSession.mockResolvedValue({ id: 'sess-1' });
+    mockSessionService.validateSessionForRefresh.mockResolvedValue({
+      active: true,
+      session: { id: 'sess-1', lastActivityAt: new Date() },
+    });
+    mockSessionService.attachRefreshToSession.mockResolvedValue(undefined);
+    mockSessionService.revokeSessionByRefreshTokenId.mockResolvedValue(undefined);
   });
 
   // ─── validateUser ──────────────────────────────────────────────────────────
@@ -93,15 +117,67 @@ describe('AuthService', () => {
 
       expect(result).toBeNull();
     });
+
+    // ─── #342: lockout e anti-enumeração ─────────────────────────────────────
+
+    it('should propagate 423 when account is locked (#342)', async () => {
+      mockSessionService.assertNotLocked.mockRejectedValue(new HttpException('locked', 423));
+
+      await expect(service.validateUser('admin@gdr.com.br', 'x')).rejects.toThrow(HttpException);
+      // Trancado NÃO chega a consultar o usuário (nem revela se existe)
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should record failed attempt with SAME reason for unknown email and wrong password (anti-enumeração, #342)', async () => {
+      // e-mail inexistente
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      expect(await service.validateUser('ghost@test.com', 'x')).toBeNull();
+
+      // senha errada em conta real
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+      expect(await service.validateUser('admin@gdr.com.br', 'errada')).toBeNull();
+
+      const reasons = mockSessionService.recordLoginAttempt.mock.calls.map((c) => c[3]);
+      expect(reasons).toEqual(['WRONG_PASSWORD', 'WRONG_PASSWORD']);
+    });
+
+    it('should record failed attempt with INACTIVE reason but still return null (#342)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, isActive: false });
+
+      expect(await service.validateUser('admin@gdr.com.br', 'Admin@123')).toBeNull();
+      expect(mockSessionService.recordLoginAttempt).toHaveBeenCalledWith(
+        'admin@gdr.com.br',
+        expect.anything(),
+        false,
+        'INACTIVE',
+      );
+    });
+
+    it('should record success attempt and clear lockout on valid login (#342)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+
+      await service.validateUser('admin@gdr.com.br', 'Admin@123');
+
+      expect(mockSessionService.recordLoginAttempt).toHaveBeenCalledWith(
+        'admin@gdr.com.br',
+        expect.anything(),
+        true,
+      );
+      expect(mockSessionService.clearLockout).toHaveBeenCalledWith('user-1');
+    });
   });
 
   // ─── login ─────────────────────────────────────────────────────────────────
 
   describe('login', () => {
     it('should return accessToken, refreshToken and user with hashed storage (#221)', async () => {
+      // #342: ordem de assinatura mudou — refresh primeiro (a sessão precisa
+      // existir antes de assinar o access com o claim sessionId)
       mockJwt.sign
-        .mockReturnValueOnce('access-token-123')
-        .mockReturnValueOnce('refresh-token-456');
+        .mockReturnValueOnce('refresh-token-456')
+        .mockReturnValueOnce('access-token-123');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
 
       const user = { id: 'user-1', email: 'admin@gdr.com.br', role: 'SUPER_ADMIN', companyId: 'company-1' };
@@ -120,6 +196,45 @@ describe('AuthService', () => {
           }),
         }),
       );
+    });
+
+    it('should create session bound to refresh token and add sessionId claim (#342)', async () => {
+      mockJwt.sign.mockReturnValueOnce('refresh-tk').mockReturnValueOnce('access-tk');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const user = { id: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1' };
+      await service.login(user, { ipAddress: '10.0.0.1', userAgent: 'Edge' });
+
+      expect(mockSessionService.createSession).toHaveBeenCalledWith(
+        { id: 'user-1', companyId: 'company-1' },
+        { ipAddress: '10.0.0.1', userAgent: 'Edge' },
+        'rt-1',
+      );
+      // access token = 2ª assinatura, payload compat + sessionId
+      expect(mockJwt.sign).toHaveBeenNthCalledWith(2, {
+        sub: 'user-1',
+        email: 'a@b.c',
+        role: 'READER',
+        companyId: 'company-1',
+        sessionId: 'sess-1',
+      });
+    });
+
+    it('should still login WITHOUT sessionId claim when session creation fails (failsafe, #342)', async () => {
+      mockSessionService.createSession.mockResolvedValue(null);
+      mockJwt.sign.mockReturnValueOnce('refresh-tk').mockReturnValueOnce('access-tk');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const user = { id: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1' };
+      const result = await service.login(user);
+
+      expect(result.accessToken).toBe('access-tk');
+      expect(mockJwt.sign).toHaveBeenNthCalledWith(2, {
+        sub: 'user-1',
+        email: 'a@b.c',
+        role: 'READER',
+        companyId: 'company-1',
+      });
     });
   });
 
@@ -153,6 +268,78 @@ describe('AuthService', () => {
           data: { revokedAt: expect.any(Date) },
         }),
       );
+    });
+
+    it('should keep the SAME session across rotation, re-binding the new refresh token (#342)', async () => {
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1',
+        sessionId: 'sess-1', iat: 1, exp: 2,
+      });
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('old'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.refreshToken.update.mockResolvedValue({});
+      mockJwt.sign.mockReturnValueOnce('new-access').mockReturnValueOnce('new-refresh');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-2' });
+
+      await service.refresh('old');
+
+      expect(mockSessionService.validateSessionForRefresh).toHaveBeenCalledWith('rt-1');
+      // rotação NÃO cria sessão nova — reamarra o novo token à mesma sessão
+      expect(mockSessionService.createSession).not.toHaveBeenCalled();
+      expect(mockSessionService.attachRefreshToSession).toHaveBeenCalledWith('sess-1', 'rt-2');
+      // access novo mantém o claim sessionId
+      expect(mockJwt.sign).toHaveBeenNthCalledWith(1, {
+        sub: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1', sessionId: 'sess-1',
+      });
+    });
+
+    it('should reject refresh when the bound session was revoked (#342)', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', iat: 1, exp: 2 });
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('t'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockSessionService.validateSessionForRefresh.mockResolvedValue({ active: false, session: null });
+
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+    });
+
+    it('should accept legacy refresh token WITHOUT session (transição M4, #342)', async () => {
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1', iat: 1, exp: 2,
+      });
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-legacy',
+        token: hashToken('legacy'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.refreshToken.update.mockResolvedValue({});
+      mockSessionService.validateSessionForRefresh.mockResolvedValue({ active: true, session: null });
+      mockJwt.sign.mockReturnValueOnce('new-access').mockReturnValueOnce('new-refresh');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-2' });
+
+      const result = await service.refresh('legacy');
+
+      expect(result.accessToken).toBe('new-access');
+      // sem sessão → access sem claim sessionId, nada para reamarrar
+      expect(mockJwt.sign).toHaveBeenNthCalledWith(1, {
+        sub: 'user-1', email: 'a@b.c', role: 'READER', companyId: 'company-1',
+      });
+      expect(mockSessionService.attachRefreshToSession).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException when user is inactive (#221)', async () => {
@@ -215,7 +402,7 @@ describe('AuthService', () => {
   // ─── logout ────────────────────────────────────────────────────────────────
 
   describe('logout', () => {
-    it('should revoke refresh token', async () => {
+    it('should revoke refresh token and its session (#342)', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         token: hashToken('valid-token'),
@@ -230,6 +417,10 @@ describe('AuthService', () => {
           where: { id: 'rt-1' },
           data: { revokedAt: expect.any(Date) },
         }),
+      );
+      expect(mockSessionService.revokeSessionByRefreshTokenId).toHaveBeenCalledWith(
+        'rt-1',
+        'LOGOUT',
       );
     });
 
@@ -249,6 +440,7 @@ describe('AuthService', () => {
       await service.logout('already-revoked');
 
       expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeSessionByRefreshTokenId).not.toHaveBeenCalled();
     });
 
     it('should do nothing when token not found', async () => {

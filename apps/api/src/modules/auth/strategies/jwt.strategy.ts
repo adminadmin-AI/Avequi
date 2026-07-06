@@ -19,6 +19,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       role: payload.role,
       companyId: payload.companyId,
+      // #342 (IAM v2, Decisão 4): claim OPCIONAL — tokens antigos não têm.
+      // A denylist de sessões será consultada pelo JwtAuthGuard na #341.
+      sessionId: payload.sessionId,
     };
   }
 }
