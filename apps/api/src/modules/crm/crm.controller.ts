@@ -15,6 +15,11 @@ import { IntakeLeadDto } from './dto/intake-lead.dto';
 import { LeadIntakeService } from './lead-intake.service';
 import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
+import { CrmDashboardService } from './crm-dashboard.service';
+import { WhatsappTemplateService } from './whatsapp/template.service';
+import { Res } from '@nestjs/common';
+import { Response } from 'express';
+import { IsArray, IsInt, Min } from 'class-validator';
 
 class ReassignLeadDto {
   @ApiProperty({ description: 'Vendedor destino' })
@@ -62,6 +67,26 @@ class LinkOrderDto {
   salesOrderId: string;
 }
 
+class SendTemplateDto {
+  @ApiProperty({ description: 'Nome do template aprovado' })
+  @IsString()
+  templateName: string;
+
+  @ApiPropertyOptional({ description: 'Variáveis na ordem dos placeholders {{1}}, {{2}}...', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  variables?: string[];
+}
+
+/** Resolve o intervalo do dashboard a partir de ?days= (default 30) */
+function resolveRange(companyId: string, daysRaw?: string) {
+  const days = Math.min(Math.max(parseInt(daysRaw ?? '30', 10) || 30, 1), 365);
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  return { companyId, from, to };
+}
+
 @ApiTags('crm')
 @ApiBearerAuth()
 @Controller('crm')
@@ -71,7 +96,58 @@ export class CrmController {
     private readonly crm: CrmService,
     private readonly funnel: FunnelService,
     private readonly conversion: LeadConversionService,
+    private readonly dashboard: CrmDashboardService,
+    private readonly templates: WhatsappTemplateService,
   ) {}
+
+  // ── Dashboard (F3.1 #517) ───────────────────────────────────────────────────
+
+  @Get('dashboard')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Dashboard: funil, conversão por origem/vendedor, motivos' })
+  @ApiQuery({ name: 'days', required: false, description: 'Janela em dias (default 30)' })
+  dashboardOverview(@CurrentUser() user: any, @Query('days') days?: string) {
+    return this.dashboard.overview(resolveRange(user.companyId, days));
+  }
+
+  @Get('dashboard/source.csv')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Export CSV da conversão por origem' })
+  @ApiQuery({ name: 'days', required: false })
+  async dashboardCsv(@CurrentUser() user: any, @Res() res: Response, @Query('days') days?: string) {
+    const csv = await this.dashboard.sourceCsv(resolveRange(user.companyId, days));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm-origem.csv"');
+    res.send(csv);
+  }
+
+  // ── Templates / follow-up (F3.2 #518) ───────────────────────────────────────
+
+  @Get('templates')
+  @ApiOperation({ summary: 'Templates aprovados da loja (reengajamento fora da janela)' })
+  templatesList(@CurrentUser() user: any) {
+    return this.templates.listApproved(user.companyId);
+  }
+
+  @Post('templates/sync')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Sincronizar templates do Meta Business' })
+  templatesSync(@CurrentUser() user: any) {
+    return this.templates.sync(user.companyId);
+  }
+
+  @Post('leads/:id/template')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Enviar template (janela 24h expirada) — custo Meta' })
+  sendTemplate(@Param('id') id: string, @Body() dto: SendTemplateDto, @CurrentUser() user: any) {
+    return this.templates.sendTemplate(
+      user.companyId,
+      id,
+      dto.templateName,
+      dto.variables ?? [],
+      user.id,
+    );
+  }
 
   // ── Funil / kanban (F2.1 #514) ──────────────────────────────────────────────
 

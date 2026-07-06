@@ -7,6 +7,8 @@ import { CrmService } from './crm.service';
 import { CrmListener } from './crm.listener';
 import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
+import { CrmDashboardService } from './crm-dashboard.service';
+import { WhatsappTemplateService } from './whatsapp/template.service';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
@@ -33,6 +35,8 @@ import { SiteLeadController } from './connectors/site.controller';
     CrmService,
     FunnelService,
     LeadConversionService,
+    CrmDashboardService,
+    WhatsappTemplateService,
     CrmListener,
     WhatsappService,
     WhatsappWebhookProcessor,
@@ -41,6 +45,14 @@ import { SiteLeadController } from './connectors/site.controller';
     MercadoLivreService,
     ConnectorsProcessor,
   ],
-  exports: [LeadIntakeService, CrmService, FunnelService, LeadConversionService, WhatsappService],
+  exports: [
+    LeadIntakeService,
+    CrmService,
+    FunnelService,
+    LeadConversionService,
+    CrmDashboardService,
+    WhatsappService,
+    WhatsappTemplateService,
+  ],
 })
 export class CrmModule {}
