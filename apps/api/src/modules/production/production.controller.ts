@@ -7,26 +7,27 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { ProductionOrderStatus } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { CreateProductionLogDto } from './dto/create-log.dto';
 import { ProductionService } from './production.service';
 
-@UseGuards(JwtAuthGuard)
+const PRODUCTION_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION'];
+
 @Controller('production')
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
 
   // POST /production
   @Post()
+  @Roles(...PRODUCTION_WRITE_ROLES)
   create(
     @Body() dto: CreateProductionOrderDto,
-    @Request() req: { user: { sub: string } },
+    @Request() req: { user: { companyId: string; sub: string } },
   ) {
-    return this.productionService.create(dto, req.user.sub);
+    return this.productionService.create(dto, req.user.companyId, req.user.sub);
   }
 
   // GET /production/metrics/scrap — métricas de refugo (#184)
@@ -60,6 +61,7 @@ export class ProductionController {
 
   // PATCH /production/:id/release
   @Patch(':id/release')
+  @Roles(...PRODUCTION_WRITE_ROLES)
   release(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -69,6 +71,7 @@ export class ProductionController {
 
   // PATCH /production/:id/start
   @Patch(':id/start')
+  @Roles(...PRODUCTION_WRITE_ROLES)
   start(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -78,6 +81,7 @@ export class ProductionController {
 
   // PATCH /production/:id/complete
   @Patch(':id/complete')
+  @Roles(...PRODUCTION_WRITE_ROLES)
   complete(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -88,6 +92,7 @@ export class ProductionController {
 
   // PATCH /production/:id/cancel
   @Patch(':id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   cancel(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -97,6 +102,7 @@ export class ProductionController {
 
   // POST /production/:id/logs — registrar apontamento
   @Post(':id/logs')
+  @Roles(...PRODUCTION_WRITE_ROLES)
   addLog(
     @Param('id') id: string,
     @Body() dto: CreateProductionLogDto,
@@ -134,6 +140,7 @@ export class ProductionController {
 
   // PATCH /production/:id/approve-inspection — aprovar inspeção final (#185)
   @Patch(':id/approve-inspection')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
   approveInspection(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -143,6 +150,7 @@ export class ProductionController {
 
   // PATCH /production/:id/reject-inspection — rejeitar inspeção final (#185)
   @Patch(':id/reject-inspection')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
   rejectInspection(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },

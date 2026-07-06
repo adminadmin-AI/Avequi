@@ -6,13 +6,22 @@ import {
   Param,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { AlertType } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { AlertService } from './alert.service';
 
-@UseGuards(JwtAuthGuard)
+const OPERATIONAL_ROLES = [
+  'SUPER_ADMIN',
+  'MANAGER',
+  'COMMERCIAL',
+  'PRODUCTION',
+  'QUALITY',
+  'WAREHOUSE',
+  'FINANCIAL',
+  'STORE',
+];
+
 @Controller('alerts')
 export class AlertController {
   constructor(private readonly alertService: AlertService) {}
@@ -39,12 +48,14 @@ export class AlertController {
 
   // POST /alerts/check — trigger manual de todos os checks
   @Post('check')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   runCheck(@Request() req: { user: { companyId: string } }) {
     return this.alertService.runAllChecks(req.user.companyId);
   }
 
   // PATCH /alerts/:id/resolve
   @Patch(':id/resolve')
+  @Roles(...OPERATIONAL_ROLES)
   resolve(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

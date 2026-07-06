@@ -4,16 +4,15 @@ import {
   Get,
   Post,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
 import { TriggerCollectionDto } from './dto/trigger-collection.dto';
 
 @ApiTags('Billing')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
 @Controller('billing')
 export class BillingController {
   constructor(private readonly financeService: FinanceService) {}
@@ -31,6 +30,7 @@ export class BillingController {
   }
 
   @Post('collection/trigger')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
   @ApiOperation({ summary: 'Disparar cobrança por canal (EMAIL, WHATSAPP, PHONE)' })
   triggerCollection(
     @Body() dto: TriggerCollectionDto,

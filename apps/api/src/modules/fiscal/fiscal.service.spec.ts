@@ -110,6 +110,35 @@ describe('FiscalService', () => {
     mockPrisma.fiscalDocumentItemTax.create.mockResolvedValue({ id: 'fdit-1' });
   });
 
+  describe('formas de pagamento na NF-e (#479)', () => {
+    it('mapeia PaymentMethod da OV para o código tPag (PIX → 17)', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({ ...baseOrder, paymentMethod: 'PIX' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFCe.mockResolvedValue({ status: 'autorizado', ref: 'GDR-SO-so-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+
+      await service.emitForSale('so-1');
+
+      const payload = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payload.formas_pagamento[0].forma_pagamento).toBe('17');
+      expect(payload.formas_pagamento[0].valor_pagamento).toBe(300);
+    });
+
+    it('mapeia BOLETO → 15', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({ ...baseOrder, paymentMethod: 'BOLETO' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFCe.mockResolvedValue({ status: 'autorizado', ref: 'GDR-SO-so-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+
+      await service.emitForSale('so-1');
+
+      const payload = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payload.formas_pagamento[0].forma_pagamento).toBe('15');
+    });
+  });
+
   // ─── S08.06: fluxo autorizado ────────────────────────────────────────────
 
   describe('emitForSale — autorizado', () => {
@@ -134,6 +163,9 @@ describe('FiscalService', () => {
         expect.objectContaining({ data: expect.objectContaining({ salesOrderId: 'so-1', type: 'NFCE' }) }),
       );
       expect(mockClient.emitNFCe).toHaveBeenCalledWith('GDR-SO-so-1', expect.any(Object));
+      // #479: sem forma de pagamento na OV → detPag 99 (outros)
+      const payloadSemForma = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payloadSemForma.formas_pagamento[0].forma_pagamento).toBe('99');
       expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({

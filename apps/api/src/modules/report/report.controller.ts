@@ -4,15 +4,12 @@ import {
   Post,
   Param,
   Request,
-  UseGuards,
   Header,
   StreamableFile,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ReportService } from './report.service';
 import { ReportJobName } from './report.types';
 
-@UseGuards(JwtAuthGuard)
 @Controller('reports')
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}

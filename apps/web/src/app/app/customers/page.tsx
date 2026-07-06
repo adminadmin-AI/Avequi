@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Users } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Customer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -16,16 +15,16 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CUSTOMER_TYPE_LABELS } from '@/lib/enums';
 import { CustomerForm, type CustomerFormValues } from './customer-form';
+import { CustomerAddresses } from './customer-addresses';
 
 const RESOURCE = '/customers';
 
 export default function CustomersPage() {
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
 
   const { data: customers = [], isLoading } = useList<Customer>(RESOURCE);
-  const create = useCreate<Customer, CustomerFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<Customer, CustomerFormValues>(RESOURCE);
   const update = useUpdate<Customer>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,7 +43,11 @@ export default function CustomersPage() {
     const payload = {
       ...values,
       document: values.document ? unmask(values.document) : undefined,
+      zipCode: values.zipCode ? unmask(values.zipCode) : undefined,
+      // strings vazias estouram @IsEmail/@IsEnum no backend — enviar undefined
       email: values.email || undefined,
+      fiscalEmail: values.fiscalEmail || undefined,
+      indIeDest: values.indIeDest || undefined,
     };
     if (editing) {
       update.mutate(
@@ -59,7 +62,7 @@ export default function CustomersPage() {
       );
     } else {
       create.mutate(
-        { ...payload, companyId },
+        payload,
         {
           onSuccess: () => {
             toast.success('Cliente criado');
@@ -195,6 +198,7 @@ export default function CustomersPage() {
         description={editing ? `Editando "${editing.name}"` : 'Preencha os dados do cliente.'}
         formId="customer-form"
         loading={create.isPending || update.isPending}
+        size="lg"
       >
         <CustomerForm
           key={editing?.id ?? 'new'}
@@ -207,14 +211,33 @@ export default function CustomersPage() {
                   document: editing.document ? formatCpfCnpj(editing.document) : '',
                   email: editing.email ?? '',
                   phone: editing.phone ?? '',
+                  zipCode: editing.zipCode ?? '',
                   address: editing.address ?? '',
+                  number: editing.number ?? '',
+                  complement: editing.complement ?? '',
+                  neighborhood: editing.neighborhood ?? '',
                   city: editing.city ?? '',
                   state: editing.state ?? '',
+                  ibgeCode: editing.ibgeCode ?? '',
+                  razaoSocial: editing.razaoSocial ?? '',
+                  ie: editing.ie ?? '',
+                  indIeDest: editing.indIeDest ?? '',
+                  isRuralProducer: editing.isRuralProducer ?? false,
+                  isSimplesNacional: editing.isSimplesNacional ?? false,
+                  fiscalEmail: editing.fiscalEmail ?? '',
+                  contactName: editing.contactName ?? '',
                 }
               : undefined
           }
           onSubmit={handleSubmit}
         />
+        {editing ? (
+          <CustomerAddresses customerId={editing.id} />
+        ) : (
+          <p className="mt-4 border-t border-border pt-4 text-sm text-content-muted">
+            Salve o cliente para cadastrar endereços de entrega (grupo entrega da NF-e).
+          </p>
+        )}
       </FormDialog>
     </div>
   );

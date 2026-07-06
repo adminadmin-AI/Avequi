@@ -1,13 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
-import { useList } from '@/hooks/use-resource';
-import type { Customer, Warehouse, Product, SalesOrder } from '@/types/api';
+import { useDetail, useList } from '@/hooks/use-resource';
+import type { Carrier, Customer, Warehouse, Product, SalesOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,19 +35,36 @@ export default function NewSalePage() {
   const router = useRouter();
   const toast = useToast();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const { data: products = [] } = useList<Product>('/products');
+  const { data: carriers = [] } = useList<Carrier>('/carriers', { isActive: true });
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
+  const [deliveryAddressId, setDeliveryAddressId] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  // Frete → grupo transp da NF-e (#481)
+  const [freightModality, setFreightModality] = useState('9');
+  const [freightValue, setFreightValue] = useState('');
+  const [carrierId, setCarrierId] = useState('');
+  const [volumesQuantity, setVolumesQuantity] = useState('');
+  const [volumesSpecies, setVolumesSpecies] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [step, setStep] = useState(0);
+
+  // Endereços de entrega do cliente (#474) — o detail inclui `addresses`
+  const { data: customerDetail } = useDetail<Customer>('/customers', customerId || undefined);
+  const deliveryAddresses = customerDetail?.addresses ?? [];
+
+  // Ao trocar de cliente, pré-seleciona o endereço padrão (ou volta ao fiscal)
+  useEffect(() => {
+    setDeliveryAddressId(customerDetail?.addresses?.find((a) => a.isDefault)?.id ?? '');
+  }, [customerDetail?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Linha de adição de item
   const [newProductId, setNewProductId] = useState('');
@@ -114,10 +130,18 @@ export default function NewSalePage() {
   function submit() {
     if (!validateStep(0) || !validateStep(1)) return;
     const payload = {
-      companyId,
       warehouseId,
       customerId: customerId || undefined,
+      // vira o grupo <entrega> da NF-e quando difere do endereço fiscal (#474)
+      deliveryAddressId: (customerId && deliveryAddressId) || undefined,
       notes: notes || undefined,
+      paymentMethod: paymentMethod || undefined,
+      // grupo transp da NF-e (#481) — modalidade 9 = sem frete (default, não envia)
+      freightModality: freightModality !== '9' ? freightModality : undefined,
+      freightValue: freightModality !== '9' && freightValue ? Number(freightValue) : undefined,
+      carrierId: freightModality !== '9' && carrierId ? carrierId : undefined,
+      volumesQuantity: freightModality !== '9' && volumesQuantity ? Number(volumesQuantity) : undefined,
+      volumesSpecies: freightModality !== '9' && volumesSpecies ? volumesSpecies : undefined,
       items: items.map((it) => ({
         productId: it.productId,
         quantity: it.quantity,
@@ -179,10 +203,102 @@ export default function NewSalePage() {
               ))}
             </Select>
           </div>
+          {customerId && deliveryAddresses.length > 0 && (
+            <div>
+              <Label>Endereço de entrega</Label>
+              <Select
+                aria-label="Endereço de entrega"
+                value={deliveryAddressId}
+                onChange={(e) => setDeliveryAddressId(e.target.value)}
+              >
+                <option value="">Endereço fiscal do cliente</option>
+                {deliveryAddresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label} — {a.city}/{a.state}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label>Forma de pagamento</Label>
+            <Select aria-label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="">— Não informar (NF-e sai como Outros) —</option>
+              <option value="PIX">PIX</option>
+              <option value="BOLETO">Boleto</option>
+              <option value="DINHEIRO">Dinheiro</option>
+              <option value="CARTAO">Cartão</option>
+              <option value="TED">TED</option>
+              <option value="CHEQUE">Cheque</option>
+            </Select>
+          </div>
           <div className="sm:col-span-2">
             <Label>Observações</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
           </div>
+
+          {/* ─── Frete e transporte → grupo transp da NF-e (#481) ─── */}
+          <div>
+            <Label>Frete</Label>
+            <Select aria-label="Modalidade de frete" value={freightModality} onChange={(e) => setFreightModality(e.target.value)}>
+              <option value="9">Sem frete</option>
+              <option value="3">Veículo próprio, por conta do emitente</option>
+              <option value="4">Veículo próprio, por conta do destinatário</option>
+              <option value="0">CIF — por conta do emitente</option>
+              <option value="1">FOB — por conta do destinatário</option>
+              <option value="2">Por conta de terceiros</option>
+            </Select>
+          </div>
+          {freightModality !== '9' && (
+            <>
+              <div>
+                <Label>Transportadora</Label>
+                <Select aria-label="Transportadora" value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
+                  <option value="">— Sem transportadora (veículo próprio) —</option>
+                  {carriers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.vehiclePlate ? ` — ${c.vehiclePlate}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Valor do frete (R$)</Label>
+                <Input
+                  aria-label="Valor do frete"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={freightValue}
+                  onChange={(e) => setFreightValue(e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+              <div>
+                <Label>Volumes (qtd)</Label>
+                <Input
+                  aria-label="Quantidade de volumes"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={volumesQuantity}
+                  onChange={(e) => setVolumesQuantity(e.target.value)}
+                  placeholder="Vazio = 1 por unidade"
+                />
+              </div>
+              <div>
+                <Label>Espécie dos volumes</Label>
+                <Input
+                  aria-label="Espécie dos volumes"
+                  value={volumesSpecies}
+                  onChange={(e) => setVolumesSpecies(e.target.value)}
+                  placeholder="Ex.: REBOQUE"
+                  maxLength={60}
+                />
+              </div>
+            </>
+          )}
         </FormSection>
       )}
 
@@ -304,6 +420,29 @@ export default function NewSalePage() {
                 const w = warehouses.find((x) => x.id === warehouseId);
                 return w ? `${w.code} — ${w.name}` : '—';
               })()}
+            />
+            {customerId && (
+              <Summary
+                label="Entrega"
+                value={
+                  deliveryAddresses.find((a) => a.id === deliveryAddressId)?.label ??
+                  'Endereço fiscal do cliente'
+                }
+              />
+            )}
+            <Summary
+              label="Frete"
+              value={
+                freightModality === '9'
+                  ? 'Sem frete'
+                  : [
+                      { '0': 'CIF', '1': 'FOB', '2': 'Terceiros', '3': 'Veículo próprio (emitente)', '4': 'Veículo próprio (destinatário)' }[freightModality],
+                      carriers.find((c) => c.id === carrierId)?.name,
+                      freightValue ? formatBRL(Number(freightValue)) : undefined,
+                    ]
+                      .filter(Boolean)
+                      .join(' — ')
+              }
             />
             <Summary label="Observações" value={notes || '—'} />
           </FormSection>

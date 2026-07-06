@@ -107,7 +107,8 @@ describe('ForecastService', () => {
       mockPrisma.demandForecast.upsert.mockResolvedValue(mockDf);
 
       const result = await service.generateForecasts(
-        { companyId: COMPANY, targetPeriod: '2026-04' },
+        { targetPeriod: '2026-04' },
+        COMPANY,
         USER,
       );
 
@@ -131,7 +132,8 @@ describe('ForecastService', () => {
       );
 
       const result = await service.generateForecasts(
-        { companyId: COMPANY, targetPeriod: '2026-04' },
+        { targetPeriod: '2026-04' },
+        COMPANY,
         USER,
       );
 
@@ -154,7 +156,8 @@ describe('ForecastService', () => {
       );
 
       const result = await service.generateForecasts(
-        { companyId: COMPANY, targetPeriod: '2026-04' },
+        { targetPeriod: '2026-04' },
+        COMPANY,
         USER,
       );
 
@@ -178,7 +181,8 @@ describe('ForecastService', () => {
       mockPrisma.demandForecast.upsert.mockResolvedValue({ id: 'df-1', quantity: 100 });
 
       const result = await service.generateForecasts(
-        { companyId: COMPANY, targetPeriod: '2026-07', windowMonths: 6 },
+        { targetPeriod: '2026-07', windowMonths: 6 },
+        COMPANY,
         USER,
       );
 
