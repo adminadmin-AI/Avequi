@@ -295,7 +295,7 @@ Este projeto usa **GSD (Get Shit Done)** + **xquads-squads**. Ver `.claude/SETUP
 - **GitHub:** https://github.com/adminadmin-AI/Avequi
 - **Project Board:** https://github.com/users/adminadmin-AI/projects/7/views/1
 - **Supabase:** https://supabase.com/dashboard/project/avliarleakraczikvwwz
-- **Vercel:** https://avequi.vercel.app
+- **Vercel:** https://avequi-web-psi.vercel.app
 - **Brandbook:** https://avequi-brandbook.vercel.app/
 - **Swagger (local):** http://localhost:3001/docs
 
