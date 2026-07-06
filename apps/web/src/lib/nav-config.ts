@@ -41,6 +41,7 @@ import {
   Workflow,
   Wrench,
   Zap,
+  MessageCircle,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -100,6 +101,7 @@ export const NAV: NavSection[] = [
     key: 'comercial',
     title: 'Comercial',
     items: [
+      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
     ],

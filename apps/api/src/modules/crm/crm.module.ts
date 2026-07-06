@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { CrmController } from './crm.controller';
+import { CrmService } from './crm.service';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
@@ -16,7 +17,7 @@ import { WHATSAPP_QUEUE } from './whatsapp/whatsapp.types';
     BullModule.registerQueue({ name: WHATSAPP_QUEUE }),
   ],
   controllers: [CrmController, WhatsappController],
-  providers: [LeadIntakeService, WhatsappService, WhatsappWebhookProcessor],
-  exports: [LeadIntakeService, WhatsappService],
+  providers: [LeadIntakeService, CrmService, WhatsappService, WhatsappWebhookProcessor],
+  exports: [LeadIntakeService, CrmService, WhatsappService],
 })
 export class CrmModule {}
