@@ -153,7 +153,10 @@ export const NAV: NavSection[] = [
   {
     key: 'fiscal',
     title: 'Fiscal',
-    items: [{ href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText }],
+    items: [
+      { href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText },
+      { href: '/app/fiscal/rules', label: 'Regras Fiscais', icon: Scale },
+    ],
   },
   {
     key: 'financeiro',
