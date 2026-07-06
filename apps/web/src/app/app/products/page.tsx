@@ -270,6 +270,13 @@ export default function ProductsPage() {
                   ncm: editing.ncm ?? undefined,
                   costPrice: editing.costPrice ? Number(editing.costPrice) : undefined,
                   salePrice: editing.salePrice ? Number(editing.salePrice) : undefined,
+                  origem: (editing.origem as any) ?? '0',
+                  ean: editing.ean ?? undefined,
+                  cest: editing.cest ?? undefined,
+                  pesoLiquido: editing.pesoLiquido ? Number(editing.pesoLiquido) : undefined,
+                  pesoBruto: editing.pesoBruto ? Number(editing.pesoBruto) : undefined,
+                  unidadeTributavel: editing.unidadeTributavel ?? undefined,
+                  fatorConversaoTributavel: editing.fatorConversaoTributavel ? Number(editing.fatorConversaoTributavel) : undefined,
                 }
               : undefined
           }

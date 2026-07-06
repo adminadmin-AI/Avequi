@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail, useList } from '@/hooks/use-resource';
-import type { Customer, Warehouse, Product, SalesOrder } from '@/types/api';
+import type { Carrier, Customer, Warehouse, Product, SalesOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,6 +39,7 @@ export default function NewSalePage() {
   const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const { data: products = [] } = useList<Product>('/products');
+  const { data: carriers = [] } = useList<Carrier>('/carriers', { isActive: true });
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
@@ -47,6 +48,12 @@ export default function NewSalePage() {
   const [deliveryAddressId, setDeliveryAddressId] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  // Frete → grupo transp da NF-e (#481)
+  const [freightModality, setFreightModality] = useState('9');
+  const [freightValue, setFreightValue] = useState('');
+  const [carrierId, setCarrierId] = useState('');
+  const [volumesQuantity, setVolumesQuantity] = useState('');
+  const [volumesSpecies, setVolumesSpecies] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [step, setStep] = useState(0);
 
@@ -129,6 +136,12 @@ export default function NewSalePage() {
       deliveryAddressId: (customerId && deliveryAddressId) || undefined,
       notes: notes || undefined,
       paymentMethod: paymentMethod || undefined,
+      // grupo transp da NF-e (#481) — modalidade 9 = sem frete (default, não envia)
+      freightModality: freightModality !== '9' ? freightModality : undefined,
+      freightValue: freightModality !== '9' && freightValue ? Number(freightValue) : undefined,
+      carrierId: freightModality !== '9' && carrierId ? carrierId : undefined,
+      volumesQuantity: freightModality !== '9' && volumesQuantity ? Number(volumesQuantity) : undefined,
+      volumesSpecies: freightModality !== '9' && volumesSpecies ? volumesSpecies : undefined,
       items: items.map((it) => ({
         productId: it.productId,
         quantity: it.quantity,
@@ -223,6 +236,69 @@ export default function NewSalePage() {
             <Label>Observações</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
           </div>
+
+          {/* ─── Frete e transporte → grupo transp da NF-e (#481) ─── */}
+          <div>
+            <Label>Frete</Label>
+            <Select aria-label="Modalidade de frete" value={freightModality} onChange={(e) => setFreightModality(e.target.value)}>
+              <option value="9">Sem frete</option>
+              <option value="3">Veículo próprio, por conta do emitente</option>
+              <option value="4">Veículo próprio, por conta do destinatário</option>
+              <option value="0">CIF — por conta do emitente</option>
+              <option value="1">FOB — por conta do destinatário</option>
+              <option value="2">Por conta de terceiros</option>
+            </Select>
+          </div>
+          {freightModality !== '9' && (
+            <>
+              <div>
+                <Label>Transportadora</Label>
+                <Select aria-label="Transportadora" value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
+                  <option value="">— Sem transportadora (veículo próprio) —</option>
+                  {carriers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.vehiclePlate ? ` — ${c.vehiclePlate}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Valor do frete (R$)</Label>
+                <Input
+                  aria-label="Valor do frete"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={freightValue}
+                  onChange={(e) => setFreightValue(e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+              <div>
+                <Label>Volumes (qtd)</Label>
+                <Input
+                  aria-label="Quantidade de volumes"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={volumesQuantity}
+                  onChange={(e) => setVolumesQuantity(e.target.value)}
+                  placeholder="Vazio = 1 por unidade"
+                />
+              </div>
+              <div>
+                <Label>Espécie dos volumes</Label>
+                <Input
+                  aria-label="Espécie dos volumes"
+                  value={volumesSpecies}
+                  onChange={(e) => setVolumesSpecies(e.target.value)}
+                  placeholder="Ex.: REBOQUE"
+                  maxLength={60}
+                />
+              </div>
+            </>
+          )}
         </FormSection>
       )}
 
@@ -354,6 +430,20 @@ export default function NewSalePage() {
                 }
               />
             )}
+            <Summary
+              label="Frete"
+              value={
+                freightModality === '9'
+                  ? 'Sem frete'
+                  : [
+                      { '0': 'CIF', '1': 'FOB', '2': 'Terceiros', '3': 'Veículo próprio (emitente)', '4': 'Veículo próprio (destinatário)' }[freightModality],
+                      carriers.find((c) => c.id === carrierId)?.name,
+                      freightValue ? formatBRL(Number(freightValue)) : undefined,
+                    ]
+                      .filter(Boolean)
+                      .join(' — ')
+              }
+            />
             <Summary label="Observações" value={notes || '—'} />
           </FormSection>
           <FormSection title={`Itens (${items.length})`} columns={1}>

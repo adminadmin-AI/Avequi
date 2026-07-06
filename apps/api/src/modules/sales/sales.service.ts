@@ -34,6 +34,12 @@ export class SalesService {
         notes: dto.notes,
         paymentMethod: dto.paymentMethod,
         deliveryAddressId: dto.deliveryAddressId,
+        // Frete → grupo transp da NF-e (#481)
+        freightModality: dto.freightModality,
+        freightValue: dto.freightValue,
+        carrierId: dto.carrierId,
+        volumesQuantity: dto.volumesQuantity,
+        volumesSpecies: dto.volumesSpecies,
         createdById: userId,
         status: SalesOrderStatus.DRAFT,
         items: {

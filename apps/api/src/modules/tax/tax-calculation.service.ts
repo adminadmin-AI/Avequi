@@ -11,7 +11,11 @@ export interface TaxInput {
   ufDestino: string;
   itemValue: number; // valor total do item (qty × unitPrice)
   consumidorFinal?: boolean; // true quando destinatário é consumidor final (sem IE ou pessoa física)
+  origem?: string; // origem da mercadoria 0-8 — 1/2/3/8 = importado → interestadual 4% (RSF 13/2012) (#480)
 }
+
+/** Origens de mercadoria importada — alíquota interestadual fixa de 4% (Resolução Senado Federal 13/2012) */
+const IMPORTED_ORIGINS = ['1', '2', '3', '8'];
 
 export interface DifAlResult {
   baseCalculo: number;
@@ -85,7 +89,15 @@ export class TaxCalculationService {
 
     const r = rule ?? FALLBACK_RULE;
 
-    const icmsAliquota = Number(r.icmsAliquota);
+    const isInterstate = input.ufOrigem !== input.ufDestino;
+
+    // RSF 13/2012: mercadoria importada (orig 1/2/3/8) em operação interestadual
+    // tem alíquota fixa de 4%, independente da regra cadastrada (#480)
+    const isImported = IMPORTED_ORIGINS.includes(input.origem ?? '0');
+    let icmsAliquota = Number(r.icmsAliquota);
+    if (isInterstate && isImported && icmsAliquota > 4) {
+      icmsAliquota = 4;
+    }
     const icmsBaseReducao = Number(r.icmsBaseReducao);
     const ipiAliquota = Number(r.ipiAliquota);
     const pisAliquota = Number(r.pisAliquota);
@@ -111,7 +123,6 @@ export class TaxCalculationService {
     // DIFAL — EC 87/2015: operação interestadual para consumidor final não-contribuinte
     // Desde 2019: 100% do diferencial vai para o UF destino
     let difal: DifAlResult | undefined;
-    const isInterstate = input.ufOrigem !== input.ufDestino;
     const icmsInternaDestino = r.icmsInternaDestino ? Number(r.icmsInternaDestino) : null;
 
     if (isInterstate && input.consumidorFinal && icmsInternaDestino && icmsInternaDestino > icmsAliquota) {

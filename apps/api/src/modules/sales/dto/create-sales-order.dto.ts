@@ -3,11 +3,15 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsIn,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -34,6 +38,36 @@ export class CreateSalesOrderDto {
   @IsOptional()
   @IsString()
   deliveryAddressId?: string;
+
+  // ─── Frete e transporte → grupo transp da NF-e (#481) ─────────────────────
+
+  @ApiPropertyOptional({ description: 'modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (default)' })
+  @IsOptional()
+  @IsIn(['0', '1', '2', '3', '4', '9'])
+  freightModality?: string;
+
+  @ApiPropertyOptional({ description: 'Valor do frete (vFrete)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  freightValue?: number;
+
+  @ApiPropertyOptional({ description: 'Transportadora (Carrier) — grupo transportador da NF-e' })
+  @IsOptional()
+  @IsString()
+  carrierId?: string;
+
+  @ApiPropertyOptional({ description: 'Quantidade de volumes (qVol) — vazio = 1 por unidade vendida' })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  volumesQuantity?: number;
+
+  @ApiPropertyOptional({ description: 'Espécie dos volumes (esp), ex: REBOQUE' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  volumesSpecies?: string;
 
   @ApiProperty({ type: [CreateSaleItemDto] })
   @IsArray()

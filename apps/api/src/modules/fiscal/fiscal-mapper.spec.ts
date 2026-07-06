@@ -269,4 +269,113 @@ describe('fiscal-mapper', () => {
       expect(payload.items[0].fcp_base_calculo_uf_destino).toBeUndefined();
     });
   });
+
+  describe('origem da mercadoria — orig (#480)', () => {
+    it('usa a origem do produto no icms_origem', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], origem: '2' }],
+      }) as any;
+      expect(payload.items[0].icms_origem).toBe(2);
+    });
+
+    it('default 0 (nacional) quando o produto não tem origem', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.items[0].icms_origem).toBe(0);
+    });
+  });
+
+  describe('GTIN, CEST e unidade tributável (#484)', () => {
+    it('mapeia cEAN/cEANTrib quando o produto tem GTIN', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], ean: '7891234567895', cest: '01.023.00' }],
+      }) as any;
+      expect(payload.items[0].codigo_barras_comercial).toBe('7891234567895');
+      expect(payload.items[0].codigo_barras_tributavel).toBe('7891234567895');
+      expect(payload.items[0].cest).toBe('0102300');
+    });
+
+    it('omite GTIN/CEST quando não cadastrados (Focus emite SEM GTIN)', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.items[0].codigo_barras_comercial).toBeUndefined();
+      expect(payload.items[0].cest).toBeUndefined();
+    });
+
+    it('converte quantidade/valor pela unidade tributável', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        // 2 UN × fator 10 = 20 na unidade tributável; vUnTrib = 100 ÷ 10
+        items: [{ ...baseInput.items[0], unidadeTributavel: 'KG', fatorConversaoTributavel: 10 }],
+      }) as any;
+      expect(payload.items[0].unidade_tributavel).toBe('KG');
+      expect(payload.items[0].quantidade_tributavel).toBe(20);
+      expect(payload.items[0].valor_unitario_tributavel).toBe(10);
+    });
+  });
+
+  describe('grupo transp — transportador e volumes (#481)', () => {
+    const freight = {
+      modality: '2',
+      value: 350,
+      carrier: {
+        document: '11.444.777/0001-61',
+        name: 'TRANSPORTES XYZ LTDA',
+        ie: '123456789',
+        address: 'Rod BR 277, km 10',
+        city: 'São José dos Pinhais',
+        state: 'PR',
+      },
+      vehiclePlate: 'ABC-1D23',
+      vehiclePlateState: 'PR',
+      volumes: [{ quantidade: 2, especie: 'REBOQUE', pesoLiquido: 780.5, pesoBruto: 900 }],
+    };
+
+    it('sem freight mantém modalidade_frete 9 (comportamento anterior)', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.modalidade_frete).toBe('9');
+      expect(payload.cnpj_transportador).toBeUndefined();
+      expect(payload.volumes).toBeUndefined();
+    });
+
+    it('mapeia transportador com campos flat oficiais e placa normalizada', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      expect(payload.modalidade_frete).toBe('2');
+      expect(payload.valor_frete).toBe(350);
+      expect(payload.cnpj_transportador).toBe('11444777000161');
+      expect(payload.nome_transportador).toBe('TRANSPORTES XYZ LTDA');
+      expect(payload.inscricao_estadual_transportador).toBe('123456789');
+      expect(payload.endereco_transportador).toBe('Rod BR 277, km 10');
+      expect(payload.municipio_transportador).toBe('São José dos Pinhais');
+      expect(payload.uf_transportador).toBe('PR');
+      expect(payload.veiculo_placa).toBe('ABC1D23');
+      expect(payload.veiculo_uf).toBe('PR');
+    });
+
+    it('mapeia volumes[] com quantidade, espécie e pesos', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      expect(payload.volumes).toEqual([
+        { quantidade: 2, especie: 'REBOQUE', peso_liquido: 780.5, peso_bruto: 900 },
+      ]);
+    });
+
+    it('modalidade 3 (veículo próprio) sem transportadora só envia modalidade e volumes', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '3', volumes: [{ quantidade: 1, especie: 'REBOQUE' }] },
+      }) as any;
+      expect(payload.modalidade_frete).toBe('3');
+      expect(payload.cnpj_transportador).toBeUndefined();
+      expect(payload.volumes).toEqual([{ quantidade: 1, especie: 'REBOQUE' }]);
+    });
+
+    it('transportador PF usa cpf_transportador', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '2', carrier: { document: '123.456.789-09', name: 'JOÃO FRETES' } },
+      }) as any;
+      expect(payload.cpf_transportador).toBe('12345678909');
+      expect(payload.cnpj_transportador).toBeUndefined();
+    });
+  });
 });

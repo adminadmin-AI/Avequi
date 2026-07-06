@@ -41,7 +41,11 @@ export default function SuppliersPage() {
     const payload = {
       ...values,
       cnpj: values.cnpj ? unmask(values.cnpj) : undefined,
+      zipCode: values.zipCode ? unmask(values.zipCode) : undefined,
+      // strings vazias estouram @IsEmail/@IsEnum no backend — enviar undefined
       email: values.email || undefined,
+      fiscalEmail: values.fiscalEmail || undefined,
+      taxRegime: values.taxRegime || undefined,
     };
     if (editing) {
       update.mutate(
@@ -192,9 +196,27 @@ export default function SuppliersPage() {
             editing
               ? {
                   name: editing.name,
+                  razaoSocial: editing.razaoSocial ?? '',
                   cnpj: editing.cnpj ? formatCNPJ(editing.cnpj) : '',
+                  ie: editing.ie ?? '',
+                  taxRegime: editing.taxRegime ?? '',
                   email: editing.email ?? '',
+                  fiscalEmail: editing.fiscalEmail ?? '',
                   phone: editing.phone ?? '',
+                  contactName: editing.contactName ?? '',
+                  zipCode: editing.zipCode ?? '',
+                  address: editing.address ?? '',
+                  number: editing.number ?? '',
+                  complement: editing.complement ?? '',
+                  neighborhood: editing.neighborhood ?? '',
+                  city: editing.city ?? '',
+                  state: editing.state ?? '',
+                  ibgeCode: editing.ibgeCode ?? '',
+                  defaultPaymentTerms: editing.defaultPaymentTerms ?? '',
+                  bankName: editing.bankName ?? '',
+                  bankAgency: editing.bankAgency ?? '',
+                  bankAccount: editing.bankAccount ?? '',
+                  pixKey: editing.pixKey ?? '',
                   leadTimeDays: editing.leadTimeDays,
                 }
               : undefined

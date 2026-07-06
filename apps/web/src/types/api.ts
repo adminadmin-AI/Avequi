@@ -94,6 +94,9 @@ export interface FiscalDocument extends BaseEntity {
   series?: number | null;
   protocolNumber?: string | null;
   authorizedAt?: string | null;
+  xml?: string | null;
+  danfeUrl?: string | null; // caminho do DANFE na Focus (#482)
+  xmlUrl?: string | null;
   rejectionCode?: string | null;
   rejectionReason?: string | null;
   cancelledAt?: string | null;
@@ -303,6 +306,13 @@ export interface Product extends BaseEntity {
   type: ProductType;
   unit: UnitOfMeasure;
   ncm?: string | null;
+  origem?: string | null; // 0-8 — orig da NF-e (#480)
+  ean?: string | null; // GTIN (#484)
+  cest?: string | null;
+  pesoLiquido?: string | null; // kg (#484)
+  pesoBruto?: string | null;
+  unidadeTributavel?: string | null;
+  fatorConversaoTributavel?: string | null;
   costPrice?: string | null;
   salePrice?: string | null;
   avgCost?: string | null;
@@ -313,9 +323,28 @@ export interface Product extends BaseEntity {
 export interface Supplier extends BaseEntity {
   companyId: string;
   name: string;
+  razaoSocial?: string | null;
   cnpj?: string | null;
+  ie?: string | null;
+  taxRegime?: TaxRegime | null; // crédito IBS/CBS 2027 (#478)
   email?: string | null;
+  fiscalEmail?: string | null;
   phone?: string | null;
+  phone2?: string | null;
+  contactName?: string | null;
+  address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  defaultPaymentTerms?: string | null;
+  bankName?: string | null;
+  bankAgency?: string | null;
+  bankAccount?: string | null;
+  pixKey?: string | null;
   leadTimeDays: number;
   isActive: boolean;
 }
@@ -360,6 +389,22 @@ export interface Customer extends BaseEntity {
   state?: string | null;
   zipCode?: string | null;
   ibgeCode?: string | null;
+  isActive: boolean;
+}
+
+/** Transportadora — grupo transp da NF-e (#481) */
+export interface Carrier extends BaseEntity {
+  companyId: string;
+  name: string;
+  razaoSocial?: string | null;
+  document?: string | null;
+  ie?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  vehiclePlate?: string | null;
+  vehiclePlateState?: string | null;
+  rntc?: string | null;
   isActive: boolean;
 }
 

@@ -113,6 +113,7 @@ model Company {
   productionSchedules      ProductionSchedule[]
   scheduledPayments        ScheduledPayment[]
   collectionAttempts       CollectionAttempt[]
+  carriers                 Carrier[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -342,6 +343,13 @@ model Product {
   ncm         String?
   codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
   cClassTrib  String?        @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
+  origem      String         @default("0") @db.VarChar(1) // origem da mercadoria 0-8 (tabela A do ICMS) — orig no XML; 1/2/3/8 = importado → interestadual 4% RSF 13/2012 (#480)
+  ean         String?        @db.VarChar(14) // GTIN (cEAN) — SEFAZ valida no Cadastro Centralizado; vazio = Focus emite SEM GTIN (#484)
+  cest        String?        @db.VarChar(7)  // código CEST quando sujeito a ST (#484)
+  pesoLiquido Decimal?       @map("peso_liquido") @db.Decimal(12, 3) // kg — alimenta volumes da NF-e (#484)
+  pesoBruto   Decimal?       @map("peso_bruto") @db.Decimal(12, 3) // kg (#484)
+  unidadeTributavel String?  @map("unidade_tributavel") @db.VarChar(6) // uTrib quando ≠ unidade comercial (#484)
+  fatorConversaoTributavel Decimal? @map("fator_conversao_tributavel") @db.Decimal(12, 6) // qTrib = qCom × fator (#484)
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
@@ -392,10 +400,29 @@ model Supplier {
   id             String          @id @default(cuid())
   companyId      String
   company        Company         @relation(fields: [companyId], references: [id])
-  name           String
+  name           String          // nome fantasia / apelido comercial (#478)
+  razaoSocial    String?         @map("razao_social") // razão social (#478)
   cnpj           String?
+  ie             String?         @db.VarChar(14) // inscrição estadual (#478)
+  taxRegime      TaxRegime?      @map("tax_regime") // regime tributário — crédito IBS/CBS nas compras a partir de 2027 (#478)
   email          String?
+  fiscalEmail    String?         @map("fiscal_email") // e-mail p/ NF-e/boleto (#478)
   phone          String?
+  phone2         String?
+  contactName    String?         @map("contact_name")
+  address        String?         // logradouro (#478)
+  number         String?         @db.VarChar(10)
+  complement     String?         @db.VarChar(60)
+  neighborhood   String?         @db.VarChar(60)
+  city           String?
+  state          String?         @db.VarChar(2)
+  zipCode        String?         @map("zip_code") @db.VarChar(8)
+  ibgeCode       String?         @map("ibge_code") @db.VarChar(7)
+  defaultPaymentTerms String?    @map("default_payment_terms") // condição de pagamento padrão — pré-preenche PO (#478)
+  bankName       String?         @map("bank_name")
+  bankAgency     String?         @map("bank_agency")
+  bankAccount    String?         @map("bank_account")
+  pixKey         String?         @map("pix_key")
   leadTimeDays   Int             @default(0)
   isActive       Boolean         @default(true)
   purchaseOrders       PurchaseOrder[]
@@ -486,6 +513,30 @@ model CustomerAddress {
 
   @@index([customerId])
   @@map("gdr_customer_addresses")
+}
+
+/// Transportadora — grupo transp da NF-e (#481). Entidade fiscal própria (≠ Supplier).
+model Carrier {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  name              String   // nome fantasia
+  razaoSocial       String?  @map("razao_social") // xNome do transportador
+  document          String?  // CNPJ (14) ou CPF (11), sem máscara
+  ie                String?  @db.VarChar(14)
+  address           String?  // xEnder (logradouro + número, campo único na NF-e)
+  city              String?
+  state             String?  @db.VarChar(2)
+  vehiclePlate      String?  @map("vehicle_plate") @db.VarChar(8)
+  vehiclePlateState String?  @map("vehicle_plate_state") @db.VarChar(2)
+  rntc              String?  @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
+  isActive          Boolean  @default(true)
+  salesOrders       SalesOrder[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([companyId, document])
+  @@map("gdr_carriers")
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
@@ -817,6 +868,13 @@ model SalesOrder {
   paymentMethod PaymentMethod? @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
   deliveryAddressId String?    @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
   deliveryAddress   CustomerAddress? @relation(fields: [deliveryAddressId], references: [id])
+  // Frete e transporte → grupo transp da NF-e (#481)
+  freightModality String?      @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
+  freightValue    Decimal?     @map("freight_value") @db.Decimal(14, 2) // vFrete
+  carrierId       String?      @map("carrier_id")
+  carrier         Carrier?     @relation(fields: [carrierId], references: [id])
+  volumesQuantity Int?         @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
+  volumesSpecies  String?      @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
   notes       String?
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
@@ -895,6 +953,8 @@ model FiscalDocument {
   vIBSMono         Decimal?           @db.Decimal(14, 2)
   vCBSMono         Decimal?           @db.Decimal(14, 2)
   xml              String?
+  danfeUrl         String?            @map("danfe_url") // caminho_danfe do webhook Focus — reimpressão do DANFE (#482)
+  xmlUrl           String?            @map("xml_url")   // caminho_xml_nota_fiscal do webhook Focus (#482)
   rejectionCode    String?
   rejectionReason  String?
   retryCount       Int                @default(0)

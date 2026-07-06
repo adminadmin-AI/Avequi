@@ -50,6 +50,7 @@ export class FiscalService {
         company: true,
         customer: true,
         deliveryAddress: true,
+        carrier: true,
         items: { include: { product: true, serialNumber: true } },
       },
     });
@@ -116,6 +117,7 @@ export class FiscalService {
         ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
         itemValue,
         consumidorFinal,
+        origem: i.product.origem, // importado (1/2/3/8) → interestadual 4% RSF 13/2012 (#480)
       });
 
       // Montar dados veiculares se o item tiver SerialNumber com chassi preenchido
@@ -169,6 +171,13 @@ export class FiscalService {
         quantity: Number(i.quantity),
         unitPrice: Number(i.unitPrice),
         unit: i.product.unit,
+        origem: i.product.origem, // (#480)
+        ean: i.product.ean ?? undefined, // (#484)
+        cest: i.product.cest ?? undefined,
+        unidadeTributavel: i.product.unidadeTributavel ?? undefined,
+        fatorConversaoTributavel: i.product.fatorConversaoTributavel
+          ? Number(i.product.fatorConversaoTributavel)
+          : undefined,
         tax: {
           cfop: taxResult.cfop,
           icmsCst: taxResult.icms.cst,
@@ -285,6 +294,8 @@ export class FiscalService {
       totalValue,
       consumidorFinal,
       infCpl,
+      // Grupo transp — modalidade + transportadora + volumes (#481)
+      freight: this.buildFreight(order),
     };
 
     // Persistir itens + impostos detalhados (#166)
@@ -439,6 +450,7 @@ export class FiscalService {
         ufOrigem: transfer.company.state ?? 'SP',
         ufDestino: transfer.company.state ?? 'SP',
         itemValue,
+        origem: i.product.origem, // (#480)
       });
       items.push({
         sku: i.product.sku,
@@ -447,6 +459,7 @@ export class FiscalService {
         quantity: Number(i.quantity),
         unitPrice,
         unit: String(i.unit),
+        origem: i.product.origem, // (#480)
         tax: {
           cfop: taxResult.cfop,
           icmsCst: taxResult.icms.cst, icmsBase: taxResult.icms.baseCalculo, icmsAliquota: taxResult.icms.aliquota, icmsValor: taxResult.icms.valor,
@@ -673,6 +686,144 @@ export class FiscalService {
     return doc;
   }
 
+  // ─── Exportação de XMLs para o contador (#482) ────────────────────────────
+
+  /**
+   * XMLs do período para o ZIP mensal do contador. Inclui canceladas (o
+   * contador precisa delas para a escrituração). O webhook da Focus entrega
+   * só o CAMINHO do XML (não o conteúdo) — documentos sem xml no banco são
+   * baixados da Focus sob demanda e cacheados para as próximas exportações.
+   */
+  async listXmlsForExport(companyId: string, from: Date, to: Date, type?: FiscalDocumentType) {
+    const docs = await this.prisma.fiscalDocument.findMany({
+      where: {
+        companyId,
+        status: { in: [FiscalStatus.AUTHORIZED, FiscalStatus.CANCELLED] },
+        ...(type && { type }),
+        // autorizada no período; docs antigos sem authorizedAt caem no createdAt
+        OR: [
+          { authorizedAt: { gte: from, lte: to } },
+          { authorizedAt: null, createdAt: { gte: from, lte: to } },
+        ],
+      },
+      select: { id: true, chave: true, xml: true, xmlUrl: true, status: true, focusRef: true, number: true, type: true },
+      orderBy: { authorizedAt: 'asc' },
+    });
+
+    const out: Array<{ name: string; xml: string }> = [];
+    for (const d of docs) {
+      const xml = d.xml ?? (await this.fetchAndCacheXml(d));
+      if (!xml) {
+        this.logger.warn(`Exportação: XML indisponível para doc ${d.id} (ref ${d.focusRef}) — pulado`);
+        continue;
+      }
+      out.push({
+        // nome padrão de mercado: <chave>-nfe.xml; sem chave usa a ref interna
+        name: `${d.chave ?? d.focusRef ?? `doc-${d.number}`}-nfe${d.status === FiscalStatus.CANCELLED ? '-cancelada' : ''}.xml`,
+        xml,
+      });
+    }
+    return out;
+  }
+
+  /** Baixa o XML da Focus (via xmlUrl, ou consultando o status pela ref) e persiste como cache (#482) */
+  private async fetchAndCacheXml(d: {
+    id: string;
+    focusRef: string | null;
+    type: FiscalDocumentType;
+    xmlUrl: string | null;
+  }): Promise<string | null> {
+    let xmlUrl = d.xmlUrl;
+    let danfeUrl: string | undefined;
+
+    if (!xmlUrl && d.focusRef) {
+      const st = await this.client.getStatus(d.type === FiscalDocumentType.NFCE ? 'nfce' : 'nfe', d.focusRef);
+      if (st.caminho_xml_nota_fiscal) xmlUrl = this.client.absoluteUrl(st.caminho_xml_nota_fiscal);
+      if (st.caminho_danfe) danfeUrl = this.client.absoluteUrl(st.caminho_danfe);
+    }
+    if (!xmlUrl) return null;
+
+    const xml = await this.client.downloadFile(xmlUrl);
+    if (!xml) return null;
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: d.id },
+      data: { xml, xmlUrl, ...(danfeUrl && { danfeUrl }) },
+    });
+    return xml;
+  }
+
+  // ─── Privado: grupo transp da NF-e a partir da OV (#481) ─────────────────
+
+  /**
+   * Monta o FiscalFreight da OV. Sem modalidade cadastrada (ou 9) → undefined,
+   * e o mapper emite modalidade_frete 9 como antes. Pesos dos volumes vêm de
+   * Product.pesoLiquido/pesoBruto × quantidade (#484); volumes só entram
+   * quando há peso ou quantidade explícita.
+   */
+  private buildFreight(order: {
+    freightModality: string | null;
+    freightValue: unknown;
+    volumesQuantity: number | null;
+    volumesSpecies: string | null;
+    carrier: {
+      razaoSocial: string | null;
+      name: string;
+      document: string | null;
+      ie: string | null;
+      address: string | null;
+      city: string | null;
+      state: string | null;
+      vehiclePlate: string | null;
+      vehiclePlateState: string | null;
+      rntc: string | null;
+    } | null;
+    items: Array<{ quantity: unknown; product: { pesoLiquido: unknown; pesoBruto: unknown } }>;
+  }) {
+    if (!order.freightModality || order.freightModality === '9') return undefined;
+
+    const pesoLiquido = order.items.reduce(
+      (s, i) => s + Number(i.product.pesoLiquido ?? 0) * Number(i.quantity),
+      0,
+    );
+    const pesoBruto = order.items.reduce(
+      (s, i) => s + Number(i.product.pesoBruto ?? 0) * Number(i.quantity),
+      0,
+    );
+    // qVol: explícito na OV, senão 1 volume por unidade vendida (reboque = volume)
+    const quantidade =
+      order.volumesQuantity ?? order.items.reduce((s, i) => s + Number(i.quantity), 0);
+
+    return {
+      modality: order.freightModality,
+      value: order.freightValue != null ? Number(order.freightValue) : undefined,
+      carrier: order.carrier
+        ? {
+            document: order.carrier.document ?? undefined,
+            name: order.carrier.razaoSocial ?? order.carrier.name,
+            ie: order.carrier.ie ?? undefined,
+            address: order.carrier.address ?? undefined,
+            city: order.carrier.city ?? undefined,
+            state: order.carrier.state ?? undefined,
+          }
+        : undefined,
+      vehiclePlate: order.carrier?.vehiclePlate ?? undefined,
+      vehiclePlateState: order.carrier?.vehiclePlateState ?? undefined,
+      rntc: order.carrier?.rntc ?? undefined,
+      volumes:
+        quantidade > 0
+          ? [
+              {
+                quantidade,
+                especie: order.volumesSpecies ?? undefined,
+                pesoLiquido: pesoLiquido > 0 ? pesoLiquido : undefined,
+                pesoBruto: pesoBruto > 0 ? pesoBruto : undefined,
+              },
+            ]
+          : undefined,
+    };
+  }
+
   // ─── Privado: persiste itens + impostos detalhados (#166) ────────────────
 
   private async persistFiscalItems(
@@ -763,6 +914,8 @@ export class FiscalService {
       numero?: string | number;
       serie?: string | number;
       protocolo?: string;
+      caminho_danfe?: string; // path do PDF do DANFE na Focus (#482)
+      caminho_xml_nota_fiscal?: string; // path do XML autorizado na Focus (#482)
     },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
@@ -791,6 +944,9 @@ export class FiscalService {
         ...(number != null && { number }),
         ...(series != null && { series }),
         ...(protocolNumber && { protocolNumber }),
+        // URLs absolutas — o caminho da Focus é relativo ao ambiente (prod/homolog) (#482)
+        ...(response.caminho_danfe && { danfeUrl: this.client.absoluteUrl(response.caminho_danfe) }),
+        ...(response.caminho_xml_nota_fiscal && { xmlUrl: this.client.absoluteUrl(response.caminho_xml_nota_fiscal) }),
         ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
         ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
         rejectionCode: response.codigo ?? null,
