@@ -10,7 +10,43 @@ async function bootstrap() {
   // rawBody: assinatura X-Hub-Signature-256 do webhook WhatsApp (#508) é HMAC do corpo bruto
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  app.use(helmet());
+  // Security headers (IAM F6.1 #349). CSP em Report-Only para não quebrar o
+  // Swagger em /docs — só reporta violações, ainda não bloqueia. Trocar para
+  // enforce (reportOnly: false) depois de validar o relatório em produção.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        reportOnly: true,
+        useDefaults: true,
+        directives: {
+          // O Swagger UI usa estilos/scripts inline; liberados aqui para que,
+          // ao migrar para enforce, /docs continue funcionando.
+          'script-src': ["'self'", "'unsafe-inline'"],
+          'style-src': ["'self'", "'unsafe-inline'"],
+          'img-src': ["'self'", 'data:'],
+          'upgrade-insecure-requests': null,
+        },
+      },
+      // X-Frame-Options: DENY — impede o app de ser embutido em iframe.
+      frameguard: { action: 'deny' },
+      // HSTS: força HTTPS por 1 ano, incluindo subdomínios (efetivo só sob TLS).
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+      // Referrer-Policy: strict-origin-when-cross-origin.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      // X-Content-Type-Options: nosniff (default do Helmet, explícito por clareza).
+      noSniff: true,
+    }),
+  );
+
+  // Permissions-Policy — o Helmet não define este header por padrão. Bloqueia
+  // acesso a câmera, microfone e geolocalização por padrão.
+  app.use((_req, res, next) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=()',
+    );
+    next();
+  });
 
   app.setGlobalPrefix(process.env.API_PREFIX ?? 'api');
 
