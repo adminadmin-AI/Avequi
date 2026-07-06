@@ -82,6 +82,7 @@ model Company {
   serialNumbers    SerialNumber[]
   binRegistrations BinRegistration[]
   atpveRecords     AtpveRecord[]
+  renaveOperations RenaveOperation[]
   equipment        Equipment[]
   maintenanceOrders MaintenanceOrder[]
   quotations       Quotation[]
@@ -942,6 +943,7 @@ model SalesOrder {
   receivable       Receivable?
   commissions      Commission[]
   atpveRecords     AtpveRecord[]
+  renaveOperations RenaveOperation[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -1015,6 +1017,7 @@ model FiscalDocument {
   financialEntry   FinancialEntry?
   items            FiscalDocumentItem[]
   corrections      FiscalCorrection[]
+  renaveOperations RenaveOperation[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -1764,6 +1767,8 @@ enum AlertType {
   QC_INSPECTION_FAILED
   MAINTENANCE_DUE
   MANIFEST_OVERDUE
+  RENAVE_OP_FAILED    // operação RENAVE/ATPV-e falhou — retry manual (#527)
+  BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
 }
 
 enum AlertSeverity {
@@ -1944,6 +1949,7 @@ model SerialNumber {
   components         SerialComponent[] @relation("SerialChassisComponents")
   binRegistration    BinRegistration?
   atpveRecords       AtpveRecord[]
+  renaveOperations   RenaveOperation[]
 
   @@index([companyId, status])
   @@index([productId, status])
@@ -1996,6 +2002,7 @@ model AtpveRecord {
   salesOrderId   String       @map("sales_order_id")
   salesOrder     SalesOrder   @relation(fields: [salesOrderId], references: [id])
   atpveNumber    String?      @map("atpve_number")
+  atpvePdfUrl    String?      @map("atpve_pdf_url") // URL/caminho do PDF do ATPV-e anexado à OV (#527)
   status         AtpveStatus  @default(PENDING)
   clienteCpf     String       @map("cliente_cpf")
   clienteNome    String       @map("cliente_nome")
@@ -2008,6 +2015,74 @@ model AtpveRecord {
   @@index([companyId, status])
   @@index([serialNumberId])
   @@map("gdr_atpve_records")
+}
+
+// ─── Ledger de operações RENAVE/BIN (append-only) — Épico #527 ────────────────
+// Registra CADA tentativa de operação veicular externa (BIN, RENAVE 0km, ATPV-e).
+// NÃO é estado de entidade: BinRegistration/AtpveRecord continuam sendo a projeção
+// do resultado final. Este ledger guarda tentativa, protocolo e retorno bruto.
+// Estrutura apenas (PR-1): sem service, fila, listener ou wiring.
+enum RenaveOperationType {
+  BIN_REGISTER         // pré-cadastro BIN (por chassi)
+  STOCK_IN             // entrar estoque zero km na montadora (por chassi)
+  SALE_OUT             // sair estoque zero km / intenção de venda (por chassi + venda)
+  ATPVE_PDF            // obter PDF do ATPV-e (por chassi + venda)
+  CANCEL_SALE_OUT      // cancelar saída de estoque zero km (devolução/cancelamento)
+  RETURN_MANUFACTURER  // devolver veículo zero km à montadora (devolução)
+}
+
+enum RenaveOperationStatus {
+  PENDING              // criada, aguardando processamento
+  PROCESSING           // enviada ao provider, aguardando retorno
+  REGISTERED           // BIN registrada (resultado de BIN_REGISTER)
+  STOCK_CONFIRMED      // entrada de estoque confirmada (STOCK_IN)
+  SALE_INTENT_CREATED  // intenção de venda/saída criada (SALE_OUT)
+  ACTIVE               // operação concluída com sucesso (ATPV-e ativo)
+  ERROR                // falha — elegível a retry manual
+  CANCELLED            // operação anulada (reversão)
+}
+
+model RenaveOperation {
+  id             String                @id @default(cuid())
+
+  companyId      String                @map("company_id")
+  company        Company               @relation(fields: [companyId], references: [id])
+
+  serialNumberId String                @map("serial_number_id")
+  serialNumber   SerialNumber          @relation(fields: [serialNumberId], references: [id])
+
+  // Opcional: operações só-por-chassi (BIN_REGISTER, STOCK_IN) não têm venda
+  salesOrderId   String?               @map("sales_order_id")
+  salesOrder     SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+
+  // Rastreio da NF-e origem (FK opcional + chave textual só p/ auditoria)
+  fiscalDocumentId    String?          @map("fiscal_document_id")
+  fiscalDocument      FiscalDocument?  @relation(fields: [fiscalDocumentId], references: [id])
+  fiscalDocumentChave String?          @map("fiscal_document_chave") // chave de acesso NF-e (44 díg.) — só rastreio
+
+  type           RenaveOperationType
+  status         RenaveOperationStatus @default(PENDING)
+
+  // Idempotência: coluna única computada pela aplicação (null-safe, type-aware)
+  //   BIN_REGISTER/STOCK_IN            → "TYPE:serialNumberId"
+  //   SALE_OUT/ATPVE_PDF/CANCEL/RETURN → "TYPE:serialNumberId:salesOrderId"
+  dedupeKey      String                @unique @map("dedupe_key")
+
+  // Correlação e retorno do provider externo
+  requestId      String?               @map("request_id")   // id de correlação enviado ao provider
+  protocol       String?                                    // protocolo devolvido pelo gov/SERPRO
+  rawResponse    Json?                 @map("raw_response")  // SANITIZADO: sem CPF/CNPJ em claro, sem token/cert/Authorization (LGPD #527)
+  attempt        Int                   @default(0)          // nº de tentativas já executadas
+  lastError      String?               @map("last_error")
+
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@index([serialNumberId, type])
+  @@index([salesOrderId])
+  @@index([fiscalDocumentId])
+  @@map("gdr_renave_operations")
 }
 
 model SerialComponent {
