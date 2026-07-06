@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FiscalDocumentType, FiscalStatus, PaymentMethod } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT, EmissorPort } from './emissor.port';
 import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
@@ -24,7 +24,7 @@ export class FiscalService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly client: FiscalClientService,
+    @Inject(EMISSOR_PORT) private readonly client: EmissorPort,
     private readonly taxCalc: TaxCalculationService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
