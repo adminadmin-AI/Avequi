@@ -442,3 +442,9 @@ export enum ScheduledPaymentStatus {
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
 }
+
+export enum IcmsIndicator {
+  CONTRIBUINTE = 'CONTRIBUINTE',
+  ISENTO = 'ISENTO',
+  NAO_CONTRIBUINTE = 'NAO_CONTRIBUINTE',
+}

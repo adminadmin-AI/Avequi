@@ -209,6 +209,50 @@ describe('fiscal-mapper', () => {
       expect(payload.items[0].icms_percentual_fcp).toBeUndefined(); // campo fantasma removido
     });
 
+    it('indIeDest explícito do cadastro prevalece sobre a inferência (#474)', () => {
+      // Contribuinte com IE — indicador 1
+      const contrib = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Revenda', razaoSocial: 'REVENDA LTDA', document: '11.444.777/0001-61', ie: '251083110', indIeDest: 'CONTRIBUINTE', state: 'SC' },
+      }) as any;
+      expect(contrib.indicador_inscricao_estadual_destinatario).toBe('1');
+      expect(contrib.inscricao_estadual_destinatario).toBe('251083110');
+      expect(contrib.nome_destinatario).toBe('REVENDA LTDA'); // razão social no DANFE
+
+      // ISENTO explícito mesmo com IE preenchida — indicador 2 e IE omitida
+      const isento = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Empresa', document: '11.444.777/0001-61', ie: '251083110', indIeDest: 'ISENTO', state: 'SC' },
+      }) as any;
+      expect(isento.indicador_inscricao_estadual_destinatario).toBe('2');
+      expect(isento.inscricao_estadual_destinatario).toBeUndefined();
+
+      // NAO_CONTRIBUINTE explícito — indicador 9
+      const naoContrib = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'PF', document: '030.550.549-11', indIeDest: 'NAO_CONTRIBUINTE' },
+      }) as any;
+      expect(naoContrib.indicador_inscricao_estadual_destinatario).toBe('9');
+    });
+
+    it('grupo <entrega> com campos flat quando a OV tem endereço de entrega (#474)', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Cliente', document: '030.550.549-11' },
+        delivery: { address: 'ROD BR 277 KM 10', number: 'SN', neighborhood: 'ZONA RURAL', city: 'GUARAPUAVA', state: 'PR', zipCode: '85010-000' },
+      }) as any;
+      expect(payload).toMatchObject({
+        cpf_entrega: '03055054911',
+        logradouro_entrega: 'ROD BR 277 KM 10',
+        municipio_entrega: 'GUARAPUAVA',
+        uf_entrega: 'PR',
+        cep_entrega: '85010000',
+      });
+      // sem delivery → sem grupo entrega
+      const semEntrega = buildNFePayload({ ...baseInput, recipient: { name: 'X', document: '030.550.549-11' } }) as any;
+      expect(semEntrega.logradouro_entrega).toBeUndefined();
+    });
+
     it('DIFAL sem FCP envia percentual e valor zerados', () => {
       const payload = buildNFePayload({
         ...baseInput,

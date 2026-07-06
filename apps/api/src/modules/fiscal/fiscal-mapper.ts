@@ -95,16 +95,36 @@ export interface FiscalEmitter {
   phone?: string;
 }
 
+/** Indicador de IE do destinatário (indIEDest) — espelho do enum IcmsIndicator do Prisma (#474) */
+export type FiscalIcmsIndicator = 'CONTRIBUINTE' | 'ISENTO' | 'NAO_CONTRIBUINTE';
+
 export interface FiscalRecipient {
   name: string;
+  razaoSocial?: string; // PJ: DANFE usa a razão social quando presente (#474)
   document?: string; // CPF ou CNPJ
   ie?: string; // inscrição estadual
+  indIeDest?: FiscalIcmsIndicator; // explícito do cadastro; ausente = inferir (#474)
+  email?: string; // e-mail fiscal do destinatário (xml <email>)
   address?: string;
   number?: string;
   complement?: string;
   neighborhood?: string;
   city?: string;
   state?: string;
+  zipCode?: string;
+  ibgeCode?: string;
+}
+
+/** Endereço de entrega ≠ fiscal — grupo <entrega> da NF-e (#474) */
+export interface FiscalDeliveryAddress {
+  name?: string; // nome do recebedor no local
+  document?: string; // CPF/CNPJ do recebedor (obrigatório no grupo entrega)
+  address: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city: string;
+  state: string;
   zipCode?: string;
   ibgeCode?: string;
 }
@@ -145,6 +165,7 @@ export interface FiscalPayloadInput {
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
   consumidorFinal?: boolean; // true = indicador_consumidor_final: 1 na NF-e
   infCpl?: string; // informações complementares (#370)
+  delivery?: FiscalDeliveryAddress; // grupo <entrega> quando ≠ endereço fiscal (#474)
 }
 
 /**
@@ -284,12 +305,16 @@ function mapRecipientFlat(
   const doc = r?.document?.replace(/\D/g, '') ?? '';
   // "ISENTO"/vazio no cadastro = destinatário sem IE (evita rejeição SEFAZ 728)
   const ie = r?.ie && /^\d+$/.test(r.ie.replace(/[.\-\/]/g, '')) ? r.ie.replace(/\D/g, '') : undefined;
+  // indIEDest explícito do cadastro (#474); ausente → inferência legada por IE/consumidorFinal
+  const indicador = r?.indIeDest
+    ? { CONTRIBUINTE: '1', ISENTO: '2', NAO_CONTRIBUINTE: '9' }[r.indIeDest]
+    : ie ? '1' : consumidorFinal ? '9' : '2';
   return {
-    nome_destinatario: r?.name ?? 'CONSUMIDOR NÃO IDENTIFICADO',
+    nome_destinatario: r?.razaoSocial ?? r?.name ?? 'CONSUMIDOR NÃO IDENTIFICADO',
     ...(doc && (doc.length === 11 ? { cpf_destinatario: doc } : { cnpj_destinatario: doc })),
-    ...(ie
-      ? { inscricao_estadual_destinatario: ie, indicador_inscricao_estadual_destinatario: '1' }
-      : { indicador_inscricao_estadual_destinatario: consumidorFinal ? '9' : '2' }),
+    indicador_inscricao_estadual_destinatario: indicador,
+    ...(ie && indicador === '1' && { inscricao_estadual_destinatario: ie }),
+    ...(r?.email && { email_destinatario: r.email }),
     ...(r?.address && { logradouro_destinatario: r.address }),
     ...(r?.number && { numero_destinatario: r.number }),
     ...(r?.complement && { complemento_destinatario: r.complement }),
@@ -297,6 +322,23 @@ function mapRecipientFlat(
     ...(r?.city && { municipio_destinatario: r.city }),
     ...(r?.state && { uf_destinatario: r.state }),
     ...(r?.zipCode && { cep_destinatario: r.zipCode.replace(/\D/g, '') }),
+  };
+}
+
+/** Grupo <entrega> da NF-e — campos flat *_entrega (#474). CPF/CNPJ do recebedor é obrigatório no grupo. */
+function mapDeliveryFlat(d: FiscalDeliveryAddress, r?: FiscalRecipient): Record<string, unknown> {
+  const doc = (d.document ?? r?.document ?? '').replace(/\D/g, '');
+  if (!doc) return {}; // sem documento o grupo é inválido — omite e a nota sai sem <entrega>
+  return {
+    ...(doc.length === 11 ? { cpf_entrega: doc } : { cnpj_entrega: doc }),
+    ...(d.name && { nome_entrega: d.name }),
+    logradouro_entrega: d.address,
+    ...(d.number && { numero_entrega: d.number }),
+    ...(d.complement && { complemento_entrega: d.complement }),
+    ...(d.neighborhood && { bairro_entrega: d.neighborhood }),
+    municipio_entrega: d.city,
+    uf_entrega: d.state,
+    ...(d.zipCode && { cep_entrega: d.zipCode.replace(/\D/g, '') }),
   };
 }
 
@@ -342,6 +384,8 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     ...(input.infCpl && { informacoes_adicionais_contribuinte: input.infCpl }),
     ...mapEmitterFlat(input.emitter),
     ...mapRecipientFlat(input.recipient, input.consumidorFinal),
+    // Grupo <entrega> — endereço de entrega ≠ fiscal (#474), campos flat oficiais
+    ...(input.delivery && mapDeliveryFlat(input.delivery, input.recipient)),
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, cfop)),
     // forma 90 (sem pagamento) — obrigatória em devolução/entrada (rejeição SEFAZ 871) — exige valor 0
     formas_pagamento: [
