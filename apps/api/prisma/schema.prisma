@@ -125,7 +125,9 @@ model Company {
   auditLogsV2           AuditLogV2[]
   securityEvents        SecurityEvent[]
   permissionChangeLogs  PermissionChangeLog[]
-  // CRM de Lojas — F1.1 (#507)
+  // CRM de Lojas — F1.1 (#507) / F1.2 (#508)
+  /// phone_number_id do número da loja na WhatsApp Cloud API — mapeia webhook → loja
+  waPhoneNumberId       String?                @unique @map("wa_phone_number_id")
   leads                 Lead[]
   pipelineStages        PipelineStage[]
   whatsappConversations WhatsappConversation[]
@@ -3578,6 +3580,8 @@ model WhatsappMessage {
   text           String?
   mediaUrl       String?              @map("media_url") // storage próprio (mídia da Meta expira)
   mediaMimeType  String?              @map("media_mime_type")
+  /// media id da Meta — o proxy GET /crm/whatsapp/media/:id baixa sob demanda
+  waMediaId      String?              @map("wa_media_id")
   /// wamid da Cloud API — idempotência do webhook (retry da Meta não duplica)
   waMessageId    String?              @unique @map("wa_message_id")
   status         WaMessageStatus      @default(PENDING)

@@ -1,0 +1,222 @@
+import { HttpService } from '@nestjs/axios';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  LeadActivityType,
+  WaMessageDirection,
+  WaMessageStatus,
+  WaMessageType,
+} from '@prisma/client';
+import { AxiosError } from 'axios';
+import { firstValueFrom } from 'rxjs';
+import { PrismaService } from '../../../prisma/prisma.service';
+
+/** Janela de atendimento da Meta: 24h após a última mensagem do cliente */
+export const WA_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export interface SendMessageInput {
+  text?: string;
+  /** URL pública da mídia (imagem/áudio/documento) — enviada como link */
+  mediaUrl?: string;
+  mediaType?: 'image' | 'audio' | 'document';
+  caption?: string;
+  filename?: string;
+}
+
+/**
+ * F1.2 (#508) — envio livre pela WhatsApp Cloud API (número da loja).
+ * Regra de ouro: dentro da janela de 24h a resposta é 100% livre e gratuita;
+ * fora dela a Meta exige template (F3.2) — aqui devolvemos erro orientado.
+ */
+@Injectable()
+export class WhatsappService {
+  private readonly logger = new Logger(WhatsappService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly http: HttpService,
+    private readonly config: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  private graphBase(): string {
+    const version = this.config.get<string>('WHATSAPP_API_VERSION') ?? 'v21.0';
+    const base = this.config.get<string>('WHATSAPP_GRAPH_BASE_URL') ?? 'https://graph.facebook.com';
+    return `${base}/${version}`;
+  }
+
+  private accessToken(): string {
+    const token = this.config.get<string>('WHATSAPP_ACCESS_TOKEN');
+    if (!token) throw new BadRequestException('WHATSAPP_ACCESS_TOKEN não configurado');
+    return token;
+  }
+
+  /** Envio livre na conversa do lead. Exige janela de 24h aberta. */
+  async send(companyId: string, leadId: string, input: SendMessageInput, senderId: string) {
+    if (!input.text && !input.mediaUrl) {
+      throw new BadRequestException('Informe text ou mediaUrl');
+    }
+    const conversation = await this.prisma.whatsappConversation.findFirst({
+      where: { leadId, companyId },
+      include: { lead: { select: { id: true, firstRespondedAt: true } } },
+    });
+    if (!conversation) throw new NotFoundException('Lead não tem conversa de WhatsApp');
+
+    if (!conversation.windowExpiresAt || conversation.windowExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException(
+        'Janela de 24h expirada — use uma mensagem template p/ retomar o contato (F3.2 #518)',
+      );
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { waPhoneNumberId: true },
+    });
+    if (!company?.waPhoneNumberId) {
+      throw new BadRequestException('Loja sem número de WhatsApp configurado (waPhoneNumberId)');
+    }
+
+    const payload = this.buildOutboundPayload(conversation.waContactId, input);
+    let waMessageId: string | null = null;
+    try {
+      const resp = await firstValueFrom(
+        this.http.post(
+          `${this.graphBase()}/${company.waPhoneNumberId}/messages`,
+          payload,
+          { headers: { Authorization: `Bearer ${this.accessToken()}` } },
+        ),
+      );
+      waMessageId = resp.data?.messages?.[0]?.id ?? null;
+    } catch (err) {
+      const axiosErr = err as AxiosError<any>;
+      const detail = axiosErr.response?.data?.error?.message ?? axiosErr.message;
+      this.logger.error(`Falha no envio WhatsApp (lead ${leadId}): ${detail}`);
+      throw new BadRequestException(`Meta recusou o envio: ${detail}`);
+    }
+
+    const now = new Date();
+    const [message] = await this.prisma.$transaction([
+      this.prisma.whatsappMessage.create({
+        data: {
+          conversationId: conversation.id,
+          direction: WaMessageDirection.OUT,
+          type: this.outboundType(input),
+          text: input.text ?? input.caption ?? null,
+          mediaUrl: input.mediaUrl ?? null,
+          waMessageId,
+          status: WaMessageStatus.SENT,
+          statusAt: now,
+          sentById: senderId,
+        },
+      }),
+      this.prisma.whatsappConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now, unreadCount: 0 },
+      }),
+      this.prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          lastInteractionAt: now,
+          // primeira resposta humana/IA — métrica de SLA (F2.3)
+          ...(conversation.lead.firstRespondedAt ? {} : { firstRespondedAt: now }),
+          activities: {
+            create: {
+              type: LeadActivityType.MESSAGE_OUT,
+              actorId: senderId,
+              properties: { waMessageId, preview: (input.text ?? input.caption ?? '[mídia]').slice(0, 140) },
+            },
+          },
+        },
+      }),
+    ]);
+
+    this.eventEmitter.emit('crm.whatsapp.message_sent', {
+      leadId,
+      companyId,
+      messageId: message.id,
+    });
+    return message;
+  }
+
+  /** Mensagens da conversa (inbox F1.3) — zera não-lidas */
+  async listMessages(companyId: string, leadId: string, take = 50, before?: string) {
+    const conversation = await this.prisma.whatsappConversation.findFirst({
+      where: { leadId, companyId },
+    });
+    if (!conversation) throw new NotFoundException('Lead não tem conversa de WhatsApp');
+    const messages = await this.prisma.whatsappMessage.findMany({
+      where: {
+        conversationId: conversation.id,
+        ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    await this.prisma.whatsappConversation.update({
+      where: { id: conversation.id },
+      data: { unreadCount: 0 },
+    });
+    return { conversation, messages: messages.reverse() };
+  }
+
+  /**
+   * Proxy de mídia: baixa da Meta sob demanda (padrão do export de XML fiscal).
+   * Meta expira URLs de mídia — por isso guardamos o media id e buscamos na hora.
+   */
+  async fetchMedia(companyId: string, messageId: string) {
+    const message = await this.prisma.whatsappMessage.findFirst({
+      where: { id: messageId, conversation: { companyId } },
+    });
+    if (!message?.waMediaId) throw new NotFoundException('Mensagem sem mídia');
+
+    const meta = await firstValueFrom(
+      this.http.get(`${this.graphBase()}/${message.waMediaId}`, {
+        headers: { Authorization: `Bearer ${this.accessToken()}` },
+      }),
+    );
+    const binary = await firstValueFrom(
+      this.http.get(meta.data.url, {
+        headers: { Authorization: `Bearer ${this.accessToken()}` },
+        responseType: 'arraybuffer',
+      }),
+    );
+    return {
+      data: Buffer.from(binary.data),
+      mimeType: message.mediaMimeType ?? meta.data.mime_type ?? 'application/octet-stream',
+    };
+  }
+
+  private buildOutboundPayload(to: string, input: SendMessageInput): Record<string, unknown> {
+    if (input.mediaUrl) {
+      const kind = input.mediaType ?? 'image';
+      const media: Record<string, unknown> = { link: input.mediaUrl };
+      if (input.caption && kind !== 'audio') media.caption = input.caption;
+      if (input.filename && kind === 'document') media.filename = input.filename;
+      return { messaging_product: 'whatsapp', to, type: kind, [kind]: media };
+    }
+    return {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: input.text, preview_url: true },
+    };
+  }
+
+  private outboundType(input: SendMessageInput): WaMessageType {
+    if (!input.mediaUrl) return WaMessageType.TEXT;
+    switch (input.mediaType) {
+      case 'audio':
+        return WaMessageType.AUDIO;
+      case 'document':
+        return WaMessageType.DOCUMENT;
+      default:
+        return WaMessageType.IMAGE;
+    }
+  }
+}
