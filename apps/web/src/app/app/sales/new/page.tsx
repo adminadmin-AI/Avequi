@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useDetail, useList } from '@/hooks/use-resource';
 import type { Customer, Warehouse, Product, SalesOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -44,10 +44,20 @@ export default function NewSalePage() {
 
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
+  const [deliveryAddressId, setDeliveryAddressId] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [step, setStep] = useState(0);
+
+  // Endereços de entrega do cliente (#474) — o detail inclui `addresses`
+  const { data: customerDetail } = useDetail<Customer>('/customers', customerId || undefined);
+  const deliveryAddresses = customerDetail?.addresses ?? [];
+
+  // Ao trocar de cliente, pré-seleciona o endereço padrão (ou volta ao fiscal)
+  useEffect(() => {
+    setDeliveryAddressId(customerDetail?.addresses?.find((a) => a.isDefault)?.id ?? '');
+  }, [customerDetail?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Linha de adição de item
   const [newProductId, setNewProductId] = useState('');
@@ -115,6 +125,8 @@ export default function NewSalePage() {
     const payload = {
       warehouseId,
       customerId: customerId || undefined,
+      // vira o grupo <entrega> da NF-e quando difere do endereço fiscal (#474)
+      deliveryAddressId: (customerId && deliveryAddressId) || undefined,
       notes: notes || undefined,
       paymentMethod: paymentMethod || undefined,
       items: items.map((it) => ({
@@ -178,6 +190,23 @@ export default function NewSalePage() {
               ))}
             </Select>
           </div>
+          {customerId && deliveryAddresses.length > 0 && (
+            <div>
+              <Label>Endereço de entrega</Label>
+              <Select
+                aria-label="Endereço de entrega"
+                value={deliveryAddressId}
+                onChange={(e) => setDeliveryAddressId(e.target.value)}
+              >
+                <option value="">Endereço fiscal do cliente</option>
+                {deliveryAddresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label} — {a.city}/{a.state}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div>
             <Label>Forma de pagamento</Label>
             <Select aria-label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
@@ -316,6 +345,15 @@ export default function NewSalePage() {
                 return w ? `${w.code} — ${w.name}` : '—';
               })()}
             />
+            {customerId && (
+              <Summary
+                label="Entrega"
+                value={
+                  deliveryAddresses.find((a) => a.id === deliveryAddressId)?.label ??
+                  'Endereço fiscal do cliente'
+                }
+              />
+            )}
             <Summary label="Observações" value={notes || '—'} />
           </FormSection>
           <FormSection title={`Itens (${items.length})`} columns={1}>

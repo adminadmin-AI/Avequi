@@ -1,15 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
+import { useToast } from '@/components/ui/toast';
 import { CUSTOMER_TYPE_LABELS, enumOptions } from '@/lib/enums';
 import { unmask } from '@/lib/format';
 import { isValidCPF, isValidCNPJ } from '@/lib/validators';
+import { lookupCep, lookupCnpj } from '@/lib/address-lookup';
 
 const UF = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR',
@@ -23,9 +27,14 @@ const schema = z
     document: z.string().optional(),
     email: z.string().email('E-mail inválido').optional().or(z.literal('')),
     phone: z.string().optional(),
+    zipCode: z.string().optional(),
     address: z.string().optional(),
+    number: z.string().optional(),
+    complement: z.string().optional(),
+    neighborhood: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
+    ibgeCode: z.string().optional(),
     // Fiscal (#474)
     razaoSocial: z.string().optional(),
     ie: z.string().optional(),
@@ -70,10 +79,13 @@ export function CustomerForm({
   defaultValues?: Partial<CustomerFormValues>;
   onSubmit: (values: CustomerFormValues) => void;
 }) {
+  const toast = useToast();
   const {
     register,
     control,
     watch,
+    setValue,
+    getValues,
     handleSubmit,
     formState: { errors },
   } = useForm<CustomerFormValues>({
@@ -83,6 +95,63 @@ export function CustomerForm({
 
   const type = watch('type');
   const isPF = type === 'INDIVIDUAL';
+
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
+
+  // "Pesquisar SEFAZ" do Omie — preenche o cadastro a partir do CNPJ (#474)
+  async function fillFromCnpj() {
+    const doc = unmask(getValues('document') ?? '');
+    if (!isValidCNPJ(doc)) {
+      toast.error('Informe um CNPJ válido para buscar');
+      return;
+    }
+    setCnpjLoading(true);
+    try {
+      const data = await lookupCnpj(doc);
+      if (!data) {
+        toast.error('CNPJ não encontrado na Receita');
+        return;
+      }
+      setValue('razaoSocial', data.razaoSocial);
+      if (!getValues('name')) setValue('name', data.nomeFantasia || data.razaoSocial);
+      if (data.email && !getValues('email')) setValue('email', data.email.toLowerCase());
+      if (data.phone && !getValues('phone')) setValue('phone', unmask(data.phone));
+      setValue('zipCode', data.zipCode);
+      setValue('address', data.address);
+      setValue('number', data.number);
+      setValue('complement', data.complement);
+      setValue('neighborhood', data.neighborhood);
+      setValue('city', data.city);
+      setValue('state', data.state);
+      setValue('ibgeCode', data.ibgeCode);
+      if (data.isSimplesNacional !== null) setValue('isSimplesNacional', data.isSimplesNacional);
+      toast.success('Dados preenchidos pela Receita — confira antes de salvar');
+    } catch {
+      toast.error('Falha ao consultar CNPJ — tente novamente');
+    } finally {
+      setCnpjLoading(false);
+    }
+  }
+
+  // Auto-preenchimento por CEP (ViaCEP) quando os 8 dígitos são digitados
+  async function fillFromCep(cep: string) {
+    if (unmask(cep).length !== 8) return;
+    setCepLoading(true);
+    try {
+      const data = await lookupCep(cep);
+      if (!data) return; // CEP não encontrado — usuário preenche manualmente
+      if (data.address) setValue('address', data.address);
+      if (data.neighborhood) setValue('neighborhood', data.neighborhood);
+      setValue('city', data.city);
+      setValue('state', data.state);
+      setValue('ibgeCode', data.ibgeCode);
+    } catch {
+      // silencioso: lookup é conveniência, não bloqueia o cadastro manual
+    } finally {
+      setCepLoading(false);
+    }
+  }
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
@@ -97,24 +166,37 @@ export function CustomerForm({
           </Select>
         </Field>
         <Field label={isPF ? 'CPF' : 'CNPJ'} error={errors.document?.message}>
-          <Controller
-            name="document"
-            control={control}
-            render={({ field }) => (
-              <MaskedInput
-                mask={isPF ? 'cpf' : 'cnpj'}
-                value={field.value ?? ''}
-                onChange={(e) => field.onChange(e.target.value)}
-                error={!!errors.document}
-                clearable
-                placeholder={isPF ? '000.000.000-00' : '00.000.000/0000-00'}
-              />
+          <div className="flex gap-2">
+            <Controller
+              name="document"
+              control={control}
+              render={({ field }) => (
+                <MaskedInput
+                  mask={isPF ? 'cpf' : 'cnpj'}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  error={!!errors.document}
+                  clearable
+                  placeholder={isPF ? '000.000.000-00' : '00.000.000/0000-00'}
+                />
+              )}
+            />
+            {!isPF && (
+              <button
+                type="button"
+                onClick={fillFromCnpj}
+                disabled={cnpjLoading}
+                title="Buscar dados na Receita (preenche razão social e endereço)"
+                className="flex shrink-0 items-center justify-center rounded-md border border-border px-2.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50"
+              >
+                {cnpjLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+              </button>
             )}
-          />
+          </div>
         </Field>
       </div>
 
-      <Field label={isPF ? 'Nome completo' : 'Razão social'} required error={errors.name?.message}>
+      <Field label={isPF ? 'Nome completo' : 'Nome fantasia'} required error={errors.name?.message}>
         <Input {...register('name')} error={!!errors.name} placeholder="Nome do cliente" />
       </Field>
 
@@ -138,9 +220,41 @@ export function CustomerForm({
         </Field>
       </div>
 
-      <Field label="Endereço" error={errors.address?.message}>
-        <Input {...register('address')} placeholder="Rua, número, bairro" />
-      </Field>
+      {/* ─── Endereço fiscal ─── */}
+      <div className="grid grid-cols-[140px,1fr] gap-4">
+        <Field label={cepLoading ? 'CEP (buscando…)' : 'CEP'} error={errors.zipCode?.message}>
+          <Controller
+            name="zipCode"
+            control={control}
+            render={({ field }) => (
+              <MaskedInput
+                mask="cep"
+                value={field.value ?? ''}
+                onChange={(e) => {
+                  field.onChange(e.target.value);
+                  fillFromCep(e.target.value);
+                }}
+                placeholder="00000-000"
+              />
+            )}
+          />
+        </Field>
+        <Field label="Endereço" error={errors.address?.message}>
+          <Input {...register('address')} placeholder="Rua, avenida..." />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-[100px,1fr,1fr] gap-4">
+        <Field label="Número" error={errors.number?.message}>
+          <Input {...register('number')} placeholder="Nº" />
+        </Field>
+        <Field label="Complemento" error={errors.complement?.message}>
+          <Input {...register('complement')} placeholder="Sala, bloco..." />
+        </Field>
+        <Field label="Bairro" error={errors.neighborhood?.message}>
+          <Input {...register('neighborhood')} placeholder="Bairro" />
+        </Field>
+      </div>
 
       <div className="grid grid-cols-[1fr,120px] gap-4">
         <Field label="Cidade" error={errors.city?.message}>
