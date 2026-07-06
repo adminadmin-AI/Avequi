@@ -14,6 +14,7 @@ import { CUSTOMER_TYPE_LABELS, enumOptions } from '@/lib/enums';
 import { unmask } from '@/lib/format';
 import { isValidCPF, isValidCNPJ } from '@/lib/validators';
 import { lookupCep, lookupCnpj } from '@/lib/address-lookup';
+import { useList } from '@/hooks/use-resource';
 
 const UF = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR',
@@ -43,6 +44,14 @@ const schema = z
     isSimplesNacional: z.boolean().optional(),
     fiscalEmail: z.string().email('E-mail inválido').optional().or(z.literal('')),
     contactName: z.string().optional(),
+    // Crédito e cobrança (#475)
+    creditLimit: z.string().optional(),
+    billingBlocked: z.boolean().optional(),
+    billingBlockReason: z.string().optional(),
+    defaultSellerId: z.string().optional(),
+    defaultPaymentTerms: z.string().optional(),
+    defaultCarrierId: z.string().optional(),
+    internalNotes: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const doc = unmask(data.document ?? '');
@@ -95,6 +104,11 @@ export function CustomerForm({
 
   const type = watch('type');
   const isPF = type === 'INDIVIDUAL';
+  const billingBlocked = watch('billingBlocked');
+
+  // #475: padrões comerciais — vendedor e transportadora
+  const { data: sellers } = useList<{ id: string; name: string }>('/users');
+  const { data: carriers } = useList<{ id: string; name: string }>('/carriers');
 
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
@@ -311,6 +325,60 @@ export function CustomerForm({
             <Input {...register('contactName')} placeholder="Quem responde por este cliente" />
           </Field>
         </div>
+      </div>
+
+      {/* ─── Crédito e cobrança (#475) ─── */}
+      <div className="border-t border-border pt-4 space-y-4">
+        <p className="text-sm font-medium text-content-secondary">Crédito e cobrança</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Limite de crédito (R$)" error={errors.creditLimit?.message}>
+            <Input
+              {...register('creditLimit')}
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Vazio = sem limite"
+            />
+          </Field>
+          <Field label="Condição de pagamento padrão" error={errors.defaultPaymentTerms?.message}>
+            <Input {...register('defaultPaymentTerms')} placeholder="Ex.: 30/60/90, à vista" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Vendedor padrão">
+            <Select {...register('defaultSellerId')}>
+              <option value="">—</option>
+              {(sellers ?? []).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Transportadora padrão">
+            <Select {...register('defaultCarrierId')}>
+              <option value="">—</option>
+              {(carriers ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" {...register('billingBlocked')} className="accent-red-600" />
+          <span className="font-medium text-red-600 dark:text-red-400">Bloquear faturamento</span>
+          <span className="text-content-muted">— impede a confirmação de vendas (DIRECTOR pode sobrepor)</span>
+        </label>
+        {billingBlocked && (
+          <Field label="Motivo do bloqueio" error={errors.billingBlockReason?.message}>
+            <Input {...register('billingBlockReason')} placeholder="Ex.: inadimplência, análise de crédito" />
+          </Field>
+        )}
+        <Field label="Observações internas" error={errors.internalNotes?.message}>
+          <Input {...register('internalNotes')} placeholder="Nunca vão para documentos fiscais" />
+        </Field>
       </div>
     </form>
   );

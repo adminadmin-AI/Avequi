@@ -43,6 +43,12 @@ export class CustomerController {
     return this.customerService.findAll(user.companyId, { search, type, isActive });
   }
 
+  @Get(':id/credit')
+  @ApiOperation({ summary: 'Situação de crédito: limite, em aberto e disponível (#475)' })
+  creditStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.customerService.creditStatus(id, user.companyId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar cliente por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {

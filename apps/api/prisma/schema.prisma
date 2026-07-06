@@ -293,6 +293,7 @@ model User {
   updatedAt     DateTime @updatedAt
 
   @@map("gdr_users")
+  defaultForCustomersSeller Customer[] @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
 }
 
 enum UserRole {
@@ -512,6 +513,17 @@ model Customer {
   indIeDest        IcmsIndicator? @map("ind_ie_dest")
   isRuralProducer  Boolean    @default(false) @map("is_rural_producer") // IE de produtor no campo ie
   isSimplesNacional Boolean   @default(false) @map("is_simples_nacional")
+  // Crédito e cobrança (#475) — casa com Receivable (em aberto é query, não campo)
+  creditLimit         Decimal? @map("credit_limit") @db.Decimal(14, 2)
+  billingBlocked      Boolean  @default(false) @map("billing_blocked")
+  billingBlockReason  String?  @map("billing_block_reason")
+  // Padrões comerciais (#475) — pré-preenchem a OV
+  defaultSellerId     String?  @map("default_seller_id")
+  defaultSeller       User?    @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
+  defaultPaymentTerms String?  @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
+  defaultCarrierId    String?  @map("default_carrier_id")
+  defaultCarrier      Carrier? @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
+  internalNotes       String?  @map("internal_notes") // nunca vai para documentos fiscais
   isActive     Boolean      @default(true)
   addresses    CustomerAddress[]
   salesOrders  SalesOrder[]
@@ -570,6 +582,7 @@ model Carrier {
 
   @@unique([companyId, document])
   @@map("gdr_carriers")
+  defaultForCustomersCarrier Customer[] @relation("CustomerDefaultCarrier") // padrão comercial do cliente (#475)
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
