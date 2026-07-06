@@ -33,6 +33,11 @@ export interface IbsCbsTax {
   baseCalculo: number;
   aliquota: number;
   valor: number;
+  // gRed — redução de alíquota (#446, NT 2025.002 UB26/UB45/UB64):
+  // presentes quando a TributaryClassification tem percRed > 0 (CSTs 2xx);
+  // valor passa a ser base × pAliqEfet
+  pRedAliq?: number;
+  pAliqEfet?: number;
 }
 
 export interface TaxResult {
@@ -70,6 +75,26 @@ export class TaxCalculationService {
   private readonly logger = new Logger(TaxCalculationService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Cache de percentuais de redução por cClassTrib — tabela oficial é estática (#446) */
+  private readonly reducaoCache = new Map<string, { ibs: number; cbs: number }>();
+
+  /** Percentuais de redução de alíquota (gRed) da classificação tributária (#446) */
+  private async getReducao(cClassTrib?: string | null): Promise<{ ibs: number; cbs: number }> {
+    if (!cClassTrib) return { ibs: 0, cbs: 0 };
+    const cached = this.reducaoCache.get(cClassTrib);
+    if (cached) return cached;
+    const tc = await this.prisma.tributaryClassification.findUnique({
+      where: { code: cClassTrib },
+      select: { percRedIbs: true, percRedCbs: true },
+    });
+    const red = {
+      ibs: Number(tc?.percRedIbs ?? 0),
+      cbs: Number(tc?.percRedCbs ?? 0),
+    };
+    this.reducaoCache.set(cClassTrib, red);
+    return red;
+  }
 
   async calculateTaxes(input: TaxInput): Promise<TaxResult> {
     const r = await this.findBestRule(input);
@@ -145,23 +170,37 @@ export class TaxCalculationService {
       const cbsAliquota = Number(r.cbsAliquota);
       const ibsUfAliquota = Number(r.ibsUfAliquota ?? 0);
       const ibsMunAliquota = Number(r.ibsMunAliquota ?? 0);
+
+      // #446: gRed — CSTs 2xx exigem percentual de redução + alíquota efetiva
+      // (rej. 1033 sem eles). Os percentuais vêm da tabela oficial cClassTrib.
+      const red = await this.getReducao(r.cClassTrib);
+      const gRed = (aliquota: number, pRed: number): Partial<IbsCbsTax> =>
+        pRed > 0
+          ? { pRedAliq: pRed, pAliqEfet: round4(aliquota * (1 - pRed / 100)) }
+          : {};
+      const efetiva = (aliquota: number, pRed: number) =>
+        pRed > 0 ? round4(aliquota * (1 - pRed / 100)) : aliquota;
+
       cbs = {
         cst: r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: cbsAliquota,
-        valor: round2(ibsCbsBase * cbsAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(cbsAliquota, red.cbs)) / 100),
+        ...gRed(cbsAliquota, red.cbs),
       };
       ibsUf = {
         cst: r.ibsUfCst ?? r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: ibsUfAliquota,
-        valor: round2(ibsCbsBase * ibsUfAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(ibsUfAliquota, red.ibs)) / 100),
+        ...gRed(ibsUfAliquota, red.ibs),
       };
       ibsMun = {
         cst: r.ibsMunCst ?? r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: ibsMunAliquota,
-        valor: round2(ibsCbsBase * ibsMunAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(ibsMunAliquota, red.ibs)) / 100),
+        ...gRed(ibsMunAliquota, red.ibs),
       };
     }
 
@@ -243,4 +282,9 @@ export class TaxCalculationService {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** Alíquotas efetivas do gRed usam 4 casas (layout NT 2025.002: pAliqEfet 3v2-4) */
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
 }
