@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -13,9 +14,12 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -150,6 +154,22 @@ export class WhatsappController {
       take ? Math.min(parseInt(take, 10) || 50, 200) : 50,
       before,
     );
+  }
+
+  @Post('leads/:leadId/media')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Enviar mídia (foto/PDF/áudio) na conversa do lead' })
+  sendMedia(
+    @Param('leadId') leadId: string,
+    @UploadedFile() file: any,
+    @Body('caption') caption: string | undefined,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) throw new BadRequestException('Arquivo obrigatório');
+    return this.whatsapp.sendUploadedMedia(user.companyId, leadId, file, caption, user.id);
   }
 
   @Get('media/:messageId')

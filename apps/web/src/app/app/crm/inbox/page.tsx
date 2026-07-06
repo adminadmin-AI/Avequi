@@ -9,6 +9,7 @@ import {
   Clock,
   Info,
   Loader2,
+  Paperclip,
   MessageCircle,
   Plus,
   Search,
@@ -93,6 +94,19 @@ export default function InboxPage() {
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no envio'),
+  });
+
+  const sendMedia = useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return apiClient.post(`/crm/whatsapp/leads/${selectedLeadId}/media`, form);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-messages', selectedLeadId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao enviar mídia'),
   });
 
   function handleSend() {
@@ -288,6 +302,27 @@ export default function InboxPage() {
             <footer className="border-t p-3">
               {windowLeft ? (
                 <div className="flex items-end gap-2">
+                  <label
+                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
+                    title="Anexar foto/PDF"
+                  >
+                    {sendMedia.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Paperclip className="h-4 w-4" />
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,application/pdf,audio/*"
+                      disabled={sendMedia.isPending}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) sendMedia.mutate(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
                   <textarea
                     className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
                     placeholder="Escreva livremente... (Enter envia, Shift+Enter quebra linha)"

@@ -43,6 +43,7 @@ import {
   Zap,
   MessageCircle,
   KanbanSquare,
+  Settings2,
   Timer,
   type LucideIcon,
 } from 'lucide-react';
@@ -106,6 +107,7 @@ export const NAV: NavSection[] = [
       { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle },
       { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare },
       { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
+      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
