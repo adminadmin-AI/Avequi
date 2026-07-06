@@ -210,6 +210,13 @@ export class FiscalService {
               ibsUfValor: taxResult.ibsUf?.valor ?? 0,
               ibsMunAliquota: taxResult.ibsMun?.aliquota ?? 0,
               ibsMunValor: taxResult.ibsMun?.valor ?? 0,
+              // gRed (#446) — presentes quando a cClassTrib tem redução (CSTs 2xx)
+              cbsPRedAliq: taxResult.cbs.pRedAliq,
+              cbsAliqEfet: taxResult.cbs.pAliqEfet,
+              ibsUfPRedAliq: taxResult.ibsUf?.pRedAliq,
+              ibsUfAliqEfet: taxResult.ibsUf?.pAliqEfet,
+              ibsMunPRedAliq: taxResult.ibsMun?.pRedAliq,
+              ibsMunAliqEfet: taxResult.ibsMun?.pAliqEfet,
             },
           }),
         },
