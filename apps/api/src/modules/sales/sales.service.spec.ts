@@ -35,6 +35,9 @@ const mockPrisma = {
     findFirst: jest.fn(),
     update: jest.fn(),
   },
+  serialNumber: {
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
   $transaction: jest.fn(),
 };
 
@@ -193,14 +196,14 @@ describe('SalesService', () => {
       await expect(service.markReadyToInvoice('so-1')).rejects.toThrow(BadRequestException);
     });
 
-    it('deve mudar status para READY_TO_INVOICE com pickedAt', async () => {
+    it('picking concluído leva a AWAITING_CONFERENCE com pickedAt (#491)', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...baseOrder,
         status: SalesOrderStatus.AWAITING_PICKING,
       });
       const readyOrder = {
         ...baseOrder,
-        status: SalesOrderStatus.READY_TO_INVOICE,
+        status: SalesOrderStatus.AWAITING_CONFERENCE,
         pickedAt: new Date(),
         items: [],
         customer: null,
@@ -210,11 +213,11 @@ describe('SalesService', () => {
 
       const result = await service.markReadyToInvoice('so-1');
 
-      expect(result.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
+      expect(result.status).toBe(SalesOrderStatus.AWAITING_CONFERENCE);
       expect(mockPrisma.salesOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: SalesOrderStatus.READY_TO_INVOICE,
+            status: SalesOrderStatus.AWAITING_CONFERENCE,
           }),
         }),
       );

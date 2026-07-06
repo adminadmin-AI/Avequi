@@ -13,6 +13,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SalesService } from './sales.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { ConferOrderDto } from './dto/confer-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
 // DIRECTOR opera venda no dia a dia; STORE vende no balcão (decisões Rafael 04/07/2026)
@@ -65,6 +66,13 @@ export class SalesController {
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.confirmOrder(id, user.companyId, user?.id);
+  }
+
+  @Post(':id/conference')
+  @Roles(...SALES_WRITE_ROLES)
+  @ApiOperation({ summary: 'Conferir a carga separada (AWAITING_CONFERENCE → READY_TO_INVOICE) (#491)' })
+  confer(@Param('id') id: string, @Body() dto: ConferOrderDto, @CurrentUser() user: any) {
+    return this.salesService.conferOrder(id, user.companyId, dto, user?.id);
   }
 
   @Patch(':id/invoice')
