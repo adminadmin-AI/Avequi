@@ -133,19 +133,31 @@ describe('TaxCalculationService', () => {
     expect(result.cfop).toBe('5102');
   });
 
-  it('usa fallback quando nenhuma regra existe', async () => {
+  // #498 (auditoria item 1): sem regra NÃO existe mais fallback genérico —
+  // a emissão é bloqueada com mensagem orientada ao usuário
+  it('bloqueia com erro orientado quando nenhuma regra existe', async () => {
     prisma.taxRule.findMany.mockResolvedValue([]);
-    const result = await service.calculateTaxes({
+    await expect(
+      service.calculateTaxes({
+        companyId: 'comp-1',
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        ufOrigem: 'PR',
+        ufDestino: 'SC',
+        ncm: '87163900',
+        itemValue: 1000,
+      }),
+    ).rejects.toThrow(/Nenhuma regra fiscal cadastrada para VENDA_INTERESTADUAL PR→SC \(NCM 87163900\)/);
+  });
+
+  it('findBestRule é público e retorna null sem regra (pré-checagem do faturamento)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([]);
+    const rule = await service.findBestRule({
       companyId: 'comp-1',
       operationType: TaxOperationType.VENDA_INTERNA,
       ufOrigem: 'PR',
       ufDestino: 'PR',
-      itemValue: 1000,
     });
-    expect(result.cfop).toBe('5101');
-    expect(result.icms.cst).toBe('00');
-    expect(result.pis.aliquota).toBe(0.65);
-    expect(result.cofins.aliquota).toBe(3);
+    expect(rule).toBeNull();
   });
 
   // ─── Testes por tipo de operação CFOP (#163) ─────────────────────────────

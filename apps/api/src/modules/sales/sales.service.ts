@@ -8,6 +8,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
+import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
@@ -21,6 +22,7 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly stockService: StockService,
+    private readonly taxCalc: TaxCalculationService,
   ) {}
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
@@ -214,7 +216,7 @@ export class SalesService {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true, pickingOrder: true, customer: true, company: true },
+        include: { items: { include: { product: true } }, pickingOrder: true, customer: true, company: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -231,6 +233,27 @@ export class SalesService {
         throw new BadRequestException(
           'Picking não concluído. Conclua todas as tarefas de picking antes de faturar.',
         );
+      }
+
+      // #498: pré-checagem de cobertura fiscal ANTES de consumir estoque —
+      // sem regra cadastrada o Faturar falha limpo, com ação orientada,
+      // em vez de emitir nota com tributação genérica (ex-FALLBACK_RULE)
+      const ufEmpresa = order.company?.state ?? 'PR';
+      const isInterstate = order.customer?.state && ufEmpresa !== order.customer.state;
+      const operationType = (isInterstate ? 'VENDA_INTERESTADUAL' : 'VENDA_INTERNA') as any;
+      for (const item of order.items as any[]) {
+        const ruleInput = {
+          companyId,
+          operationType,
+          ncm: item.product?.ncm ?? undefined,
+          productType: item.product?.type,
+          ufOrigem: ufEmpresa,
+          ufDestino: order.customer?.state ?? ufEmpresa,
+        };
+        const rule = await this.taxCalc.findBestRule(ruleInput);
+        if (!rule) {
+          throw new BadRequestException(missingTaxRuleMessage(ruleInput as any));
+        }
       }
 
       for (const item of order.items) {

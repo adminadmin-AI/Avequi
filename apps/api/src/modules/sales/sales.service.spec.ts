@@ -5,6 +5,7 @@ import { SalesOrderStatus } from '@prisma/client';
 import { SalesService } from './sales.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
+import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { SALE_CONFIRMED_EVENT } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT } from './events/sale-invoiced.event';
 
@@ -47,6 +48,9 @@ const mockStockService = {
   receiveGoods: jest.fn(),
 };
 
+// #498: pré-checagem de regra fiscal no faturamento — default: regra existe
+const mockTaxCalc = { findBestRule: jest.fn().mockResolvedValue({ id: 'rule-1' }) };
+
 const baseOrder = {
   id: 'so-1',
   companyId: 'co-1',
@@ -67,11 +71,13 @@ describe('SalesService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: StockService, useValue: mockStockService },
+        { provide: TaxCalculationService, useValue: mockTaxCalc },
       ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);
     jest.clearAllMocks();
+    mockTaxCalc.findBestRule.mockResolvedValue({ id: 'rule-1' });
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
   });
 
@@ -258,6 +264,26 @@ describe('SalesService', () => {
 
       const result = await service.invoiceOrder('so-1', 'co-1', 'user-1');
       expect(result.status).toBe(SalesOrderStatus.INVOICED);
+    });
+
+    // #498 (auditoria item 1): sem regra fiscal o Faturar falha ANTES de
+    // consumir estoque, com mensagem orientada — fim do fallback genérico
+    it('bloqueia o faturamento quando não há regra fiscal para a operação', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...baseOrder,
+        status: SalesOrderStatus.READY_TO_INVOICE,
+        pickingOrder: { status: 'DONE' },
+        company: { state: 'PR' },
+        customer: { state: 'SC' },
+        items: [{ id: 'si-1', productId: 'p-1', quantity: 1, unitPrice: 100, product: { ncm: '87163900', type: 'FINISHED_GOOD' } }],
+      });
+      mockTaxCalc.findBestRule.mockResolvedValue(null);
+
+      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(
+        /Nenhuma regra fiscal cadastrada para VENDA_INTERESTADUAL PR→SC/,
+      );
+      // nada de efeito colateral: estoque intacto
+      expect(mockStockService.consumeReserved).not.toHaveBeenCalled();
     });
 
     it('deve baixar reservado, criar StockMovement EXIT, mudar para INVOICED e emitir evento', async () => {
