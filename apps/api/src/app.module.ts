@@ -56,6 +56,7 @@ import { ManifestModule } from './modules/manifest/manifest.module';
 import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { IamModule } from './modules/iam/iam.module';
 
 @Module({
   imports: [
@@ -76,6 +77,18 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
           .default('development'),
         FOCUS_NFE_TOKEN: Joi.string().optional(),
         FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
+        // #344: chave AES-256-GCM do EncryptionService (secret TOTP do MFA em
+        // repouso; o futuro serviço bancário pode reutilizá-la). OPTIONAL de
+        // propósito: "required se MFA estiver em uso" não é expressável no
+        // boot — o fail-fast é em runtime (boot derruba se a chave existir
+        // MALFORMADA; MFA responde 503 se a chave faltar). 64 hex = 32 bytes.
+        ENCRYPTION_KEY: Joi.string()
+          .pattern(/^[0-9a-fA-F]{64}$/)
+          .optional()
+          .messages({
+            'string.pattern.base':
+              'ENCRYPTION_KEY deve ter exatamente 64 caracteres hexadecimais (32 bytes)',
+          }),
         // SoD (#160/#350): trava de segregação de funções nas aprovações.
         // DESLIGADA por padrão — regra vigente permite criar e aprovar.
         SOD_ENFORCE: Joi.boolean().default(false),
@@ -153,6 +166,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     LgpdModule,
     BudgetModule,
     SchedulingModule,
+    IamModule,
   ],
   providers: [
     {

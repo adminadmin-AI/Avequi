@@ -82,6 +82,7 @@ model Company {
   serialNumbers         SerialNumber[]
   binRegistrations      BinRegistration[]
   atpveRecords          AtpveRecord[]
+  renaveOperations      RenaveOperation[]
   equipment             Equipment[]
   maintenanceOrders     MaintenanceOrder[]
   quotations            Quotation[]
@@ -295,12 +296,15 @@ model User {
   securityEvents            SecurityEvent[]
   permissionChangesReceived PermissionChangeLog[]  @relation("PermissionChangeTarget")
   permissionChangesMade     PermissionChangeLog[]  @relation("PermissionChangeAuthor")
-  // CRM de Lojas — F1.1 (#507) / F1.7 (#513)
+  // CRM de Lojas — F1.1 (#507)
   assignedLeads             Lead[]                 @relation("LeadAssignee")
   /// Vendedor disponível p/ receber lead no rodízio (#513) — férias/folga = false
   crmAvailable              Boolean                @default(true) @map("crm_available")
+  // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
+  mfa                       UserMFA?
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
+  defaultForCustomersSeller Customer[]             @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
 
   @@map("gdr_users")
 }
@@ -497,40 +501,51 @@ enum IcmsIndicator {
 }
 
 model Customer {
-  id                String            @id @default(cuid())
-  companyId         String
-  company           Company           @relation(fields: [companyId], references: [id])
-  type              CustomerType      @default(COMPANY)
-  name              String // nome fantasia / apelido comercial
-  razaoSocial       String?           @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
-  document          String?
-  email             String?
-  fiscalEmail       String?           @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
-  phone             String?
-  phone2            String?
-  contactName       String?           @map("contact_name")
-  address           String? // logradouro (rua, av, etc.)
-  number            String?           @db.VarChar(10)
-  complement        String?           @db.VarChar(60)
-  neighborhood      String?           @db.VarChar(60) // bairro
-  city              String?
-  state             String?           @db.VarChar(2)
-  zipCode           String?           @map("zip_code") @db.VarChar(8) // CEP sem máscara
-  ibgeCode          String?           @map("ibge_code") @db.VarChar(7) // código município IBGE
-  ie                String?           @db.VarChar(14) // inscrição estadual
+  id                  String            @id @default(cuid())
+  companyId           String
+  company             Company           @relation(fields: [companyId], references: [id])
+  type                CustomerType      @default(COMPANY)
+  name                String // nome fantasia / apelido comercial
+  razaoSocial         String?           @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
+  document            String?
+  email               String?
+  fiscalEmail         String?           @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
+  phone               String?
+  phone2              String?
+  contactName         String?           @map("contact_name")
+  address             String? // logradouro (rua, av, etc.)
+  number              String?           @db.VarChar(10)
+  complement          String?           @db.VarChar(60)
+  neighborhood        String?           @db.VarChar(60) // bairro
+  city                String?
+  state               String?           @db.VarChar(2)
+  zipCode             String?           @map("zip_code") @db.VarChar(8) // CEP sem máscara
+  ibgeCode            String?           @map("ibge_code") @db.VarChar(7) // código município IBGE
+  ie                  String?           @db.VarChar(14) // inscrição estadual
   // Fiscal (#474) — indIeDest null = inferir por IE/CPF (cadastros antigos)
-  indIeDest         IcmsIndicator?    @map("ind_ie_dest")
-  isRuralProducer   Boolean           @default(false) @map("is_rural_producer") // IE de produtor no campo ie
-  isSimplesNacional Boolean           @default(false) @map("is_simples_nacional")
-  isActive          Boolean           @default(true)
-  leads             Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
-  addresses         CustomerAddress[]
-  salesOrders       SalesOrder[]
-  quotations        Quotation[]
-  receivables       Receivable[]
-  priceTables       PriceTable[]
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  indIeDest           IcmsIndicator?    @map("ind_ie_dest")
+  isRuralProducer     Boolean           @default(false) @map("is_rural_producer") // IE de produtor no campo ie
+  isSimplesNacional   Boolean           @default(false) @map("is_simples_nacional")
+  // Crédito e cobrança (#475) — casa com Receivable (em aberto é query, não campo)
+  creditLimit         Decimal?          @map("credit_limit") @db.Decimal(14, 2)
+  billingBlocked      Boolean           @default(false) @map("billing_blocked")
+  billingBlockReason  String?           @map("billing_block_reason")
+  // Padrões comerciais (#475) — pré-preenchem a OV
+  defaultSellerId     String?           @map("default_seller_id")
+  defaultSeller       User?             @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
+  defaultPaymentTerms String?           @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
+  defaultCarrierId    String?           @map("default_carrier_id")
+  defaultCarrier      Carrier?          @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
+  internalNotes       String?           @map("internal_notes") // nunca vai para documentos fiscais
+  isActive            Boolean           @default(true)
+  leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
+  addresses           CustomerAddress[]
+  salesOrders         SalesOrder[]
+  quotations          Quotation[]
+  receivables         Receivable[]
+  priceTables         PriceTable[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@unique([companyId, document])
   @@map("gdr_customers")
@@ -561,23 +576,24 @@ model CustomerAddress {
 
 /// Transportadora — grupo transp da NF-e (#481). Entidade fiscal própria (≠ Supplier).
 model Carrier {
-  id                String       @id @default(cuid())
-  companyId         String
-  company           Company      @relation(fields: [companyId], references: [id])
-  name              String // nome fantasia
-  razaoSocial       String?      @map("razao_social") // xNome do transportador
-  document          String? // CNPJ (14) ou CPF (11), sem máscara
-  ie                String?      @db.VarChar(14)
-  address           String? // xEnder (logradouro + número, campo único na NF-e)
-  city              String?
-  state             String?      @db.VarChar(2)
-  vehiclePlate      String?      @map("vehicle_plate") @db.VarChar(8)
-  vehiclePlateState String?      @map("vehicle_plate_state") @db.VarChar(2)
-  rntc              String?      @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
-  isActive          Boolean      @default(true)
-  salesOrders       SalesOrder[]
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id                         String       @id @default(cuid())
+  companyId                  String
+  company                    Company      @relation(fields: [companyId], references: [id])
+  name                       String // nome fantasia
+  razaoSocial                String?      @map("razao_social") // xNome do transportador
+  document                   String? // CNPJ (14) ou CPF (11), sem máscara
+  ie                         String?      @db.VarChar(14)
+  address                    String? // xEnder (logradouro + número, campo único na NF-e)
+  city                       String?
+  state                      String?      @db.VarChar(2)
+  vehiclePlate               String?      @map("vehicle_plate") @db.VarChar(8)
+  vehiclePlateState          String?      @map("vehicle_plate_state") @db.VarChar(2)
+  rntc                       String?      @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
+  isActive                   Boolean      @default(true)
+  salesOrders                SalesOrder[]
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  defaultForCustomersCarrier Customer[]   @relation("CustomerDefaultCarrier") // padrão comercial do cliente (#475)
 
   @@unique([companyId, document])
   @@map("gdr_carriers")
@@ -902,32 +918,32 @@ enum SalesOrderStatus {
 }
 
 model SalesOrder {
-  id                String           @id @default(cuid())
+  id                String            @id @default(cuid())
   companyId         String
-  company           Company          @relation(fields: [companyId], references: [id])
+  company           Company           @relation(fields: [companyId], references: [id])
   customerId        String?
-  customer          Customer?        @relation(fields: [customerId], references: [id])
+  customer          Customer?         @relation(fields: [customerId], references: [id])
   warehouseId       String
-  warehouse         Warehouse        @relation(fields: [warehouseId], references: [id])
-  status            SalesOrderStatus @default(DRAFT)
-  paymentMethod     PaymentMethod?   @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
-  deliveryAddressId String?          @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
-  deliveryAddress   CustomerAddress? @relation(fields: [deliveryAddressId], references: [id])
+  warehouse         Warehouse         @relation(fields: [warehouseId], references: [id])
+  status            SalesOrderStatus  @default(DRAFT)
+  paymentMethod     PaymentMethod?    @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
+  deliveryAddressId String?           @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
+  deliveryAddress   CustomerAddress?  @relation(fields: [deliveryAddressId], references: [id])
   // Frete e transporte → grupo transp da NF-e (#481)
-  freightModality   String?          @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
-  freightValue      Decimal?         @map("freight_value") @db.Decimal(14, 2) // vFrete
-  carrierId         String?          @map("carrier_id")
-  carrier           Carrier?         @relation(fields: [carrierId], references: [id])
-  volumesQuantity   Int?             @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
-  volumesSpecies    String?          @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
+  freightModality   String?           @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
+  freightValue      Decimal?          @map("freight_value") @db.Decimal(14, 2) // vFrete
+  carrierId         String?           @map("carrier_id")
+  carrier           Carrier?          @relation(fields: [carrierId], references: [id])
+  volumesQuantity   Int?              @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
+  volumesSpecies    String?           @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
   notes             String?
   createdById       String?
-  createdBy         User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
+  createdBy         User?             @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt       DateTime?
   pickedAt          DateTime?
-  conferredAt       DateTime?        @map("conferred_at") // conferência da carga (#491)
-  conferredById     String?          @map("conferred_by_id")
-  conferredBy       User?            @relation("SOConferredBy", fields: [conferredById], references: [id])
+  conferredAt       DateTime?         @map("conferred_at") // conferência da carga (#491)
+  conferredById     String?           @map("conferred_by_id")
+  conferredBy       User?             @relation("SOConferredBy", fields: [conferredById], references: [id])
   invoicedAt        DateTime?
   returnedAt        DateTime?
   cancelledAt       DateTime?
@@ -940,8 +956,9 @@ model SalesOrder {
   receivable        Receivable?
   commissions       Commission[]
   atpveRecords      AtpveRecord[]
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  renaveOperations  RenaveOperation[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@map("gdr_sales_orders")
 }
@@ -1013,6 +1030,7 @@ model FiscalDocument {
   financialEntry            FinancialEntry?
   items                     FiscalDocumentItem[]
   corrections               FiscalCorrection[]
+  renaveOperations          RenaveOperation[]
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
 
@@ -1762,6 +1780,8 @@ enum AlertType {
   QC_INSPECTION_FAILED
   MAINTENANCE_DUE
   MANIFEST_OVERDUE
+  RENAVE_OP_FAILED // operação RENAVE/ATPV-e falhou — retry manual (#527)
+  BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
 }
 
 enum AlertSeverity {
@@ -1937,11 +1957,12 @@ model SerialNumber {
   qtdEixos          Int?     @map("qtd_eixos")
   tipoOperacao      String?  @default("0") @map("tipo_operacao") @db.VarChar(1) // 0=Outros — GDR não é concessionária (#372)
 
-  createdAt       DateTime          @default(now()) @map("created_at")
-  saleItems       SaleItem[]        @relation("SaleItemSerial")
-  components      SerialComponent[] @relation("SerialChassisComponents")
-  binRegistration BinRegistration?
-  atpveRecords    AtpveRecord[]
+  createdAt        DateTime          @default(now()) @map("created_at")
+  saleItems        SaleItem[]        @relation("SaleItemSerial")
+  components       SerialComponent[] @relation("SerialChassisComponents")
+  binRegistration  BinRegistration?
+  atpveRecords     AtpveRecord[]
+  renaveOperations RenaveOperation[]
 
   @@index([companyId, status])
   @@index([productId, status])
@@ -1994,6 +2015,7 @@ model AtpveRecord {
   salesOrderId   String       @map("sales_order_id")
   salesOrder     SalesOrder   @relation(fields: [salesOrderId], references: [id])
   atpveNumber    String?      @map("atpve_number")
+  atpvePdfUrl    String?      @map("atpve_pdf_url") // URL/caminho do PDF do ATPV-e anexado à OV (#527)
   status         AtpveStatus  @default(PENDING)
   clienteCpf     String       @map("cliente_cpf")
   clienteNome    String       @map("cliente_nome")
@@ -2006,6 +2028,74 @@ model AtpveRecord {
   @@index([companyId, status])
   @@index([serialNumberId])
   @@map("gdr_atpve_records")
+}
+
+// ─── Ledger de operações RENAVE/BIN (append-only) — Épico #527 ────────────────
+// Registra CADA tentativa de operação veicular externa (BIN, RENAVE 0km, ATPV-e).
+// NÃO é estado de entidade: BinRegistration/AtpveRecord continuam sendo a projeção
+// do resultado final. Este ledger guarda tentativa, protocolo e retorno bruto.
+// Estrutura apenas (PR-1): sem service, fila, listener ou wiring.
+enum RenaveOperationType {
+  BIN_REGISTER // pré-cadastro BIN (por chassi)
+  STOCK_IN // entrar estoque zero km na montadora (por chassi)
+  SALE_OUT // sair estoque zero km / intenção de venda (por chassi + venda)
+  ATPVE_PDF // obter PDF do ATPV-e (por chassi + venda)
+  CANCEL_SALE_OUT // cancelar saída de estoque zero km (devolução/cancelamento)
+  RETURN_MANUFACTURER // devolver veículo zero km à montadora (devolução)
+}
+
+enum RenaveOperationStatus {
+  PENDING // criada, aguardando processamento
+  PROCESSING // enviada ao provider, aguardando retorno
+  REGISTERED // BIN registrada (resultado de BIN_REGISTER)
+  STOCK_CONFIRMED // entrada de estoque confirmada (STOCK_IN)
+  SALE_INTENT_CREATED // intenção de venda/saída criada (SALE_OUT)
+  ACTIVE // operação concluída com sucesso (ATPV-e ativo)
+  ERROR // falha — elegível a retry manual
+  CANCELLED // operação anulada (reversão)
+}
+
+model RenaveOperation {
+  id String @id @default(cuid())
+
+  companyId String  @map("company_id")
+  company   Company @relation(fields: [companyId], references: [id])
+
+  serialNumberId String       @map("serial_number_id")
+  serialNumber   SerialNumber @relation(fields: [serialNumberId], references: [id])
+
+  // Opcional: operações só-por-chassi (BIN_REGISTER, STOCK_IN) não têm venda
+  salesOrderId String?     @map("sales_order_id")
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+
+  // Rastreio da NF-e origem (FK opcional + chave textual só p/ auditoria)
+  fiscalDocumentId    String?         @map("fiscal_document_id")
+  fiscalDocument      FiscalDocument? @relation(fields: [fiscalDocumentId], references: [id])
+  fiscalDocumentChave String?         @map("fiscal_document_chave") // chave de acesso NF-e (44 díg.) — só rastreio
+
+  type   RenaveOperationType
+  status RenaveOperationStatus @default(PENDING)
+
+  // Idempotência: coluna única computada pela aplicação (null-safe, type-aware)
+  //   BIN_REGISTER/STOCK_IN            → "TYPE:serialNumberId"
+  //   SALE_OUT/ATPVE_PDF/CANCEL/RETURN → "TYPE:serialNumberId:salesOrderId"
+  dedupeKey String @unique @map("dedupe_key")
+
+  // Correlação e retorno do provider externo
+  requestId   String? @map("request_id") // id de correlação enviado ao provider
+  protocol    String? // protocolo devolvido pelo gov/SERPRO
+  rawResponse Json?   @map("raw_response") // SANITIZADO: sem CPF/CNPJ em claro, sem token/cert/Authorization (LGPD #527)
+  attempt     Int     @default(0) // nº de tentativas já executadas
+  lastError   String? @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@index([serialNumberId, type])
+  @@index([salesOrderId])
+  @@index([fiscalDocumentId])
+  @@map("gdr_renave_operations")
 }
 
 model SerialComponent {
@@ -2903,6 +2993,11 @@ model Role {
   companyId   String? // null = global
   company     Company? @relation(fields: [companyId], references: [id])
   isActive    Boolean  @default(true)
+  // IAM v2 — F4.1 (#344): enforcement de MFA por perfil. true = usuários com
+  // este perfil DEVEM ter MFA habilitado. Enforcement SUAVE por ora: o login
+  // responde mfaSetupRequired=true mas NÃO bloqueia — o enforcement duro
+  // (bloquear login sem MFA após grace period) é decisão pendente do Rafael.
+  requireMfa  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -2921,6 +3016,28 @@ model Role {
   @@unique([companyId, code])
   @@index([companyId])
   @@map("gdr_roles")
+}
+
+// ─── #344 — MFA/2FA TOTP (Bloco D da arquitetura) ────────────────────────────
+
+/// MFA TOTP do usuário (#344). `secret` é o secret TOTP em base32 CRIPTOGRAFADO
+/// com AES-256-GCM (EncryptionService, env ENCRYPTION_KEY) — nunca em claro.
+/// `enabled` só vira true depois que o usuário CONFIRMA o setup com um código
+/// válido (setup → confirm). `backupCodes` guarda os hashes bcrypt dos 10
+/// códigos de recuperação (uso único: o hash é removido do array ao ser usado;
+/// o código em claro é mostrado UMA vez, no confirm/regenerate).
+model UserMFA {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret      String // secret TOTP criptografado (formato v1:<iv>:<tag>:<ct>)
+  enabled     Boolean   @default(false)
+  verifiedAt  DateTime? // quando o usuário confirmou o setup
+  backupCodes String[]  @default([]) // hashes bcrypt, uso único
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_user_mfa")
 }
 
 /// Vínculo perfil ↔ permissão. granted=false = deny explícito (vence grant).
@@ -3233,6 +3350,7 @@ enum SecurityEventType {
   TOKEN_REUSE_DETECTED
   NEW_DEVICE
   SUSPICIOUS_ACTIVITY
+  MFA_BACKUP_CODES_REGENERATED
 }
 
 enum SecurityEventSeverity {
@@ -3463,7 +3581,6 @@ model WhatsappMessage {
   mediaUrl       String?              @map("media_url") // storage próprio (mídia da Meta expira)
   mediaMimeType  String?              @map("media_mime_type")
   /// media id da Meta — o proxy GET /crm/whatsapp/media/:id baixa sob demanda
-  /// (mesmo padrão do export de XML fiscal: busca na origem e cacheia)
   waMediaId      String?              @map("wa_media_id")
   /// wamid da Cloud API — idempotência do webhook (retry da Meta não duplica)
   waMessageId    String?              @unique @map("wa_message_id")

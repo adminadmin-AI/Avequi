@@ -1,4 +1,6 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
+import { MFA_PENDING_SCOPE } from '../auth.service';
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -41,5 +43,11 @@ describe('JwtStrategy', () => {
     expect(result.companyId).toBeUndefined();
     expect(result.role).toBeUndefined();
     expect(result.email).toBeUndefined();
+  });
+
+  it('should REJECT the mfaPendingToken as access token (escopo restrito, #344)', async () => {
+    await expect(
+      strategy.validate({ sub: 'user-1', scope: MFA_PENDING_SCOPE }),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });
