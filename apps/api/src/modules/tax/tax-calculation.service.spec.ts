@@ -160,6 +160,57 @@ describe('TaxCalculationService', () => {
     expect(rule).toBeNull();
   });
 
+  // ─── Vigência temporal (#500) ─────────────────────────────────────────────
+
+  it('filtra regras pela vigência com a data de emissão informada', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const emissao = new Date('2027-06-15T12:00:00-03:00');
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      emissionDate: emissao,
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    expect(args.where.AND).toEqual(
+      expect.arrayContaining([
+        { OR: [{ validFrom: null }, { validFrom: { lte: emissao } }] },
+        { OR: [{ validTo: null }, { validTo: { gte: emissao } }] },
+      ]),
+    );
+  });
+
+  it('sem emissionDate usa agora como data de vigência', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const antes = new Date();
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    const usado = args.where.AND[0].OR[1].validFrom.lte as Date;
+    expect(usado.getTime()).toBeGreaterThanOrEqual(antes.getTime());
+    expect(usado.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('desempata por versão mais recente: orderBy priority desc + validFrom desc nulls last', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    expect(args.orderBy).toEqual([
+      { priority: 'desc' },
+      { validFrom: { sort: 'desc', nulls: 'last' } },
+    ]);
+  });
+
   // ─── Testes por tipo de operação CFOP (#163) ─────────────────────────────
 
   it('devolução de venda usa CFOP 1202', async () => {

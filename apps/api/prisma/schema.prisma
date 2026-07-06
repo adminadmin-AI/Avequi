@@ -187,6 +187,12 @@ model TaxRule {
   ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.1 em 2026 (LC 214/2025 art. 343)
   ibsMunCst        String?          @db.VarChar(3)
   ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0 em 2026 — IBS teste é 100% estadual
+  // Vigência temporal (#500) — versionamento de NTs e da transição da reforma
+  // (2027 CBS definitiva, 2029-32 ICMS→IBS). null = sem limite naquela ponta;
+  // o motor resolve pela data de emissão, então NT nova = linha nova com
+  // validFrom futuro (carga de dados, não deploy).
+  validFrom        DateTime?
+  validTo          DateTime?
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica
@@ -194,7 +200,7 @@ model TaxRule {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino])
+  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino, validFrom])
   @@index([companyId, operationType])
   @@map("gdr_tax_rules")
 }
