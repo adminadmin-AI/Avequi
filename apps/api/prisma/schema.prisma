@@ -293,8 +293,10 @@ model User {
   securityEvents            SecurityEvent[]
   permissionChangesReceived PermissionChangeLog[]  @relation("PermissionChangeTarget")
   permissionChangesMade     PermissionChangeLog[]  @relation("PermissionChangeAuthor")
-  // CRM de Lojas — F1.1 (#507)
+  // CRM de Lojas — F1.1 (#507) / F1.7 (#513)
   assignedLeads             Lead[]                 @relation("LeadAssignee")
+  /// Vendedor disponível p/ receber lead no rodízio (#513) — férias/folga = false
+  crmAvailable              Boolean                @default(true) @map("crm_available")
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
 
@@ -3387,6 +3389,8 @@ model Lead {
   position          Decimal               @default(0) @db.Decimal(30, 15)
   assignedToId      String?               @map("assigned_to_id")
   assignedTo        User?                 @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  /// Última atribuição (rodízio/manual) — base da contagem diária do round-robin (#513)
+  assignedAt        DateTime?             @map("assigned_at")
   /// Preenchido na conversão lead→cliente (F2.2 #515)
   customerId        String?               @map("customer_id")
   customer          Customer?             @relation(fields: [customerId], references: [id])

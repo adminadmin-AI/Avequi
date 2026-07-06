@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './modules/product/product.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { CarrierModule } from './modules/carrier/carrier.module';
+import { CrmModule } from './modules/crm/crm.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { BomModule } from './modules/bom/bom.module';
 import { RoutingModule } from './modules/routing/routing.module';
@@ -114,6 +115,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     ProductModule,
     SupplierModule,
     CarrierModule,
+    CrmModule,
     CustomerModule,
     BomModule,
     RoutingModule,
