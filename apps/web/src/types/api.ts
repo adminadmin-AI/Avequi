@@ -341,6 +341,7 @@ export interface Customer extends BaseEntity {
   fiscalEmail?: string | null;
   phone2?: string | null;
   contactName?: string | null;
+  ie?: string | null;
   indIeDest?: IcmsIndicator | null;
   isRuralProducer?: boolean;
   isSimplesNacional?: boolean;
@@ -352,8 +353,13 @@ export interface Customer extends BaseEntity {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
   city?: string | null;
   state?: string | null;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
   isActive: boolean;
 }
 
