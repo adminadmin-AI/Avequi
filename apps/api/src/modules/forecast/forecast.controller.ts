@@ -7,26 +7,25 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ForecastService } from './forecast.service';
 import { GenerateForecastDto } from './dto/generate-forecast.dto';
 import { AdjustForecastDto } from './dto/adjust-forecast.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('forecast')
 export class ForecastController {
   constructor(private readonly forecastService: ForecastService) {}
 
   // POST /forecast/generate
-  // Body: { companyId, targetPeriod?, windowMonths?, productId? }
+  // Body: { targetPeriod?, windowMonths?, productId? } — companyId vem do JWT
   @Post('generate')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
   generate(
     @Body() dto: GenerateForecastDto,
-    @Request() req: { user: { id: string } },
+    @Request() req: { user: { companyId: string; id: string } },
   ) {
-    return this.forecastService.generateForecasts(dto, req.user.id);
+    return this.forecastService.generateForecasts(dto, req.user.companyId, req.user.id);
   }
 
   // GET /forecast/backtest?companyId=&testMonths=3&windowMonths=3&productId=
@@ -75,6 +74,7 @@ export class ForecastController {
 
   // PATCH /forecast/:id/adjust
   @Patch(':id/adjust')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
   adjust(
     @Param('id') id: string,
     @Body() dto: AdjustForecastDto,

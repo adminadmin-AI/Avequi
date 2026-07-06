@@ -10,11 +10,12 @@ export class DemandService {
 
   // ─── S11.01: Registrar / atualizar previsão de demanda ───────────────────
 
-  async upsert(dto: UpsertDemandDto, userId?: string) {
+  async upsert(dto: UpsertDemandDto, companyId: string, userId?: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     const existing = await this.prisma.demandForecast.findUnique({
       where: {
         companyId_productId_period: {
-          companyId: dto.companyId,
+          companyId,
           productId: dto.productId,
           period: dto.period,
         },
@@ -24,13 +25,13 @@ export class DemandService {
     const forecast = await this.prisma.demandForecast.upsert({
       where: {
         companyId_productId_period: {
-          companyId: dto.companyId,
+          companyId,
           productId: dto.productId,
           period: dto.period,
         },
       },
       create: {
-        companyId: dto.companyId,
+        companyId,
         productId: dto.productId,
         period: dto.period,
         quantity: dto.quantity,
@@ -47,7 +48,7 @@ export class DemandService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'DemandForecast',
         action: existing ? 'UPDATE' : 'CREATE',
         payload: {
@@ -61,7 +62,7 @@ export class DemandService {
     });
 
     this.logger.log(
-      `DemandForecast ${existing ? 'atualizado' : 'criado'}: ${dto.companyId}/${dto.productId}/${dto.period} → ${dto.quantity}`,
+      `DemandForecast ${existing ? 'atualizado' : 'criado'}: ${companyId}/${dto.productId}/${dto.period} → ${dto.quantity}`,
     );
 
     return forecast;
@@ -109,22 +110,20 @@ export class DemandService {
   // ─── S11.04: Consolidação — soma de todas as filiais por produto/período ──
 
   async getConsolidated(
-    filters: { period?: string; productId?: string; parentCompanyId?: string } = {},
+    companyId: string,
+    filters: { period?: string; productId?: string } = {},
   ): Promise<Array<{ productId: string; productName: string; productSku: string; period: string; totalQty: number; entries: number }>> {
+    // O grupo empresarial é derivado da empresa do usuário autenticado —
+    // nunca de um parentCompanyId arbitrário vindo da query string (IDOR).
+    const groupRootId = await this.resolveGroupRootId(companyId);
+
     const rows = await this.prisma.demandForecast.findMany({
       where: {
         ...(filters.period ? { period: filters.period } : {}),
         ...(filters.productId ? { productId: filters.productId } : {}),
-        ...(filters.parentCompanyId
-          ? {
-              company: {
-                OR: [
-                  { id: filters.parentCompanyId },
-                  { parentId: filters.parentCompanyId },
-                ],
-              },
-            }
-          : {}),
+        company: {
+          OR: [{ id: groupRootId }, { parentId: groupRootId }],
+        },
       },
       include: { product: { select: { id: true, name: true, sku: true } } },
       orderBy: [{ period: 'asc' }],
@@ -173,9 +172,14 @@ export class DemandService {
 
   async getSuggestions(
     companyId: string,
-    parentCompanyId?: string,
+    scope: 'company' | 'group' = 'company',
   ): Promise<Array<{ productId: string; productName: string; productSku: string; totalSold: number; horizonDays: number }>> {
-    const lookupCompanyId = parentCompanyId ?? companyId;
+    // Escopo "group" agrega as filiais do grupo do PRÓPRIO usuário —
+    // o grupo é derivado do JWT, nunca de um parentCompanyId arbitrário (IDOR).
+    const groupRootId =
+      scope === 'group' ? await this.resolveGroupRootId(companyId) : null;
+
+    const lookupCompanyId = groupRootId ?? companyId;
     const param = await this.prisma.systemParameter.findUnique({
       where: { companyId_key: { companyId: lookupCompanyId, key: 'mrp_horizon_days' } },
     });
@@ -183,8 +187,8 @@ export class DemandService {
     const since = new Date();
     since.setDate(since.getDate() - horizonDays);
 
-    const companyFilter: any = parentCompanyId
-      ? { OR: [{ companyId: parentCompanyId }, { company: { parentId: parentCompanyId } }] }
+    const companyFilter: any = groupRootId
+      ? { OR: [{ companyId: groupRootId }, { company: { parentId: groupRootId } }] }
       : { companyId };
 
     const items = await this.prisma.saleItem.findMany({
@@ -203,6 +207,17 @@ export class DemandService {
     return Array.from(map.values())
       .sort((a, b) => b.totalSold - a.totalSold)
       .map((r) => ({ ...r, horizonDays }));
+  }
+
+  // ─── Resolve a raiz do grupo empresarial a partir da empresa do usuário ───
+  // Se a empresa tem parentId (é filial), a raiz é a matriz; senão, ela mesma.
+
+  private async resolveGroupRootId(companyId: string): Promise<string> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, parentId: true },
+    });
+    return company?.parentId ?? company?.id ?? companyId;
   }
 
   // ─── S11.06b: Configurar horizonte MRP ───────────────────────────────────

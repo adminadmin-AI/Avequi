@@ -85,25 +85,38 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
     );
   }
 
-  // ── 2. Perfis system: upsert por code (passo 1 sem parent) ─────────────────
+  // ── 2. Perfis system: cria/atualiza por (code, companyId=null) ─────────────
+  // NÃO usa `upsert({ where: { code } })`: com @@unique([companyId, code]) (#462)
+  // o `code` deixou de ser unique isolado e o Postgres não permite upsert por
+  // chave composta com companyId NULL. Busca o perfil GLOBAL (companyId=null) e
+  // cria ou atualiza por id — idempotente do mesmo jeito.
   for (const role of SYSTEM_ROLES) {
-    await prisma.role.upsert({
-      where: { code: role.code },
-      update: {
-        name: role.name,
-        description: role.description,
-        isSystem: true,
-        isActive: true,
-        companyId: null,
-      },
-      create: {
-        code: role.code,
-        name: role.name,
-        description: role.description,
-        isSystem: true,
-        isActive: true,
-      },
+    const existingRole = await prisma.role.findFirst({
+      where: { code: role.code, companyId: null },
+      select: { id: true },
     });
+    if (existingRole) {
+      await prisma.role.update({
+        where: { id: existingRole.id },
+        data: {
+          name: role.name,
+          description: role.description,
+          isSystem: true,
+          isActive: true,
+          companyId: null,
+        },
+      });
+    } else {
+      await prisma.role.create({
+        data: {
+          code: role.code,
+          name: role.name,
+          description: role.description,
+          isSystem: true,
+          isActive: true,
+        },
+      });
+    }
     summary.rolesUpserted++;
   }
 

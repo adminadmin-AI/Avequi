@@ -67,6 +67,7 @@ export class ForecastService {
 
   async generateForecasts(
     dto: GenerateForecastDto,
+    companyId: string,
     userId?: string,
   ): Promise<{
     targetPeriod: string;
@@ -86,7 +87,7 @@ export class ForecastService {
     // produtos a processar
     const products = await this.prisma.product.findMany({
       where: {
-        companyId: dto.companyId,
+        companyId,
         isActive: true,
         ...(dto.productId ? { id: dto.productId } : {}),
       },
@@ -102,7 +103,7 @@ export class ForecastService {
     const allItems = await this.prisma.saleItem.findMany({
       where: {
         salesOrder: {
-          companyId: dto.companyId,
+          companyId,
           status: 'INVOICED',
           invoicedAt: { gte: since },
         },
@@ -166,13 +167,13 @@ export class ForecastService {
       const df = await this.prisma.demandForecast.upsert({
         where: {
           companyId_productId_period: {
-            companyId: dto.companyId,
+            companyId,
             productId: product.id,
             period: targetPeriod,
           },
         },
         create: {
-          companyId: dto.companyId,
+          companyId,
           productId: product.id,
           period: targetPeriod,
           quantity: result.forecast,

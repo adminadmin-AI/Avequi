@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ManifestService } from './manifest.service';
+
+const MANIFEST_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'FINANCIAL'];
 import { ManifestActionDto } from './dto/manifest-action.dto';
 
 @ApiTags('Manifestação do Destinatário')
@@ -50,6 +53,7 @@ export class ManifestController {
 
   /** Sincronizar NF-e recebidas da SEFAZ via Focus NFe */
   @Post('sync')
+  @Roles(...MANIFEST_WRITE_ROLES)
   @HttpCode(200)
   @ApiOperation({ summary: 'Sincronizar NF-e destinadas via Focus NFe' })
   sync(@CurrentUser() user: any) {
@@ -58,6 +62,7 @@ export class ManifestController {
 
   /** Registrar ciência da operação */
   @Post(':chaveNfe/ciencia')
+  @Roles(...MANIFEST_WRITE_ROLES)
   @HttpCode(200)
   @ApiOperation({ summary: 'Registrar ciência da operação (evento 210210)' })
   ciencia(@Param('chaveNfe') chaveNfe: string, @CurrentUser() user: any) {
@@ -66,6 +71,7 @@ export class ManifestController {
 
   /** Confirmar operação */
   @Post(':chaveNfe/confirm')
+  @Roles(...MANIFEST_WRITE_ROLES)
   @HttpCode(200)
   @ApiOperation({ summary: 'Confirmar operação (evento 210200)' })
   confirm(@Param('chaveNfe') chaveNfe: string, @CurrentUser() user: any) {
@@ -74,6 +80,7 @@ export class ManifestController {
 
   /** Operação não realizada */
   @Post(':chaveNfe/reject')
+  @Roles(...MANIFEST_WRITE_ROLES)
   @HttpCode(200)
   @ApiOperation({ summary: 'Operação não realizada (evento 210220)' })
   reject(
@@ -89,6 +96,7 @@ export class ManifestController {
 
   /** Desconhecimento da operação */
   @Post(':chaveNfe/unknown')
+  @Roles(...MANIFEST_WRITE_ROLES)
   @HttpCode(200)
   @ApiOperation({ summary: 'Desconhecimento da operação (evento 210240)' })
   unknown(

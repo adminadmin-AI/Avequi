@@ -54,6 +54,10 @@ export class InboundNfeService {
       ? InboundNfeStatus.MATCHED
       : InboundNfeStatus.PENDING;
 
+    // #478: completa o cadastro fiscal do fornecedor com o bloco <emit> do XML.
+    // Não-destrutivo: preenche apenas campos ainda vazios.
+    await this.enrichSupplierFromEmit(companyId, parsed);
+
     const nfe = await this.prisma.inboundNfe.create({
       data: {
         companyId,
@@ -76,6 +80,55 @@ export class InboundNfeService {
     });
 
     return { ...nfe, parsed };
+  }
+
+  /**
+   * #478 — enriquece o Supplier existente com dados do bloco <emit> da NF-e
+   * de compra. Só preenche campos NULL (nunca sobrescreve cadastro manual);
+   * taxRegime inferido do CRT (1/2 = Simples). Falha aqui não bloqueia o upload.
+   */
+  private async enrichSupplierFromEmit(
+    companyId: string,
+    parsed: { supplierCnpj: string; emitter: import('./nfe-xml.parser').ParsedNfeEmitter },
+  ): Promise<void> {
+    if (!parsed.supplierCnpj) return;
+    try {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { companyId_cnpj: { companyId, cnpj: parsed.supplierCnpj } },
+      });
+      if (!supplier) return;
+
+      const e = parsed.emitter;
+      const fillIfEmpty = <T>(current: T | null, incoming: string | undefined) =>
+        current == null && incoming ? incoming : undefined;
+
+      const data = {
+        razaoSocial: fillIfEmpty(supplier.razaoSocial, e.razaoSocial),
+        ie: fillIfEmpty(supplier.ie, e.ie.replace(/\D/g, '') || undefined),
+        taxRegime: supplier.taxRegime == null && e.crt
+          ? (['1', '2'].includes(e.crt) ? 'SIMPLES_NACIONAL' as const : undefined)
+          : undefined,
+        address: fillIfEmpty(supplier.address, e.address),
+        number: fillIfEmpty(supplier.number, e.number.slice(0, 10)),
+        complement: fillIfEmpty(supplier.complement, e.complement.slice(0, 60)),
+        neighborhood: fillIfEmpty(supplier.neighborhood, e.neighborhood.slice(0, 60)),
+        city: fillIfEmpty(supplier.city, e.city),
+        state: fillIfEmpty(supplier.state, e.state.slice(0, 2)),
+        zipCode: fillIfEmpty(supplier.zipCode, e.zipCode.replace(/\D/g, '').slice(0, 8)),
+        ibgeCode: fillIfEmpty(supplier.ibgeCode, e.ibgeCode.replace(/\D/g, '').slice(0, 7)),
+        phone: fillIfEmpty(supplier.phone, e.phone),
+      };
+
+      const changes = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+      if (Object.keys(changes).length === 0) return;
+
+      await this.prisma.supplier.update({ where: { id: supplier.id }, data: changes });
+      this.logger.log(
+        `Fornecedor ${supplier.id} enriquecido pelo <emit> da NF-e: ${Object.keys(changes).join(', ')} (#478)`,
+      );
+    } catch (err) {
+      this.logger.warn(`Falha ao enriquecer fornecedor pelo XML (não bloqueia o upload): ${err.message}`);
+    }
   }
 
   // ─── Listagem ──────────────────────────────────────────────────────────────

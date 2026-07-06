@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FiscalService } from './fiscal.service';
-import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT } from './emissor.port';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT } from './events/fiscal-cancelled.event';
@@ -69,7 +69,7 @@ const baseOrder = {
   id: 'so-1',
   companyId: 'co-1',
   customer: null,
-  company: { cnpj: '12.345.678/0001-90', name: 'GDR Indústria Ltda', razaoSocial: 'GDR Ltda', ie: 'ISENTO', crt: 3, street: 'Rua A', number: '1', complement: null, neighborhood: 'Centro', city: 'Cascavel', state: 'PR', zipCode: '85807-030', ibgeCode: '4104808', phone: '4532221234' },
+  company: { cnpj: '11.222.333/0001-81', name: 'GDR Indústria Ltda', razaoSocial: 'GDR Ltda', ie: 'ISENTO', crt: 3, street: 'Rua A', number: '1', complement: null, neighborhood: 'Centro', city: 'Cascavel', state: 'PR', zipCode: '85807-030', ibgeCode: '4104808', phone: '4532221234' },
   items: [
     {
       product: { sku: 'COD001', name: 'Produto A', ncm: '61099000', unit: 'UN', type: 'FINISHED_GOOD' },
@@ -97,7 +97,7 @@ describe('FiscalService', () => {
       providers: [
         FiscalService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: FiscalClientService, useValue: mockClient },
+        { provide: EMISSOR_PORT, useValue: mockClient },
         { provide: TaxCalculationService, useValue: mockTaxCalc },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
@@ -108,6 +108,35 @@ describe('FiscalService', () => {
     mockPrisma.auditLog.create.mockResolvedValue({});
     mockPrisma.fiscalDocumentItem.create.mockResolvedValue({ id: 'fdi-1' });
     mockPrisma.fiscalDocumentItemTax.create.mockResolvedValue({ id: 'fdit-1' });
+  });
+
+  describe('formas de pagamento na NF-e (#479)', () => {
+    it('mapeia PaymentMethod da OV para o código tPag (PIX → 17)', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({ ...baseOrder, paymentMethod: 'PIX' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFCe.mockResolvedValue({ status: 'autorizado', ref: 'GDR-SO-so-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+
+      await service.emitForSale('so-1');
+
+      const payload = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payload.formas_pagamento[0].forma_pagamento).toBe('17');
+      expect(payload.formas_pagamento[0].valor_pagamento).toBe(300);
+    });
+
+    it('mapeia BOLETO → 15', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({ ...baseOrder, paymentMethod: 'BOLETO' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFCe.mockResolvedValue({ status: 'autorizado', ref: 'GDR-SO-so-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+
+      await service.emitForSale('so-1');
+
+      const payload = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payload.formas_pagamento[0].forma_pagamento).toBe('15');
+    });
   });
 
   // ─── S08.06: fluxo autorizado ────────────────────────────────────────────
@@ -134,6 +163,9 @@ describe('FiscalService', () => {
         expect.objectContaining({ data: expect.objectContaining({ salesOrderId: 'so-1', type: 'NFCE' }) }),
       );
       expect(mockClient.emitNFCe).toHaveBeenCalledWith('GDR-SO-so-1', expect.any(Object));
+      // #479: sem forma de pagamento na OV → detPag 99 (outros)
+      const payloadSemForma = mockClient.emitNFCe.mock.calls[0][1] as any;
+      expect(payloadSemForma.formas_pagamento[0].forma_pagamento).toBe('99');
       expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -536,14 +568,14 @@ describe('FiscalService', () => {
 
   describe('voidRange', () => {
     it('deve inutilizar faixa com sucesso', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12.345.678/0001-90' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '11.222.333/0001-81' });
       mockClient.voidRange.mockResolvedValue({ status: 'autorizado', ref: 'PROT-VOID' });
       mockPrisma.fiscalVoidRange.create.mockResolvedValue({ id: 'vr-1' });
 
       const result = await service.voidRange('co-1', '1', 101, 104, 'Gap de numeração no sistema fiscal');
 
       expect(mockClient.voidRange).toHaveBeenCalledWith(
-        expect.objectContaining({ cnpj: '12345678000190', serie: '1', numero_inicial: 101, numero_final: 104 }),
+        expect.objectContaining({ cnpj: '11222333000181', serie: '1', numero_inicial: 101, numero_final: 104 }),
       );
       expect(result.protocol).toBe('PROT-VOID');
     });
@@ -555,7 +587,7 @@ describe('FiscalService', () => {
     });
 
     it('deve lançar erro quando SEFAZ rejeita inutilização', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '12345678000190' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'co-1', cnpj: '11222333000181' });
       mockClient.voidRange.mockResolvedValue({ status: 'erro', motivo: 'Número já utilizado' });
 
       await expect(

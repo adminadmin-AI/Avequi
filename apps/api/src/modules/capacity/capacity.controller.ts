@@ -8,15 +8,13 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CapacityService } from './capacity.service';
 import { CreateWorkCenterDto } from './dto/create-work-center.dto';
 import { UpdateWorkCenterDto } from './dto/update-work-center.dto';
 import { QueryCapacityDto } from './dto/query-capacity.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('capacity')
 export class CapacityController {
   constructor(private readonly capacityService: CapacityService) {}
@@ -35,6 +33,7 @@ export class CapacityController {
   }
 
   @Post('work-centers')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   createWorkCenter(
     @Request() req: { user: { companyId: string } },
     @Body() dto: CreateWorkCenterDto,
@@ -56,6 +55,7 @@ export class CapacityController {
   }
 
   @Patch('work-centers/:id')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   updateWorkCenter(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -65,6 +65,7 @@ export class CapacityController {
   }
 
   @Delete('work-centers/:id')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   deleteWorkCenter(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

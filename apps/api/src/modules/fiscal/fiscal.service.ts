@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { FiscalDocumentType, FiscalStatus, PaymentMethod } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT, EmissorPort } from './emissor.port';
+import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import {
@@ -23,7 +24,7 @@ export class FiscalService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly client: FiscalClientService,
+    @Inject(EMISSOR_PORT) private readonly client: EmissorPort,
     private readonly taxCalc: TaxCalculationService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -49,6 +50,8 @@ export class FiscalService {
       include: {
         company: true,
         customer: true,
+        deliveryAddress: true,
+        carrier: true,
         items: { include: { product: true, serialNumber: true } },
       },
     });
@@ -97,11 +100,14 @@ export class FiscalService {
       ? 'VENDA_INTERESTADUAL' as any
       : 'VENDA_INTERNA' as any;
 
-    // Consumidor final: pessoa física (CPF, 11 dígitos) ou sem IE
+    // Consumidor final: indicador explícito do cadastro (#474); fallback: PF (CPF) ou sem IE
     const recipientDoc = order.customer?.document?.replace(/\D/g, '') ?? '';
-    const consumidorFinal = !order.customer?.ie || recipientDoc.length === 11;
+    const consumidorFinal = order.customer?.indIeDest
+      ? order.customer.indIeDest !== 'CONTRIBUINTE'
+      : !order.customer?.ie || recipientDoc.length === 11;
 
     const items: FiscalItem[] = [];
+    try {
     for (const i of order.items) {
       const itemValue = Number(i.quantity) * Number(i.unitPrice);
       const taxResult = await this.taxCalc.calculateTaxes({
@@ -113,6 +119,7 @@ export class FiscalService {
         ufDestino: order.customer?.state ?? order.company.state ?? 'SP',
         itemValue,
         consumidorFinal,
+        origem: i.product.origem, // importado (1/2/3/8) → interestadual 4% RSF 13/2012 (#480)
       });
 
       // Montar dados veiculares se o item tiver SerialNumber com chassi preenchido
@@ -166,6 +173,13 @@ export class FiscalService {
         quantity: Number(i.quantity),
         unitPrice: Number(i.unitPrice),
         unit: i.product.unit,
+        origem: i.product.origem, // (#480)
+        ean: i.product.ean ?? undefined, // (#484)
+        cest: i.product.cest ?? undefined,
+        unidadeTributavel: i.product.unidadeTributavel ?? undefined,
+        fatorConversaoTributavel: i.product.fatorConversaoTributavel
+          ? Number(i.product.fatorConversaoTributavel)
+          : undefined,
         tax: {
           cfop: taxResult.cfop,
           icmsCst: taxResult.icms.cst,
@@ -197,11 +211,27 @@ export class FiscalService {
               ibsUfValor: taxResult.ibsUf?.valor ?? 0,
               ibsMunAliquota: taxResult.ibsMun?.aliquota ?? 0,
               ibsMunValor: taxResult.ibsMun?.valor ?? 0,
+              // gRed (#446) — presentes quando a cClassTrib tem redução (CSTs 2xx)
+              cbsPRedAliq: taxResult.cbs.pRedAliq,
+              cbsAliqEfet: taxResult.cbs.pAliqEfet,
+              ibsUfPRedAliq: taxResult.ibsUf?.pRedAliq,
+              ibsUfAliqEfet: taxResult.ibsUf?.pAliqEfet,
+              ibsMunPRedAliq: taxResult.ibsMun?.pRedAliq,
+              ibsMunAliqEfet: taxResult.ibsMun?.pAliqEfet,
             },
           }),
         },
         vehicle,
       });
+    }
+    } catch (err) {
+      // #498: cálculo bloqueado (ex.: sem regra fiscal) — persiste o motivo
+      // orientado no documento (visível no detalhe fiscal, Reprocessar habilitado)
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: { status: FiscalStatus.ERROR, lastError: (err as Error).message },
+      });
+      throw err;
     }
 
     const totalValue = calcTotalValue(items);
@@ -209,10 +239,14 @@ export class FiscalService {
     // Gerar informações complementares (#370)
     const infCplParts: string[] = [];
 
-    // DIFAL: informar valor do diferencial se houver
+    // DIFAL: informar valor do diferencial (e FCP #445) se houver
     const totalDifal = items.reduce((sum, it) => sum + (it.tax?.difal?.valor ?? 0), 0);
+    const totalFcp = items.reduce((sum, it) => sum + (it.tax?.difal?.fcpValor ?? 0), 0);
     if (totalDifal > 0) {
-      infCplParts.push(`ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino`);
+      infCplParts.push(
+        `ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino` +
+          (totalFcp > 0 ? `. FCP UF destino: R$ ${totalFcp.toFixed(2)}` : ''),
+      );
     }
 
     // Veículo: informar chassi
@@ -226,6 +260,8 @@ export class FiscalService {
 
     const input: FiscalPayloadInput = {
       ref,
+      // detPag com a forma real da venda (#479); sem forma cadastrada → 99 (outros)
+      paymentMethod: order.paymentMethod ? NFE_PAYMENT_CODES[order.paymentMethod] : undefined,
       emitter: {
         cnpj: order.company.cnpj,
         name: order.company.razaoSocial ?? order.company.name,
@@ -244,8 +280,11 @@ export class FiscalService {
       recipient: order.customer
         ? {
             name: order.customer.name,
+            razaoSocial: order.customer.razaoSocial ?? undefined,
             document: order.customer.document ?? undefined,
             ie: order.customer.ie ?? undefined,
+            indIeDest: order.customer.indIeDest ?? undefined,
+            email: order.customer.fiscalEmail ?? order.customer.email ?? undefined,
             address: order.customer.address ?? undefined,
             number: order.customer.number ?? undefined,
             complement: order.customer.complement ?? undefined,
@@ -256,10 +295,25 @@ export class FiscalService {
             ibgeCode: order.customer.ibgeCode ?? undefined,
           }
         : undefined,
+      // Grupo <entrega> quando a OV tem endereço de entrega (#474)
+      delivery: order.deliveryAddress
+        ? {
+            address: order.deliveryAddress.address,
+            number: order.deliveryAddress.number ?? undefined,
+            complement: order.deliveryAddress.complement ?? undefined,
+            neighborhood: order.deliveryAddress.neighborhood ?? undefined,
+            city: order.deliveryAddress.city,
+            state: order.deliveryAddress.state,
+            zipCode: order.deliveryAddress.zipCode ?? undefined,
+            document: order.customer?.document ?? undefined,
+          }
+        : undefined,
       items,
       totalValue,
       consumidorFinal,
       infCpl,
+      // Grupo transp — modalidade + transportadora + volumes (#481)
+      freight: this.buildFreight(order),
     };
 
     // Persistir itens + impostos detalhados (#166)
@@ -283,6 +337,10 @@ export class FiscalService {
 
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
+    // #499: validação estruturada pré-transmissão — rejeições conhecidas viram
+    // erro orientado ANTES de ir à SEFAZ (mesmo padrão do bloqueio fiscal #498)
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
+
     // Enviar para Focus NFe
     const response =
       type === FiscalDocumentType.NFE
@@ -291,6 +349,26 @@ export class FiscalService {
 
     // Processar resposta e atualizar status
     await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
+  /**
+   * #499 — roda o Fiscal Validator no payload flat; com problemas, marca o
+   * documento ERROR com mensagem orientada e NÃO transmite. Retorna true se bloqueou.
+   */
+  private async blockIfInvalid(
+    fiscalDocumentId: string,
+    ref: string,
+    payload: Record<string, unknown>,
+  ): Promise<boolean> {
+    const issues = validateNfePayload(payload);
+    if (issues.length === 0) return false;
+    const msg = formatValidationIssues(issues);
+    this.logger.warn(`Fiscal Validator bloqueou ${ref}: ${msg}`);
+    await this.prisma.fiscalDocument.update({
+      where: { id: fiscalDocumentId },
+      data: { status: FiscalStatus.ERROR, lastError: msg },
+    });
+    return true;
   }
 
   // ─── S08.04: Webhook — atualização assíncrona da Focus ────────────────────
@@ -403,6 +481,7 @@ export class FiscalService {
     const transferOpType = 'TRANSFERENCIA_INTERNA' as any;
 
     const items: FiscalItem[] = [];
+    try {
     for (const i of transfer.items) {
       const unitPrice = Number(i.product.avgCost ?? i.product.costPrice ?? 0);
       const itemValue = Number(i.quantity) * unitPrice;
@@ -414,6 +493,7 @@ export class FiscalService {
         ufOrigem: transfer.company.state ?? 'SP',
         ufDestino: transfer.company.state ?? 'SP',
         itemValue,
+        origem: i.product.origem, // (#480)
       });
       items.push({
         sku: i.product.sku,
@@ -422,6 +502,7 @@ export class FiscalService {
         quantity: Number(i.quantity),
         unitPrice,
         unit: String(i.unit),
+        origem: i.product.origem, // (#480)
         tax: {
           cfop: taxResult.cfop,
           icmsCst: taxResult.icms.cst, icmsBase: taxResult.icms.baseCalculo, icmsAliquota: taxResult.icms.aliquota, icmsValor: taxResult.icms.valor,
@@ -430,6 +511,14 @@ export class FiscalService {
           cofinsCst: taxResult.cofins.cst, cofinsBase: taxResult.cofins.baseCalculo, cofinsAliquota: taxResult.cofins.aliquota, cofinsValor: taxResult.cofins.valor,
         },
       });
+    }
+    } catch (err) {
+      // #498: sem regra fiscal → documento em ERROR com motivo orientado
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: { status: FiscalStatus.ERROR, lastError: (err as Error).message },
+      });
+      throw err;
     }
 
     const totalValue = calcTotalValue(items);
@@ -463,6 +552,10 @@ export class FiscalService {
     await this.persistFiscalItems(fiscalDoc.id, items, transfer.items);
 
     const payload = buildTransferNFePayload(input);
+
+    // #499: validação estruturada pré-transmissão
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
+
     const response = await this.client.emitNFe(ref, payload);
     await this.applyFocusResponse(fiscalDoc.id, response);
   }
@@ -648,6 +741,144 @@ export class FiscalService {
     return doc;
   }
 
+  // ─── Exportação de XMLs para o contador (#482) ────────────────────────────
+
+  /**
+   * XMLs do período para o ZIP mensal do contador. Inclui canceladas (o
+   * contador precisa delas para a escrituração). O webhook da Focus entrega
+   * só o CAMINHO do XML (não o conteúdo) — documentos sem xml no banco são
+   * baixados da Focus sob demanda e cacheados para as próximas exportações.
+   */
+  async listXmlsForExport(companyId: string, from: Date, to: Date, type?: FiscalDocumentType) {
+    const docs = await this.prisma.fiscalDocument.findMany({
+      where: {
+        companyId,
+        status: { in: [FiscalStatus.AUTHORIZED, FiscalStatus.CANCELLED] },
+        ...(type && { type }),
+        // autorizada no período; docs antigos sem authorizedAt caem no createdAt
+        OR: [
+          { authorizedAt: { gte: from, lte: to } },
+          { authorizedAt: null, createdAt: { gte: from, lte: to } },
+        ],
+      },
+      select: { id: true, chave: true, xml: true, xmlUrl: true, status: true, focusRef: true, number: true, type: true },
+      orderBy: { authorizedAt: 'asc' },
+    });
+
+    const out: Array<{ name: string; xml: string }> = [];
+    for (const d of docs) {
+      const xml = d.xml ?? (await this.fetchAndCacheXml(d));
+      if (!xml) {
+        this.logger.warn(`Exportação: XML indisponível para doc ${d.id} (ref ${d.focusRef}) — pulado`);
+        continue;
+      }
+      out.push({
+        // nome padrão de mercado: <chave>-nfe.xml; sem chave usa a ref interna
+        name: `${d.chave ?? d.focusRef ?? `doc-${d.number}`}-nfe${d.status === FiscalStatus.CANCELLED ? '-cancelada' : ''}.xml`,
+        xml,
+      });
+    }
+    return out;
+  }
+
+  /** Baixa o XML da Focus (via xmlUrl, ou consultando o status pela ref) e persiste como cache (#482) */
+  private async fetchAndCacheXml(d: {
+    id: string;
+    focusRef: string | null;
+    type: FiscalDocumentType;
+    xmlUrl: string | null;
+  }): Promise<string | null> {
+    let xmlUrl = d.xmlUrl;
+    let danfeUrl: string | undefined;
+
+    if (!xmlUrl && d.focusRef) {
+      const st = await this.client.getStatus(d.type === FiscalDocumentType.NFCE ? 'nfce' : 'nfe', d.focusRef);
+      if (st.caminho_xml_nota_fiscal) xmlUrl = this.client.absoluteUrl(st.caminho_xml_nota_fiscal);
+      if (st.caminho_danfe) danfeUrl = this.client.absoluteUrl(st.caminho_danfe);
+    }
+    if (!xmlUrl) return null;
+
+    const xml = await this.client.downloadFile(xmlUrl);
+    if (!xml) return null;
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: d.id },
+      data: { xml, xmlUrl, ...(danfeUrl && { danfeUrl }) },
+    });
+    return xml;
+  }
+
+  // ─── Privado: grupo transp da NF-e a partir da OV (#481) ─────────────────
+
+  /**
+   * Monta o FiscalFreight da OV. Sem modalidade cadastrada (ou 9) → undefined,
+   * e o mapper emite modalidade_frete 9 como antes. Pesos dos volumes vêm de
+   * Product.pesoLiquido/pesoBruto × quantidade (#484); volumes só entram
+   * quando há peso ou quantidade explícita.
+   */
+  private buildFreight(order: {
+    freightModality: string | null;
+    freightValue: unknown;
+    volumesQuantity: number | null;
+    volumesSpecies: string | null;
+    carrier: {
+      razaoSocial: string | null;
+      name: string;
+      document: string | null;
+      ie: string | null;
+      address: string | null;
+      city: string | null;
+      state: string | null;
+      vehiclePlate: string | null;
+      vehiclePlateState: string | null;
+      rntc: string | null;
+    } | null;
+    items: Array<{ quantity: unknown; product: { pesoLiquido: unknown; pesoBruto: unknown } }>;
+  }) {
+    if (!order.freightModality || order.freightModality === '9') return undefined;
+
+    const pesoLiquido = order.items.reduce(
+      (s, i) => s + Number(i.product.pesoLiquido ?? 0) * Number(i.quantity),
+      0,
+    );
+    const pesoBruto = order.items.reduce(
+      (s, i) => s + Number(i.product.pesoBruto ?? 0) * Number(i.quantity),
+      0,
+    );
+    // qVol: explícito na OV, senão 1 volume por unidade vendida (reboque = volume)
+    const quantidade =
+      order.volumesQuantity ?? order.items.reduce((s, i) => s + Number(i.quantity), 0);
+
+    return {
+      modality: order.freightModality,
+      value: order.freightValue != null ? Number(order.freightValue) : undefined,
+      carrier: order.carrier
+        ? {
+            document: order.carrier.document ?? undefined,
+            name: order.carrier.razaoSocial ?? order.carrier.name,
+            ie: order.carrier.ie ?? undefined,
+            address: order.carrier.address ?? undefined,
+            city: order.carrier.city ?? undefined,
+            state: order.carrier.state ?? undefined,
+          }
+        : undefined,
+      vehiclePlate: order.carrier?.vehiclePlate ?? undefined,
+      vehiclePlateState: order.carrier?.vehiclePlateState ?? undefined,
+      rntc: order.carrier?.rntc ?? undefined,
+      volumes:
+        quantidade > 0
+          ? [
+              {
+                quantidade,
+                especie: order.volumesSpecies ?? undefined,
+                pesoLiquido: pesoLiquido > 0 ? pesoLiquido : undefined,
+                pesoBruto: pesoBruto > 0 ? pesoBruto : undefined,
+              },
+            ]
+          : undefined,
+    };
+  }
+
   // ─── Privado: persiste itens + impostos detalhados (#166) ────────────────
 
   private async persistFiscalItems(
@@ -700,6 +931,8 @@ export class FiscalService {
               difalAliqInterna: fi.tax.difal.aliquotaInterna,
               difalAliqInterest: fi.tax.difal.aliquotaInterestadual,
               difalValor: fi.tax.difal.valor,
+              difalFcpAliquota: fi.tax.difal.fcpAliquota ?? 0,
+              difalFcpValor: fi.tax.difal.fcpValor ?? 0,
             }),
             ...(fi.tax.ibsCbs && {
               cClassTrib: fi.tax.ibsCbs.cClassTrib,
@@ -736,6 +969,8 @@ export class FiscalService {
       numero?: string | number;
       serie?: string | number;
       protocolo?: string;
+      caminho_danfe?: string; // path do PDF do DANFE na Focus (#482)
+      caminho_xml_nota_fiscal?: string; // path do XML autorizado na Focus (#482)
     },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
@@ -764,6 +999,9 @@ export class FiscalService {
         ...(number != null && { number }),
         ...(series != null && { series }),
         ...(protocolNumber && { protocolNumber }),
+        // URLs absolutas — o caminho da Focus é relativo ao ambiente (prod/homolog) (#482)
+        ...(response.caminho_danfe && { danfeUrl: this.client.absoluteUrl(response.caminho_danfe) }),
+        ...(response.caminho_xml_nota_fiscal && { xmlUrl: this.client.absoluteUrl(response.caminho_xml_nota_fiscal) }),
         ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
         ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
         rejectionCode: response.codigo ?? null,
@@ -779,3 +1017,13 @@ export class FiscalService {
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+/** PaymentMethod → código tPag da NF-e (tabela 4.3.4.1) (#479) */
+const NFE_PAYMENT_CODES: Record<PaymentMethod, string> = {
+  DINHEIRO: '01',
+  CHEQUE: '02',
+  CARTAO: '03', // 03=crédito; granularidade crédito/débito fica para evolução do enum
+  BOLETO: '15',
+  PIX: '17',
+  TED: '18',
+};

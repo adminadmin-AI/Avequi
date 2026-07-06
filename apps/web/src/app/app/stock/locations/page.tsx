@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Power, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -38,7 +37,6 @@ const TYPE_LABEL: Record<LocationType, string> = {
 export default function LocationsPage() {
   const toast = useToast();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: locations = [], isLoading } = useQuery({
     queryKey: ['/wms/locations'],
@@ -79,7 +77,7 @@ export default function LocationsPage() {
     if (!warehouseId) return toast.error('Selecione o depósito');
     if (!code.trim()) return toast.error('Informe o código');
     create.mutate(
-      { companyId, warehouseId, code: code.trim().toUpperCase(), type, description: description || undefined },
+      { warehouseId, code: code.trim().toUpperCase(), type, description: description || undefined },
       {
         onSuccess: () => {
           toast.success('Localização criada');

@@ -7,21 +7,22 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { InboundNfeStatus } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { MatchNfeDto } from './dto/match-nfe.dto';
 import { UploadNfeDto } from './dto/upload-nfe.dto';
 import { InboundNfeService } from './inbound-nfe.service';
 
-@UseGuards(JwtAuthGuard)
+const INBOUND_NFE_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'FINANCIAL'];
+
 @Controller('inbound-nfe')
 export class InboundNfeController {
   constructor(private readonly inboundNfeService: InboundNfeService) {}
 
   // POST /inbound-nfe/upload
   @Post('upload')
+  @Roles(...INBOUND_NFE_WRITE_ROLES)
   upload(
     @Body() dto: UploadNfeDto,
     @Request() req: { user: { companyId: string; id?: string } },
@@ -57,6 +58,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/match
   @Patch(':id/match')
+  @Roles(...INBOUND_NFE_WRITE_ROLES)
   matchToPo(
     @Param('id') id: string,
     @Body() dto: MatchNfeDto,
@@ -67,6 +69,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/reject
   @Patch(':id/reject')
+  @Roles(...INBOUND_NFE_WRITE_ROLES)
   reject(
     @Param('id') id: string,
     @Body() body: { reason: string },
@@ -77,6 +80,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/import
   @Patch(':id/import')
+  @Roles(...INBOUND_NFE_WRITE_ROLES)
   importAsGr(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id?: string } },

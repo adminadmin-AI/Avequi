@@ -113,6 +113,7 @@ model Company {
   productionSchedules      ProductionSchedule[]
   scheduledPayments        ScheduledPayment[]
   collectionAttempts       CollectionAttempt[]
+  carriers                 Carrier[]
   // IAM v2 — F1 (#335/#336/#337)
   roles                Role[]
   userRoleAssignments  UserRoleAssignment[]
@@ -177,6 +178,7 @@ model TaxRule {
   cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
   // DIFAL — alíquota interna do UF destino (para cálculo quando consumidor final interestadual)
   icmsInternaDestino Decimal?       @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
+  fcpAliquotaDestino Decimal?       @db.Decimal(5, 2) // % FCP do UF destino no DIFAL (SP 2%, RJ 2% — NF-e real #14236) (#445)
   // IBS/CBS — Reforma Tributária NT 2025.002-RTC (#412)
   cClassTrib       String?          @db.VarChar(6)  // código classificação tributária (tabela cClassTrib — #413)
   cbsCst           String?          @db.VarChar(3)  // CST CBS (000 = tributação integral)
@@ -185,6 +187,12 @@ model TaxRule {
   ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.1 em 2026 (LC 214/2025 art. 343)
   ibsMunCst        String?          @db.VarChar(3)
   ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0 em 2026 — IBS teste é 100% estadual
+  // Vigência temporal (#500) — versionamento de NTs e da transição da reforma
+  // (2027 CBS definitiva, 2029-32 ICMS→IBS). null = sem limite naquela ponta;
+  // o motor resolve pela data de emissão, então NT nova = linha nova com
+  // validFrom futuro (carga de dados, não deploy).
+  validFrom        DateTime?
+  validTo          DateTime?
   // Meta
   description      String?
   priority         Int              @default(0) // Maior = mais específica
@@ -192,7 +200,7 @@ model TaxRule {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino])
+  @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino, validFrom])
   @@index([companyId, operationType])
   @@map("gdr_tax_rules")
 }
@@ -248,6 +256,7 @@ model User {
   productionLogs            ProductionLog[]     @relation("ProductionLogUser")
   putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
   pickConfirmations         PickTask[]          @relation("PickConfirmedBy")
+  conferredSalesOrders SalesOrder[] @relation("SOConferredBy")
   inventoryCountsCreated    InventoryCount[]    @relation("InventoryCreatedBy")
   inventoryCountsReconciled InventoryCount[]    @relation("InventoryReconciledBy")
   inventoryItemsCounted     InventoryCountItem[] @relation("InventoryItemCountedBy")
@@ -367,6 +376,13 @@ model Product {
   ncm         String?
   codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
   cClassTrib  String?        @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
+  origem      String         @default("0") @db.VarChar(1) // origem da mercadoria 0-8 (tabela A do ICMS) — orig no XML; 1/2/3/8 = importado → interestadual 4% RSF 13/2012 (#480)
+  ean         String?        @db.VarChar(14) // GTIN (cEAN) — SEFAZ valida no Cadastro Centralizado; vazio = Focus emite SEM GTIN (#484)
+  cest        String?        @db.VarChar(7)  // código CEST quando sujeito a ST (#484)
+  pesoLiquido Decimal?       @map("peso_liquido") @db.Decimal(12, 3) // kg — alimenta volumes da NF-e (#484)
+  pesoBruto   Decimal?       @map("peso_bruto") @db.Decimal(12, 3) // kg (#484)
+  unidadeTributavel String?  @map("unidade_tributavel") @db.VarChar(6) // uTrib quando ≠ unidade comercial (#484)
+  fatorConversaoTributavel Decimal? @map("fator_conversao_tributavel") @db.Decimal(12, 6) // qTrib = qCom × fator (#484)
   costPrice   Decimal?       @db.Decimal(14, 4)
   salePrice   Decimal?       @db.Decimal(14, 4)
   avgCost     Decimal?       @db.Decimal(14, 4)
@@ -417,10 +433,29 @@ model Supplier {
   id             String          @id @default(cuid())
   companyId      String
   company        Company         @relation(fields: [companyId], references: [id])
-  name           String
+  name           String          // nome fantasia / apelido comercial (#478)
+  razaoSocial    String?         @map("razao_social") // razão social (#478)
   cnpj           String?
+  ie             String?         @db.VarChar(14) // inscrição estadual (#478)
+  taxRegime      TaxRegime?      @map("tax_regime") // regime tributário — crédito IBS/CBS nas compras a partir de 2027 (#478)
   email          String?
+  fiscalEmail    String?         @map("fiscal_email") // e-mail p/ NF-e/boleto (#478)
   phone          String?
+  phone2         String?
+  contactName    String?         @map("contact_name")
+  address        String?         // logradouro (#478)
+  number         String?         @db.VarChar(10)
+  complement     String?         @db.VarChar(60)
+  neighborhood   String?         @db.VarChar(60)
+  city           String?
+  state          String?         @db.VarChar(2)
+  zipCode        String?         @map("zip_code") @db.VarChar(8)
+  ibgeCode       String?         @map("ibge_code") @db.VarChar(7)
+  defaultPaymentTerms String?    @map("default_payment_terms") // condição de pagamento padrão — pré-preenche PO (#478)
+  bankName       String?         @map("bank_name")
+  bankAgency     String?         @map("bank_agency")
+  bankAccount    String?         @map("bank_account")
+  pixKey         String?         @map("pix_key")
   leadTimeDays   Int             @default(0)
   isActive       Boolean         @default(true)
   purchaseOrders       PurchaseOrder[]
@@ -444,15 +479,26 @@ enum CustomerType {
   COMPANY
 }
 
+/// Indicador de IE do destinatário (indIEDest da NF-e) — explícito no cadastro (#474)
+enum IcmsIndicator {
+  CONTRIBUINTE     // 1 — exige IE válida
+  ISENTO           // 2 — contribuinte isento de IE
+  NAO_CONTRIBUINTE // 9 — consumidor final PF/PJ não contribuinte
+}
+
 model Customer {
   id           String       @id @default(cuid())
   companyId    String
   company      Company      @relation(fields: [companyId], references: [id])
   type         CustomerType @default(COMPANY)
-  name         String
+  name         String       // nome fantasia / apelido comercial
+  razaoSocial  String?      @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
   document     String?
   email        String?
+  fiscalEmail  String?      @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
   phone        String?
+  phone2       String?
+  contactName  String?      @map("contact_name")
   address      String?       // logradouro (rua, av, etc.)
   number       String?       @db.VarChar(10)
   complement   String?       @db.VarChar(60)
@@ -462,7 +508,12 @@ model Customer {
   zipCode      String?       @map("zip_code") @db.VarChar(8) // CEP sem máscara
   ibgeCode     String?       @map("ibge_code") @db.VarChar(7) // código município IBGE
   ie           String?       @db.VarChar(14) // inscrição estadual
+  // Fiscal (#474) — indIeDest null = inferir por IE/CPF (cadastros antigos)
+  indIeDest        IcmsIndicator? @map("ind_ie_dest")
+  isRuralProducer  Boolean    @default(false) @map("is_rural_producer") // IE de produtor no campo ie
+  isSimplesNacional Boolean   @default(false) @map("is_simples_nacional")
   isActive     Boolean      @default(true)
+  addresses    CustomerAddress[]
   salesOrders  SalesOrder[]
   quotations   Quotation[]
   receivables  Receivable[]
@@ -472,6 +523,53 @@ model Customer {
 
   @@unique([companyId, document])
   @@map("gdr_customers")
+}
+
+/// Endereços de entrega do cliente (1:N) — grupo <entrega> da NF-e (#474)
+model CustomerAddress {
+  id           String   @id @default(cuid())
+  customerId   String   @map("customer_id")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label        String   // ex: "Obra Fazenda Santa Fé", "Depósito Matriz"
+  address      String
+  number       String?  @db.VarChar(10)
+  complement   String?  @db.VarChar(60)
+  neighborhood String?  @db.VarChar(60)
+  city         String
+  state        String   @db.VarChar(2)
+  zipCode      String?  @map("zip_code") @db.VarChar(8)
+  ibgeCode     String?  @map("ibge_code") @db.VarChar(7)
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  salesOrders  SalesOrder[]
+
+  @@index([customerId])
+  @@map("gdr_customer_addresses")
+}
+
+/// Transportadora — grupo transp da NF-e (#481). Entidade fiscal própria (≠ Supplier).
+model Carrier {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  name              String   // nome fantasia
+  razaoSocial       String?  @map("razao_social") // xNome do transportador
+  document          String?  // CNPJ (14) ou CPF (11), sem máscara
+  ie                String?  @db.VarChar(14)
+  address           String?  // xEnder (logradouro + número, campo único na NF-e)
+  city              String?
+  state             String?  @db.VarChar(2)
+  vehiclePlate      String?  @map("vehicle_plate") @db.VarChar(8)
+  vehiclePlateState String?  @map("vehicle_plate_state") @db.VarChar(2)
+  rntc              String?  @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
+  isActive          Boolean  @default(true)
+  salesOrders       SalesOrder[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([companyId, document])
+  @@map("gdr_carriers")
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
@@ -785,6 +883,7 @@ enum SalesOrderStatus {
   RESERVED
   CONFIRMED
   AWAITING_PICKING
+  AWAITING_CONFERENCE // separado, aguardando conferência da carga (#491)
   READY_TO_INVOICE
   INVOICED
   RETURNED
@@ -800,11 +899,24 @@ model SalesOrder {
   warehouseId String
   warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
   status      SalesOrderStatus @default(DRAFT)
+  paymentMethod PaymentMethod? @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
+  deliveryAddressId String?    @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
+  deliveryAddress   CustomerAddress? @relation(fields: [deliveryAddressId], references: [id])
+  // Frete e transporte → grupo transp da NF-e (#481)
+  freightModality String?      @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
+  freightValue    Decimal?     @map("freight_value") @db.Decimal(14, 2) // vFrete
+  carrierId       String?      @map("carrier_id")
+  carrier         Carrier?     @relation(fields: [carrierId], references: [id])
+  volumesQuantity Int?         @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
+  volumesSpecies  String?      @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
   notes       String?
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
   pickedAt    DateTime?
+  conferredAt DateTime?          @map("conferred_at") // conferência da carga (#491)
+  conferredById String?          @map("conferred_by_id")
+  conferredBy   User?            @relation("SOConferredBy", fields: [conferredById], references: [id])
   invoicedAt  DateTime?
   returnedAt  DateTime?
   cancelledAt DateTime?
@@ -878,6 +990,8 @@ model FiscalDocument {
   vIBSMono         Decimal?           @db.Decimal(14, 2)
   vCBSMono         Decimal?           @db.Decimal(14, 2)
   xml              String?
+  danfeUrl         String?            @map("danfe_url") // caminho_danfe do webhook Focus — reimpressão do DANFE (#482)
+  xmlUrl           String?            @map("xml_url")   // caminho_xml_nota_fiscal do webhook Focus (#482)
   rejectionCode    String?
   rejectionReason  String?
   retryCount       Int                @default(0)
@@ -971,6 +1085,9 @@ model FiscalDocumentItemTax {
   difalAliqInterna     Decimal?           @db.Decimal(5, 2)
   difalAliqInterest    Decimal?           @db.Decimal(5, 2)
   difalValor           Decimal?           @db.Decimal(14, 4)
+  // FCP do UF destino no DIFAL (#445)
+  difalFcpAliquota     Decimal?           @db.Decimal(5, 2)
+  difalFcpValor        Decimal?           @db.Decimal(14, 4)
   // IBS/CBS — NT 2025.002-RTC (#412)
   cClassTrib           String?            @db.VarChar(6)
   cIndOp               String?            @db.VarChar(1) // indicador de operação (B25d)
@@ -1519,6 +1636,8 @@ model PickTask {
   locationId     String?
   location       Location?      @relation(fields: [locationId], references: [id])
   notes          String?
+  serialNumberId String?        @map("serial_number_id") // chassi escolhido na separação (#490)
+  serialNumber   SerialNumber?  @relation("PickTaskSerial", fields: [serialNumberId], references: [id])
   status         PickTaskStatus @default(PENDING)
   confirmedById  String?
   confirmedBy    User?          @relation("PickConfirmedBy", fields: [confirmedById], references: [id])
@@ -1751,6 +1870,7 @@ model NonConformance {
 enum SerialStatus {
   IN_PRODUCTION
   IN_STOCK
+  RESERVED_FOR_SALE // chassi escolhido na separação — vira SOLD no faturamento (#490)
   SOLD
   TRANSFERRED
   SCRAPPED
@@ -1758,6 +1878,7 @@ enum SerialStatus {
 
 model SerialNumber {
   id                 String           @id @default(dbgenerated("gen_random_uuid()"))
+  pickTasks          PickTask[]       @relation("PickTaskSerial")
   companyId          String           @map("company_id")
   company            Company          @relation(fields: [companyId], references: [id])
   productId          String           @map("product_id")
@@ -2760,7 +2881,7 @@ model Permission {
 /// customizado da empresa. Herança via parentId (Supervisor herda Operador).
 model Role {
   id          String   @id @default(cuid())
-  code        String   @unique // ex: "GERENTE_INDUSTRIAL"
+  code        String   // ex: "GERENTE_INDUSTRIAL"
   name        String   // ex: "Gerente Industrial"
   description String?
   isSystem    Boolean  @default(false)
@@ -2777,6 +2898,15 @@ model Role {
   userAssignments      UserRoleAssignment[]
   permissionChangeLogs PermissionChangeLog[]
 
+  // Unicidade de `code` POR empresa/grupo: empresas diferentes podem ter perfis
+  // com o mesmo code (ex.: "GERENTE_LOJA") sem colidir. Segue o padrao
+  // @@unique([companyId, code]) usado no resto do schema.
+  // OBS: perfis GLOBAIS/system (companyId = null) NAO sao cobertos por este
+  // indice (no Postgres, NULLs sao distintos em UNIQUE). A unicidade dos codes
+  // globais e garantida por um INDICE PARCIAL criado na migration
+  // (gdr_roles_code_global_key ... WHERE "companyId" IS NULL), que o Prisma nao
+  // consegue expressar no schema.
+  @@unique([companyId, code])
   @@index([companyId])
   @@map("gdr_roles")
 }

@@ -29,10 +29,6 @@ export class CreatePOItemDto {
 }
 
 export class CreatePurchaseOrderDto {
-  @IsOptional()
-  @IsString()
-  companyId?: string;
-
   @IsString()
   @IsNotEmpty()
   supplierId: string;

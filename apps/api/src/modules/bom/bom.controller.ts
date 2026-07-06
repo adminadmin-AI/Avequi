@@ -19,7 +19,7 @@ export class BomController {
   constructor(private readonly bomService: BomService) {}
 
   @Post()
-  @Roles('DIRECTOR', 'MANAGER', 'PRODUCTION')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Criar nova versão de BOM' })
   create(@Body() dto: CreateBomDto, @CurrentUser() user: any) {
     return this.bomService.create(dto, user);
@@ -50,7 +50,7 @@ export class BomController {
   }
 
   @Patch(':id/activate')
-  @Roles('DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Ativar versão de BOM' })
   activate(@Param('id') id: string, @CurrentUser() user: any) {
     return this.bomService.activate(id, user.companyId, user);

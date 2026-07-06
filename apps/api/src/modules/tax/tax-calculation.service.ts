@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { TaxOperationType, ProductType, Prisma } from '@prisma/client';
+import { TaxOperationType, ProductType } from '@prisma/client';
 
 export interface TaxInput {
   companyId: string;
@@ -11,13 +11,21 @@ export interface TaxInput {
   ufDestino: string;
   itemValue: number; // valor total do item (qty × unitPrice)
   consumidorFinal?: boolean; // true quando destinatário é consumidor final (sem IE ou pessoa física)
+  origem?: string; // origem da mercadoria 0-8 — 1/2/3/8 = importado → interestadual 4% (RSF 13/2012) (#480)
+  emissionDate?: Date; // data de emissão — resolve a vigência da regra (#500); default: agora
 }
+
+/** Origens de mercadoria importada — alíquota interestadual fixa de 4% (Resolução Senado Federal 13/2012) */
+const IMPORTED_ORIGINS = ['1', '2', '3', '8'];
 
 export interface DifAlResult {
   baseCalculo: number;
   aliquotaInterna: number;
   aliquotaInterestadual: number;
   valor: number; // 100% destino (EC 87/2015 — desde 2019)
+  // FCP do UF destino (#445) — SP/RJ 2%; mesma base do DIFAL
+  fcpAliquota: number;
+  fcpValor: number;
 }
 
 export interface IbsCbsTax {
@@ -25,6 +33,11 @@ export interface IbsCbsTax {
   baseCalculo: number;
   aliquota: number;
   valor: number;
+  // gRed — redução de alíquota (#446, NT 2025.002 UB26/UB45/UB64):
+  // presentes quando a TributaryClassification tem percRed > 0 (CSTs 2xx);
+  // valor passa a ser base × pAliqEfet
+  pRedAliq?: number;
+  pAliqEfet?: number;
 }
 
 export interface TaxResult {
@@ -42,27 +55,20 @@ export interface TaxResult {
   totalTributos: number;
 }
 
-/** Regra padrão quando nenhuma TaxRule específica é encontrada (indústria = produção própria) */
-const FALLBACK_RULE = {
-  cfop: '5101',
-  icmsCst: '00',
-  icmsAliquota: new Prisma.Decimal(18),
-  icmsBaseReducao: new Prisma.Decimal(100),
-  ipiCst: '99',
-  ipiAliquota: new Prisma.Decimal(0),
-  pisCst: '01',
-  pisAliquota: new Prisma.Decimal(0.65),
-  cofinsCst: '01',
-  cofinsAliquota: new Prisma.Decimal(3),
-  icmsInternaDestino: null as Prisma.Decimal | null,
-  cClassTrib: null as string | null,
-  cbsCst: null as string | null,
-  cbsAliquota: null as Prisma.Decimal | null,
-  ibsUfCst: null as string | null,
-  ibsUfAliquota: null as Prisma.Decimal | null,
-  ibsMunCst: null as string | null,
-  ibsMunAliquota: null as Prisma.Decimal | null,
-};
+/**
+ * Erro orientado ao usuário quando nenhuma TaxRule cobre a operação (#498).
+ * Nunca emitir com tributação genérica: a SEFAZ autoriza nota fiscalmente
+ * errada (valida estrutura, não adequação) — o antigo FALLBACK_RULE (CFOP
+ * 5101/ICMS 18% sem IBS/CBS) criava passivo tributário em silêncio.
+ */
+export function missingTaxRuleMessage(input: TaxInput): string {
+  return (
+    `Nenhuma regra fiscal cadastrada para ${input.operationType} ` +
+    `${input.ufOrigem}→${input.ufDestino}` +
+    (input.ncm ? ` (NCM ${input.ncm})` : '') +
+    `. Cadastre a regra em Regras Fiscais (POST /tax-rules) antes de emitir.`
+  );
+}
 
 @Injectable()
 export class TaxCalculationService {
@@ -70,18 +76,44 @@ export class TaxCalculationService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async calculateTaxes(input: TaxInput): Promise<TaxResult> {
-    const rule = await this.findBestRule(input);
+  /** Cache de percentuais de redução por cClassTrib — tabela oficial é estática (#446) */
+  private readonly reducaoCache = new Map<string, { ibs: number; cbs: number }>();
 
-    if (!rule) {
-      this.logger.warn(
-        `Nenhuma TaxRule encontrada para ${input.operationType} ${input.ufOrigem}→${input.ufDestino}. Usando fallback.`,
-      );
+  /** Percentuais de redução de alíquota (gRed) da classificação tributária (#446) */
+  private async getReducao(cClassTrib?: string | null): Promise<{ ibs: number; cbs: number }> {
+    if (!cClassTrib) return { ibs: 0, cbs: 0 };
+    const cached = this.reducaoCache.get(cClassTrib);
+    if (cached) return cached;
+    const tc = await this.prisma.tributaryClassification.findUnique({
+      where: { code: cClassTrib },
+      select: { percRedIbs: true, percRedCbs: true },
+    });
+    const red = {
+      ibs: Number(tc?.percRedIbs ?? 0),
+      cbs: Number(tc?.percRedCbs ?? 0),
+    };
+    this.reducaoCache.set(cClassTrib, red);
+    return red;
+  }
+
+  async calculateTaxes(input: TaxInput): Promise<TaxResult> {
+    const r = await this.findBestRule(input);
+
+    // Sem regra = bloqueio orientado, nunca tributação genérica (#498)
+    if (!r) {
+      this.logger.warn(`Emissão bloqueada: ${missingTaxRuleMessage(input)}`);
+      throw new UnprocessableEntityException(missingTaxRuleMessage(input));
     }
 
-    const r = rule ?? FALLBACK_RULE;
+    const isInterstate = input.ufOrigem !== input.ufDestino;
 
-    const icmsAliquota = Number(r.icmsAliquota);
+    // RSF 13/2012: mercadoria importada (orig 1/2/3/8) em operação interestadual
+    // tem alíquota fixa de 4%, independente da regra cadastrada (#480)
+    const isImported = IMPORTED_ORIGINS.includes(input.origem ?? '0');
+    let icmsAliquota = Number(r.icmsAliquota);
+    if (isInterstate && isImported && icmsAliquota > 4) {
+      icmsAliquota = 4;
+    }
     const icmsBaseReducao = Number(r.icmsBaseReducao);
     const ipiAliquota = Number(r.ipiAliquota);
     const pisAliquota = Number(r.pisAliquota);
@@ -107,17 +139,21 @@ export class TaxCalculationService {
     // DIFAL — EC 87/2015: operação interestadual para consumidor final não-contribuinte
     // Desde 2019: 100% do diferencial vai para o UF destino
     let difal: DifAlResult | undefined;
-    const isInterstate = input.ufOrigem !== input.ufDestino;
     const icmsInternaDestino = r.icmsInternaDestino ? Number(r.icmsInternaDestino) : null;
 
     if (isInterstate && input.consumidorFinal && icmsInternaDestino && icmsInternaDestino > icmsAliquota) {
       const difalBase = icmsBaseFull; // base = valor + IPI (mesma base do ICMS)
       const difalValor = round2(difalBase * (icmsInternaDestino - icmsAliquota) / 100);
+      // FCP do UF destino (#445): NF-e real #14236 (PR→SP) destaca 2%; vBCFCPUFDest = base do DIFAL
+      const fcpAliquota = Number(r.fcpAliquotaDestino ?? 0);
+      const fcpValor = fcpAliquota > 0 ? round2(difalBase * fcpAliquota / 100) : 0;
       difal = {
         baseCalculo: difalBase,
         aliquotaInterna: icmsInternaDestino,
         aliquotaInterestadual: icmsAliquota,
         valor: difalValor,
+        fcpAliquota,
+        fcpValor,
       };
     }
 
@@ -134,27 +170,41 @@ export class TaxCalculationService {
       const cbsAliquota = Number(r.cbsAliquota);
       const ibsUfAliquota = Number(r.ibsUfAliquota ?? 0);
       const ibsMunAliquota = Number(r.ibsMunAliquota ?? 0);
+
+      // #446: gRed — CSTs 2xx exigem percentual de redução + alíquota efetiva
+      // (rej. 1033 sem eles). Os percentuais vêm da tabela oficial cClassTrib.
+      const red = await this.getReducao(r.cClassTrib);
+      const gRed = (aliquota: number, pRed: number): Partial<IbsCbsTax> =>
+        pRed > 0
+          ? { pRedAliq: pRed, pAliqEfet: round4(aliquota * (1 - pRed / 100)) }
+          : {};
+      const efetiva = (aliquota: number, pRed: number) =>
+        pRed > 0 ? round4(aliquota * (1 - pRed / 100)) : aliquota;
+
       cbs = {
         cst: r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: cbsAliquota,
-        valor: round2(ibsCbsBase * cbsAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(cbsAliquota, red.cbs)) / 100),
+        ...gRed(cbsAliquota, red.cbs),
       };
       ibsUf = {
         cst: r.ibsUfCst ?? r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: ibsUfAliquota,
-        valor: round2(ibsCbsBase * ibsUfAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(ibsUfAliquota, red.ibs)) / 100),
+        ...gRed(ibsUfAliquota, red.ibs),
       };
       ibsMun = {
         cst: r.ibsMunCst ?? r.cbsCst ?? '000',
         baseCalculo: ibsCbsBase,
         aliquota: ibsMunAliquota,
-        valor: round2(ibsCbsBase * ibsMunAliquota / 100),
+        valor: round2((ibsCbsBase * efetiva(ibsMunAliquota, red.ibs)) / 100),
+        ...gRed(ibsMunAliquota, red.ibs),
       };
     }
 
-    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0));
+    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0) + (difal?.fcpValor ?? 0));
 
     return {
       cfop: r.cfop,
@@ -176,21 +226,38 @@ export class TaxCalculationService {
   /**
    * Busca a regra mais específica (maior priority) para a operação.
    * Ordem de especificidade: NCM + productType + UF > NCM + UF > UF > geral
+   * Pública para pré-checagem de cobertura antes de efeitos colaterais (#498).
+   * `client` permite passar o tx de uma transação aberta — o client global
+   * exigiria uma 2ª conexão do pool e trava com connection_limit baixo.
    */
-  private async findBestRule(input: TaxInput) {
-    const rules = await this.prisma.taxRule.findMany({
+  async findBestRule(
+    input: Omit<TaxInput, 'itemValue'> & { itemValue?: number },
+    client: Pick<PrismaService, 'taxRule'> = this.prisma,
+  ) {
+    // #500: vigência resolvida pela data de emissão — regra fora da janela
+    // [validFrom, validTo] não existe para esta nota (null = sem limite)
+    const emissao = input.emissionDate ?? new Date();
+    const rules = await client.taxRule.findMany({
       where: {
         companyId: input.companyId,
         operationType: input.operationType,
         isActive: true,
-        // Filtrar regras que se aplicam (campo null = aplica a qualquer)
-        OR: [
-          { ufOrigem: input.ufOrigem, ufDestino: input.ufDestino },
-          { ufOrigem: input.ufOrigem, ufDestino: null },
-          { ufOrigem: null, ufDestino: null },
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: emissao } }] },
+          { OR: [{ validTo: null }, { validTo: { gte: emissao } }] },
+          {
+            // Filtrar regras que se aplicam (campo null = aplica a qualquer)
+            OR: [
+              { ufOrigem: input.ufOrigem, ufDestino: input.ufDestino },
+              { ufOrigem: input.ufOrigem, ufDestino: null },
+              { ufOrigem: null, ufDestino: null },
+            ],
+          },
         ],
       },
-      orderBy: { priority: 'desc' },
+      // empate de prioridade: vence a versão mais recente (validFrom maior);
+      // regras sem vigência (null) perdem para versões datadas
+      orderBy: [{ priority: 'desc' }, { validFrom: { sort: 'desc', nulls: 'last' } }],
     });
 
     if (rules.length === 0) return null;
@@ -215,4 +282,9 @@ export class TaxCalculationService {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** Alíquotas efetivas do gRed usam 4 casas (layout NT 2025.002: pAliqEfet 3v2-4) */
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
 }

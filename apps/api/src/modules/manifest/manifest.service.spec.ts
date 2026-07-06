@@ -3,7 +3,7 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ManifestService, MANIFEST_CONFIRMED_EVENT } from './manifest.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FiscalClientService } from '../fiscal/fiscal-client.service';
+import { EMISSOR_PORT } from '../fiscal/emissor.port';
 
 describe('ManifestService', () => {
   let service: ManifestService;
@@ -62,7 +62,7 @@ describe('ManifestService', () => {
       providers: [
         ManifestService,
         { provide: PrismaService, useValue: prisma },
-        { provide: FiscalClientService, useValue: fiscalClient },
+        { provide: EMISSOR_PORT, useValue: fiscalClient },
         { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();

@@ -5,7 +5,6 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
   Request,
 } from '@nestjs/common';
 import {
@@ -16,14 +15,13 @@ import {
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('users')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+// Dados de usuários são sensíveis: leitura também restrita
+@Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -32,7 +30,7 @@ export class UserController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Criar novo usuário' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
-    return this.userService.create({ ...dto, companyId: user.companyId });
+    return this.userService.create(dto, user.companyId);
   }
 
   @Get()
