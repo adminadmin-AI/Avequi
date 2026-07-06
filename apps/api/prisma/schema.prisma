@@ -18,115 +18,119 @@ enum TaxRegime {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  cnpj      String   @unique
-  type      CompanyType @default(MATRIZ)
-  parentId  String?
-  parent    Company?  @relation("branches", fields: [parentId], references: [id])
-  branches  Company[] @relation("branches")
+  id       String      @id @default(cuid())
+  name     String
+  cnpj     String      @unique
+  type     CompanyType @default(MATRIZ)
+  parentId String?
+  parent   Company?    @relation("branches", fields: [parentId], references: [id])
+  branches Company[]   @relation("branches")
 
   // ── Dados fiscais ──
-  razaoSocial  String?
-  ie           String?   // Inscrição Estadual
-  im           String?   // Inscrição Municipal
-  crt          Int?      // Código Regime Tributário: 1=SN, 2=SN-ExSub, 3=Normal
-  taxRegime    TaxRegime?
-  suframa      String?
-  cnae         String?   // CNAE principal
+  razaoSocial String?
+  ie          String? // Inscrição Estadual
+  im          String? // Inscrição Municipal
+  crt         Int? // Código Regime Tributário: 1=SN, 2=SN-ExSub, 3=Normal
+  taxRegime   TaxRegime?
+  suframa     String?
+  cnae        String? // CNAE principal
 
   // ── Endereço ──
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?   // UF (2 letras)
-  zipCode      String?   // CEP
-  ibgeCode     String?   // Código IBGE do município
-  phone        String?
-  email        String?
-  users     User[]
-  auditLogs AuditLog[]
-  products  Product[]
-  suppliers Supplier[]
-  customers Customer[]
-  bomVersions    BomVersion[]
-  routingSteps   RoutingStep[]
-  warehouses       Warehouse[]
-  stockBalances    StockBalance[]
-  stockMovements   StockMovement[]
-  purchaseOrders   PurchaseOrder[]
-  goodsReceipts    GoodsReceipt[]
-  salesOrders      SalesOrder[]
-  fiscalDocuments  FiscalDocument[]
-  financialEntries     FinancialEntry[]
-  bankAccounts         BankAccount[]
-  storeTransfers       StoreTransfer[]
-  demandForecasts      DemandForecast[]
-  purchaseRequests     PurchaseRequest[]
-  supplierPriceHistory SupplierPriceHistory[]
-  systemParameters     SystemParameter[]
-  mrpRuns              MrpRun[]
-  productionOrders     ProductionOrder[]
-  locations        Location[]
-  receivingOrders  ReceivingOrder[]
-  putawayTasks     PutawayTask[]
-  pickingOrders    PickingOrder[]
-  pickTasks        PickTask[]
-  inventoryCounts  InventoryCount[]
-  inventoryItems   InventoryCountItem[]
-  alerts           Alert[]
-  inspections      Inspection[]
-  nonConformances  NonConformance[]
-  serialNumbers    SerialNumber[]
-  binRegistrations BinRegistration[]
-  atpveRecords     AtpveRecord[]
-  renaveOperations RenaveOperation[]
-  equipment        Equipment[]
-  maintenanceOrders MaintenanceOrder[]
-  quotations       Quotation[]
-  inboundNfes      InboundNfe[]
-  workCenters      WorkCenter[]
-  batches          Batch[]
+  street                String?
+  number                String?
+  complement            String?
+  neighborhood          String?
+  city                  String?
+  state                 String? // UF (2 letras)
+  zipCode               String? // CEP
+  ibgeCode              String? // Código IBGE do município
+  phone                 String?
+  email                 String?
+  users                 User[]
+  auditLogs             AuditLog[]
+  products              Product[]
+  suppliers             Supplier[]
+  customers             Customer[]
+  bomVersions           BomVersion[]
+  routingSteps          RoutingStep[]
+  warehouses            Warehouse[]
+  stockBalances         StockBalance[]
+  stockMovements        StockMovement[]
+  purchaseOrders        PurchaseOrder[]
+  goodsReceipts         GoodsReceipt[]
+  salesOrders           SalesOrder[]
+  fiscalDocuments       FiscalDocument[]
+  financialEntries      FinancialEntry[]
+  bankAccounts          BankAccount[]
+  storeTransfers        StoreTransfer[]
+  demandForecasts       DemandForecast[]
+  purchaseRequests      PurchaseRequest[]
+  supplierPriceHistory  SupplierPriceHistory[]
+  systemParameters      SystemParameter[]
+  mrpRuns               MrpRun[]
+  productionOrders      ProductionOrder[]
+  locations             Location[]
+  receivingOrders       ReceivingOrder[]
+  putawayTasks          PutawayTask[]
+  pickingOrders         PickingOrder[]
+  pickTasks             PickTask[]
+  inventoryCounts       InventoryCount[]
+  inventoryItems        InventoryCountItem[]
+  alerts                Alert[]
+  inspections           Inspection[]
+  nonConformances       NonConformance[]
+  serialNumbers         SerialNumber[]
+  binRegistrations      BinRegistration[]
+  atpveRecords          AtpveRecord[]
+  renaveOperations      RenaveOperation[]
+  equipment             Equipment[]
+  maintenanceOrders     MaintenanceOrder[]
+  quotations            Quotation[]
+  inboundNfes           InboundNfe[]
+  workCenters           WorkCenter[]
+  batches               Batch[]
   // Finance
-  financialCategories  FinancialCategory[]
-  costCenters          CostCenter[]
-  payables             Payable[]
-  receivables          Receivable[]
+  financialCategories   FinancialCategory[]
+  costCenters           CostCenter[]
+  payables              Payable[]
+  receivables           Receivable[]
   // BPM — Approval
-  approvalMatrices     ApprovalMatrix[]
-  taxRules             TaxRule[]
-  fiscalVoidRanges     FiscalVoidRange[]
-  threeWayMatches      ThreeWayMatch[]
+  approvalMatrices      ApprovalMatrix[]
+  taxRules              TaxRule[]
+  fiscalVoidRanges      FiscalVoidRange[]
+  threeWayMatches       ThreeWayMatch[]
   // Fase 5
-  priceTables          PriceTable[]
-  commissionRules      CommissionRule[]
-  commissions          Commission[]
-  rfqs                 RequestForQuotation[]
+  priceTables           PriceTable[]
+  commissionRules       CommissionRule[]
+  commissions           Commission[]
+  rfqs                  RequestForQuotation[]
   // Fase 6
-  nfeManifests         NfeManifest[]
+  nfeManifests          NfeManifest[]
   // Fase 7
-  consentRecords           ConsentRecord[]
-  anonymizationRequests    AnonymizationRequest[]
-  budgets                  Budget[]
-  bankStatements           BankStatement[]
-  productionSchedules      ProductionSchedule[]
-  scheduledPayments        ScheduledPayment[]
-  collectionAttempts       CollectionAttempt[]
-  carriers                 Carrier[]
+  consentRecords        ConsentRecord[]
+  anonymizationRequests AnonymizationRequest[]
+  budgets               Budget[]
+  bankStatements        BankStatement[]
+  productionSchedules   ProductionSchedule[]
+  scheduledPayments     ScheduledPayment[]
+  collectionAttempts    CollectionAttempt[]
+  carriers              Carrier[]
   // IAM v2 — F1 (#335/#336/#337)
-  roles                Role[]
-  userRoleAssignments  UserRoleAssignment[]
-  userPermissions      UserPermission[]
-  orgBranches          Branch[]
-  departments          Department[]
-  userSessions         UserSession[]
-  auditLogsV2          AuditLogV2[]
-  securityEvents       SecurityEvent[]
-  permissionChangeLogs PermissionChangeLog[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  roles                 Role[]
+  userRoleAssignments   UserRoleAssignment[]
+  userPermissions       UserPermission[]
+  orgBranches           Branch[]
+  departments           Department[]
+  userSessions          UserSession[]
+  auditLogsV2           AuditLogV2[]
+  securityEvents        SecurityEvent[]
+  permissionChangeLogs  PermissionChangeLog[]
+  // CRM de Lojas — F1.1 (#507)
+  leads                 Lead[]
+  pipelineStages        PipelineStage[]
+  whatsappConversations WhatsappConversation[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@map("gdr_companies")
 }
@@ -155,51 +159,51 @@ enum TaxOperationType {
 }
 
 model TaxRule {
-  id               String           @id @default(cuid())
-  companyId        String
-  company          Company          @relation(fields: [companyId], references: [id])
-  operationType    TaxOperationType
-  ncm              String?          // Regra por NCM (nullable = regra geral)
-  productType      ProductType?     // Regra por tipo de produto (nullable = qualquer)
-  ufOrigem         String?          // UF origem (nullable = qualquer)
-  ufDestino        String?          // UF destino (nullable = qualquer)
-  cfop             String           // Ex: 5101, 6101, 5152
+  id                 String           @id @default(cuid())
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  operationType      TaxOperationType
+  ncm                String? // Regra por NCM (nullable = regra geral)
+  productType        ProductType? // Regra por tipo de produto (nullable = qualquer)
+  ufOrigem           String? // UF origem (nullable = qualquer)
+  ufDestino          String? // UF destino (nullable = qualquer)
+  cfop               String // Ex: 5101, 6101, 5152
   // ICMS
-  icmsCst          String           // Ex: 00, 10, 20, 40, 41, 60
-  icmsAliquota     Decimal          @default(0) @db.Decimal(5, 2)
-  icmsBaseReducao  Decimal          @default(100) @db.Decimal(5, 2) // % da base (100 = sem redução)
+  icmsCst            String // Ex: 00, 10, 20, 40, 41, 60
+  icmsAliquota       Decimal          @default(0) @db.Decimal(5, 2)
+  icmsBaseReducao    Decimal          @default(100) @db.Decimal(5, 2) // % da base (100 = sem redução)
   // IPI
-  ipiCst           String           @default("99") // Ex: 00, 49, 50, 99
-  ipiAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  ipiCst             String           @default("99") // Ex: 00, 49, 50, 99
+  ipiAliquota        Decimal          @default(0) @db.Decimal(5, 2)
   // PIS
-  pisCst           String           @default("01") // Ex: 01, 06, 07, 49
-  pisAliquota      Decimal          @default(0) @db.Decimal(5, 2)
+  pisCst             String           @default("01") // Ex: 01, 06, 07, 49
+  pisAliquota        Decimal          @default(0) @db.Decimal(5, 2)
   // COFINS
-  cofinsCst        String           @default("01") // Ex: 01, 06, 07, 49
-  cofinsAliquota   Decimal          @default(0) @db.Decimal(5, 2)
+  cofinsCst          String           @default("01") // Ex: 01, 06, 07, 49
+  cofinsAliquota     Decimal          @default(0) @db.Decimal(5, 2)
   // DIFAL — alíquota interna do UF destino (para cálculo quando consumidor final interestadual)
-  icmsInternaDestino Decimal?       @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
-  fcpAliquotaDestino Decimal?       @db.Decimal(5, 2) // % FCP do UF destino no DIFAL (SP 2%, RJ 2% — NF-e real #14236) (#445)
+  icmsInternaDestino Decimal?         @db.Decimal(5, 2) // Alíquota interna do UF destino (ex: 18% SP, 17% SC)
+  fcpAliquotaDestino Decimal?         @db.Decimal(5, 2) // % FCP do UF destino no DIFAL (SP 2%, RJ 2% — NF-e real #14236) (#445)
   // IBS/CBS — Reforma Tributária NT 2025.002-RTC (#412)
-  cClassTrib       String?          @db.VarChar(6)  // código classificação tributária (tabela cClassTrib — #413)
-  cbsCst           String?          @db.VarChar(3)  // CST CBS (000 = tributação integral)
-  cbsAliquota      Decimal?         @db.Decimal(7, 4) // 0.9 em 2026 (fase teste)
-  ibsUfCst         String?          @db.VarChar(3)
-  ibsUfAliquota    Decimal?         @db.Decimal(7, 4) // 0.1 em 2026 (LC 214/2025 art. 343)
-  ibsMunCst        String?          @db.VarChar(3)
-  ibsMunAliquota   Decimal?         @db.Decimal(7, 4) // 0 em 2026 — IBS teste é 100% estadual
+  cClassTrib         String?          @db.VarChar(6) // código classificação tributária (tabela cClassTrib — #413)
+  cbsCst             String?          @db.VarChar(3) // CST CBS (000 = tributação integral)
+  cbsAliquota        Decimal?         @db.Decimal(7, 4) // 0.9 em 2026 (fase teste)
+  ibsUfCst           String?          @db.VarChar(3)
+  ibsUfAliquota      Decimal?         @db.Decimal(7, 4) // 0.1 em 2026 (LC 214/2025 art. 343)
+  ibsMunCst          String?          @db.VarChar(3)
+  ibsMunAliquota     Decimal?         @db.Decimal(7, 4) // 0 em 2026 — IBS teste é 100% estadual
   // Vigência temporal (#500) — versionamento de NTs e da transição da reforma
   // (2027 CBS definitiva, 2029-32 ICMS→IBS). null = sem limite naquela ponta;
   // o motor resolve pela data de emissão, então NT nova = linha nova com
   // validFrom futuro (carga de dados, não deploy).
-  validFrom        DateTime?
-  validTo          DateTime?
+  validFrom          DateTime?
+  validTo            DateTime?
   // Meta
-  description      String?
-  priority         Int              @default(0) // Maior = mais específica
-  isActive         Boolean          @default(true)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  description        String?
+  priority           Int              @default(0) // Maior = mais específica
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@unique([companyId, operationType, ncm, productType, ufOrigem, ufDestino, validFrom])
   @@index([companyId, operationType])
@@ -212,14 +216,14 @@ model TributaryClassification {
   id             String    @id @default(cuid())
   code           String    @unique @db.VarChar(6) // cClassTrib, ex: 000001
   description    String
-  cst            String    @db.VarChar(3)  // CST IBS/CBS (comum aos dois na tabela oficial)
+  cst            String    @db.VarChar(3) // CST IBS/CBS (comum aos dois na tabela oficial)
   percRedIbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota IBS
   percRedCbs     Decimal   @default(0) @db.Decimal(7, 4) // % redução alíquota CBS
   isExempt       Boolean   @default(false) // CST 400 (isenção) / 410 (imunidade)
   isReduced      Boolean   @default(false) // redução de alíquota ou base
   isMonophase    Boolean   @default(false)
   allowsCredPres Boolean   @default(false) // permite crédito presumido
-  allowsNfe      Boolean   @default(true)  // código aplicável a NF-e/NFC-e
+  allowsNfe      Boolean   @default(true) // código aplicável a NF-e/NFC-e
   validFrom      DateTime?
   validTo        DateTime? // null = vigente
   createdAt      DateTime  @default(now())
@@ -232,71 +236,73 @@ model TributaryClassification {
 // ─── Usuário ──────────────────────────────────────────────────────────────────
 
 model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  role          UserRole @default(READER)
-  isActive      Boolean  @default(true)
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
+  id                        String                 @id @default(cuid())
+  name                      String
+  email                     String                 @unique
+  passwordHash              String
+  role                      UserRole               @default(READER)
+  isActive                  Boolean                @default(true)
+  companyId                 String
+  company                   Company                @relation(fields: [companyId], references: [id])
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]
   stockMovements            StockMovement[]
-  createdPurchaseOrders     PurchaseOrder[] @relation("POCreatedBy")
-  approvedPurchaseOrders    PurchaseOrder[] @relation("POApprovedBy")
-  goodsReceipts             GoodsReceipt[]  @relation("GRReceivedBy")
-  createdSalesOrders        SalesOrder[]    @relation("SOCreatedBy")
-  requestedTransfers        StoreTransfer[] @relation("TransferRequestedBy")
-  dispatchedTransfers       StoreTransfer[] @relation("TransferDispatchedBy")
-  receivedTransfers         StoreTransfer[] @relation("TransferReceivedBy")
-  demandForecasts           DemandForecast[]    @relation("DemandCreatedBy")
-  purchaseRequests          PurchaseRequest[]   @relation("PRRequestedBy")
-  triggeredMrpRuns          MrpRun[]            @relation("MrpTriggeredBy")
-  createdProductionOrders   ProductionOrder[]   @relation("POProdCreatedBy")
-  productionLogs            ProductionLog[]     @relation("ProductionLogUser")
-  putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
-  pickConfirmations         PickTask[]          @relation("PickConfirmedBy")
-  conferredSalesOrders SalesOrder[] @relation("SOConferredBy")
-  inventoryCountsCreated    InventoryCount[]    @relation("InventoryCreatedBy")
-  inventoryCountsReconciled InventoryCount[]    @relation("InventoryReconciledBy")
-  inventoryItemsCounted     InventoryCountItem[] @relation("InventoryItemCountedBy")
-  inspectionsLed            Inspection[]        @relation("InspectionInspectedBy")
-  ncrResponsibilities       NonConformance[]    @relation("NcrResponsible")
-  ncrsClosed                NonConformance[]    @relation("NcrClosedBy")
-  ncrsCreated               NonConformance[]    @relation("NcrCreatedBy")
-  maintenanceTasks          MaintenanceOrder[]  @relation("MaintenanceTechnician")
-  maintenanceOrdersCreated  MaintenanceOrder[]  @relation("MaintenanceCreatedBy")
-  quotationsCreated         Quotation[]         @relation("QuotationCreatedBy")
-  inboundNfesImported       InboundNfe[]        @relation("InboundNfeImportedBy")
-  batchEvents               BatchEvent[]        @relation("BatchEventUser")
-  matchResolutions          ThreeWayMatch[]     @relation("MatchResolvedBy")
-  commissionRules           CommissionRule[]    @relation("CommissionRuleUser")
-  commissions               Commission[]       @relation("CommissionUser")
-  rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
+  createdPurchaseOrders     PurchaseOrder[]        @relation("POCreatedBy")
+  approvedPurchaseOrders    PurchaseOrder[]        @relation("POApprovedBy")
+  goodsReceipts             GoodsReceipt[]         @relation("GRReceivedBy")
+  createdSalesOrders        SalesOrder[]           @relation("SOCreatedBy")
+  requestedTransfers        StoreTransfer[]        @relation("TransferRequestedBy")
+  dispatchedTransfers       StoreTransfer[]        @relation("TransferDispatchedBy")
+  receivedTransfers         StoreTransfer[]        @relation("TransferReceivedBy")
+  demandForecasts           DemandForecast[]       @relation("DemandCreatedBy")
+  purchaseRequests          PurchaseRequest[]      @relation("PRRequestedBy")
+  triggeredMrpRuns          MrpRun[]               @relation("MrpTriggeredBy")
+  createdProductionOrders   ProductionOrder[]      @relation("POProdCreatedBy")
+  productionLogs            ProductionLog[]        @relation("ProductionLogUser")
+  putawayConfirmations      PutawayTask[]          @relation("PutawayConfirmedBy")
+  pickConfirmations         PickTask[]             @relation("PickConfirmedBy")
+  conferredSalesOrders      SalesOrder[]           @relation("SOConferredBy")
+  inventoryCountsCreated    InventoryCount[]       @relation("InventoryCreatedBy")
+  inventoryCountsReconciled InventoryCount[]       @relation("InventoryReconciledBy")
+  inventoryItemsCounted     InventoryCountItem[]   @relation("InventoryItemCountedBy")
+  inspectionsLed            Inspection[]           @relation("InspectionInspectedBy")
+  ncrResponsibilities       NonConformance[]       @relation("NcrResponsible")
+  ncrsClosed                NonConformance[]       @relation("NcrClosedBy")
+  ncrsCreated               NonConformance[]       @relation("NcrCreatedBy")
+  maintenanceTasks          MaintenanceOrder[]     @relation("MaintenanceTechnician")
+  maintenanceOrdersCreated  MaintenanceOrder[]     @relation("MaintenanceCreatedBy")
+  quotationsCreated         Quotation[]            @relation("QuotationCreatedBy")
+  inboundNfesImported       InboundNfe[]           @relation("InboundNfeImportedBy")
+  batchEvents               BatchEvent[]           @relation("BatchEventUser")
+  matchResolutions          ThreeWayMatch[]        @relation("MatchResolvedBy")
+  commissionRules           CommissionRule[]       @relation("CommissionRuleUser")
+  commissions               Commission[]           @relation("CommissionUser")
+  rfqsCreated               RequestForQuotation[]  @relation("RfqCreatedBy")
   nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
   anonymizationRequests     AnonymizationRequest[] @relation("AnonymizationRequestedBy")
   // IAM v2 — F1 (#335/#336/#337) — campos e relações aditivas
-  lockedUntil   DateTime? // lockout de conta (#336) — null = não bloqueado
+  lockedUntil               DateTime? // lockout de conta (#336) — null = não bloqueado
   roleAssignments           UserRoleAssignment[]
   permissionExceptions      UserPermission[]
   departmentLinks           UserDepartment[]
   teamLinks                 UserTeam[]
-  managedDepartments        Department[]          @relation("DepartmentManager")
-  ledTeams                  Team[]                @relation("TeamLeader")
+  managedDepartments        Department[]           @relation("DepartmentManager")
+  ledTeams                  Team[]                 @relation("TeamLeader")
   sessions                  UserSession[]
   trustedDevices            TrustedDevice[]
   auditLogsV2               AuditLogV2[]
   securityEvents            SecurityEvent[]
-  permissionChangesReceived PermissionChangeLog[] @relation("PermissionChangeTarget")
-  permissionChangesMade     PermissionChangeLog[] @relation("PermissionChangeAuthor")
+  permissionChangesReceived PermissionChangeLog[]  @relation("PermissionChangeTarget")
+  permissionChangesMade     PermissionChangeLog[]  @relation("PermissionChangeAuthor")
+  // CRM de Lojas — F1.1 (#507)
+  assignedLeads             Lead[]                 @relation("LeadAssignee")
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  defaultForCustomersSeller Customer[]             @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
 
   @@map("gdr_users")
-  defaultForCustomersSeller Customer[] @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
 }
 
 enum UserRole {
@@ -315,13 +321,13 @@ enum UserRole {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
+  id        String       @id @default(cuid())
+  token     String       @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
   // IAM v2 (#336): sessão amarrada ao refresh token (Decisão 4 — híbrido)
   session   UserSession?
 
@@ -369,63 +375,63 @@ enum UnitOfMeasure {
 }
 
 model Product {
-  id          String         @id @default(cuid())
-  companyId   String
-  company     Company        @relation(fields: [companyId], references: [id])
-  sku         String
-  name        String
-  description String?
-  type        ProductType
-  unit        UnitOfMeasure  @default(UN)
-  ncm         String?
-  codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
-  cClassTrib  String?        @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
-  origem      String         @default("0") @db.VarChar(1) // origem da mercadoria 0-8 (tabela A do ICMS) — orig no XML; 1/2/3/8 = importado → interestadual 4% RSF 13/2012 (#480)
-  ean         String?        @db.VarChar(14) // GTIN (cEAN) — SEFAZ valida no Cadastro Centralizado; vazio = Focus emite SEM GTIN (#484)
-  cest        String?        @db.VarChar(7)  // código CEST quando sujeito a ST (#484)
-  pesoLiquido Decimal?       @map("peso_liquido") @db.Decimal(12, 3) // kg — alimenta volumes da NF-e (#484)
-  pesoBruto   Decimal?       @map("peso_bruto") @db.Decimal(12, 3) // kg (#484)
-  unidadeTributavel String?  @map("unidade_tributavel") @db.VarChar(6) // uTrib quando ≠ unidade comercial (#484)
-  fatorConversaoTributavel Decimal? @map("fator_conversao_tributavel") @db.Decimal(12, 6) // qTrib = qCom × fator (#484)
-  costPrice   Decimal?       @db.Decimal(14, 4)
-  salePrice   Decimal?       @db.Decimal(14, 4)
-  avgCost     Decimal?       @db.Decimal(14, 4)
-  minStock    Decimal        @default(0) @db.Decimal(14, 4)
-  minOrderQty       Decimal?  @db.Decimal(14, 4)
-  orderMultiple     Decimal?  @db.Decimal(14, 4)
-  minProductionQty  Decimal?  @db.Decimal(14, 4)
-  productionMultiple Decimal? @db.Decimal(14, 4)
-  leadTimeDays      Int?      @default(0)
-  requiresFinalInspection Boolean @default(false)
-  tracksSerial Boolean       @default(false)
-  isActive    Boolean        @default(true)
-  batches        Batch[]       @relation("BatchProduct")
-  boms           BomVersion[]  @relation("ProductBoms")
-  usedInBoms     BomItem[]     @relation("ComponentOf")
-  routingSteps   RoutingStep[] @relation("ProductRouting")
-  stockBalances  StockBalance[]
-  stockMovements StockMovement[]
-  poItems              POItem[]
-  grItems              GRItem[]
-  saleItems            SaleItem[]
-  transferItems        StoreTransferItem[]
-  demandForecasts      DemandForecast[]
-  purchaseRequests     PurchaseRequest[]
-  supplierPriceHistory SupplierPriceHistory[]
+  id                        String                 @id @default(cuid())
+  companyId                 String
+  company                   Company                @relation(fields: [companyId], references: [id])
+  sku                       String
+  name                      String
+  description               String?
+  type                      ProductType
+  unit                      UnitOfMeasure          @default(UN)
+  ncm                       String?
+  codigoMarcaModelo         String?                @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM marca/modelo, ex: 600657 Carresul (#372)
+  cClassTrib                String?                @map("c_class_trib") @db.VarChar(6) // classificação tributária IBS/CBS do produto — ref. TributaryClassification.code (#413)
+  origem                    String                 @default("0") @db.VarChar(1) // origem da mercadoria 0-8 (tabela A do ICMS) — orig no XML; 1/2/3/8 = importado → interestadual 4% RSF 13/2012 (#480)
+  ean                       String?                @db.VarChar(14) // GTIN (cEAN) — SEFAZ valida no Cadastro Centralizado; vazio = Focus emite SEM GTIN (#484)
+  cest                      String?                @db.VarChar(7) // código CEST quando sujeito a ST (#484)
+  pesoLiquido               Decimal?               @map("peso_liquido") @db.Decimal(12, 3) // kg — alimenta volumes da NF-e (#484)
+  pesoBruto                 Decimal?               @map("peso_bruto") @db.Decimal(12, 3) // kg (#484)
+  unidadeTributavel         String?                @map("unidade_tributavel") @db.VarChar(6) // uTrib quando ≠ unidade comercial (#484)
+  fatorConversaoTributavel  Decimal?               @map("fator_conversao_tributavel") @db.Decimal(12, 6) // qTrib = qCom × fator (#484)
+  costPrice                 Decimal?               @db.Decimal(14, 4)
+  salePrice                 Decimal?               @db.Decimal(14, 4)
+  avgCost                   Decimal?               @db.Decimal(14, 4)
+  minStock                  Decimal                @default(0) @db.Decimal(14, 4)
+  minOrderQty               Decimal?               @db.Decimal(14, 4)
+  orderMultiple             Decimal?               @db.Decimal(14, 4)
+  minProductionQty          Decimal?               @db.Decimal(14, 4)
+  productionMultiple        Decimal?               @db.Decimal(14, 4)
+  leadTimeDays              Int?                   @default(0)
+  requiresFinalInspection   Boolean                @default(false)
+  tracksSerial              Boolean                @default(false)
+  isActive                  Boolean                @default(true)
+  batches                   Batch[]                @relation("BatchProduct")
+  boms                      BomVersion[]           @relation("ProductBoms")
+  usedInBoms                BomItem[]              @relation("ComponentOf")
+  routingSteps              RoutingStep[]          @relation("ProductRouting")
+  stockBalances             StockBalance[]
+  stockMovements            StockMovement[]
+  poItems                   POItem[]
+  grItems                   GRItem[]
+  saleItems                 SaleItem[]
+  transferItems             StoreTransferItem[]
+  demandForecasts           DemandForecast[]
+  purchaseRequests          PurchaseRequest[]
+  supplierPriceHistory      SupplierPriceHistory[]
   mrpSuggestions            MrpSuggestion[]
-  productionOrdersAsProduct ProductionOrder[]   @relation("ProductionOrderProduct")
-  productionOrderItems      ProductionOrderItem[] @relation("ProductionOrderComponent")
-  putawayTasks              PutawayTask[]        @relation("PutawayProduct")
-  pickTasks                 PickTask[]           @relation("PickTaskProduct")
-  inventoryItems            InventoryCountItem[] @relation("InventoryItemProduct")
-  nonConformances           NonConformance[]     @relation("NcrProduct")
-  serialNumbers             SerialNumber[]       @relation("SerialProduct")
-  serialComponents          SerialComponent[]    @relation("SerialComponentProduct")
-  quotationItems            QuotationItem[]      @relation("QuotationItemProduct")
+  productionOrdersAsProduct ProductionOrder[]      @relation("ProductionOrderProduct")
+  productionOrderItems      ProductionOrderItem[]  @relation("ProductionOrderComponent")
+  putawayTasks              PutawayTask[]          @relation("PutawayProduct")
+  pickTasks                 PickTask[]             @relation("PickTaskProduct")
+  inventoryItems            InventoryCountItem[]   @relation("InventoryItemProduct")
+  nonConformances           NonConformance[]       @relation("NcrProduct")
+  serialNumbers             SerialNumber[]         @relation("SerialProduct")
+  serialComponents          SerialComponent[]      @relation("SerialComponentProduct")
+  quotationItems            QuotationItem[]        @relation("QuotationItemProduct")
   priceTableItems           PriceTableItem[]
   rfqItems                  RfqItem[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
 
   @@unique([companyId, sku])
   @@map("gdr_products")
@@ -434,43 +440,43 @@ model Product {
 // ─── Fornecedor ───────────────────────────────────────────────────────────────
 
 model Supplier {
-  id             String          @id @default(cuid())
-  companyId      String
-  company        Company         @relation(fields: [companyId], references: [id])
-  name           String          // nome fantasia / apelido comercial (#478)
-  razaoSocial    String?         @map("razao_social") // razão social (#478)
-  cnpj           String?
-  ie             String?         @db.VarChar(14) // inscrição estadual (#478)
-  taxRegime      TaxRegime?      @map("tax_regime") // regime tributário — crédito IBS/CBS nas compras a partir de 2027 (#478)
-  email          String?
-  fiscalEmail    String?         @map("fiscal_email") // e-mail p/ NF-e/boleto (#478)
-  phone          String?
-  phone2         String?
-  contactName    String?         @map("contact_name")
-  address        String?         // logradouro (#478)
-  number         String?         @db.VarChar(10)
-  complement     String?         @db.VarChar(60)
-  neighborhood   String?         @db.VarChar(60)
-  city           String?
-  state          String?         @db.VarChar(2)
-  zipCode        String?         @map("zip_code") @db.VarChar(8)
-  ibgeCode       String?         @map("ibge_code") @db.VarChar(7)
-  defaultPaymentTerms String?    @map("default_payment_terms") // condição de pagamento padrão — pré-preenche PO (#478)
-  bankName       String?         @map("bank_name")
-  bankAgency     String?         @map("bank_agency")
-  bankAccount    String?         @map("bank_account")
-  pixKey         String?         @map("pix_key")
-  leadTimeDays   Int             @default(0)
-  isActive       Boolean         @default(true)
+  id                   String                 @id @default(cuid())
+  companyId            String
+  company              Company                @relation(fields: [companyId], references: [id])
+  name                 String // nome fantasia / apelido comercial (#478)
+  razaoSocial          String?                @map("razao_social") // razão social (#478)
+  cnpj                 String?
+  ie                   String?                @db.VarChar(14) // inscrição estadual (#478)
+  taxRegime            TaxRegime?             @map("tax_regime") // regime tributário — crédito IBS/CBS nas compras a partir de 2027 (#478)
+  email                String?
+  fiscalEmail          String?                @map("fiscal_email") // e-mail p/ NF-e/boleto (#478)
+  phone                String?
+  phone2               String?
+  contactName          String?                @map("contact_name")
+  address              String? // logradouro (#478)
+  number               String?                @db.VarChar(10)
+  complement           String?                @db.VarChar(60)
+  neighborhood         String?                @db.VarChar(60)
+  city                 String?
+  state                String?                @db.VarChar(2)
+  zipCode              String?                @map("zip_code") @db.VarChar(8)
+  ibgeCode             String?                @map("ibge_code") @db.VarChar(7)
+  defaultPaymentTerms  String?                @map("default_payment_terms") // condição de pagamento padrão — pré-preenche PO (#478)
+  bankName             String?                @map("bank_name")
+  bankAgency           String?                @map("bank_agency")
+  bankAccount          String?                @map("bank_account")
+  pixKey               String?                @map("pix_key")
+  leadTimeDays         Int                    @default(0)
+  isActive             Boolean                @default(true)
   purchaseOrders       PurchaseOrder[]
   supplierPriceHistory SupplierPriceHistory[]
   nonConformances      NonConformance[]
   portalTokens         SupplierToken[]
-  batches              Batch[]               @relation("BatchSupplier")
+  batches              Batch[]                @relation("BatchSupplier")
   payables             Payable[]
   rfqQuotes            RfqQuote[]
-  createdAt            DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@unique([companyId, cnpj])
   @@map("gdr_suppliers")
@@ -485,56 +491,57 @@ enum CustomerType {
 
 /// Indicador de IE do destinatário (indIEDest da NF-e) — explícito no cadastro (#474)
 enum IcmsIndicator {
-  CONTRIBUINTE     // 1 — exige IE válida
-  ISENTO           // 2 — contribuinte isento de IE
+  CONTRIBUINTE // 1 — exige IE válida
+  ISENTO // 2 — contribuinte isento de IE
   NAO_CONTRIBUINTE // 9 — consumidor final PF/PJ não contribuinte
 }
 
 model Customer {
-  id           String       @id @default(cuid())
-  companyId    String
-  company      Company      @relation(fields: [companyId], references: [id])
-  type         CustomerType @default(COMPANY)
-  name         String       // nome fantasia / apelido comercial
-  razaoSocial  String?      @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
-  document     String?
-  email        String?
-  fiscalEmail  String?      @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
-  phone        String?
-  phone2       String?
-  contactName  String?      @map("contact_name")
-  address      String?       // logradouro (rua, av, etc.)
-  number       String?       @db.VarChar(10)
-  complement   String?       @db.VarChar(60)
-  neighborhood String?       @db.VarChar(60) // bairro
-  city         String?
-  state        String?       @db.VarChar(2)
-  zipCode      String?       @map("zip_code") @db.VarChar(8) // CEP sem máscara
-  ibgeCode     String?       @map("ibge_code") @db.VarChar(7) // código município IBGE
-  ie           String?       @db.VarChar(14) // inscrição estadual
+  id                  String            @id @default(cuid())
+  companyId           String
+  company             Company           @relation(fields: [companyId], references: [id])
+  type                CustomerType      @default(COMPANY)
+  name                String // nome fantasia / apelido comercial
+  razaoSocial         String?           @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
+  document            String?
+  email               String?
+  fiscalEmail         String?           @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
+  phone               String?
+  phone2              String?
+  contactName         String?           @map("contact_name")
+  address             String? // logradouro (rua, av, etc.)
+  number              String?           @db.VarChar(10)
+  complement          String?           @db.VarChar(60)
+  neighborhood        String?           @db.VarChar(60) // bairro
+  city                String?
+  state               String?           @db.VarChar(2)
+  zipCode             String?           @map("zip_code") @db.VarChar(8) // CEP sem máscara
+  ibgeCode            String?           @map("ibge_code") @db.VarChar(7) // código município IBGE
+  ie                  String?           @db.VarChar(14) // inscrição estadual
   // Fiscal (#474) — indIeDest null = inferir por IE/CPF (cadastros antigos)
-  indIeDest        IcmsIndicator? @map("ind_ie_dest")
-  isRuralProducer  Boolean    @default(false) @map("is_rural_producer") // IE de produtor no campo ie
-  isSimplesNacional Boolean   @default(false) @map("is_simples_nacional")
+  indIeDest           IcmsIndicator?    @map("ind_ie_dest")
+  isRuralProducer     Boolean           @default(false) @map("is_rural_producer") // IE de produtor no campo ie
+  isSimplesNacional   Boolean           @default(false) @map("is_simples_nacional")
   // Crédito e cobrança (#475) — casa com Receivable (em aberto é query, não campo)
-  creditLimit         Decimal? @map("credit_limit") @db.Decimal(14, 2)
-  billingBlocked      Boolean  @default(false) @map("billing_blocked")
-  billingBlockReason  String?  @map("billing_block_reason")
+  creditLimit         Decimal?          @map("credit_limit") @db.Decimal(14, 2)
+  billingBlocked      Boolean           @default(false) @map("billing_blocked")
+  billingBlockReason  String?           @map("billing_block_reason")
   // Padrões comerciais (#475) — pré-preenchem a OV
-  defaultSellerId     String?  @map("default_seller_id")
-  defaultSeller       User?    @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
-  defaultPaymentTerms String?  @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
-  defaultCarrierId    String?  @map("default_carrier_id")
-  defaultCarrier      Carrier? @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
-  internalNotes       String?  @map("internal_notes") // nunca vai para documentos fiscais
-  isActive     Boolean      @default(true)
-  addresses    CustomerAddress[]
-  salesOrders  SalesOrder[]
-  quotations   Quotation[]
-  receivables  Receivable[]
-  priceTables  PriceTable[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  defaultSellerId     String?           @map("default_seller_id")
+  defaultSeller       User?             @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
+  defaultPaymentTerms String?           @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
+  defaultCarrierId    String?           @map("default_carrier_id")
+  defaultCarrier      Carrier?          @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
+  internalNotes       String?           @map("internal_notes") // nunca vai para documentos fiscais
+  isActive            Boolean           @default(true)
+  leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
+  addresses           CustomerAddress[]
+  salesOrders         SalesOrder[]
+  quotations          Quotation[]
+  receivables         Receivable[]
+  priceTables         PriceTable[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@unique([companyId, document])
   @@map("gdr_customers")
@@ -542,21 +549,21 @@ model Customer {
 
 /// Endereços de entrega do cliente (1:N) — grupo <entrega> da NF-e (#474)
 model CustomerAddress {
-  id           String   @id @default(cuid())
-  customerId   String   @map("customer_id")
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  label        String   // ex: "Obra Fazenda Santa Fé", "Depósito Matriz"
+  id           String       @id @default(cuid())
+  customerId   String       @map("customer_id")
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label        String // ex: "Obra Fazenda Santa Fé", "Depósito Matriz"
   address      String
-  number       String?  @db.VarChar(10)
-  complement   String?  @db.VarChar(60)
-  neighborhood String?  @db.VarChar(60)
+  number       String?      @db.VarChar(10)
+  complement   String?      @db.VarChar(60)
+  neighborhood String?      @db.VarChar(60)
   city         String
-  state        String   @db.VarChar(2)
-  zipCode      String?  @map("zip_code") @db.VarChar(8)
-  ibgeCode     String?  @map("ibge_code") @db.VarChar(7)
-  isDefault    Boolean  @default(false) @map("is_default")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  state        String       @db.VarChar(2)
+  zipCode      String?      @map("zip_code") @db.VarChar(8)
+  ibgeCode     String?      @map("ibge_code") @db.VarChar(7)
+  isDefault    Boolean      @default(false) @map("is_default")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
   salesOrders  SalesOrder[]
 
   @@index([customerId])
@@ -565,55 +572,55 @@ model CustomerAddress {
 
 /// Transportadora — grupo transp da NF-e (#481). Entidade fiscal própria (≠ Supplier).
 model Carrier {
-  id                String   @id @default(cuid())
-  companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  name              String   // nome fantasia
-  razaoSocial       String?  @map("razao_social") // xNome do transportador
-  document          String?  // CNPJ (14) ou CPF (11), sem máscara
-  ie                String?  @db.VarChar(14)
-  address           String?  // xEnder (logradouro + número, campo único na NF-e)
-  city              String?
-  state             String?  @db.VarChar(2)
-  vehiclePlate      String?  @map("vehicle_plate") @db.VarChar(8)
-  vehiclePlateState String?  @map("vehicle_plate_state") @db.VarChar(2)
-  rntc              String?  @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
-  isActive          Boolean  @default(true)
-  salesOrders       SalesOrder[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                         String       @id @default(cuid())
+  companyId                  String
+  company                    Company      @relation(fields: [companyId], references: [id])
+  name                       String // nome fantasia
+  razaoSocial                String?      @map("razao_social") // xNome do transportador
+  document                   String? // CNPJ (14) ou CPF (11), sem máscara
+  ie                         String?      @db.VarChar(14)
+  address                    String? // xEnder (logradouro + número, campo único na NF-e)
+  city                       String?
+  state                      String?      @db.VarChar(2)
+  vehiclePlate               String?      @map("vehicle_plate") @db.VarChar(8)
+  vehiclePlateState          String?      @map("vehicle_plate_state") @db.VarChar(2)
+  rntc                       String?      @db.VarChar(20) // registro nacional de transportador de carga (ANTT)
+  isActive                   Boolean      @default(true)
+  salesOrders                SalesOrder[]
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  defaultForCustomersCarrier Customer[]   @relation("CustomerDefaultCarrier") // padrão comercial do cliente (#475)
 
   @@unique([companyId, document])
   @@map("gdr_carriers")
-  defaultForCustomersCarrier Customer[] @relation("CustomerDefaultCarrier") // padrão comercial do cliente (#475)
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
 
 model BomVersion {
-  id          String    @id @default(cuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id])
-  productId   String
-  product     Product   @relation("ProductBoms", fields: [productId], references: [id])
-  version     Int
-  isActive    Boolean   @default(false)
-  notes       String?
-  items       BomItem[]
-  createdAt   DateTime  @default(now())
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  productId String
+  product   Product   @relation("ProductBoms", fields: [productId], references: [id])
+  version   Int
+  isActive  Boolean   @default(false)
+  notes     String?
+  items     BomItem[]
+  createdAt DateTime  @default(now())
 
   @@unique([productId, version])
   @@map("gdr_bom_versions")
 }
 
 model BomItem {
-  id           String     @id @default(cuid())
+  id           String        @id @default(cuid())
   bomVersionId String
-  bomVersion   BomVersion @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
+  bomVersion   BomVersion    @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
   componentId  String
-  component    Product    @relation("ComponentOf", fields: [componentId], references: [id])
-  quantity     Decimal    @db.Decimal(14, 4)
-  scrapPct     Decimal    @default(0) @db.Decimal(5, 2)
+  component    Product       @relation("ComponentOf", fields: [componentId], references: [id])
+  quantity     Decimal       @db.Decimal(14, 4)
+  scrapPct     Decimal       @default(0) @db.Decimal(5, 2)
   unit         UnitOfMeasure @default(UN)
 
   @@map("gdr_bom_items")
@@ -622,20 +629,20 @@ model BomItem {
 // ─── Roteiro de Produção ─────────────────────────────────────────────────────
 
 model RoutingStep {
-  id              String   @id @default(cuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
-  productId       String
-  product         Product  @relation("ProductRouting", fields: [productId], references: [id])
-  stepOrder       Int
-  name            String
-  workCenter      String?
-  setupTimeMin    Int      @default(0)
-  runTimeMin      Int      @default(0)
-  notes           String?
-  productionLogs  ProductionLog[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  productId      String
+  product        Product         @relation("ProductRouting", fields: [productId], references: [id])
+  stepOrder      Int
+  name           String
+  workCenter     String?
+  setupTimeMin   Int             @default(0)
+  runTimeMin     Int             @default(0)
+  notes          String?
+  productionLogs ProductionLog[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([productId, stepOrder])
   @@map("gdr_routing_steps")
@@ -653,21 +660,21 @@ enum MovementType {
 }
 
 model Warehouse {
-  id          String          @id @default(cuid())
-  companyId   String
-  company     Company         @relation(fields: [companyId], references: [id])
-  name        String
-  code        String
-  description String?
-  isActive    Boolean         @default(true)
-  wmsEnabled       Boolean         @default(false)
+  id               String            @id @default(cuid())
+  companyId        String
+  company          Company           @relation(fields: [companyId], references: [id])
+  name             String
+  code             String
+  description      String?
+  isActive         Boolean           @default(true)
+  wmsEnabled       Boolean           @default(false)
   batches          Batch[]
   balances         StockBalance[]
   movements        StockMovement[]
   goodsReceipts    GoodsReceipt[]
   salesOrders      SalesOrder[]
-  transfersFrom    StoreTransfer[] @relation("TransferFrom")
-  transfersTo      StoreTransfer[] @relation("TransferTo")
+  transfersFrom    StoreTransfer[]   @relation("TransferFrom")
+  transfersTo      StoreTransfer[]   @relation("TransferTo")
   productionOrders ProductionOrder[]
   locations        Location[]
   receivingOrders  ReceivingOrder[]
@@ -676,26 +683,26 @@ model Warehouse {
   serialNumbers    SerialNumber[]
   quotations       Quotation[]
   priceTables      PriceTable[]
-  createdAt     DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@unique([companyId, code])
   @@map("gdr_warehouses")
 }
 
 model StockBalance {
-  id          String    @id @default(cuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id])
-  warehouseId String
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  productId   String
-  product     Product   @relation(fields: [productId], references: [id])
-  available       Decimal   @default(0) @db.Decimal(14, 4)
-  reserved        Decimal   @default(0) @db.Decimal(14, 4)
-  inTransit       Decimal   @default(0) @db.Decimal(14, 4)
-  pendingPutaway  Decimal   @default(0) @db.Decimal(14, 4)
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse @relation(fields: [warehouseId], references: [id])
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id])
+  available      Decimal   @default(0) @db.Decimal(14, 4)
+  reserved       Decimal   @default(0) @db.Decimal(14, 4)
+  inTransit      Decimal   @default(0) @db.Decimal(14, 4)
+  pendingPutaway Decimal   @default(0) @db.Decimal(14, 4)
+  updatedAt      DateTime  @updatedAt
 
   @@unique([warehouseId, productId])
   @@map("gdr_stock_balances")
@@ -731,38 +738,38 @@ enum PurchaseRequestStatus {
 }
 
 model PurchaseRequest {
-  id              String                @id @default(cuid())
-  companyId       String
-  company         Company               @relation(fields: [companyId], references: [id])
-  productId       String
-  product         Product               @relation(fields: [productId], references: [id])
-  quantity        Decimal               @db.Decimal(14, 4)
-  unit            UnitOfMeasure         @default(UN)
-  neededBy        DateTime?
-  justification   String?
-  status          PurchaseRequestStatus @default(OPEN)
-  requestedById   String?
-  requestedBy     User?                 @relation("PRRequestedBy", fields: [requestedById], references: [id])
-  convertedToId   String?
-  convertedTo     PurchaseOrder?        @relation("PRConvertedTo", fields: [convertedToId], references: [id])
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id            String                @id @default(cuid())
+  companyId     String
+  company       Company               @relation(fields: [companyId], references: [id])
+  productId     String
+  product       Product               @relation(fields: [productId], references: [id])
+  quantity      Decimal               @db.Decimal(14, 4)
+  unit          UnitOfMeasure         @default(UN)
+  neededBy      DateTime?
+  justification String?
+  status        PurchaseRequestStatus @default(OPEN)
+  requestedById String?
+  requestedBy   User?                 @relation("PRRequestedBy", fields: [requestedById], references: [id])
+  convertedToId String?
+  convertedTo   PurchaseOrder?        @relation("PRConvertedTo", fields: [convertedToId], references: [id])
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@index([companyId, status])
   @@map("gdr_purchase_requests")
 }
 
 model SupplierPriceHistory {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  unitCost    Decimal  @db.Decimal(14, 4)
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  supplierId     String
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  unitCost       Decimal  @db.Decimal(14, 4)
   goodsReceiptId String?
-  recordedAt  DateTime @default(now())
+  recordedAt     DateTime @default(now())
 
   @@index([supplierId, productId])
   @@index([companyId])
@@ -778,68 +785,68 @@ enum PurchaseOrderStatus {
 }
 
 model PurchaseOrder {
-  id           String              @id @default(cuid())
-  companyId    String
-  company      Company             @relation(fields: [companyId], references: [id])
-  supplierId   String
-  supplier     Supplier            @relation(fields: [supplierId], references: [id])
-  status       PurchaseOrderStatus @default(DRAFT)
-  expectedAt   DateTime?
-  notes        String?
-  createdById  String?
-  createdBy    User?               @relation("POCreatedBy", fields: [createdById], references: [id])
-  approvedById String?
-  approvedBy   User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
-  approvedAt   DateTime?
-  items                POItem[]
-  receipts             GoodsReceipt[]
-  financialEntries     FinancialEntry[]
-  payables             Payable[]
-  convertedFromRequests PurchaseRequest[] @relation("PRConvertedTo")
-  inboundNfes          InboundNfe[]
-  threeWayMatches      ThreeWayMatch[]
-  mrpSuggestions       MrpSuggestion[]     @relation("MrpConvertedPO")
-  rfqQuotes            RfqQuote[]
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  id                    String              @id @default(cuid())
+  companyId             String
+  company               Company             @relation(fields: [companyId], references: [id])
+  supplierId            String
+  supplier              Supplier            @relation(fields: [supplierId], references: [id])
+  status                PurchaseOrderStatus @default(DRAFT)
+  expectedAt            DateTime?
+  notes                 String?
+  createdById           String?
+  createdBy             User?               @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedById          String?
+  approvedBy            User?               @relation("POApprovedBy", fields: [approvedById], references: [id])
+  approvedAt            DateTime?
+  items                 POItem[]
+  receipts              GoodsReceipt[]
+  financialEntries      FinancialEntry[]
+  payables              Payable[]
+  convertedFromRequests PurchaseRequest[]   @relation("PRConvertedTo")
+  inboundNfes           InboundNfe[]
+  threeWayMatches       ThreeWayMatch[]
+  mrpSuggestions        MrpSuggestion[]     @relation("MrpConvertedPO")
+  rfqQuotes             RfqQuote[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   @@map("gdr_purchase_orders")
 }
 
 model POItem {
-  id              String        @id @default(cuid())
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product       @relation(fields: [productId], references: [id])
-  quantity        Decimal       @db.Decimal(14, 4)
-  unitCost        Decimal       @db.Decimal(14, 4)
-  unit            UnitOfMeasure @default(UN)
-  receivedQuantity Decimal      @default(0) @db.Decimal(14, 4)
-  grItems         GRItem[]
+  id               String        @id @default(cuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product       @relation(fields: [productId], references: [id])
+  quantity         Decimal       @db.Decimal(14, 4)
+  unitCost         Decimal       @db.Decimal(14, 4)
+  unit             UnitOfMeasure @default(UN)
+  receivedQuantity Decimal       @default(0) @db.Decimal(14, 4)
+  grItems          GRItem[]
 
   @@map("gdr_po_items")
 }
 
 model GoodsReceipt {
-  id              String        @id @default(cuid())
+  id              String          @id @default(cuid())
   companyId       String
-  company         Company       @relation(fields: [companyId], references: [id])
+  company         Company         @relation(fields: [companyId], references: [id])
   purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id])
   warehouseId     String
-  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id])
+  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
   receivedById    String?
-  receivedBy      User?         @relation("GRReceivedBy", fields: [receivedById], references: [id])
-  notes            String?
-  items            GRItem[]
-  batches          Batch[]
-  financialEntry   FinancialEntry?
-  receivingOrder   ReceivingOrder?
-  inspections      Inspection[]
-  inboundNfe       InboundNfe?
-  threeWayMatches  ThreeWayMatch[]
-  createdAt        DateTime      @default(now())
+  receivedBy      User?           @relation("GRReceivedBy", fields: [receivedById], references: [id])
+  notes           String?
+  items           GRItem[]
+  batches         Batch[]
+  financialEntry  FinancialEntry?
+  receivingOrder  ReceivingOrder?
+  inspections     Inspection[]
+  inboundNfe      InboundNfe?
+  threeWayMatches ThreeWayMatch[]
+  createdAt       DateTime        @default(now())
 
   @@map("gdr_goods_receipts")
 }
@@ -880,7 +887,7 @@ model ThreeWayMatch {
   result          ThreeWayMatchResult
   qtyTolerance    Decimal             @default(0) @db.Decimal(5, 2)
   priceTolerance  Decimal             @default(2) @db.Decimal(5, 2)
-  details         Json                // Array of per-item match details
+  details         Json // Array of per-item match details
   resolvedById    String?
   resolvedBy      User?               @relation("MatchResolvedBy", fields: [resolvedById], references: [id])
   resolvedAt      DateTime?
@@ -907,47 +914,47 @@ enum SalesOrderStatus {
 }
 
 model SalesOrder {
-  id          String           @id @default(cuid())
-  companyId   String
-  company     Company          @relation(fields: [companyId], references: [id])
-  customerId  String?
-  customer    Customer?        @relation(fields: [customerId], references: [id])
-  warehouseId String
-  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
-  status      SalesOrderStatus @default(DRAFT)
-  paymentMethod PaymentMethod? @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
-  deliveryAddressId String?    @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
-  deliveryAddress   CustomerAddress? @relation(fields: [deliveryAddressId], references: [id])
+  id                String            @id @default(cuid())
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  customerId        String?
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  warehouseId       String
+  warehouse         Warehouse         @relation(fields: [warehouseId], references: [id])
+  status            SalesOrderStatus  @default(DRAFT)
+  paymentMethod     PaymentMethod?    @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
+  deliveryAddressId String?           @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
+  deliveryAddress   CustomerAddress?  @relation(fields: [deliveryAddressId], references: [id])
   // Frete e transporte → grupo transp da NF-e (#481)
-  freightModality String?      @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
-  freightValue    Decimal?     @map("freight_value") @db.Decimal(14, 2) // vFrete
-  carrierId       String?      @map("carrier_id")
-  carrier         Carrier?     @relation(fields: [carrierId], references: [id])
-  volumesQuantity Int?         @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
-  volumesSpecies  String?      @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
-  notes       String?
-  createdById String?
-  createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
-  confirmedAt DateTime?
-  pickedAt    DateTime?
-  conferredAt DateTime?          @map("conferred_at") // conferência da carga (#491)
-  conferredById String?          @map("conferred_by_id")
-  conferredBy   User?            @relation("SOConferredBy", fields: [conferredById], references: [id])
-  invoicedAt  DateTime?
-  returnedAt  DateTime?
-  cancelledAt DateTime?
-  items            SaleItem[]
-  fiscalDocument   FiscalDocument?
-  financialEntry   FinancialEntry?
-  pickingOrder     PickingOrder?
-  serialNumbers    SerialNumber[]
-  quotation        Quotation?
-  receivable       Receivable?
-  commissions      Commission[]
-  atpveRecords     AtpveRecord[]
-  renaveOperations RenaveOperation[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  freightModality   String?           @map("freight_modality") @db.VarChar(1) // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete (null = 9)
+  freightValue      Decimal?          @map("freight_value") @db.Decimal(14, 2) // vFrete
+  carrierId         String?           @map("carrier_id")
+  carrier           Carrier?          @relation(fields: [carrierId], references: [id])
+  volumesQuantity   Int?              @map("volumes_quantity") // qVol; null = calcular da quantidade de itens
+  volumesSpecies    String?           @map("volumes_species") @db.VarChar(60) // esp, ex: "REBOQUE"
+  notes             String?
+  createdById       String?
+  createdBy         User?             @relation("SOCreatedBy", fields: [createdById], references: [id])
+  confirmedAt       DateTime?
+  pickedAt          DateTime?
+  conferredAt       DateTime?         @map("conferred_at") // conferência da carga (#491)
+  conferredById     String?           @map("conferred_by_id")
+  conferredBy       User?             @relation("SOConferredBy", fields: [conferredById], references: [id])
+  invoicedAt        DateTime?
+  returnedAt        DateTime?
+  cancelledAt       DateTime?
+  items             SaleItem[]
+  fiscalDocument    FiscalDocument?
+  financialEntry    FinancialEntry?
+  pickingOrder      PickingOrder?
+  serialNumbers     SerialNumber[]
+  quotation         Quotation?
+  receivable        Receivable?
+  commissions       Commission[]
+  atpveRecords      AtpveRecord[]
+  renaveOperations  RenaveOperation[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@map("gdr_sales_orders")
 }
@@ -984,44 +991,44 @@ enum FiscalStatus {
 }
 
 model FiscalDocument {
-  id               String             @id @default(cuid())
-  companyId        String
-  company          Company            @relation(fields: [companyId], references: [id])
-  salesOrderId     String?            @unique
-  salesOrder       SalesOrder?        @relation(fields: [salesOrderId], references: [id])
-  storeTransferId  String?            @unique
-  storeTransfer    StoreTransfer?     @relation(fields: [storeTransferId], references: [id])
-  type             FiscalDocumentType @default(NFCE)
-  status           FiscalStatus       @default(PENDING)
-  focusRef         String?
-  chave            String?
-  number           Int?               // número da NF-e retornado pelo Focus (#361)
-  series           Int?               @default(1)
-  protocolNumber   String?            // nProt da SEFAZ (#361)
-  authorizedAt     DateTime?          // data/hora de autorização (#361)
+  id                        String               @id @default(cuid())
+  companyId                 String
+  company                   Company              @relation(fields: [companyId], references: [id])
+  salesOrderId              String?              @unique
+  salesOrder                SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  storeTransferId           String?              @unique
+  storeTransfer             StoreTransfer?       @relation(fields: [storeTransferId], references: [id])
+  type                      FiscalDocumentType   @default(NFCE)
+  status                    FiscalStatus         @default(PENDING)
+  focusRef                  String?
+  chave                     String?
+  number                    Int? // número da NF-e retornado pelo Focus (#361)
+  series                    Int?                 @default(1)
+  protocolNumber            String? // nProt da SEFAZ (#361)
+  authorizedAt              DateTime? // data/hora de autorização (#361)
   // Totais IBS/CBS — grupo W03 NT 2025.002-RTC (#412)
-  vIBS             Decimal?           @db.Decimal(14, 2) // Σ (vIBSUF + vIBSMun) dos itens
-  vCBS             Decimal?           @db.Decimal(14, 2) // Σ vCBS dos itens
-  vCredPres        Decimal?           @db.Decimal(14, 2)
-  vCredPresCondSus Decimal?           @db.Decimal(14, 2)
-  vIBSMono         Decimal?           @db.Decimal(14, 2)
-  vCBSMono         Decimal?           @db.Decimal(14, 2)
-  xml              String?
-  danfeUrl         String?            @map("danfe_url") // caminho_danfe do webhook Focus — reimpressão do DANFE (#482)
-  xmlUrl           String?            @map("xml_url")   // caminho_xml_nota_fiscal do webhook Focus (#482)
-  rejectionCode    String?
-  rejectionReason  String?
-  retryCount       Int                @default(0)
-  lastError        String?
-  infCpl           String?            // Informações complementares da NF-e (#370)
-  cancelledAt              DateTime?
+  vIBS                      Decimal?             @db.Decimal(14, 2) // Σ (vIBSUF + vIBSMun) dos itens
+  vCBS                      Decimal?             @db.Decimal(14, 2) // Σ vCBS dos itens
+  vCredPres                 Decimal?             @db.Decimal(14, 2)
+  vCredPresCondSus          Decimal?             @db.Decimal(14, 2)
+  vIBSMono                  Decimal?             @db.Decimal(14, 2)
+  vCBSMono                  Decimal?             @db.Decimal(14, 2)
+  xml                       String?
+  danfeUrl                  String?              @map("danfe_url") // caminho_danfe do webhook Focus — reimpressão do DANFE (#482)
+  xmlUrl                    String?              @map("xml_url") // caminho_xml_nota_fiscal do webhook Focus (#482)
+  rejectionCode             String?
+  rejectionReason           String?
+  retryCount                Int                  @default(0)
+  lastError                 String?
+  infCpl                    String? // Informações complementares da NF-e (#370)
+  cancelledAt               DateTime?
   cancellationJustification String?
-  financialEntry   FinancialEntry?
-  items            FiscalDocumentItem[]
-  corrections      FiscalCorrection[]
-  renaveOperations RenaveOperation[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  financialEntry            FinancialEntry?
+  items                     FiscalDocumentItem[]
+  corrections               FiscalCorrection[]
+  renaveOperations          RenaveOperation[]
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
 
   @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
   @@map("gdr_fiscal_documents")
@@ -1031,9 +1038,9 @@ model FiscalCorrection {
   id               String         @id @default(cuid())
   fiscalDocumentId String
   fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id])
-  sequenceNumber   Int            // 1 a 20 (máximo SEFAZ)
+  sequenceNumber   Int // 1 a 20 (máximo SEFAZ)
   correctionText   String
-  protocol         String?        // protocolo retornado pela SEFAZ
+  protocol         String? // protocolo retornado pela SEFAZ
   createdAt        DateTime       @default(now())
 
   @@unique([fiscalDocumentId, sequenceNumber])
@@ -1045,12 +1052,12 @@ model FiscalVoidRange {
   id            String   @id @default(cuid())
   companyId     String
   company       Company  @relation(fields: [companyId], references: [id])
-  serie         String   // série da NF-e (ex: "1")
-  numberStart   Int      // número inicial
-  numberEnd     Int      // número final
+  serie         String // série da NF-e (ex: "1")
+  numberStart   Int // número inicial
+  numberEnd     Int // número final
   justification String
-  protocol      String?  // protocolo retornado pela SEFAZ
-  year          Int      // ano fiscal
+  protocol      String? // protocolo retornado pela SEFAZ
+  year          Int // ano fiscal
   createdAt     DateTime @default(now())
 
   @@index([companyId])
@@ -1058,19 +1065,19 @@ model FiscalVoidRange {
 }
 
 model FiscalDocumentItem {
-  id               String         @id @default(cuid())
+  id               String                  @id @default(cuid())
   fiscalDocumentId String
-  fiscalDocument   FiscalDocument @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
+  fiscalDocument   FiscalDocument          @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
   productId        String?
   productCode      String?
   productName      String
   ncm              String?
-  cest             String?        // Código Especificador de Substituição Tributária
+  cest             String? // Código Especificador de Substituição Tributária
   cfop             String?
   unit             String?
-  quantity         Decimal        @db.Decimal(14, 4)
-  unitPrice        Decimal        @db.Decimal(14, 4)
-  totalPrice       Decimal        @db.Decimal(14, 4)
+  quantity         Decimal                 @db.Decimal(14, 4)
+  unitPrice        Decimal                 @db.Decimal(14, 4)
+  totalPrice       Decimal                 @db.Decimal(14, 4)
   legacyId         String?
   taxes            FiscalDocumentItemTax[]
 
@@ -1156,38 +1163,38 @@ enum EntrySource {
 }
 
 model FinancialEntry {
-  id               String               @id @default(cuid())
-  companyId        String
-  company          Company              @relation(fields: [companyId], references: [id])
-  type             FinancialEntryType
-  status           FinancialEntryStatus @default(OPEN)
-  amount           Decimal              @db.Decimal(14, 4)
-  dueDate          DateTime
-  description      String?
-  source           EntrySource          @default(AUTO_SALES)
-  attachmentUrl    String?
-  salesOrderId     String?              @unique
-  salesOrder       SalesOrder?          @relation(fields: [salesOrderId], references: [id])
-  purchaseOrderId  String?
-  purchaseOrder    PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
-  goodsReceiptId   String?              @unique
-  goodsReceipt     GoodsReceipt?        @relation(fields: [goodsReceiptId], references: [id])
-  fiscalDocumentId String?              @unique
-  fiscalDocument   FiscalDocument?      @relation(fields: [fiscalDocumentId], references: [id])
-  categoryId       String?
-  category         FinancialCategory?   @relation(fields: [categoryId], references: [id])
-  paidAt           DateTime?
-  paidAmount       Decimal?             @db.Decimal(14, 4)
-  paymentNote      String?
-  parentEntryId    String?
-  parentEntry      FinancialEntry?      @relation("Installments", fields: [parentEntryId], references: [id])
-  installments     FinancialEntry[]     @relation("Installments")
-  payments            Payment[]
-  costCenterSplits    EntryCostCenterSplit[]
-  scheduledPayments   ScheduledPayment[]
-  collectionAttempts  CollectionAttempt[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id                 String                 @id @default(cuid())
+  companyId          String
+  company            Company                @relation(fields: [companyId], references: [id])
+  type               FinancialEntryType
+  status             FinancialEntryStatus   @default(OPEN)
+  amount             Decimal                @db.Decimal(14, 4)
+  dueDate            DateTime
+  description        String?
+  source             EntrySource            @default(AUTO_SALES)
+  attachmentUrl      String?
+  salesOrderId       String?                @unique
+  salesOrder         SalesOrder?            @relation(fields: [salesOrderId], references: [id])
+  purchaseOrderId    String?
+  purchaseOrder      PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId     String?                @unique
+  goodsReceipt       GoodsReceipt?          @relation(fields: [goodsReceiptId], references: [id])
+  fiscalDocumentId   String?                @unique
+  fiscalDocument     FiscalDocument?        @relation(fields: [fiscalDocumentId], references: [id])
+  categoryId         String?
+  category           FinancialCategory?     @relation(fields: [categoryId], references: [id])
+  paidAt             DateTime?
+  paidAmount         Decimal?               @db.Decimal(14, 4)
+  paymentNote        String?
+  parentEntryId      String?
+  parentEntry        FinancialEntry?        @relation("Installments", fields: [parentEntryId], references: [id])
+  installments       FinancialEntry[]       @relation("Installments")
+  payments           Payment[]
+  costCenterSplits   EntryCostCenterSplit[]
+  scheduledPayments  ScheduledPayment[]
+  collectionAttempts CollectionAttempt[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   @@index([companyId])
   @@index([type, status])
@@ -1197,16 +1204,16 @@ model FinancialEntry {
 }
 
 model Payment {
-  id               String             @id @default(cuid())
+  id               String         @id @default(cuid())
   financialEntryId String
-  financialEntry   FinancialEntry     @relation(fields: [financialEntryId], references: [id])
-  amount           Decimal            @db.Decimal(14, 4)
+  financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id])
+  amount           Decimal        @db.Decimal(14, 4)
   paidAt           DateTime
   method           PaymentMethod
   bankAccountId    String?
-  bankAccount      BankAccount?       @relation(fields: [bankAccountId], references: [id])
+  bankAccount      BankAccount?   @relation(fields: [bankAccountId], references: [id])
   reference        String?
-  createdAt        DateTime           @default(now())
+  createdAt        DateTime       @default(now())
 
   @@index([financialEntryId])
   @@index([bankAccountId])
@@ -1228,27 +1235,27 @@ model EntryCostCenterSplit {
 }
 
 model BankAccount {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   companyId String
-  company   Company   @relation(fields: [companyId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
   name      String
   bank      String?
   agency    String?
   account   String?
-  balance   Decimal   @default(0) @db.Decimal(14, 4)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  balance   Decimal  @default(0) @db.Decimal(14, 4)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   provider       String?
   pixKey         String?
-  minCashBalance Decimal?  @db.Decimal(14, 4)
+  minCashBalance Decimal? @db.Decimal(14, 4)
 
-  payments            Payment[]
-  payables            Payable[]
-  receivables         Receivable[]
-  bankStatements      BankStatement[]
-  scheduledPayments   ScheduledPayment[]
+  payments          Payment[]
+  payables          Payable[]
+  receivables       Receivable[]
+  bankStatements    BankStatement[]
+  scheduledPayments ScheduledPayment[]
 
   @@index([companyId])
   @@map("gdr_bank_accounts")
@@ -1264,20 +1271,20 @@ enum ScheduledPaymentStatus {
 }
 
 model ScheduledPayment {
-  id               String                  @id @default(cuid())
+  id               String                 @id @default(cuid())
   companyId        String
-  company          Company                 @relation(fields: [companyId], references: [id])
+  company          Company                @relation(fields: [companyId], references: [id])
   financialEntryId String
-  financialEntry   FinancialEntry          @relation(fields: [financialEntryId], references: [id])
+  financialEntry   FinancialEntry         @relation(fields: [financialEntryId], references: [id])
   bankAccountId    String
-  bankAccount      BankAccount             @relation(fields: [bankAccountId], references: [id])
+  bankAccount      BankAccount            @relation(fields: [bankAccountId], references: [id])
   scheduledDate    DateTime
-  amount           Decimal                 @db.Decimal(14, 4)
-  status           ScheduledPaymentStatus  @default(PENDING)
+  amount           Decimal                @db.Decimal(14, 4)
+  status           ScheduledPaymentStatus @default(PENDING)
   note             String?
   executedAt       DateTime?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@index([companyId])
   @@index([scheduledDate, status])
@@ -1294,17 +1301,17 @@ enum CollectionAttemptChannel {
 }
 
 model CollectionAttempt {
-  id               String                    @id @default(cuid())
+  id               String                   @id @default(cuid())
   companyId        String
-  company          Company                   @relation(fields: [companyId], references: [id])
+  company          Company                  @relation(fields: [companyId], references: [id])
   receivableId     String?
-  receivable       Receivable?               @relation(fields: [receivableId], references: [id])
+  receivable       Receivable?              @relation(fields: [receivableId], references: [id])
   financialEntryId String?
-  financialEntry   FinancialEntry?           @relation(fields: [financialEntryId], references: [id])
+  financialEntry   FinancialEntry?          @relation(fields: [financialEntryId], references: [id])
   channel          CollectionAttemptChannel
   note             String?
-  sentAt           DateTime                  @default(now())
-  createdAt        DateTime                  @default(now())
+  sentAt           DateTime                 @default(now())
+  createdAt        DateTime                 @default(now())
 
   @@index([companyId])
   @@map("gdr_collection_attempts")
@@ -1320,28 +1327,28 @@ enum TransferStatus {
 }
 
 model StoreTransfer {
-  id              String         @id @default(cuid())
+  id              String              @id @default(cuid())
   companyId       String
-  company         Company        @relation(fields: [companyId], references: [id])
+  company         Company             @relation(fields: [companyId], references: [id])
   fromWarehouseId String
-  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  fromWarehouse   Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
   toWarehouseId   String
-  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
-  status          TransferStatus @default(DRAFT)
+  toWarehouse     Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  status          TransferStatus      @default(DRAFT)
   notes           String?
   requestedById   String?
-  requestedBy     User?          @relation("TransferRequestedBy", fields: [requestedById], references: [id])
+  requestedBy     User?               @relation("TransferRequestedBy", fields: [requestedById], references: [id])
   dispatchedById  String?
-  dispatchedBy    User?          @relation("TransferDispatchedBy", fields: [dispatchedById], references: [id])
+  dispatchedBy    User?               @relation("TransferDispatchedBy", fields: [dispatchedById], references: [id])
   dispatchedAt    DateTime?
   receivedById    String?
-  receivedBy      User?          @relation("TransferReceivedBy", fields: [receivedById], references: [id])
+  receivedBy      User?               @relation("TransferReceivedBy", fields: [receivedById], references: [id])
   receivedAt      DateTime?
   cancelledAt     DateTime?
   items           StoreTransferItem[]
   fiscalDocument  FiscalDocument?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([companyId])
   @@index([status])
@@ -1395,45 +1402,45 @@ enum MrpSuggestionStatus {
 }
 
 model MrpRun {
-  id           String        @id @default(cuid())
-  companyId    String
-  company      Company       @relation(fields: [companyId], references: [id])
-  horizonDays  Int
-  status       MrpRunStatus  @default(RUNNING)
-  errorMessage String?
-  suggestions  MrpSuggestion[]
+  id            String          @id @default(cuid())
+  companyId     String
+  company       Company         @relation(fields: [companyId], references: [id])
+  horizonDays   Int
+  status        MrpRunStatus    @default(RUNNING)
+  errorMessage  String?
+  suggestions   MrpSuggestion[]
   triggeredById String?
-  triggeredBy   User?        @relation("MrpTriggeredBy", fields: [triggeredById], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  triggeredBy   User?           @relation("MrpTriggeredBy", fields: [triggeredById], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([companyId])
   @@map("gdr_mrp_runs")
 }
 
 model MrpSuggestion {
-  id            String                @id @default(cuid())
-  mrpRunId      String
-  mrpRun        MrpRun                @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product               @relation(fields: [productId], references: [id])
-  type          MrpSuggestionType
-  status        MrpSuggestionStatus   @default(PENDING)
-  grossQty      Decimal               @db.Decimal(14, 4)
-  stockOnHand   Decimal               @db.Decimal(14, 4)
-  netQty        Decimal               @db.Decimal(14, 4)
-  bomLevel      Int                   @default(0)
-  suggestedDate DateTime?
-  notes         String?
-  convertedPoId String?
-  convertedPo   PurchaseOrder?        @relation("MrpConvertedPO", fields: [convertedPoId], references: [id])
-  convertedAt   DateTime?
-  createdAt     DateTime              @default(now())
+  id               String              @id @default(cuid())
+  mrpRunId         String
+  mrpRun           MrpRun              @relation(fields: [mrpRunId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product             @relation(fields: [productId], references: [id])
+  type             MrpSuggestionType
+  status           MrpSuggestionStatus @default(PENDING)
+  grossQty         Decimal             @db.Decimal(14, 4)
+  stockOnHand      Decimal             @db.Decimal(14, 4)
+  netQty           Decimal             @db.Decimal(14, 4)
+  bomLevel         Int                 @default(0)
+  suggestedDate    DateTime?
+  notes            String?
+  convertedPoId    String?
+  convertedPo      PurchaseOrder?      @relation("MrpConvertedPO", fields: [convertedPoId], references: [id])
+  convertedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  productionOrders ProductionOrder[]
 
   @@index([mrpRunId])
   @@index([productId])
   @@map("gdr_mrp_suggestions")
-  productionOrders ProductionOrder[]
 }
 
 // ─── Ordens de Produção ───────────────────────────────────────────────────────
@@ -1453,7 +1460,7 @@ model ProductionLog {
   productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
   routingStepId     String?
   routingStep       RoutingStep?    @relation(fields: [routingStepId], references: [id])
-  stepOrder         Int?            // cache do stepOrder para ordenação
+  stepOrder         Int? // cache do stepOrder para ordenação
   workCenter        String?
   qty               Decimal         @db.Decimal(14, 4)
   scrapQuantity     Decimal         @default(0) @db.Decimal(14, 4)
@@ -1492,10 +1499,10 @@ model ProductionOrder {
   logs             ProductionLog[]
   cost             ProductionCost?
   inspections      Inspection[]
-  serialNumbers      SerialNumber[]
-  serialComponents   SerialComponent[]
-  batchEvents        BatchEvent[]
-  schedules          ProductionSchedule[]
+  serialNumbers    SerialNumber[]
+  serialComponents SerialComponent[]
+  batchEvents      BatchEvent[]
+  schedules        ProductionSchedule[]
   createdById      String?
   createdBy        User?                 @relation("POProdCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime              @default(now())
@@ -1553,19 +1560,19 @@ enum PutawayStatus {
 }
 
 model Location {
-  id          String       @id @default(cuid())
-  companyId   String
-  company     Company      @relation(fields: [companyId], references: [id])
-  warehouseId String
-  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
-  code        String
-  description String?
-  type        LocationType @default(STORAGE)
-  isActive    Boolean      @default(true)
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  code         String
+  description  String?
+  type         LocationType  @default(STORAGE)
+  isActive     Boolean       @default(true)
   putawayTasks PutawayTask[]
   pickTasks    PickTask[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@unique([warehouseId, code])
   @@index([companyId])
@@ -1626,17 +1633,17 @@ enum PickTaskStatus {
 }
 
 model PickingOrder {
-  id            String        @id @default(cuid())
-  companyId     String
-  company       Company       @relation(fields: [companyId], references: [id])
-  salesOrderId  String        @unique
-  salesOrder    SalesOrder    @relation(fields: [salesOrderId], references: [id])
-  warehouseId   String
-  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id])
-  status        PickingStatus @default(PENDING)
-  tasks         PickTask[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
+  salesOrderId String        @unique
+  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  status       PickingStatus @default(PENDING)
+  tasks        PickTask[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([companyId, status])
   @@map("gdr_picking_orders")
@@ -1742,7 +1749,7 @@ model DemandForecast {
   company     Company  @relation(fields: [companyId], references: [id])
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
-  period      String   // YYYY-MM (ex: "2026-05")
+  period      String // YYYY-MM (ex: "2026-05")
   quantity    Decimal  @db.Decimal(14, 4)
   notes       String?
   createdById String?
@@ -1769,7 +1776,7 @@ enum AlertType {
   QC_INSPECTION_FAILED
   MAINTENANCE_DUE
   MANIFEST_OVERDUE
-  RENAVE_OP_FAILED    // operação RENAVE/ATPV-e falhou — retry manual (#527)
+  RENAVE_OP_FAILED // operação RENAVE/ATPV-e falhou — retry manual (#527)
   BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
 }
 
@@ -1780,17 +1787,17 @@ enum AlertSeverity {
 }
 
 model Alert {
-  id          String        @id @default(cuid())
-  companyId   String
-  company     Company       @relation(fields: [companyId], references: [id])
-  type        AlertType
-  severity    AlertSeverity @default(WARNING)
-  title       String
-  body        String
-  entityId    String?
-  entityType  String?
-  resolvedAt  DateTime?
-  createdAt   DateTime      @default(now())
+  id         String        @id @default(cuid())
+  companyId  String
+  company    Company       @relation(fields: [companyId], references: [id])
+  type       AlertType
+  severity   AlertSeverity @default(WARNING)
+  title      String
+  body       String
+  entityId   String?
+  entityType String?
+  resolvedAt DateTime?
+  createdAt  DateTime      @default(now())
 
   @@index([companyId, resolvedAt])
   @@index([type])
@@ -1921,37 +1928,37 @@ model SerialNumber {
   observations       String?
 
   // ─── Dados veiculares (NF-e grupo veiculos_novos) ────────────────────────────
-  chassi             String?          @db.VarChar(17)  // VIN 17 chars, idêntico ao BIN
-  codigoCor          String?          @map("codigo_cor") @db.VarChar(4)
-  descricaoCor       String?          @map("descricao_cor") @db.VarChar(40)
-  pesoLiquido        Decimal?         @map("peso_liquido") @db.Decimal(10, 3) // toneladas
-  pesoBruto          Decimal?         @map("peso_bruto") @db.Decimal(10, 3)   // PBT toneladas
-  potenciaMotor      Int?             @default(0) @map("potencia_motor") // CV (0 p/ reboque)
-  cilindrada         Int?             @default(0) // cm³ (0 p/ reboque)
-  tipoCombustivel    String?          @default("11") @map("tipo_combustivel") @db.VarChar(2) // 11 conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
-  numeroMotor        String?          @map("numero_motor") @db.VarChar(21)
-  cmt                Decimal?         @db.Decimal(10, 3) // capacidade máx. tração (ton)
-  distanciaEixos     Int?             @map("distancia_eixos") // mm
-  anoFabricacao      Int?             @map("ano_fabricacao")
-  anoModelo          Int?             @map("ano_modelo")
-  tipoPintura        String?          @default("S") @map("tipo_pintura") @db.VarChar(1) // M=Metálica, S=Sólida, P=Perolizada
-  tipoVeiculo        String?          @default("10") @map("tipo_veiculo") @db.VarChar(2) // 10=Reboque (RENAVAM)
-  especieVeiculo     String?          @default("2") @map("especie_veiculo") @db.VarChar(1) // 2=Carga
-  vin                String?          @default("N") @db.VarChar(1) // N=Normal, R=Remarcado
-  condicaoVeiculo    String?          @default("1") @map("condicao_veiculo") @db.VarChar(1) // 1=Acabado
-  codigoMarcaModelo  String?          @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM
-  corDenatran        String?          @map("cor_denatran") @db.VarChar(2) // código cor DENATRAN
-  lotacao            Int?             @default(0) // 0 p/ reboque
-  restricao          String?          @default("0") @db.VarChar(1) // 0=Sem restrição
-  qtdEixos           Int?             @map("qtd_eixos")
-  tipoOperacao       String?          @default("0") @map("tipo_operacao") @db.VarChar(1) // 0=Outros — GDR não é concessionária (#372)
+  chassi            String?  @db.VarChar(17) // VIN 17 chars, idêntico ao BIN
+  codigoCor         String?  @map("codigo_cor") @db.VarChar(4)
+  descricaoCor      String?  @map("descricao_cor") @db.VarChar(40)
+  pesoLiquido       Decimal? @map("peso_liquido") @db.Decimal(10, 3) // toneladas
+  pesoBruto         Decimal? @map("peso_bruto") @db.Decimal(10, 3) // PBT toneladas
+  potenciaMotor     Int?     @default(0) @map("potencia_motor") // CV (0 p/ reboque)
+  cilindrada        Int?     @default(0) // cm³ (0 p/ reboque)
+  tipoCombustivel   String?  @default("11") @map("tipo_combustivel") @db.VarChar(2) // 11 conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+  numeroMotor       String?  @map("numero_motor") @db.VarChar(21)
+  cmt               Decimal? @db.Decimal(10, 3) // capacidade máx. tração (ton)
+  distanciaEixos    Int?     @map("distancia_eixos") // mm
+  anoFabricacao     Int?     @map("ano_fabricacao")
+  anoModelo         Int?     @map("ano_modelo")
+  tipoPintura       String?  @default("S") @map("tipo_pintura") @db.VarChar(1) // M=Metálica, S=Sólida, P=Perolizada
+  tipoVeiculo       String?  @default("10") @map("tipo_veiculo") @db.VarChar(2) // 10=Reboque (RENAVAM)
+  especieVeiculo    String?  @default("2") @map("especie_veiculo") @db.VarChar(1) // 2=Carga
+  vin               String?  @default("N") @db.VarChar(1) // N=Normal, R=Remarcado
+  condicaoVeiculo   String?  @default("1") @map("condicao_veiculo") @db.VarChar(1) // 1=Acabado
+  codigoMarcaModelo String?  @map("codigo_marca_modelo") @db.VarChar(6) // código RENAVAM
+  corDenatran       String?  @map("cor_denatran") @db.VarChar(2) // código cor DENATRAN
+  lotacao           Int?     @default(0) // 0 p/ reboque
+  restricao         String?  @default("0") @db.VarChar(1) // 0=Sem restrição
+  qtdEixos          Int?     @map("qtd_eixos")
+  tipoOperacao      String?  @default("0") @map("tipo_operacao") @db.VarChar(1) // 0=Outros — GDR não é concessionária (#372)
 
-  createdAt          DateTime         @default(now()) @map("created_at")
-  saleItems          SaleItem[]       @relation("SaleItemSerial")
-  components         SerialComponent[] @relation("SerialChassisComponents")
-  binRegistration    BinRegistration?
-  atpveRecords       AtpveRecord[]
-  renaveOperations   RenaveOperation[]
+  createdAt        DateTime          @default(now()) @map("created_at")
+  saleItems        SaleItem[]        @relation("SaleItemSerial")
+  components       SerialComponent[] @relation("SerialChassisComponents")
+  binRegistration  BinRegistration?
+  atpveRecords     AtpveRecord[]
+  renaveOperations RenaveOperation[]
 
   @@index([companyId, status])
   @@index([productId, status])
@@ -1963,15 +1970,15 @@ model SerialNumber {
 // Estes models rastreiam o status para controle operacional do fluxo de emplacamento.
 
 enum BinRegistrationStatus {
-  PENDING    // aguardando envio à BIN
-  SUBMITTED  // enviado, aguardando confirmação
+  PENDING // aguardando envio à BIN
+  SUBMITTED // enviado, aguardando confirmação
   REGISTERED // registrado na BIN — libera ATPV-e
   REJECTED
   CANCELLED
 }
 
 enum AtpveStatus {
-  PENDING   // venda concluída, ATPV-e ainda não emitido na Revenda
+  PENDING // venda concluída, ATPV-e ainda não emitido na Revenda
   ISSUED
   CANCELLED
 }
@@ -2025,60 +2032,60 @@ model AtpveRecord {
 // do resultado final. Este ledger guarda tentativa, protocolo e retorno bruto.
 // Estrutura apenas (PR-1): sem service, fila, listener ou wiring.
 enum RenaveOperationType {
-  BIN_REGISTER         // pré-cadastro BIN (por chassi)
-  STOCK_IN             // entrar estoque zero km na montadora (por chassi)
-  SALE_OUT             // sair estoque zero km / intenção de venda (por chassi + venda)
-  ATPVE_PDF            // obter PDF do ATPV-e (por chassi + venda)
-  CANCEL_SALE_OUT      // cancelar saída de estoque zero km (devolução/cancelamento)
-  RETURN_MANUFACTURER  // devolver veículo zero km à montadora (devolução)
+  BIN_REGISTER // pré-cadastro BIN (por chassi)
+  STOCK_IN // entrar estoque zero km na montadora (por chassi)
+  SALE_OUT // sair estoque zero km / intenção de venda (por chassi + venda)
+  ATPVE_PDF // obter PDF do ATPV-e (por chassi + venda)
+  CANCEL_SALE_OUT // cancelar saída de estoque zero km (devolução/cancelamento)
+  RETURN_MANUFACTURER // devolver veículo zero km à montadora (devolução)
 }
 
 enum RenaveOperationStatus {
-  PENDING              // criada, aguardando processamento
-  PROCESSING           // enviada ao provider, aguardando retorno
-  REGISTERED           // BIN registrada (resultado de BIN_REGISTER)
-  STOCK_CONFIRMED      // entrada de estoque confirmada (STOCK_IN)
-  SALE_INTENT_CREATED  // intenção de venda/saída criada (SALE_OUT)
-  ACTIVE               // operação concluída com sucesso (ATPV-e ativo)
-  ERROR                // falha — elegível a retry manual
-  CANCELLED            // operação anulada (reversão)
+  PENDING // criada, aguardando processamento
+  PROCESSING // enviada ao provider, aguardando retorno
+  REGISTERED // BIN registrada (resultado de BIN_REGISTER)
+  STOCK_CONFIRMED // entrada de estoque confirmada (STOCK_IN)
+  SALE_INTENT_CREATED // intenção de venda/saída criada (SALE_OUT)
+  ACTIVE // operação concluída com sucesso (ATPV-e ativo)
+  ERROR // falha — elegível a retry manual
+  CANCELLED // operação anulada (reversão)
 }
 
 model RenaveOperation {
-  id             String                @id @default(cuid())
+  id String @id @default(cuid())
 
-  companyId      String                @map("company_id")
-  company        Company               @relation(fields: [companyId], references: [id])
+  companyId String  @map("company_id")
+  company   Company @relation(fields: [companyId], references: [id])
 
-  serialNumberId String                @map("serial_number_id")
-  serialNumber   SerialNumber          @relation(fields: [serialNumberId], references: [id])
+  serialNumberId String       @map("serial_number_id")
+  serialNumber   SerialNumber @relation(fields: [serialNumberId], references: [id])
 
   // Opcional: operações só-por-chassi (BIN_REGISTER, STOCK_IN) não têm venda
-  salesOrderId   String?               @map("sales_order_id")
-  salesOrder     SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  salesOrderId String?     @map("sales_order_id")
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
 
   // Rastreio da NF-e origem (FK opcional + chave textual só p/ auditoria)
-  fiscalDocumentId    String?          @map("fiscal_document_id")
-  fiscalDocument      FiscalDocument?  @relation(fields: [fiscalDocumentId], references: [id])
-  fiscalDocumentChave String?          @map("fiscal_document_chave") // chave de acesso NF-e (44 díg.) — só rastreio
+  fiscalDocumentId    String?         @map("fiscal_document_id")
+  fiscalDocument      FiscalDocument? @relation(fields: [fiscalDocumentId], references: [id])
+  fiscalDocumentChave String?         @map("fiscal_document_chave") // chave de acesso NF-e (44 díg.) — só rastreio
 
-  type           RenaveOperationType
-  status         RenaveOperationStatus @default(PENDING)
+  type   RenaveOperationType
+  status RenaveOperationStatus @default(PENDING)
 
   // Idempotência: coluna única computada pela aplicação (null-safe, type-aware)
   //   BIN_REGISTER/STOCK_IN            → "TYPE:serialNumberId"
   //   SALE_OUT/ATPVE_PDF/CANCEL/RETURN → "TYPE:serialNumberId:salesOrderId"
-  dedupeKey      String                @unique @map("dedupe_key")
+  dedupeKey String @unique @map("dedupe_key")
 
   // Correlação e retorno do provider externo
-  requestId      String?               @map("request_id")   // id de correlação enviado ao provider
-  protocol       String?                                    // protocolo devolvido pelo gov/SERPRO
-  rawResponse    Json?                 @map("raw_response")  // SANITIZADO: sem CPF/CNPJ em claro, sem token/cert/Authorization (LGPD #527)
-  attempt        Int                   @default(0)          // nº de tentativas já executadas
-  lastError      String?               @map("last_error")
+  requestId   String? @map("request_id") // id de correlação enviado ao provider
+  protocol    String? // protocolo devolvido pelo gov/SERPRO
+  rawResponse Json?   @map("raw_response") // SANITIZADO: sem CPF/CNPJ em claro, sem token/cert/Authorization (LGPD #527)
+  attempt     Int     @default(0) // nº de tentativas já executadas
+  lastError   String? @map("last_error")
 
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([companyId, status])
   @@index([serialNumberId, type])
@@ -2088,17 +2095,17 @@ model RenaveOperation {
 }
 
 model SerialComponent {
-  id                 String           @id @default(cuid())
+  id                 String          @id @default(cuid())
   serialId           String
-  serial             SerialNumber     @relation("SerialChassisComponents", fields: [serialId], references: [id])
+  serial             SerialNumber    @relation("SerialChassisComponents", fields: [serialId], references: [id])
   componentProductId String
-  componentProduct   Product          @relation("SerialComponentProduct", fields: [componentProductId], references: [id])
+  componentProduct   Product         @relation("SerialComponentProduct", fields: [componentProductId], references: [id])
   batchId            String?
-  batch              Batch?           @relation("SerialComponentBatch", fields: [batchId], references: [id])
-  quantity           Decimal          @db.Decimal(14, 4)
+  batch              Batch?          @relation("SerialComponentBatch", fields: [batchId], references: [id])
+  quantity           Decimal         @db.Decimal(14, 4)
   productionOrderId  String
-  productionOrder    ProductionOrder  @relation(fields: [productionOrderId], references: [id])
-  consumedAt         DateTime         @default(now())
+  productionOrder    ProductionOrder @relation(fields: [productionOrderId], references: [id])
+  consumedAt         DateTime        @default(now())
 
   @@index([serialId])
   @@index([batchId])
@@ -2130,20 +2137,20 @@ enum MaintenanceOrderStatus {
 }
 
 model Equipment {
-  id               String          @id @default(cuid())
-  companyId        String
-  company          Company         @relation(fields: [companyId], references: [id])
-  code             String
-  name             String
-  description      String?
-  location         String?
-  status           EquipmentStatus @default(ACTIVE)
-  acquisitionDate  DateTime?
-  nextMaintenanceAt DateTime?
-  maintenanceIntervalDays Int      @default(30)
-  maintenanceOrders MaintenanceOrder[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                      String             @id @default(cuid())
+  companyId               String
+  company                 Company            @relation(fields: [companyId], references: [id])
+  code                    String
+  name                    String
+  description             String?
+  location                String?
+  status                  EquipmentStatus    @default(ACTIVE)
+  acquisitionDate         DateTime?
+  nextMaintenanceAt       DateTime?
+  maintenanceIntervalDays Int                @default(30)
+  maintenanceOrders       MaintenanceOrder[]
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -2189,28 +2196,28 @@ enum QuotationStatus {
 }
 
 model Quotation {
-  id           String          @id @default(cuid())
-  companyId    String
-  company      Company         @relation(fields: [companyId], references: [id])
-  customerId   String?
-  customer     Customer?       @relation(fields: [customerId], references: [id])
-  warehouseId  String
-  warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
-  status       QuotationStatus @default(DRAFT)
-  validUntil   DateTime?
-  notes        String?
-  discount     Decimal         @default(0) @db.Decimal(5, 2)
-  items        QuotationItem[]
-  salesOrder   SalesOrder?     @relation(fields: [salesOrderId], references: [id])
-  salesOrderId String?         @unique
-  createdById  String?
-  createdBy    User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id])
-  sentAt       DateTime?
-  approvedAt   DateTime?
-  rejectedAt   DateTime?
+  id              String          @id @default(cuid())
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id])
+  customerId      String?
+  customer        Customer?       @relation(fields: [customerId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
+  status          QuotationStatus @default(DRAFT)
+  validUntil      DateTime?
+  notes           String?
+  discount        Decimal         @default(0) @db.Decimal(5, 2)
+  items           QuotationItem[]
+  salesOrder      SalesOrder?     @relation(fields: [salesOrderId], references: [id])
+  salesOrderId    String?         @unique
+  createdById     String?
+  createdBy       User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  sentAt          DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
   rejectionReason String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([companyId, status])
   @@index([customerId])
@@ -2218,15 +2225,15 @@ model Quotation {
 }
 
 model QuotationItem {
-  id           String    @id @default(cuid())
-  quotationId  String
-  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  productId    String
-  product      Product   @relation("QuotationItemProduct", fields: [productId], references: [id])
-  quantity     Decimal   @db.Decimal(14, 4)
-  unitPrice    Decimal   @db.Decimal(14, 4)
-  discount     Decimal   @default(0) @db.Decimal(5, 2)
-  unit         UnitOfMeasure @default(UN)
+  id          String        @id @default(cuid())
+  quotationId String
+  quotation   Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product       @relation("QuotationItemProduct", fields: [productId], references: [id])
+  quantity    Decimal       @db.Decimal(14, 4)
+  unitPrice   Decimal       @db.Decimal(14, 4)
+  discount    Decimal       @default(0) @db.Decimal(5, 2)
+  unit        UnitOfMeasure @default(UN)
 
   @@map("gdr_quotation_items")
 }
@@ -2238,7 +2245,7 @@ model SupplierToken {
   supplierId  String
   supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   token       String    @unique @default(cuid())
-  description String?   // e.g. "Token para integração ERP cliente"
+  description String? // e.g. "Token para integração ERP cliente"
   expiresAt   DateTime?
   lastUsedAt  DateTime?
   revokedAt   DateTime?
@@ -2261,7 +2268,7 @@ model InboundNfe {
   id              String           @id @default(cuid())
   companyId       String
   company         Company          @relation(fields: [companyId], references: [id])
-  chaveNfe        String           @unique  // 44-digit key
+  chaveNfe        String           @unique // 44-digit key
   nfeNumber       String?
   series          String?
   supplierCnpj    String
@@ -2273,8 +2280,8 @@ model InboundNfe {
   purchaseOrder   PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
   goodsReceiptId  String?          @unique
   goodsReceipt    GoodsReceipt?    @relation(fields: [goodsReceiptId], references: [id])
-  xmlContent      String           // raw XML
-  parsedItems     Json             // array of { ncm, description, quantity, unitPrice, totalPrice }
+  xmlContent      String // raw XML
+  parsedItems     Json // array of { ncm, description, quantity, unitPrice, totalPrice }
   rejectReason    String?
   importedById    String?
   importedBy      User?            @relation("InboundNfeImportedBy", fields: [importedById], references: [id])
@@ -2292,42 +2299,42 @@ model InboundNfe {
 // ─── Manifestação do Destinatário (Fase 6) ──────────────────────────────────
 
 enum ManifestStatus {
-  PENDING        // NF-e detectada, aguardando ação
-  CIENCIA        // Ciência da operação registrada
-  CONFIRMED      // Operação confirmada
-  NOT_PERFORMED  // Operação não realizada
-  UNKNOWN        // Desconhecimento da operação
+  PENDING // NF-e detectada, aguardando ação
+  CIENCIA // Ciência da operação registrada
+  CONFIRMED // Operação confirmada
+  NOT_PERFORMED // Operação não realizada
+  UNKNOWN // Desconhecimento da operação
 }
 
 enum ManifestEventType {
-  CIENCIA            // 210210 — Ciência da Operação
-  CONFIRMACAO        // 210200 — Confirmação da Operação
+  CIENCIA // 210210 — Ciência da Operação
+  CONFIRMACAO // 210200 — Confirmação da Operação
   OPERACAO_NAO_REALIZADA // 210220 — Operação Não Realizada
-  DESCONHECIMENTO    // 210240 — Desconhecimento da Operação
+  DESCONHECIMENTO // 210240 — Desconhecimento da Operação
 }
 
 model NfeManifest {
-  id              String         @id @default(cuid())
-  companyId       String
-  company         Company        @relation(fields: [companyId], references: [id])
-  chaveNfe        String         // 44-digit access key
-  nfeNumber       String?
-  series          String?
-  supplierCnpj    String
-  supplierName    String?
-  issueDate       DateTime?
-  totalValue      Decimal?       @db.Decimal(14, 4)
-  status          ManifestStatus @default(PENDING)
-  lastEventType   ManifestEventType?
-  lastEventDate   DateTime?
-  justification   String?        // Required for NOT_PERFORMED and UNKNOWN
-  protocol        String?        // SEFAZ protocol returned
-  inboundNfeId    String?        @unique
-  inboundNfe      InboundNfe?    @relation(fields: [inboundNfeId], references: [id])
-  manifestedById  String?
-  manifestedBy    User?          @relation("NfeManifestBy", fields: [manifestedById], references: [id])
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id             String             @id @default(cuid())
+  companyId      String
+  company        Company            @relation(fields: [companyId], references: [id])
+  chaveNfe       String // 44-digit access key
+  nfeNumber      String?
+  series         String?
+  supplierCnpj   String
+  supplierName   String?
+  issueDate      DateTime?
+  totalValue     Decimal?           @db.Decimal(14, 4)
+  status         ManifestStatus     @default(PENDING)
+  lastEventType  ManifestEventType?
+  lastEventDate  DateTime?
+  justification  String? // Required for NOT_PERFORMED and UNKNOWN
+  protocol       String? // SEFAZ protocol returned
+  inboundNfeId   String?            @unique
+  inboundNfe     InboundNfe?        @relation(fields: [inboundNfeId], references: [id])
+  manifestedById String?
+  manifestedBy   User?              @relation("NfeManifestBy", fields: [manifestedById], references: [id])
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@unique([companyId, chaveNfe])
   @@index([companyId, status])
@@ -2338,9 +2345,9 @@ model NfeManifest {
 // ─── LGPD — Consentimento e Anonimização (Fase 7, #194) ─────────────────────
 
 enum ConsentPurpose {
-  COMMERCIAL       // Marketing, ofertas
-  OPERATIONAL      // Necessário para operação (pedidos, NF-e)
-  ANALYTICS        // Dados agregados para BI
+  COMMERCIAL // Marketing, ofertas
+  OPERATIONAL // Necessário para operação (pedidos, NF-e)
+  ANALYTICS // Dados agregados para BI
 }
 
 enum ConsentStatus {
@@ -2357,21 +2364,21 @@ enum AnonymizationStatus {
 }
 
 model ConsentRecord {
-  id            String         @id @default(cuid())
-  companyId     String
-  company       Company        @relation(fields: [companyId], references: [id])
-  subjectType   String         // 'Customer' | 'User' | 'Supplier'
-  subjectId     String         // ID da entidade
-  document      String         // CPF/CNPJ do titular
-  purpose       ConsentPurpose
-  status        ConsentStatus  @default(ACTIVE)
-  collectedAt   DateTime       @default(now())
-  collectedBy   String?        // userId que registrou
-  revokedAt     DateTime?
-  expiresAt     DateTime?
-  legalBasis    String?        // Base legal LGPD (Art. 7)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  subjectType String // 'Customer' | 'User' | 'Supplier'
+  subjectId   String // ID da entidade
+  document    String // CPF/CNPJ do titular
+  purpose     ConsentPurpose
+  status      ConsentStatus  @default(ACTIVE)
+  collectedAt DateTime       @default(now())
+  collectedBy String? // userId que registrou
+  revokedAt   DateTime?
+  expiresAt   DateTime?
+  legalBasis  String? // Base legal LGPD (Art. 7)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([companyId, document])
   @@index([companyId, subjectType, subjectId])
@@ -2379,19 +2386,19 @@ model ConsentRecord {
 }
 
 model AnonymizationRequest {
-  id            String              @id @default(cuid())
-  companyId     String
-  company       Company             @relation(fields: [companyId], references: [id])
-  document      String              // CPF/CNPJ do titular
-  subjectName   String?             // Nome original (apagado após conclusão)
-  status        AnonymizationStatus @default(REQUESTED)
-  requestedById String?
-  requestedBy   User?               @relation("AnonymizationRequestedBy", fields: [requestedById], references: [id])
-  processedAt   DateTime?
-  entitiesAffected Json?            // { customers: 1, users: 0, suppliers: 0 }
-  denialReason  String?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  id               String              @id @default(cuid())
+  companyId        String
+  company          Company             @relation(fields: [companyId], references: [id])
+  document         String // CPF/CNPJ do titular
+  subjectName      String? // Nome original (apagado após conclusão)
+  status           AnonymizationStatus @default(REQUESTED)
+  requestedById    String?
+  requestedBy      User?               @relation("AnonymizationRequestedBy", fields: [requestedById], references: [id])
+  processedAt      DateTime?
+  entitiesAffected Json? // { customers: 1, users: 0, suppliers: 0 }
+  denialReason     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   @@index([companyId, document])
   @@map("gdr_anonymization_requests")
@@ -2400,23 +2407,23 @@ model AnonymizationRequest {
 // ─── Conciliação Bancária OFX (Fase 7, #197) ────────────────────────────────
 
 model BankStatement {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
+  company         Company     @relation(fields: [companyId], references: [id])
   bankAccountId   String
   bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
   transactionDate DateTime
-  amount          Decimal  @db.Decimal(14, 4)
+  amount          Decimal     @db.Decimal(14, 4)
   description     String?
   reference       String?
-  type            String   @default("DEBIT") // DEBIT | CREDIT
-  fitId           String?  // OFX unique transaction ID
-  matchStatus     String   @default("UNMATCHED") // MATCHED | UNMATCHED
+  type            String      @default("DEBIT") // DEBIT | CREDIT
+  fitId           String? // OFX unique transaction ID
+  matchStatus     String      @default("UNMATCHED") // MATCHED | UNMATCHED
   matchedEntryId  String?
   matchedAt       DateTime?
   importBatchId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([companyId, bankAccountId])
   @@index([matchStatus])
@@ -2426,19 +2433,19 @@ model BankStatement {
 // ─── Sequenciamento de Produção (Fase 7, #200) ──────────────────────────────
 
 model ProductionSchedule {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
+  company           Company         @relation(fields: [companyId], references: [id])
   productionOrderId String
   productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id])
   workCenterId      String
   startDate         DateTime
   endDate           DateTime
-  sequence          Int      @default(0)
-  durationMinutes   Int      @default(0)
-  status            String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  sequence          Int             @default(0)
+  durationMinutes   Int             @default(0)
+  status            String          @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([companyId, workCenterId])
   @@index([productionOrderId])
@@ -2489,29 +2496,29 @@ enum BatchEventType {
 }
 
 model Batch {
-  id                 String      @id @default(cuid())
-  companyId          String
-  company            Company     @relation(fields: [companyId], references: [id])
-  batchNumber        String
-  productId          String
-  product            Product     @relation("BatchProduct", fields: [productId], references: [id])
-  supplierId         String?
-  supplier           Supplier?   @relation("BatchSupplier", fields: [supplierId], references: [id])
-  goodsReceiptId     String?
-  goodsReceipt       GoodsReceipt? @relation(fields: [goodsReceiptId], references: [id])
-  status             BatchStatus @default(ACTIVE)
-  initialQty         Decimal     @db.Decimal(14, 4)
-  currentQty         Decimal     @db.Decimal(14, 4)
-  unit               UnitOfMeasure @default(UN)
-  manufacturingDate  DateTime?
-  expirationDate     DateTime?
-  warehouseId        String?
-  warehouse          Warehouse?  @relation(fields: [warehouseId], references: [id])
-  notes              String?
-  events             BatchEvent[]
-  serialComponents   SerialComponent[] @relation("SerialComponentBatch")
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  id                String            @id @default(cuid())
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  batchNumber       String
+  productId         String
+  product           Product           @relation("BatchProduct", fields: [productId], references: [id])
+  supplierId        String?
+  supplier          Supplier?         @relation("BatchSupplier", fields: [supplierId], references: [id])
+  goodsReceiptId    String?
+  goodsReceipt      GoodsReceipt?     @relation(fields: [goodsReceiptId], references: [id])
+  status            BatchStatus       @default(ACTIVE)
+  initialQty        Decimal           @db.Decimal(14, 4)
+  currentQty        Decimal           @db.Decimal(14, 4)
+  unit              UnitOfMeasure     @default(UN)
+  manufacturingDate DateTime?
+  expirationDate    DateTime?
+  warehouseId       String?
+  warehouse         Warehouse?        @relation(fields: [warehouseId], references: [id])
+  notes             String?
+  events            BatchEvent[]
+  serialComponents  SerialComponent[] @relation("SerialComponentBatch")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@unique([companyId, batchNumber, productId])
   @@index([companyId, status])
@@ -2521,27 +2528,28 @@ model Batch {
 }
 
 model BatchEvent {
-  id                  String         @id @default(cuid())
-  batchId             String
-  batch               Batch          @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  type                BatchEventType
-  quantity            Decimal        @db.Decimal(14, 4)
-  qtyBefore           Decimal        @db.Decimal(14, 4)
-  qtyAfter            Decimal        @db.Decimal(14, 4)
-  productionOrderId   String?
-  productionOrder     ProductionOrder? @relation(fields: [productionOrderId], references: [id])
-  warehouseFromId     String?
-  warehouseTo         String?
-  reference           String?
-  notes               String?
-  userId              String?
-  user                User?          @relation("BatchEventUser", fields: [userId], references: [id])
-  createdAt           DateTime       @default(now())
+  id                String           @id @default(cuid())
+  batchId           String
+  batch             Batch            @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type              BatchEventType
+  quantity          Decimal          @db.Decimal(14, 4)
+  qtyBefore         Decimal          @db.Decimal(14, 4)
+  qtyAfter          Decimal          @db.Decimal(14, 4)
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  warehouseFromId   String?
+  warehouseTo       String?
+  reference         String?
+  notes             String?
+  userId            String?
+  user              User?            @relation("BatchEventUser", fields: [userId], references: [id])
+  createdAt         DateTime         @default(now())
 
   @@index([batchId])
   @@index([productionOrderId])
   @@map("gdr_batch_events")
 }
+
 // ─── Categorias Financeiras ──────────────────────────────────────────────────
 
 enum FinancialCategoryType {
@@ -2579,12 +2587,12 @@ model FinancialCategory {
 // ─── Centro de Custo ──────────────────────────────────────────────────────────
 
 model CostCenter {
-  id        String  @id @default(cuid())
+  id        String       @id @default(cuid())
   companyId String
-  company   Company @relation(fields: [companyId], references: [id])
+  company   Company      @relation(fields: [companyId], references: [id])
   name      String
   code      String?
-  isActive  Boolean @default(true)
+  isActive  Boolean      @default(true)
   parentId  String?
   parent    CostCenter?  @relation("CostCenterHierarchy", fields: [parentId], references: [id])
   children  CostCenter[] @relation("CostCenterHierarchy")
@@ -2596,7 +2604,7 @@ model CostCenter {
 
   createdAt DateTime @default(now())
 
-  budgets   Budget[]
+  budgets Budget[]
 
   @@index([parentId])
   @@map("gdr_cost_centers")
@@ -2605,19 +2613,19 @@ model CostCenter {
 // ─── Orçamento Empresarial (Fase 7, #195) ────────────────────────────────────
 
 model Budget {
-  id           String            @id @default(cuid())
+  id           String             @id @default(cuid())
   companyId    String
-  company      Company           @relation(fields: [companyId], references: [id])
+  company      Company            @relation(fields: [companyId], references: [id])
   year         Int
-  month        Int               // 1-12
+  month        Int // 1-12
   costCenterId String?
-  costCenter   CostCenter?       @relation(fields: [costCenterId], references: [id])
+  costCenter   CostCenter?        @relation(fields: [costCenterId], references: [id])
   categoryId   String?
   category     FinancialCategory? @relation(fields: [categoryId], references: [id])
-  amount       Decimal           @db.Decimal(14, 4)
+  amount       Decimal            @db.Decimal(14, 4)
   description  String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@unique([companyId, year, month, costCenterId, categoryId])
   @@index([companyId, year])
@@ -2771,22 +2779,22 @@ enum PriceTableType {
 }
 
 model PriceTable {
-  id         String         @id @default(cuid())
-  companyId  String
-  company    Company        @relation(fields: [companyId], references: [id])
-  name       String
-  type       PriceTableType @default(STANDARD)
-  validFrom  DateTime
-  validTo    DateTime?
-  isDefault  Boolean        @default(false)
-  isActive   Boolean        @default(true)
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  name        String
+  type        PriceTableType   @default(STANDARD)
+  validFrom   DateTime
+  validTo     DateTime?
+  isDefault   Boolean          @default(false)
+  isActive    Boolean          @default(true)
   customerId  String?
-  customer    Customer?      @relation(fields: [customerId], references: [id])
+  customer    Customer?        @relation(fields: [customerId], references: [id])
   warehouseId String?
-  warehouse   Warehouse?     @relation(fields: [warehouseId], references: [id])
+  warehouse   Warehouse?       @relation(fields: [warehouseId], references: [id])
   items       PriceTableItem[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([companyId, isActive])
   @@index([companyId, warehouseId, isActive])
@@ -2870,66 +2878,66 @@ enum RfqStatus {
 }
 
 model RequestForQuotation {
-  id         String    @id @default(cuid())
-  companyId  String
-  company    Company   @relation(fields: [companyId], references: [id])
-  title      String
-  status     RfqStatus @default(DRAFT)
-  deadline   DateTime?
-  notes      String?
+  id          String     @id @default(cuid())
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  title       String
+  status      RfqStatus  @default(DRAFT)
+  deadline    DateTime?
+  notes       String?
   createdById String?
-  createdBy  User?     @relation("RfqCreatedBy", fields: [createdById], references: [id])
-  items      RfqItem[]
-  quotes     RfqQuote[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdBy   User?      @relation("RfqCreatedBy", fields: [createdById], references: [id])
+  items       RfqItem[]
+  quotes      RfqQuote[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([companyId, status])
   @@map("gdr_rfqs")
 }
 
 model RfqItem {
-  id        String              @id @default(cuid())
-  rfqId     String
-  rfq       RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product             @relation(fields: [productId], references: [id])
-  quantity  Decimal             @db.Decimal(14, 4)
-  specs     String?
+  id         String              @id @default(cuid())
+  rfqId      String
+  rfq        RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product             @relation(fields: [productId], references: [id])
+  quantity   Decimal             @db.Decimal(14, 4)
+  specs      String?
   quoteItems RfqQuoteItem[]
 
   @@map("gdr_rfq_items")
 }
 
 model RfqQuote {
-  id           String              @id @default(cuid())
-  rfqId        String
-  rfq          RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  supplierId   String
-  supplier     Supplier            @relation(fields: [supplierId], references: [id])
-  totalAmount  Decimal?            @db.Decimal(14, 4)
-  deliveryDays Int?
-  paymentTerms String?
-  validUntil   DateTime?
-  isAwarded    Boolean             @default(false)
+  id              String              @id @default(cuid())
+  rfqId           String
+  rfq             RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplierId      String
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  totalAmount     Decimal?            @db.Decimal(14, 4)
+  deliveryDays    Int?
+  paymentTerms    String?
+  validUntil      DateTime?
+  isAwarded       Boolean             @default(false)
   purchaseOrderId String?
-  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
-  items        RfqQuoteItem[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  purchaseOrder   PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  items           RfqQuoteItem[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([rfqId, supplierId])
   @@map("gdr_rfq_quotes")
 }
 
 model RfqQuoteItem {
-  id         String   @id @default(cuid())
-  quoteId    String
-  quote      RfqQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  rfqItemId  String
-  rfqItem    RfqItem  @relation(fields: [rfqItemId], references: [id])
-  unitPrice  Decimal  @db.Decimal(14, 4)
-  quantity   Decimal  @db.Decimal(14, 4)
+  id        String   @id @default(cuid())
+  quoteId   String
+  quote     RfqQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqItemId String
+  rfqItem   RfqItem  @relation(fields: [rfqItemId], references: [id])
+  unitPrice Decimal  @db.Decimal(14, 4)
+  quantity  Decimal  @db.Decimal(14, 4)
 
   @@map("gdr_rfq_quote_items")
 }
@@ -2947,13 +2955,13 @@ model RfqQuoteItem {
 /// (ex.: "production.orders.approve"). O catálogo é versionado em código
 /// (Decisão 2) e materializado aqui via seed idempotente (#338).
 model Permission {
-  id          String  @id @default(cuid())
-  code        String  @unique // ex: "sales.order.create"
-  name        String  // pt-BR, ex: "Criar Pedido de Venda"
+  id          String   @id @default(cuid())
+  code        String   @unique // ex: "sales.order.create"
+  name        String // pt-BR, ex: "Criar Pedido de Venda"
   description String?
-  module      String  // ex: "sales"
-  resource    String  // ex: "order"
-  action      String  // ex: "create" — ações padronizadas do catálogo em código
+  module      String // ex: "sales"
+  resource    String // ex: "order"
+  action      String // ex: "create" — ações padronizadas do catálogo em código
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -2971,14 +2979,14 @@ model Permission {
 /// customizado da empresa. Herança via parentId (Supervisor herda Operador).
 model Role {
   id          String   @id @default(cuid())
-  code        String   // ex: "GERENTE_INDUSTRIAL"
-  name        String   // ex: "Gerente Industrial"
+  code        String // ex: "GERENTE_INDUSTRIAL"
+  name        String // ex: "Gerente Industrial"
   description String?
   isSystem    Boolean  @default(false)
   parentId    String?
   parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
   children    Role[]   @relation("RoleHierarchy")
-  companyId   String?  // null = global
+  companyId   String? // null = global
   company     Company? @relation(fields: [companyId], references: [id])
   isActive    Boolean  @default(true)
   // IAM v2 — F4.1 (#344): enforcement de MFA por perfil. true = usuários com
@@ -3062,7 +3070,7 @@ model UserRoleAssignment {
   branchId  String?
   branch    Branch?   @relation(fields: [branchId], references: [id])
   expiresAt DateTime?
-  grantedBy String    // userId de quem concedeu (sem FK: preservado mesmo se o concessor sair)
+  grantedBy String // userId de quem concedeu (sem FK: preservado mesmo se o concessor sair)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -3086,8 +3094,8 @@ model UserPermission {
   granted      Boolean    @default(true)
   scope        Json?
   expiresAt    DateTime?
-  grantedBy    String     // userId de quem concedeu
-  reason       String?    // justificativa da exceção
+  grantedBy    String // userId de quem concedeu
+  reason       String? // justificativa da exceção
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -3104,7 +3112,7 @@ model UserPermission {
 model Branch {
   id        String   @id @default(cuid())
   name      String
-  code      String   // ex: CWB, JOI, GUA
+  code      String // ex: CWB, JOI, GUA
   companyId String
   company   Company  @relation(fields: [companyId], references: [id])
   cnpj      String?
@@ -3190,10 +3198,10 @@ model UserTeam {
 // ─── #336 — Sessões, dispositivos e tentativas de login ──────────────────────
 
 enum SessionRevokedReason {
-  LOGOUT       // logout voluntário
-  EXPIRED      // inatividade / expiração
+  LOGOUT // logout voluntário
+  EXPIRED // inatividade / expiração
   ADMIN_REVOKE // revogada remotamente por admin
-  SECURITY     // evento de segurança (reuso de refresh, lockout, etc.)
+  SECURITY // evento de segurança (reuso de refresh, lockout, etc.)
 }
 
 /// Sessão de usuário (Decisão 4 — híbrido): o access token JWT continua
@@ -3201,24 +3209,24 @@ enum SessionRevokedReason {
 /// sessão — revogar a sessão mata o refresh. refreshTokenId aponta para o
 /// RefreshToken vigente (atualizado a cada rotação).
 model UserSession {
-  id                String        @id @default(cuid())
+  id                String                @id @default(cuid())
   userId            String
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyId         String
-  company           Company       @relation(fields: [companyId], references: [id])
-  refreshTokenId    String?       @unique
-  refreshToken      RefreshToken? @relation(fields: [refreshTokenId], references: [id])
+  company           Company               @relation(fields: [companyId], references: [id])
+  refreshTokenId    String?               @unique
+  refreshToken      RefreshToken?         @relation(fields: [refreshTokenId], references: [id])
   ipAddress         String?
   userAgent         String?
   deviceFingerprint String?
-  city              String?       // GeoIP lookup (quando disponível)
+  city              String? // GeoIP lookup (quando disponível)
   country           String?
   expiresAt         DateTime?
-  lastActivityAt    DateTime      @default(now())
+  lastActivityAt    DateTime              @default(now())
   revokedAt         DateTime?
   revokedReason     SessionRevokedReason?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   auditLogsV2 AuditLogV2[]
 
@@ -3259,10 +3267,10 @@ model TrustedDevice {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   fingerprint String
-  name        String?   // ex: "Notebook do Rafael"
+  name        String? // ex: "Notebook do Rafael"
   trusted     Boolean   @default(false)
   trustedAt   DateTime?
-  trustedBy   String?   // userId de quem marcou como confiável
+  trustedBy   String? // userId de quem marcou como confiável
   lastSeenAt  DateTime  @default(now())
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -3304,16 +3312,16 @@ model AuditLogV2 {
   user      User?        @relation(fields: [userId], references: [id])
   sessionId String?
   session   UserSession? @relation(fields: [sessionId], references: [id])
-  entity    String       // ex: "Product"
+  entity    String // ex: "Product"
   entityId  String?
   action    AuditAction
-  module    String?      // ex: "production"
-  oldValue  Json?        // diff: estado anterior
-  newValue  Json?        // diff: estado novo
+  module    String? // ex: "production"
+  oldValue  Json? // diff: estado anterior
+  newValue  Json? // diff: estado novo
   ipAddress String?
   userAgent String?
-  requestId String?      // correlação de request
-  duration  Int?         // ms
+  requestId String? // correlação de request
+  duration  Int? // ms
   createdAt DateTime     @default(now())
 
   @@index([companyId, entity, entityId])
@@ -3378,24 +3386,203 @@ enum PermissionChangeType {
 /// Trilha de mudanças de acesso — gravação SÍNCRONA (Decisão 5): auditoria
 /// de permissão que se perde numa fila é auditoria que não existe.
 model PermissionChangeLog {
-  id              String      @id @default(cuid())
+  id              String               @id @default(cuid())
   companyId       String
-  company         Company     @relation(fields: [companyId], references: [id])
+  company         Company              @relation(fields: [companyId], references: [id])
   targetUserId    String
-  targetUser      User        @relation("PermissionChangeTarget", fields: [targetUserId], references: [id])
+  targetUser      User                 @relation("PermissionChangeTarget", fields: [targetUserId], references: [id])
   changedByUserId String
-  changedByUser   User        @relation("PermissionChangeAuthor", fields: [changedByUserId], references: [id])
+  changedByUser   User                 @relation("PermissionChangeAuthor", fields: [changedByUserId], references: [id])
   changeType      PermissionChangeType
   roleId          String?
-  role            Role?       @relation(fields: [roleId], references: [id])
+  role            Role?                @relation(fields: [roleId], references: [id])
   permissionId    String?
-  permission      Permission? @relation(fields: [permissionId], references: [id])
+  permission      Permission?          @relation(fields: [permissionId], references: [id])
   previousState   Json?
   newState        Json?
   reason          String?
-  createdAt       DateTime    @default(now())
+  createdAt       DateTime             @default(now())
 
   @@index([companyId, createdAt])
   @@index([targetUserId, createdAt])
   @@map("gdr_permission_change_logs")
+}
+
+// ─── CRM de Lojas — F1.1 (#507, épico #506) ──────────────────────────────────
+
+enum LeadSource {
+  WHATSAPP
+  META_ADS
+  OLX
+  MERCADO_LIVRE
+  SITE
+  TELEFONE
+}
+
+/// OPEN = estágio de trabalho; WON/LOST são terminais (WON dispara conversão F2.2)
+enum PipelineStageType {
+  OPEN
+  WON
+  LOST
+}
+
+enum LeadActivityType {
+  MESSAGE_IN
+  MESSAGE_OUT
+  STAGE_CHANGE
+  ASSIGNMENT
+  NOTE
+  CALL
+  CONVERSION
+}
+
+enum WaMessageDirection {
+  IN
+  OUT
+}
+
+enum WaMessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  DOCUMENT
+  VIDEO
+  STICKER
+  LOCATION
+  CONTACTS
+  UNSUPPORTED
+}
+
+enum WaMessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Estágio do funil por loja (kanban F2.1). Seed padrão: Novo → Em atendimento →
+/// Proposta → Negociação → Fechado (WON) / Perdido (LOST). Ver scripts/seed-crm-stages-507.ts
+model PipelineStage {
+  id        String            @id @default(cuid())
+  companyId String            @map("company_id")
+  company   Company           @relation(fields: [companyId], references: [id])
+  name      String
+  order     Int               @default(0) // posição da coluna no kanban
+  color     String?           @db.VarChar(7) // hex #RRGGBB
+  type      PipelineStageType @default(OPEN)
+  isActive  Boolean           @default(true) @map("is_active")
+  leads     Lead[]
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@index([companyId, order])
+  @@map("gdr_pipeline_stages")
+}
+
+/// Lead do CRM. TODO caminho de criação passa pelo LeadIntakeService (#513) —
+/// dedup por telefone garantido pela constraint (companyId, phone), não só por código.
+model Lead {
+  id                String                @id @default(cuid())
+  companyId         String                @map("company_id") // loja dona do lead
+  company           Company               @relation(fields: [companyId], references: [id])
+  name              String?
+  /// E.164 sem máscara (ex: 5545999998888). Null só p/ origem sem telefone (pergunta ML) —
+  /// nesses casos o dedup usa externalRef.
+  phone             String?               @db.VarChar(15)
+  email             String?
+  source            LeadSource
+  /// Ref externa da origem: id da conta ML, leadgen_id Meta etc. Dedup secundário (F1.4/F1.5)
+  externalRef       String?               @map("external_ref")
+  /// Metadados da captação (campanha/adset/ad do Meta, link do anúncio ML...) p/ dashboard F3.1
+  sourceMeta        Json?                 @map("source_meta")
+  interest          String? // modelo/categoria de reboque de interesse (texto livre na F1)
+  estimatedValue    Decimal?              @map("estimated_value") @db.Decimal(12, 2)
+  stageId           String?               @map("stage_id")
+  stage             PipelineStage?        @relation(fields: [stageId], references: [id])
+  /// Ordenação drag&drop dentro da coluna (padrão Twenty): novo card recebe a média
+  /// das posições vizinhas — sem reindexar a coluna
+  position          Decimal               @default(0) @db.Decimal(30, 15)
+  assignedToId      String?               @map("assigned_to_id")
+  assignedTo        User?                 @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  /// Preenchido na conversão lead→cliente (F2.2 #515)
+  customerId        String?               @map("customer_id")
+  customer          Customer?             @relation(fields: [customerId], references: [id])
+  lostReason        String?               @map("lost_reason") // obrigatório (via código) ao mover p/ stage LOST
+  /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
+  firstRespondedAt  DateTime?             @map("first_responded_at")
+  lastInteractionAt DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
+  activities        LeadActivity[]
+  conversation      WhatsappConversation?
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  @@unique([companyId, phone])
+  @@index([companyId, stageId, position])
+  @@index([companyId, assignedToId])
+  @@index([companyId, externalRef])
+  @@map("gdr_leads")
+}
+
+/// Timeline polimórfica do lead (padrão Twenty): mensagens, mudanças de estágio,
+/// atribuições, notas, conversão — tudo numa linha do tempo só. properties carrega
+/// o payload específico do tipo (diff de estágio, id da mensagem, resumo da IA...).
+model LeadActivity {
+  id         String           @id @default(cuid())
+  leadId     String           @map("lead_id")
+  lead       Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type       LeadActivityType
+  happensAt  DateTime         @default(now()) @map("happens_at")
+  /// User.id do autor; null = sistema (rodízio, listener) ou cliente (MESSAGE_IN).
+  /// Sem FK de propósito: F4 usa actorId sintético "SDR_IA"
+  actorId    String?          @map("actor_id")
+  properties Json?
+
+  @@index([leadId, happensAt])
+  @@map("gdr_lead_activities")
+}
+
+/// Conversa WhatsApp 1:1 com o lead (número da LOJA, Cloud API — F1.2 #508).
+/// windowExpiresAt = última msg do cliente + 24h (janela de resposta livre da Meta).
+model WhatsappConversation {
+  id                    String            @id @default(cuid())
+  companyId             String            @map("company_id")
+  company               Company           @relation(fields: [companyId], references: [id])
+  leadId                String            @unique @map("lead_id")
+  lead                  Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  /// wa_id do contato (telefone E.164 do cliente na Meta)
+  waContactId           String            @map("wa_contact_id")
+  windowExpiresAt       DateTime?         @map("window_expires_at")
+  lastCustomerMessageAt DateTime?         @map("last_customer_message_at")
+  lastMessageAt         DateTime?         @map("last_message_at")
+  unreadCount           Int               @default(0) @map("unread_count")
+  messages              WhatsappMessage[]
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  @@unique([companyId, waContactId])
+  @@index([companyId, lastMessageAt])
+  @@map("gdr_whatsapp_conversations")
+}
+
+model WhatsappMessage {
+  id             String               @id @default(cuid())
+  conversationId String               @map("conversation_id")
+  conversation   WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      WaMessageDirection
+  type           WaMessageType        @default(TEXT)
+  text           String?
+  mediaUrl       String?              @map("media_url") // storage próprio (mídia da Meta expira)
+  mediaMimeType  String?              @map("media_mime_type")
+  /// wamid da Cloud API — idempotência do webhook (retry da Meta não duplica)
+  waMessageId    String?              @unique @map("wa_message_id")
+  status         WaMessageStatus      @default(PENDING)
+  statusAt       DateTime?            @map("status_at") // timestamp do último status recebido
+  /// User.id do vendedor que enviou (OUT); null = cliente (IN) ou sistema/IA
+  sentById       String?              @map("sent_by_id")
+  errorDetail    String?              @map("error_detail") // payload de erro da Meta em FAILED
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("gdr_whatsapp_messages")
 }
