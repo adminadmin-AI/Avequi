@@ -1,6 +1,7 @@
 import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { CCLASSTRIB_TABLE } from '../src/modules/tax/data/cclasstrib.data';
+import { seedIam } from './seeds/iam.seed';
 
 const prisma = new PrismaClient();
 
@@ -413,6 +414,9 @@ async function main() {
     });
   }
   console.log(`✅ cClassTrib: ${CCLASSTRIB_TABLE.length} códigos sincronizados`);
+
+  // IAM v2 (F2 — #338/#339): catálogo de permissões + perfis system + espelhamento
+  await seedIam(prisma);
 
   console.log('✅ Seed concluído');
 }
