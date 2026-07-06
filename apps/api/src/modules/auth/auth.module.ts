@@ -7,10 +7,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { IamModule } from '../iam/iam.module';
 
 @Module({
   imports: [
     PrismaModule,
+    // #342: SessionService (sessões/lockout) e SessionDenylistService
+    IamModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

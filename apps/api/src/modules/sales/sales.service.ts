@@ -28,6 +28,16 @@ export class SalesService {
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
   async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string) {
+    // #475: padrões comerciais do cadastro pré-preenchem a OV quando omitidos
+    let defaultCarrierId: string | undefined;
+    if (dto.customerId && !dto.carrierId) {
+      const cust = await this.prisma.customer.findFirst({
+        where: { id: dto.customerId, companyId },
+        select: { defaultCarrierId: true },
+      });
+      defaultCarrierId = (cust as any)?.defaultCarrierId ?? undefined;
+    }
+
     const order = await this.prisma.salesOrder.create({
       data: {
         companyId,
@@ -39,7 +49,7 @@ export class SalesService {
         // Frete → grupo transp da NF-e (#481)
         freightModality: dto.freightModality,
         freightValue: dto.freightValue,
-        carrierId: dto.carrierId,
+        carrierId: dto.carrierId ?? defaultCarrierId,
         volumesQuantity: dto.volumesQuantity,
         volumesSpecies: dto.volumesSpecies,
         createdById: userId,
@@ -138,10 +148,10 @@ export class SalesService {
   //   Confirmação comercial. Dispara criação de PickingOrder via evento.
   //   Picking deve ser concluído antes do faturamento.
 
-  async confirmOrder(id: string, companyId: string, userId?: string) {
+  async confirmOrder(id: string, companyId: string, userId?: string, userRole?: string) {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, companyId },
-      include: { items: true },
+      include: { items: true, customer: true },
     });
 
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -152,11 +162,24 @@ export class SalesService {
       );
     }
 
+    // #475: cliente com faturamento bloqueado não confirma OV.
+    // DIRECTOR/SUPER_ADMIN podem sobrepor (decisão comercial consciente).
+    const cust = order.customer as any;
+    if (cust?.billingBlocked && userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN') {
+      throw new BadRequestException(
+        `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
+          'Somente DIRECTOR pode confirmar a venda mesmo assim.',
+      );
+    }
+
     const confirmed = await this.prisma.salesOrder.update({
       where: { id },
       data: { status: SalesOrderStatus.AWAITING_PICKING, confirmedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
+
+    // #475: alerta (não bloqueio) quando em aberto + esta OV estoura o limite
+    const creditAlert = await this.buildCreditAlert(companyId, order.customerId, order.items as any[]);
 
     await this.prisma.auditLog.create({
       data: {
@@ -184,7 +207,7 @@ export class SalesService {
       ),
     );
 
-    return confirmed;
+    return { ...confirmed, ...(creditAlert && { creditAlert }) };
   }
 
   // ─── S07.04a2: Marcar como pronto para faturar (AWAITING_PICKING → READY_TO_INVOICE)
@@ -212,6 +235,42 @@ export class SalesService {
 
   // ─── #491: Conferência da carga (AWAITING_CONFERENCE → READY_TO_INVOICE) ──
   //   Dupla checagem independente da separação: quantidades + re-scan do chassi.
+
+  /**
+   * #475 — situação de crédito do cliente: em aberto (Receivable OPEN/OVERDUE)
+   * + valor adicional, contra o creditLimit. Retorna null sem limite ou dentro dele.
+   */
+  private async buildCreditAlert(
+    companyId: string,
+    customerId: string | null,
+    items: Array<{ quantity: any; unitPrice: any }>,
+  ): Promise<string | null> {
+    if (!customerId) return null;
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, companyId },
+      select: { creditLimit: true, name: true },
+    });
+    if (!customer?.creditLimit) return null;
+    const orderTotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
+    // Em aberto vive em FinancialEntry (AUTO_SALES cria lá; a tabela Receivable
+    // é do módulo de cobrança #382-399 e ainda não é populada pelas vendas)
+    const open = await this.prisma.financialEntry.aggregate({
+      where: {
+        companyId,
+        type: 'RECEIVABLE' as any,
+        status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
+        salesOrder: { customerId },
+      },
+      _sum: { amount: true },
+    });
+    const openTotal = Number(open._sum.amount ?? 0);
+    const limit = Number(customer.creditLimit);
+    if (openTotal + orderTotal <= limit) return null;
+    return (
+      `Limite de crédito excedido: em aberto R$ ${openTotal.toFixed(2)} + esta venda R$ ${orderTotal.toFixed(2)} ` +
+      `> limite R$ ${limit.toFixed(2)} (${customer.name})`
+    );
+  }
 
   async conferOrder(
     id: string,

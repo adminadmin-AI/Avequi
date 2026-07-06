@@ -65,7 +65,7 @@ export class SalesController {
   @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.confirmOrder(id, user.companyId, user?.id);
+    return this.salesService.confirmOrder(id, user.companyId, user?.id, user?.role);
   }
 
   @Post(':id/conference')

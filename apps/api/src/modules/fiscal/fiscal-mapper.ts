@@ -66,6 +66,13 @@ export interface FiscalIbsCbs {
   ibsUfValor: number;
   ibsMunAliquota: number;
   ibsMunValor: number;
+  // gRed (#446, NT 2025.002 UB26/UB45/UB64) — CSTs 2xx: sem eles a SEFAZ rejeita 1033
+  cbsPRedAliq?: number;
+  cbsAliqEfet?: number;
+  ibsUfPRedAliq?: number;
+  ibsUfAliqEfet?: number;
+  ibsMunPRedAliq?: number;
+  ibsMunAliqEfet?: number;
 }
 
 export interface FiscalItem {
@@ -315,6 +322,20 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, fr
       ibs_uf_valor: t.ibsCbs.ibsUfValor,
       ibs_mun_aliquota: t.ibsCbs.ibsMunAliquota,
       ibs_mun_valor: t.ibsCbs.ibsMunValor,
+      // gRed (#446) — nomes oficiais do dicionário Focus (campos.focusnfe.com.br);
+      // CST 2xx sem esses campos = rejeição 1033
+      ...(t.ibsCbs.cbsPRedAliq != null && {
+        cbs_percentual_reducao_aliquota: t.ibsCbs.cbsPRedAliq,
+        cbs_aliquota_efetiva: t.ibsCbs.cbsAliqEfet,
+      }),
+      ...(t.ibsCbs.ibsUfPRedAliq != null && {
+        ibs_uf_percentual_reducao_aliquota: t.ibsCbs.ibsUfPRedAliq,
+        ibs_uf_aliquota_efetiva: t.ibsCbs.ibsUfAliqEfet,
+      }),
+      ...(t.ibsCbs.ibsMunPRedAliq != null && {
+        ibs_mun_percentual_reducao_aliquota: t.ibsCbs.ibsMunPRedAliq,
+        ibs_mun_aliquota_efetiva: t.ibsCbs.ibsMunAliqEfet,
+      }),
     }),
     ...(item.vehicle && mapVehicleToPayload(item.vehicle)),
     // DIFAL — campos Focus NFe para ICMSUFDest (EC 87/2015)

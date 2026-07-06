@@ -92,7 +92,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 /** Item reboque com tributação completa para a UF destino */
 function reboqueItem(opts: {
   value: number; qty?: number; ufDest: string; consumidorFinal: boolean; contribuinte?: boolean;
-  withVehicle?: boolean; ibsCbs?: boolean | { cst: string; cClassTrib: string };
+  withVehicle?: boolean; ibsCbs?: boolean | { cst: string; cClassTrib: string; pRed?: number };
 }): FiscalItem {
   const qty = opts.qty ?? 1;
   const total = r2(qty * opts.value);
@@ -103,16 +103,25 @@ function reboqueItem(opts: {
   const difal = interstate && opts.consumidorFinal && !opts.contribuinte && interna > icmsAliq
     ? { baseCalculo: total, aliquotaInterna: interna, aliquotaInterestadual: icmsAliq, valor: r2(total * (interna - icmsAliq) / 100), fcpAliquota: fcpAliq, fcpValor: r2(total * fcpAliq / 100) }
     : undefined;
+  // gRed (#446): com pRed, valores usam a alíquota efetiva e o mapper emite
+  // cbs/ibs_*_percentual_reducao_aliquota + *_aliquota_efetiva
+  const pRed = typeof opts.ibsCbs === 'object' ? (opts.ibsCbs.pRed ?? 0) : 0;
+  const efet = (aliq: number) => (pRed > 0 ? Math.round(aliq * (1 - pRed / 100) * 10000) / 10000 : aliq);
   const ibs = opts.ibsCbs === false ? undefined : {
     cClassTrib: typeof opts.ibsCbs === 'object' ? opts.ibsCbs.cClassTrib : '000001',
     cbsCst: typeof opts.ibsCbs === 'object' ? opts.ibsCbs.cst : '000',
     base: total,
     cbsAliquota: 0.9,
-    cbsValor: r2(total * 0.9 / 100),
+    cbsValor: r2(total * efet(0.9) / 100),
     ibsUfAliquota: 0.1,
-    ibsUfValor: r2(total * 0.1 / 100),
+    ibsUfValor: r2(total * efet(0.1) / 100),
     ibsMunAliquota: 0,
     ibsMunValor: 0,
+    ...(pRed > 0 && {
+      cbsPRedAliq: pRed, cbsAliqEfet: efet(0.9),
+      ibsUfPRedAliq: pRed, ibsUfAliqEfet: efet(0.1),
+      ibsMunPRedAliq: pRed, ibsMunAliqEfet: 0,
+    }),
   };
   return {
     sku: `RBQ-AUD-${chassiSeq + 1}`,
@@ -190,6 +199,10 @@ async function runScenario(
   },
 ): Promise<Result> {
   const ref = `GDR-AUD-${RUN}-${id}`;
+  // AUDIT_ONLY=E1 roda um único cenário (dev/validação pontual)
+  if (process.env.AUDIT_ONLY && process.env.AUDIT_ONLY !== id) {
+    return { id, name, status: 'pulado', checks: [], ref, chave: '' } as any;
+  }
   console.log(`\n▶ [${id}] ${name} (ref ${ref})`);
   const { data: emitData } = await api('POST', `/v2/nfe?ref=${ref}`, payload);
   const data = emitData?.status === 'processando_autorizacao' ? await pollFinal(ref) : emitData;
@@ -211,7 +224,10 @@ async function runScenario(
     if (expect.ibscbs === false) {
       checks.push({ name: 'sem IBSCBS', ok: !has(xml, 'IBSCBS') });
     } else if (expect.ibscbs) {
-      const ok = tag(xml, 'vCBS') === expect.ibscbs.vCBS && tag(xml, 'vIBSUF') === expect.ibscbs.vIBSUF;
+      // comparação numérica: a SEFAZ serializa 0 como "0", não "0.00"
+      const ok =
+        Number(tag(xml, 'vCBS')) === Number(expect.ibscbs.vCBS) &&
+        Number(tag(xml, 'vIBSUF')) === Number(expect.ibscbs.vIBSUF);
       checks.push({ name: 'IBS/CBS valores', ok, detail: `vCBS=${tag(xml, 'vCBS')} vIBSUF=${tag(xml, 'vIBSUF')} (esperado ${expect.ibscbs.vCBS}/${expect.ibscbs.vIBSUF})` });
     }
     if (expect.difal === false) {
@@ -328,8 +344,8 @@ async function main() {
   }
 
   // ── Bloco E — IBS/CBS variações ──
-  await runScenario('E1', 'cClassTrib 200003 (CST 200 — redução) sem gRed: mapper suporta?',
-    nfe(base('PR', 45000, { ibsCbs: { cst: '200', cClassTrib: '200003' } })), {});
+  await runScenario('E1', 'cClassTrib 200003 (CST 200 — redução 100%) com gRed (#446)',
+    nfe(base('PR', 45000, { ibsCbs: { cst: '200', cClassTrib: '200003', pRed: 100 } })), { ibscbs: { vCBS: '0.00', vIBSUF: '0.00' } });
   const mixed = nfe({
     ref: '', emitter, recipient: recipientPF('PR'),
     items: [reboqueItem({ value: 20000, ufDest: 'PR', consumidorFinal: true }), (() => { const i = acessorioItem(100, 1, 'PR'); delete (i.tax as any).ibsCbs; return i; })()],

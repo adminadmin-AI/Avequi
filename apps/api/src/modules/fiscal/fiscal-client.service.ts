@@ -1,25 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EmissionResponse, EmissorPort } from './emissor.port';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
-export interface FocusEmissionResponse {
-  status: 'autorizado' | 'processando_autorizacao' | 'rejeitado' | 'cancelado' | 'erro';
-  chave_nfe?: string;
-  xml?: string;
-  motivo?: string;
-  codigo?: string;
-  ref?: string;
-  numero?: string | number;
-  serie?: string | number;
-  protocolo?: string;
-  caminho_xml_nota_fiscal?: string; // path relativo do XML autorizado na Focus (#482)
-  caminho_danfe?: string; // path relativo do PDF do DANFE na Focus (#482)
-}
+// Compat: o shape da resposta agora vive no contrato EmissorPort (#501)
+export type FocusEmissionResponse = EmissionResponse;
 
 @Injectable()
-export class FiscalClientService {
+export class FiscalClientService implements EmissorPort {
   private readonly logger = new Logger(FiscalClientService.name);
   private readonly baseUrl: string;
   private readonly token: string;

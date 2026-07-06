@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FiscalDocumentType, FiscalStatus, PaymentMethod } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FiscalClientService } from './fiscal-client.service';
+import { EMISSOR_PORT, EmissorPort } from './emissor.port';
+import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import {
@@ -23,7 +24,7 @@ export class FiscalService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly client: FiscalClientService,
+    @Inject(EMISSOR_PORT) private readonly client: EmissorPort,
     private readonly taxCalc: TaxCalculationService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -210,6 +211,13 @@ export class FiscalService {
               ibsUfValor: taxResult.ibsUf?.valor ?? 0,
               ibsMunAliquota: taxResult.ibsMun?.aliquota ?? 0,
               ibsMunValor: taxResult.ibsMun?.valor ?? 0,
+              // gRed (#446) — presentes quando a cClassTrib tem redução (CSTs 2xx)
+              cbsPRedAliq: taxResult.cbs.pRedAliq,
+              cbsAliqEfet: taxResult.cbs.pAliqEfet,
+              ibsUfPRedAliq: taxResult.ibsUf?.pRedAliq,
+              ibsUfAliqEfet: taxResult.ibsUf?.pAliqEfet,
+              ibsMunPRedAliq: taxResult.ibsMun?.pRedAliq,
+              ibsMunAliqEfet: taxResult.ibsMun?.pAliqEfet,
             },
           }),
         },
@@ -329,6 +337,10 @@ export class FiscalService {
 
     const payload = type === FiscalDocumentType.NFE ? buildNFePayload(input) : buildNFCePayload(input);
 
+    // #499: validação estruturada pré-transmissão — rejeições conhecidas viram
+    // erro orientado ANTES de ir à SEFAZ (mesmo padrão do bloqueio fiscal #498)
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
+
     // Enviar para Focus NFe
     const response =
       type === FiscalDocumentType.NFE
@@ -337,6 +349,26 @@ export class FiscalService {
 
     // Processar resposta e atualizar status
     await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
+  /**
+   * #499 — roda o Fiscal Validator no payload flat; com problemas, marca o
+   * documento ERROR com mensagem orientada e NÃO transmite. Retorna true se bloqueou.
+   */
+  private async blockIfInvalid(
+    fiscalDocumentId: string,
+    ref: string,
+    payload: Record<string, unknown>,
+  ): Promise<boolean> {
+    const issues = validateNfePayload(payload);
+    if (issues.length === 0) return false;
+    const msg = formatValidationIssues(issues);
+    this.logger.warn(`Fiscal Validator bloqueou ${ref}: ${msg}`);
+    await this.prisma.fiscalDocument.update({
+      where: { id: fiscalDocumentId },
+      data: { status: FiscalStatus.ERROR, lastError: msg },
+    });
+    return true;
   }
 
   // ─── S08.04: Webhook — atualização assíncrona da Focus ────────────────────
@@ -520,6 +552,10 @@ export class FiscalService {
     await this.persistFiscalItems(fiscalDoc.id, items, transfer.items);
 
     const payload = buildTransferNFePayload(input);
+
+    // #499: validação estruturada pré-transmissão
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
+
     const response = await this.client.emitNFe(ref, payload);
     await this.applyFocusResponse(fiscalDoc.id, response);
   }

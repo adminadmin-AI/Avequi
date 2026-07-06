@@ -30,6 +30,7 @@ const mockPrisma = {
     findFirst: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
   },
   fiscalDocument: {
     findFirst: jest.fn(),
@@ -37,6 +38,10 @@ const mockPrisma = {
   },
   serialNumber: {
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
+  // #475: crédito e bloqueio de faturamento
+  customer: {
+    findFirst: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -177,6 +182,86 @@ describe('SalesService', () => {
         SALE_CONFIRMED_EVENT,
         expect.objectContaining({ salesOrderId: 'so-1', warehouseId: 'wh-1' }),
       );
+    });
+  });
+
+  // ─── #475: bloqueio de faturamento e alerta de crédito ────────────────────
+
+  describe('confirmOrder — crédito e bloqueio (#475)', () => {
+    const blockedOrder = {
+      ...baseOrder,
+      status: SalesOrderStatus.RESERVED,
+      customerId: 'cust-1',
+      customer: { billingBlocked: true, billingBlockReason: 'Inadimplência', name: 'Cliente X' },
+    };
+
+    it('cliente bloqueado não confirma OV', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(blockedOrder);
+      await expect(service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL')).rejects.toThrow(
+        /faturamento bloqueado: Inadimplência/,
+      );
+      expect(mockPrisma.salesOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('DIRECTOR pode sobrepor o bloqueio', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(blockedOrder);
+      mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: null, name: 'Cliente X' });
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...blockedOrder,
+        status: SalesOrderStatus.AWAITING_PICKING,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+      const result = await service.confirmOrder('so-1', 'co-1', 'user-1', 'DIRECTOR');
+      expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
+    });
+
+    it('alerta de crédito quando em aberto + OV estoura o limite (não bloqueia)', async () => {
+      const order = {
+        ...baseOrder,
+        status: SalesOrderStatus.RESERVED,
+        customerId: 'cust-1',
+        customer: { billingBlocked: false, name: 'Cliente X' },
+      };
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(order);
+      mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: 1000, name: 'Cliente X' });
+      // em aberto 800 + OV 500 (5 × 100) > limite 1000
+      mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...order,
+        status: SalesOrderStatus.AWAITING_PICKING,
+        items: baseOrder.items,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result: any = await service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL');
+      expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
+      expect(result.creditAlert).toMatch(/Limite de crédito excedido/);
+      expect(result.creditAlert).toContain('800.00');
+      expect(result.creditAlert).toContain('500.00');
+    });
+
+    it('dentro do limite não gera alerta', async () => {
+      const order = {
+        ...baseOrder,
+        status: SalesOrderStatus.RESERVED,
+        customerId: 'cust-1',
+        customer: { billingBlocked: false, name: 'Cliente X' },
+      };
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(order);
+      mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: 10000, name: 'Cliente X' });
+      mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
+      mockPrisma.salesOrder.update.mockResolvedValue({
+        ...order,
+        status: SalesOrderStatus.AWAITING_PICKING,
+        items: baseOrder.items,
+        warehouse: {},
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result: any = await service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL');
+      expect(result.creditAlert).toBeUndefined();
     });
   });
 
