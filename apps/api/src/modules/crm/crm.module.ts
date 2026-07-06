@@ -4,6 +4,9 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
+import { CrmListener } from './crm.listener';
+import { FunnelService } from './funnel.service';
+import { LeadConversionService } from './lead-conversion.service';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
@@ -28,6 +31,9 @@ import { SiteLeadController } from './connectors/site.controller';
   providers: [
     LeadIntakeService,
     CrmService,
+    FunnelService,
+    LeadConversionService,
+    CrmListener,
     WhatsappService,
     WhatsappWebhookProcessor,
     StoreResolver,
@@ -35,6 +41,6 @@ import { SiteLeadController } from './connectors/site.controller';
     MercadoLivreService,
     ConnectorsProcessor,
   ],
-  exports: [LeadIntakeService, CrmService, WhatsappService],
+  exports: [LeadIntakeService, CrmService, FunnelService, LeadConversionService, WhatsappService],
 })
 export class CrmModule {}

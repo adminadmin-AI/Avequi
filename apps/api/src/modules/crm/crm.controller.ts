@@ -13,6 +13,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CrmService } from './crm.service';
 import { IntakeLeadDto } from './dto/intake-lead.dto';
 import { LeadIntakeService } from './lead-intake.service';
+import { FunnelService } from './funnel.service';
+import { LeadConversionService } from './lead-conversion.service';
 
 class ReassignLeadDto {
   @ApiProperty({ description: 'Vendedor destino' })
@@ -32,6 +34,34 @@ class ChangeStageDto {
   lostReason?: string;
 }
 
+class MoveLeadDto {
+  @ApiProperty({ description: 'Estágio destino' })
+  @IsString()
+  stageId: string;
+
+  @ApiPropertyOptional({ description: 'Lead que fica acima (posição menor)' })
+  @IsOptional()
+  @IsString()
+  beforeLeadId?: string;
+
+  @ApiPropertyOptional({ description: 'Lead que fica abaixo (posição maior)' })
+  @IsOptional()
+  @IsString()
+  afterLeadId?: string;
+
+  @ApiPropertyOptional({ description: 'Obrigatório quando o destino é Perdido' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  lostReason?: string;
+}
+
+class LinkOrderDto {
+  @ApiProperty({ description: 'Ordem de venda a vincular ao lead' })
+  @IsString()
+  salesOrderId: string;
+}
+
 @ApiTags('crm')
 @ApiBearerAuth()
 @Controller('crm')
@@ -39,7 +69,66 @@ export class CrmController {
   constructor(
     private readonly leadIntake: LeadIntakeService,
     private readonly crm: CrmService,
+    private readonly funnel: FunnelService,
+    private readonly conversion: LeadConversionService,
   ) {}
+
+  // ── Funil / kanban (F2.1 #514) ──────────────────────────────────────────────
+
+  @Get('board')
+  @ApiOperation({ summary: 'Board kanban do funil (estágios + leads por coluna)' })
+  @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'all'] })
+  @ApiQuery({ name: 'source', required: false })
+  board(
+    @CurrentUser() user: any,
+    @Query('scope') scope?: 'mine' | 'all',
+    @Query('source') source?: string,
+  ) {
+    return this.funnel.board({
+      companyId: user.companyId,
+      assignedToId: scope === 'mine' ? user.id : undefined,
+      source,
+    });
+  }
+
+  @Patch('leads/:id/move')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Mover lead no kanban (estágio + posição drag&drop)' })
+  move(@Param('id') id: string, @Body() dto: MoveLeadDto, @CurrentUser() user: any) {
+    return this.funnel.moveLead(user.companyId, id, dto, user.id);
+  }
+
+  @Get('lost-reasons')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Motivos de perda agregados' })
+  lostReasons(@CurrentUser() user: any) {
+    return this.funnel.lostReasons(user.companyId);
+  }
+
+  // ── SLA (F2.3 #516) ─────────────────────────────────────────────────────────
+
+  @Get('sla')
+  @ApiOperation({ summary: 'Painel de SLA: leads estourando e esfriando' })
+  @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'all'] })
+  sla(@CurrentUser() user: any, @Query('scope') scope?: 'mine' | 'all') {
+    return this.funnel.slaPanel(user.companyId, scope === 'mine' ? user.id : undefined);
+  }
+
+  // ── Conversão (F2.2 #515) ───────────────────────────────────────────────────
+
+  @Post('leads/:id/convert')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Converter lead em cliente (pré-preenche a OV)' })
+  convert(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.conversion.convertToCustomer(user.companyId, id, user.id);
+  }
+
+  @Post('leads/:id/link-order')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Vincular OV criada ao lead (fecha via SALE_INVOICED)' })
+  linkOrder(@Param('id') id: string, @Body() dto: LinkOrderDto, @CurrentUser() user: any) {
+    return this.conversion.linkSalesOrder(user.companyId, id, dto.salesOrderId);
+  }
 
   // ── Inbox (F1.3 #509) ──────────────────────────────────────────────────────
 

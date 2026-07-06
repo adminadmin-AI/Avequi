@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShoppingCart, UserRound, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, ShoppingCart, UserRound, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,9 +21,23 @@ import {
  */
 export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () => void }) {
   const toast = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [lostReason, setLostReason] = useState('');
   const [pendingLostStage, setPendingLostStage] = useState<StageRef | null>(null);
+
+  const convert = useMutation({
+    mutationFn: () => apiClient.post(`/crm/leads/${leadId}/convert`),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
+      toast.success(data?.created ? 'Cliente criado — abrindo nova venda' : 'Cliente vinculado — abrindo nova venda');
+      // leva pra tela de venda já com o cliente e o lead na query (a OV volta
+      // vinculada via POST /crm/leads/:id/link-order)
+      const params = new URLSearchParams({ customerId: data.customerId, leadId });
+      router.push(`/app/sales/new?${params.toString()}`);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao converter'),
+  });
 
   const { data: lead } = useQuery<LeadDetail>({
     queryKey: ['crm-lead', leadId],
@@ -133,10 +148,23 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           </div>
         )}
 
-        <Button className="w-full" disabled title="Disponível na F2.2 (#515)">
-          <ShoppingCart className="mr-2 h-4 w-4" />
-          Converter em orçamento
+        <Button
+          className="w-full"
+          disabled={convert.isPending}
+          onClick={() => convert.mutate()}
+        >
+          {convert.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <ShoppingCart className="mr-2 h-4 w-4" />
+          )}
+          {lead.customer ? 'Nova venda' : 'Converter em orçamento'}
         </Button>
+        {lead.customer && (
+          <p className="text-center text-[11px] text-muted-foreground">
+            Cliente: {lead.customer.name}
+          </p>
+        )}
 
         <div>
           <h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Timeline</h3>

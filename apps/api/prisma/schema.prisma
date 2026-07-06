@@ -923,6 +923,7 @@ model SalesOrder {
   company           Company           @relation(fields: [companyId], references: [id])
   customerId        String?
   customer          Customer?         @relation(fields: [customerId], references: [id])
+  lead              Lead? // CRM F2.2 (#515) — lead que originou esta OV (back-relation)
   warehouseId       String
   warehouse         Warehouse         @relation(fields: [warehouseId], references: [id])
   status            SalesOrderStatus  @default(DRAFT)
@@ -3514,6 +3515,10 @@ model Lead {
   /// Preenchido na conversão lead→cliente (F2.2 #515)
   customerId        String?               @map("customer_id")
   customer          Customer?             @relation(fields: [customerId], references: [id])
+  /// OV gerada na conversão (F2.2 #515) — vínculo lead→receita; listener
+  /// SALE_INVOICED fecha o lead quando a NF-e sai
+  salesOrderId      String?               @unique @map("sales_order_id")
+  salesOrder        SalesOrder?           @relation(fields: [salesOrderId], references: [id])
   lostReason        String?               @map("lost_reason") // obrigatório (via código) ao mover p/ stage LOST
   /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
   firstRespondedAt  DateTime?             @map("first_responded_at")
