@@ -45,6 +45,7 @@ export default function NewSalePage() {
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [step, setStep] = useState(0);
 
@@ -115,6 +116,7 @@ export default function NewSalePage() {
       warehouseId,
       customerId: customerId || undefined,
       notes: notes || undefined,
+      paymentMethod: paymentMethod || undefined,
       items: items.map((it) => ({
         productId: it.productId,
         quantity: it.quantity,
@@ -174,6 +176,18 @@ export default function NewSalePage() {
                   {w.code} — {w.name}
                 </option>
               ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Forma de pagamento</Label>
+            <Select aria-label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="">— Não informar (NF-e sai como Outros) —</option>
+              <option value="PIX">PIX</option>
+              <option value="BOLETO">Boleto</option>
+              <option value="DINHEIRO">Dinheiro</option>
+              <option value="CARTAO">Cartão</option>
+              <option value="TED">TED</option>
+              <option value="CHEQUE">Cheque</option>
             </Select>
           </div>
           <div className="sm:col-span-2">

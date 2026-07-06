@@ -32,6 +32,7 @@ export class SalesService {
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
+        paymentMethod: dto.paymentMethod,
         createdById: userId,
         status: SalesOrderStatus.DRAFT,
         items: {

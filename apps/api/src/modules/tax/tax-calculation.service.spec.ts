@@ -413,6 +413,64 @@ describe('TaxCalculationService', () => {
     expect(result.totalTributos).toBe(189 + 50 + 6.5 + 30);
   });
 
+  it('calcula FCP do UF destino no DIFAL quando a regra tem fcpAliquotaDestino (#445)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        cfop: '6101',
+        icmsAliquota: dec(12),
+        icmsInternaDestino: dec(18),
+        fcpAliquotaDestino: dec(2),
+        ipiAliquota: dec(0),
+        ufOrigem: 'PR',
+        ufDestino: 'SP',
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SP',
+      itemValue: 1000,
+      consumidorFinal: true,
+    });
+    // NF-e real #14236: base 1000 → DIFAL 6% = 60, FCP 2% = 20
+    expect(result.difal).toEqual({
+      baseCalculo: 1000,
+      aliquotaInterna: 18,
+      aliquotaInterestadual: 12,
+      valor: 60,
+      fcpAliquota: 2,
+      fcpValor: 20,
+    });
+    // FCP compõe o total de tributos
+    expect(result.totalTributos).toBe(120 + 6.5 + 30 + 60 + 20);
+  });
+
+  it('DIFAL sem fcpAliquotaDestino zera o FCP (UFs sem fundo)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        cfop: '6101',
+        icmsAliquota: dec(12),
+        icmsInternaDestino: dec(17),
+        ipiAliquota: dec(0),
+        ufOrigem: 'PR',
+        ufDestino: 'SC',
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SC',
+      itemValue: 1000,
+      consumidorFinal: true,
+    });
+    expect(result.difal?.fcpAliquota).toBe(0);
+    expect(result.difal?.fcpValor).toBe(0);
+  });
+
   it('não calcula IBS/CBS quando a regra não tem cbsAliquota', async () => {
     prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
     const result = await service.calculateTaxes({

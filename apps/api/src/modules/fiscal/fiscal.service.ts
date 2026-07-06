@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
+import { FiscalDocumentType, FiscalStatus, PaymentMethod } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FiscalClientService } from './fiscal-client.service';
@@ -209,10 +209,14 @@ export class FiscalService {
     // Gerar informações complementares (#370)
     const infCplParts: string[] = [];
 
-    // DIFAL: informar valor do diferencial se houver
+    // DIFAL: informar valor do diferencial (e FCP #445) se houver
     const totalDifal = items.reduce((sum, it) => sum + (it.tax?.difal?.valor ?? 0), 0);
+    const totalFcp = items.reduce((sum, it) => sum + (it.tax?.difal?.fcpValor ?? 0), 0);
     if (totalDifal > 0) {
-      infCplParts.push(`ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino`);
+      infCplParts.push(
+        `ICMS DIFAL recolhido: R$ ${totalDifal.toFixed(2)} — EC 87/2015, 100% UF destino` +
+          (totalFcp > 0 ? `. FCP UF destino: R$ ${totalFcp.toFixed(2)}` : ''),
+      );
     }
 
     // Veículo: informar chassi
@@ -226,6 +230,8 @@ export class FiscalService {
 
     const input: FiscalPayloadInput = {
       ref,
+      // detPag com a forma real da venda (#479); sem forma cadastrada → 99 (outros)
+      paymentMethod: order.paymentMethod ? NFE_PAYMENT_CODES[order.paymentMethod] : undefined,
       emitter: {
         cnpj: order.company.cnpj,
         name: order.company.razaoSocial ?? order.company.name,
@@ -700,6 +706,8 @@ export class FiscalService {
               difalAliqInterna: fi.tax.difal.aliquotaInterna,
               difalAliqInterest: fi.tax.difal.aliquotaInterestadual,
               difalValor: fi.tax.difal.valor,
+              difalFcpAliquota: fi.tax.difal.fcpAliquota ?? 0,
+              difalFcpValor: fi.tax.difal.fcpValor ?? 0,
             }),
             ...(fi.tax.ibsCbs && {
               cClassTrib: fi.tax.ibsCbs.cClassTrib,
@@ -779,3 +787,13 @@ export class FiscalService {
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+/** PaymentMethod → código tPag da NF-e (tabela 4.3.4.1) (#479) */
+const NFE_PAYMENT_CODES: Record<PaymentMethod, string> = {
+  DINHEIRO: '01',
+  CHEQUE: '02',
+  CARTAO: '03', // 03=crédito; granularidade crédito/débito fica para evolução do enum
+  BOLETO: '15',
+  PIX: '17',
+  TED: '18',
+};

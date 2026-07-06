@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -10,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaymentMethod } from '@prisma/client';
 
 export class CreateSaleItemDto {
   @ApiProperty() @IsString() @IsNotEmpty() productId: string;
@@ -22,6 +24,11 @@ export class CreateSalesOrderDto {
   @ApiProperty() @IsString() @IsNotEmpty() warehouseId: string;
   @ApiPropertyOptional() @IsString() @IsOptional() customerId?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() notes?: string;
+
+  @ApiPropertyOptional({ enum: PaymentMethod, description: 'Forma de pagamento — vira o detPag da NF-e (#479)' })
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
 
   @ApiProperty({ type: [CreateSaleItemDto] })
   @IsArray()

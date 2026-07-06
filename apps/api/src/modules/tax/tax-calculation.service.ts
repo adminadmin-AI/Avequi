@@ -18,6 +18,9 @@ export interface DifAlResult {
   aliquotaInterna: number;
   aliquotaInterestadual: number;
   valor: number; // 100% destino (EC 87/2015 — desde 2019)
+  // FCP do UF destino (#445) — SP/RJ 2%; mesma base do DIFAL
+  fcpAliquota: number;
+  fcpValor: number;
 }
 
 export interface IbsCbsTax {
@@ -55,6 +58,7 @@ const FALLBACK_RULE = {
   cofinsCst: '01',
   cofinsAliquota: new Prisma.Decimal(3),
   icmsInternaDestino: null as Prisma.Decimal | null,
+  fcpAliquotaDestino: null as Prisma.Decimal | null,
   cClassTrib: null as string | null,
   cbsCst: null as string | null,
   cbsAliquota: null as Prisma.Decimal | null,
@@ -113,11 +117,16 @@ export class TaxCalculationService {
     if (isInterstate && input.consumidorFinal && icmsInternaDestino && icmsInternaDestino > icmsAliquota) {
       const difalBase = icmsBaseFull; // base = valor + IPI (mesma base do ICMS)
       const difalValor = round2(difalBase * (icmsInternaDestino - icmsAliquota) / 100);
+      // FCP do UF destino (#445): NF-e real #14236 (PR→SP) destaca 2%; vBCFCPUFDest = base do DIFAL
+      const fcpAliquota = Number(r.fcpAliquotaDestino ?? 0);
+      const fcpValor = fcpAliquota > 0 ? round2(difalBase * fcpAliquota / 100) : 0;
       difal = {
         baseCalculo: difalBase,
         aliquotaInterna: icmsInternaDestino,
         aliquotaInterestadual: icmsAliquota,
         valor: difalValor,
+        fcpAliquota,
+        fcpValor,
       };
     }
 
@@ -154,7 +163,7 @@ export class TaxCalculationService {
       };
     }
 
-    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0));
+    const totalTributos = round2(icmsValor + ipiValor + pisValor + cofinsValor + (difal?.valor ?? 0) + (difal?.fcpValor ?? 0));
 
     return {
       cfop: r.cfop,
