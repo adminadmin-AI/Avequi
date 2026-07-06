@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { TaxOperationType, ProductType, Prisma } from '@prisma/client';
+import { TaxOperationType, ProductType } from '@prisma/client';
 
 export interface TaxInput {
   companyId: string;
@@ -49,28 +49,20 @@ export interface TaxResult {
   totalTributos: number;
 }
 
-/** Regra padrão quando nenhuma TaxRule específica é encontrada (indústria = produção própria) */
-const FALLBACK_RULE = {
-  cfop: '5101',
-  icmsCst: '00',
-  icmsAliquota: new Prisma.Decimal(18),
-  icmsBaseReducao: new Prisma.Decimal(100),
-  ipiCst: '99',
-  ipiAliquota: new Prisma.Decimal(0),
-  pisCst: '01',
-  pisAliquota: new Prisma.Decimal(0.65),
-  cofinsCst: '01',
-  cofinsAliquota: new Prisma.Decimal(3),
-  icmsInternaDestino: null as Prisma.Decimal | null,
-  fcpAliquotaDestino: null as Prisma.Decimal | null,
-  cClassTrib: null as string | null,
-  cbsCst: null as string | null,
-  cbsAliquota: null as Prisma.Decimal | null,
-  ibsUfCst: null as string | null,
-  ibsUfAliquota: null as Prisma.Decimal | null,
-  ibsMunCst: null as string | null,
-  ibsMunAliquota: null as Prisma.Decimal | null,
-};
+/**
+ * Erro orientado ao usuário quando nenhuma TaxRule cobre a operação (#498).
+ * Nunca emitir com tributação genérica: a SEFAZ autoriza nota fiscalmente
+ * errada (valida estrutura, não adequação) — o antigo FALLBACK_RULE (CFOP
+ * 5101/ICMS 18% sem IBS/CBS) criava passivo tributário em silêncio.
+ */
+export function missingTaxRuleMessage(input: TaxInput): string {
+  return (
+    `Nenhuma regra fiscal cadastrada para ${input.operationType} ` +
+    `${input.ufOrigem}→${input.ufDestino}` +
+    (input.ncm ? ` (NCM ${input.ncm})` : '') +
+    `. Cadastre a regra em Regras Fiscais (POST /tax-rules) antes de emitir.`
+  );
+}
 
 @Injectable()
 export class TaxCalculationService {
@@ -79,15 +71,13 @@ export class TaxCalculationService {
   constructor(private readonly prisma: PrismaService) {}
 
   async calculateTaxes(input: TaxInput): Promise<TaxResult> {
-    const rule = await this.findBestRule(input);
+    const r = await this.findBestRule(input);
 
-    if (!rule) {
-      this.logger.warn(
-        `Nenhuma TaxRule encontrada para ${input.operationType} ${input.ufOrigem}→${input.ufDestino}. Usando fallback.`,
-      );
+    // Sem regra = bloqueio orientado, nunca tributação genérica (#498)
+    if (!r) {
+      this.logger.warn(`Emissão bloqueada: ${missingTaxRuleMessage(input)}`);
+      throw new UnprocessableEntityException(missingTaxRuleMessage(input));
     }
-
-    const r = rule ?? FALLBACK_RULE;
 
     const isInterstate = input.ufOrigem !== input.ufDestino;
 
@@ -196,8 +186,9 @@ export class TaxCalculationService {
   /**
    * Busca a regra mais específica (maior priority) para a operação.
    * Ordem de especificidade: NCM + productType + UF > NCM + UF > UF > geral
+   * Pública para pré-checagem de cobertura antes de efeitos colaterais (#498).
    */
-  private async findBestRule(input: TaxInput) {
+  async findBestRule(input: Omit<TaxInput, 'itemValue'> & { itemValue?: number }) {
     const rules = await this.prisma.taxRule.findMany({
       where: {
         companyId: input.companyId,

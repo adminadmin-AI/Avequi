@@ -106,6 +106,7 @@ export class FiscalService {
       : !order.customer?.ie || recipientDoc.length === 11;
 
     const items: FiscalItem[] = [];
+    try {
     for (const i of order.items) {
       const itemValue = Number(i.quantity) * Number(i.unitPrice);
       const taxResult = await this.taxCalc.calculateTaxes({
@@ -214,6 +215,15 @@ export class FiscalService {
         },
         vehicle,
       });
+    }
+    } catch (err) {
+      // #498: cálculo bloqueado (ex.: sem regra fiscal) — persiste o motivo
+      // orientado no documento (visível no detalhe fiscal, Reprocessar habilitado)
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: { status: FiscalStatus.ERROR, lastError: (err as Error).message },
+      });
+      throw err;
     }
 
     const totalValue = calcTotalValue(items);
@@ -439,6 +449,7 @@ export class FiscalService {
     const transferOpType = 'TRANSFERENCIA_INTERNA' as any;
 
     const items: FiscalItem[] = [];
+    try {
     for (const i of transfer.items) {
       const unitPrice = Number(i.product.avgCost ?? i.product.costPrice ?? 0);
       const itemValue = Number(i.quantity) * unitPrice;
@@ -468,6 +479,14 @@ export class FiscalService {
           cofinsCst: taxResult.cofins.cst, cofinsBase: taxResult.cofins.baseCalculo, cofinsAliquota: taxResult.cofins.aliquota, cofinsValor: taxResult.cofins.valor,
         },
       });
+    }
+    } catch (err) {
+      // #498: sem regra fiscal → documento em ERROR com motivo orientado
+      await this.prisma.fiscalDocument.update({
+        where: { id: fiscalDoc.id },
+        data: { status: FiscalStatus.ERROR, lastError: (err as Error).message },
+      });
+      throw err;
     }
 
     const totalValue = calcTotalValue(items);
