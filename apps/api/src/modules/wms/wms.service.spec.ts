@@ -7,6 +7,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 const mockEventEmitter = { emit: jest.fn() };
 
 const mockPrisma = {
+  product: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   location: {
     create: jest.fn(),
     findMany: jest.fn(),

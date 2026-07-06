@@ -240,6 +240,7 @@ model User {
   productionLogs            ProductionLog[]     @relation("ProductionLogUser")
   putawayConfirmations      PutawayTask[]       @relation("PutawayConfirmedBy")
   pickConfirmations         PickTask[]          @relation("PickConfirmedBy")
+  conferredSalesOrders SalesOrder[] @relation("SOConferredBy")
   inventoryCountsCreated    InventoryCount[]    @relation("InventoryCreatedBy")
   inventoryCountsReconciled InventoryCount[]    @relation("InventoryReconciledBy")
   inventoryItemsCounted     InventoryCountItem[] @relation("InventoryItemCountedBy")
@@ -850,6 +851,7 @@ enum SalesOrderStatus {
   RESERVED
   CONFIRMED
   AWAITING_PICKING
+  AWAITING_CONFERENCE // separado, aguardando conferência da carga (#491)
   READY_TO_INVOICE
   INVOICED
   RETURNED
@@ -880,6 +882,9 @@ model SalesOrder {
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])
   confirmedAt DateTime?
   pickedAt    DateTime?
+  conferredAt DateTime?          @map("conferred_at") // conferência da carga (#491)
+  conferredById String?          @map("conferred_by_id")
+  conferredBy   User?            @relation("SOConferredBy", fields: [conferredById], references: [id])
   invoicedAt  DateTime?
   returnedAt  DateTime?
   cancelledAt DateTime?
@@ -1599,6 +1604,8 @@ model PickTask {
   locationId     String?
   location       Location?      @relation(fields: [locationId], references: [id])
   notes          String?
+  serialNumberId String?        @map("serial_number_id") // chassi escolhido na separação (#490)
+  serialNumber   SerialNumber?  @relation("PickTaskSerial", fields: [serialNumberId], references: [id])
   status         PickTaskStatus @default(PENDING)
   confirmedById  String?
   confirmedBy    User?          @relation("PickConfirmedBy", fields: [confirmedById], references: [id])
@@ -1831,6 +1838,7 @@ model NonConformance {
 enum SerialStatus {
   IN_PRODUCTION
   IN_STOCK
+  RESERVED_FOR_SALE // chassi escolhido na separação — vira SOLD no faturamento (#490)
   SOLD
   TRANSFERRED
   SCRAPPED
@@ -1838,6 +1846,7 @@ enum SerialStatus {
 
 model SerialNumber {
   id                 String           @id @default(dbgenerated("gen_random_uuid()"))
+  pickTasks          PickTask[]       @relation("PickTaskSerial")
   companyId          String           @map("company_id")
   company            Company          @relation(fields: [companyId], references: [id])
   productId          String           @map("product_id")

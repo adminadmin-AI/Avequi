@@ -52,6 +52,7 @@ export type SalesOrderStatus =
   | 'RESERVED'
   | 'CONFIRMED'
   | 'AWAITING_PICKING'
+  | 'AWAITING_CONFERENCE'
   | 'READY_TO_INVOICE'
   | 'INVOICED'
   | 'RETURNED'
@@ -451,7 +452,9 @@ export interface Quotation extends BaseEntity {
 export interface SaleItem {
   id: string;
   productId: string;
-  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  product?: (Pick<Product, 'id' | 'sku' | 'name'> & { tracksSerial?: boolean }) | null;
+  serialNumberId?: string | null; // chassi amarrado na separação (#490)
+  serialNumber?: { id: string; serial: string; chassi?: string | null } | null;
   quantity: string;
   unitPrice: string;
   unit: UnitOfMeasure;

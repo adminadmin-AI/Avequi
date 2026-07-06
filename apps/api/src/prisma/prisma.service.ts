@@ -39,7 +39,11 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly extendedClient: ExtendedClient;
 
   constructor() {
-    this.baseClient = new PrismaClient();
+    // Timeouts folgados p/ transações interativas: o default (5s) estoura em
+    // links de maior latência com o pooler (dev remoto) e sob pico de carga
+    this.baseClient = new PrismaClient({
+      transactionOptions: { maxWait: 10_000, timeout: 30_000 },
+    });
     this.extendedClient = createExtendedClient(this.baseClient);
 
     // Sobrescreve $transaction como propriedade própria da instância para

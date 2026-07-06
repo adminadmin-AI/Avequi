@@ -237,20 +237,31 @@ export class WmsService {
 
     if (!warehouse?.wmsEnabled) return false; // WMS desativado para este armazém
 
+    // #490: item rastreável (chassi) gera 1 task por unidade — cada task
+    // recebe um serial na separação; itens comuns mantêm task única
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: event.items.map((i) => i.productId) } },
+      select: { id: true, tracksSerial: true },
+    });
+    const tracks = new Set(products.filter((p) => p.tracksSerial).map((p) => p.id));
+    const taskRows: { companyId: string; productId: string; qty: number }[] = [];
+    for (const i of event.items) {
+      if (i.quantity <= 0) continue;
+      if (tracks.has(i.productId)) {
+        for (let u = 0; u < Math.floor(i.quantity); u++) {
+          taskRows.push({ companyId: event.companyId, productId: i.productId, qty: 1 });
+        }
+      } else {
+        taskRows.push({ companyId: event.companyId, productId: i.productId, qty: i.quantity });
+      }
+    }
+
     const order = await this.prisma.pickingOrder.create({
       data: {
         companyId: event.companyId,
         salesOrderId: event.salesOrderId,
         warehouseId: event.warehouseId,
-        tasks: {
-          create: event.items
-            .filter((i) => i.quantity > 0)
-            .map((i) => ({
-              companyId: event.companyId,
-              productId: i.productId,
-              qty: i.quantity,
-            })),
-        },
+        tasks: { create: taskRows },
       },
     });
 
@@ -285,7 +296,8 @@ export class WmsService {
         salesOrder: { select: { id: true, status: true, notes: true, createdAt: true } },
         tasks: {
           include: {
-            product: { select: { id: true, sku: true, name: true, unit: true } },
+            product: { select: { id: true, sku: true, name: true, unit: true, tracksSerial: true } },
+            serialNumber: { select: { id: true, serial: true, chassi: true } },
             location: { select: { id: true, code: true, type: true } },
             confirmedBy: { select: { id: true, name: true } },
           },
@@ -341,11 +353,51 @@ export class WmsService {
     return this.prisma.$transaction(async (tx) => {
       const task = await tx.pickTask.findFirst({
         where: { id: taskId, pickingOrderId: orderId, companyId },
+        include: { product: { select: { tracksSerial: true, name: true } }, pickingOrder: { select: { salesOrderId: true } } },
       });
 
       if (!task) throw new NotFoundException(`Tarefa de picking ${taskId} não encontrada`);
       if (task.status === 'CONFIRMED') {
         throw new BadRequestException('Tarefa já confirmada');
+      }
+
+      // #490: produto rastreável exige o chassi escolhido na separação —
+      // é aqui que o físico e o sistema se amarram (emplacamento depende disso)
+      if (task.product?.tracksSerial) {
+        if (!dto.serialNumberId) {
+          throw new BadRequestException(
+            `"${task.product.name}" rastreia chassi: informe o serial separado (serialNumberId) para confirmar a tarefa.`,
+          );
+        }
+        const sn = await tx.serialNumber.findFirst({
+          where: { id: dto.serialNumberId, companyId },
+        });
+        if (!sn) throw new NotFoundException(`Serial ${dto.serialNumberId} não encontrado`);
+        if (sn.productId !== task.productId) {
+          throw new BadRequestException(`Serial ${sn.serial} pertence a outro produto`);
+        }
+        if (sn.status !== 'IN_STOCK') {
+          throw new BadRequestException(
+            `Serial ${sn.serial} não está disponível (status: ${sn.status})`,
+          );
+        }
+        // reserva o chassi para esta venda e amarra ao item correspondente
+        await tx.serialNumber.update({
+          where: { id: sn.id },
+          data: { status: 'RESERVED_FOR_SALE' as any, salesOrderId: task.pickingOrder!.salesOrderId },
+        });
+        const saleItem = await tx.saleItem.findFirst({
+          where: {
+            salesOrderId: task.pickingOrder!.salesOrderId,
+            productId: task.productId,
+            serialNumberId: null,
+          },
+        });
+        if (saleItem) {
+          await tx.saleItem.update({ where: { id: saleItem.id }, data: { serialNumberId: sn.id } });
+        }
+      } else if (dto.serialNumberId) {
+        throw new BadRequestException('Este produto não rastreia serial');
       }
 
       // Valida location (opcional — operador pode registrar de onde pegou)
@@ -367,6 +419,7 @@ export class WmsService {
         where: { id: taskId },
         data: {
           status: 'CONFIRMED',
+          serialNumberId: dto.serialNumberId ?? null,
           locationId: dto.locationId ?? null,
           notes: dto.notes ?? null,
           confirmedById: userId ?? null,

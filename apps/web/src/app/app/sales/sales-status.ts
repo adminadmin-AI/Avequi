@@ -14,6 +14,7 @@ export const SALES_STATUS: Record<SalesOrderStatus, StatusMeta> = {
   RESERVED: { label: 'Reservada', variant: 'info' },
   CONFIRMED: { label: 'Confirmada', variant: 'brand' },
   AWAITING_PICKING: { label: 'Aguardando separação', variant: 'warning' },
+  AWAITING_CONFERENCE: { label: 'Aguardando conferência', variant: 'warning' },
   READY_TO_INVOICE: { label: 'Pronta p/ faturar', variant: 'warning' },
   INVOICED: { label: 'Faturada', variant: 'success' },
   RETURNED: { label: 'Devolvida', variant: 'neutral' },
@@ -38,6 +39,7 @@ export const SALES_PIPELINE: { status: SalesOrderStatus; label: string }[] = [
   { status: 'DRAFT', label: 'Rascunho' },
   { status: 'RESERVED', label: 'Reservada' },
   { status: 'AWAITING_PICKING', label: 'Separação' },
+  { status: 'AWAITING_CONFERENCE', label: 'Conferência' },
   { status: 'READY_TO_INVOICE', label: 'Pronta' },
   { status: 'INVOICED', label: 'Faturada' },
 ];
@@ -72,6 +74,7 @@ export function availableSalesActions(status: SalesOrderStatus): SalesAction[] {
       ];
     case 'CONFIRMED':
     case 'AWAITING_PICKING':
+    case 'AWAITING_CONFERENCE': // conferência tem card próprio no detalhe (#491)
       return [{ endpoint: 'cancel', label: 'Cancelar', variant: 'danger' }];
     case 'READY_TO_INVOICE':
       return [{ endpoint: 'invoice', label: 'Faturar (emitir NF-e)', variant: 'primary' }];
