@@ -24,7 +24,7 @@ export default function CustomersPage() {
   const confirm = useConfirm();
 
   const { data: customers = [], isLoading } = useList<Customer>(RESOURCE);
-  const create = useCreate<Customer, CustomerFormValues>(RESOURCE);
+  const create = useCreate<Customer, Record<string, unknown>>(RESOURCE);
   const update = useUpdate<Customer>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -48,6 +48,13 @@ export default function CustomersPage() {
       email: values.email || undefined,
       fiscalEmail: values.fiscalEmail || undefined,
       indIeDest: values.indIeDest || undefined,
+      // #475: crédito e padrões comerciais
+      creditLimit: values.creditLimit ? Number(values.creditLimit) : undefined,
+      billingBlockReason: values.billingBlocked ? values.billingBlockReason || undefined : undefined,
+      defaultSellerId: values.defaultSellerId || undefined,
+      defaultPaymentTerms: values.defaultPaymentTerms || undefined,
+      defaultCarrierId: values.defaultCarrierId || undefined,
+      internalNotes: values.internalNotes || undefined,
     };
     if (editing) {
       update.mutate(
@@ -101,9 +108,16 @@ export default function CustomersPage() {
       align: 'center',
       sortable: true,
       cell: (c) => (
-        <Badge variant={c.type === 'COMPANY' ? 'brand' : 'neutral'}>
-          {c.type === 'COMPANY' ? 'PJ' : 'PF'}
-        </Badge>
+        <span className="inline-flex items-center gap-1">
+          <Badge variant={c.type === 'COMPANY' ? 'brand' : 'neutral'}>
+            {c.type === 'COMPANY' ? 'PJ' : 'PF'}
+          </Badge>
+          {(c as any).billingBlocked && (
+            <Badge variant="danger" title={(c as any).billingBlockReason ?? 'Faturamento bloqueado'}>
+              Bloqueado
+            </Badge>
+          )}
+        </span>
       ),
       accessor: (c) => CUSTOMER_TYPE_LABELS[c.type],
     },
@@ -226,6 +240,13 @@ export default function CustomersPage() {
                   isSimplesNacional: editing.isSimplesNacional ?? false,
                   fiscalEmail: editing.fiscalEmail ?? '',
                   contactName: editing.contactName ?? '',
+                  creditLimit: (editing as any).creditLimit != null ? String((editing as any).creditLimit) : '',
+                  billingBlocked: (editing as any).billingBlocked ?? false,
+                  billingBlockReason: (editing as any).billingBlockReason ?? '',
+                  defaultSellerId: (editing as any).defaultSellerId ?? '',
+                  defaultPaymentTerms: (editing as any).defaultPaymentTerms ?? '',
+                  defaultCarrierId: (editing as any).defaultCarrierId ?? '',
+                  internalNotes: (editing as any).internalNotes ?? '',
                 }
               : undefined
           }
