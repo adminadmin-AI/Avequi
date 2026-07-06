@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { Product, Warehouse, ProductionOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -20,7 +19,6 @@ export default function NewProductionOrderPage() {
   const router = useRouter();
   const toast = useToast();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: products = [] } = useList<Product>('/products');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
@@ -43,7 +41,6 @@ export default function NewProductionOrderPage() {
     if (!warehouseId) return toast.error('Selecione o depósito de saída');
     create.mutate(
       {
-        companyId,
         productId,
         warehouseId,
         plannedQty: qty,

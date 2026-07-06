@@ -2,9 +2,6 @@ import { IsOptional, IsString, IsNumber, IsPositive, IsDateString } from 'class-
 
 export class CreateProductionOrderDto {
   @IsString()
-  companyId: string;
-
-  @IsString()
   productId: string;
 
   @IsString()

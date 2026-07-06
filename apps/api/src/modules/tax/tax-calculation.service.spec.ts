@@ -133,19 +133,31 @@ describe('TaxCalculationService', () => {
     expect(result.cfop).toBe('5102');
   });
 
-  it('usa fallback quando nenhuma regra existe', async () => {
+  // #498 (auditoria item 1): sem regra NÃO existe mais fallback genérico —
+  // a emissão é bloqueada com mensagem orientada ao usuário
+  it('bloqueia com erro orientado quando nenhuma regra existe', async () => {
     prisma.taxRule.findMany.mockResolvedValue([]);
-    const result = await service.calculateTaxes({
+    await expect(
+      service.calculateTaxes({
+        companyId: 'comp-1',
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        ufOrigem: 'PR',
+        ufDestino: 'SC',
+        ncm: '87163900',
+        itemValue: 1000,
+      }),
+    ).rejects.toThrow(/Nenhuma regra fiscal cadastrada para VENDA_INTERESTADUAL PR→SC \(NCM 87163900\)/);
+  });
+
+  it('findBestRule é público e retorna null sem regra (pré-checagem do faturamento)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([]);
+    const rule = await service.findBestRule({
       companyId: 'comp-1',
       operationType: TaxOperationType.VENDA_INTERNA,
       ufOrigem: 'PR',
       ufDestino: 'PR',
-      itemValue: 1000,
     });
-    expect(result.cfop).toBe('5101');
-    expect(result.icms.cst).toBe('00');
-    expect(result.pis.aliquota).toBe(0.65);
-    expect(result.cofins.aliquota).toBe(3);
+    expect(rule).toBeNull();
   });
 
   // ─── Testes por tipo de operação CFOP (#163) ─────────────────────────────
@@ -413,6 +425,64 @@ describe('TaxCalculationService', () => {
     expect(result.totalTributos).toBe(189 + 50 + 6.5 + 30);
   });
 
+  it('calcula FCP do UF destino no DIFAL quando a regra tem fcpAliquotaDestino (#445)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        cfop: '6101',
+        icmsAliquota: dec(12),
+        icmsInternaDestino: dec(18),
+        fcpAliquotaDestino: dec(2),
+        ipiAliquota: dec(0),
+        ufOrigem: 'PR',
+        ufDestino: 'SP',
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SP',
+      itemValue: 1000,
+      consumidorFinal: true,
+    });
+    // NF-e real #14236: base 1000 → DIFAL 6% = 60, FCP 2% = 20
+    expect(result.difal).toEqual({
+      baseCalculo: 1000,
+      aliquotaInterna: 18,
+      aliquotaInterestadual: 12,
+      valor: 60,
+      fcpAliquota: 2,
+      fcpValor: 20,
+    });
+    // FCP compõe o total de tributos
+    expect(result.totalTributos).toBe(120 + 6.5 + 30 + 60 + 20);
+  });
+
+  it('DIFAL sem fcpAliquotaDestino zera o FCP (UFs sem fundo)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        operationType: TaxOperationType.VENDA_INTERESTADUAL,
+        cfop: '6101',
+        icmsAliquota: dec(12),
+        icmsInternaDestino: dec(17),
+        ipiAliquota: dec(0),
+        ufOrigem: 'PR',
+        ufDestino: 'SC',
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SC',
+      itemValue: 1000,
+      consumidorFinal: true,
+    });
+    expect(result.difal?.fcpAliquota).toBe(0);
+    expect(result.difal?.fcpValor).toBe(0);
+  });
+
   it('não calcula IBS/CBS quando a regra não tem cbsAliquota', async () => {
     prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
     const result = await service.calculateTaxes({
@@ -424,5 +494,59 @@ describe('TaxCalculationService', () => {
     });
     expect(result.cbs).toBeUndefined();
     expect(result.cClassTrib).toBeUndefined();
+  });
+
+  describe('origem importada — alíquota interestadual 4% RSF 13/2012 (#480)', () => {
+    const interstate = {
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SP',
+      itemValue: 1000,
+    };
+
+    it('aplica 4% para origem importada (orig 1) em operação interestadual', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({ operationType: TaxOperationType.VENDA_INTERESTADUAL, cfop: '6101', icmsAliquota: dec(12), ipiAliquota: dec(0) }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '1' });
+      expect(result.icms.aliquota).toBe(4);
+      expect(result.icms.valor).toBe(40); // 1000 × 4%
+    });
+
+    it('mantém a alíquota da regra para origem nacional (orig 0)', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({ operationType: TaxOperationType.VENDA_INTERESTADUAL, cfop: '6101', icmsAliquota: dec(12), ipiAliquota: dec(0) }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '0' });
+      expect(result.icms.aliquota).toBe(12);
+    });
+
+    it('não mexe na alíquota interna mesmo com origem importada', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([makeRule({ ipiAliquota: dec(0) })]);
+      const result = await service.calculateTaxes({
+        ...interstate,
+        operationType: TaxOperationType.VENDA_INTERNA,
+        ufDestino: 'PR',
+        origem: '2',
+      });
+      expect(result.icms.aliquota).toBe(18);
+    });
+
+    it('DIFAL usa a interestadual de 4% quando importado (diferencial maior)', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({
+          operationType: TaxOperationType.VENDA_INTERESTADUAL,
+          cfop: '6101',
+          icmsAliquota: dec(12),
+          ipiAliquota: dec(0),
+          icmsInternaDestino: dec(18),
+          fcpAliquotaDestino: null,
+        }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '3', consumidorFinal: true });
+      expect(result.difal?.aliquotaInterestadual).toBe(4);
+      expect(result.difal?.valor).toBe(140); // 1000 × (18% − 4%)
+    });
   });
 });

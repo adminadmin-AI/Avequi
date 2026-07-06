@@ -1,8 +1,7 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Controller, Get, Request } from '@nestjs/common';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
 
-@UseGuards(JwtAuthGuard)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
@@ -19,8 +18,9 @@ export class DashboardController {
     return this.dashboardService.getSales(req.user.companyId);
   }
 
-  // GET /dashboard/finance
+  // GET /dashboard/finance — dados financeiros sensíveis
   @Get('finance')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
   getFinance(@Request() req: { user: { companyId: string } }) {
     return this.dashboardService.getFinance(req.user.companyId);
   }

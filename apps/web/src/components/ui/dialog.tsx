@@ -36,6 +36,7 @@ export function DialogContent({
   children,
   showClose = true,
   size = 'md',
+  onInteractOutside,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   showClose?: boolean;
@@ -65,6 +66,16 @@ export function DialogContent({
           sizeClass[size],
           className,
         )}
+        onInteractOutside={(e) => {
+          // O ConfirmDialogProvider renderiza em portal irmão — clicar nos botões
+          // do confirm não pode fechar o dialog de baixo (ex.: remover endereço
+          // dentro do form de cliente)
+          if ((e.target as Element | null)?.closest('[role="dialog"], [role="alertdialog"]')) {
+            e.preventDefault();
+            return;
+          }
+          onInteractOutside?.(e);
+        }}
         {...props}
       >
         {children}

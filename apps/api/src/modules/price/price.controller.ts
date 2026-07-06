@@ -14,8 +14,8 @@ export class PriceController {
   @Post()
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
   @ApiOperation({ summary: 'Criar tabela de preços (#189)' })
-  create(@Body() dto: CreatePriceTableDto) {
-    return this.priceService.create(dto);
+  create(@Body() dto: CreatePriceTableDto, @CurrentUser() user: any) {
+    return this.priceService.create(dto, user.companyId);
   }
 
   @Get('lookup')

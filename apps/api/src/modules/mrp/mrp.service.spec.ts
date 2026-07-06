@@ -495,7 +495,8 @@ describe('MrpService', () => {
       netQty: '50',
       suggestedDate: new Date('2026-07-01'),
       mrpRun: { companyId: 'co-1' },
-      product: { id: 'p-1', name: 'Parafuso M10', supplierId: 'sup-1' },
+      // Fornecedor preferencial vem de supplierPriceHistory (último preço registrado)
+      product: { id: 'p-1', name: 'Parafuso M10', supplierPriceHistory: [{ supplierId: 'sup-1' }] },
       type: 'PURCHASE',
       status: 'PENDING',
     };
@@ -590,7 +591,7 @@ describe('MrpService', () => {
     it('deve lançar BadRequestException quando PURCHASE sem fornecedor', async () => {
       mockPrisma.mrpSuggestion.findFirst.mockResolvedValue({
         ...baseSuggestion,
-        product: { id: 'p-1', name: 'Sem Fornecedor', supplierId: null },
+        product: { id: 'p-1', name: 'Sem Fornecedor', supplierPriceHistory: [] },
       });
 
       await expect(service.convertSuggestion('sug-1', 'co-1')).rejects.toThrow(BadRequestException);
@@ -620,7 +621,7 @@ describe('MrpService', () => {
           status: 'PENDING',
           suggestedDate: null,
           mrpRun: { companyId: 'co-1' },
-          product: { id: 'p-1', name: 'Prod A', supplierId: 'sup-1' },
+          product: { id: 'p-1', name: 'Prod A', supplierPriceHistory: [{ supplierId: 'sup-1' }] },
         })
         // sug-fail: não encontrada
         .mockResolvedValueOnce(null);

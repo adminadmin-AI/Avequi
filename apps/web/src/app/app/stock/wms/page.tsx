@@ -118,10 +118,19 @@ export default function WmsTasksPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/wms/receiving'] }),
   });
   const confirmPick = useMutation({
-    mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) =>
-      apiClient.patch(`/wms/picking/${orderId}/tasks/${taskId}/confirm`, {}),
+    mutationFn: ({ orderId, taskId, serialNumberId }: { orderId: string; taskId: string; serialNumberId?: string }) =>
+      apiClient.patch(`/wms/picking/${orderId}/tasks/${taskId}/confirm`, serialNumberId ? { serialNumberId } : {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/wms/picking'] }),
   });
+
+  // #490: produto rastreável exige escolher o CHASSI na separação
+  const [serialTask, setSerialTask] = useState<FlatTask | null>(null);
+  const [serialId, setSerialId] = useState('');
+  const { data: serialsDisponiveis = [] } = useList<{ id: string; serial: string; chassi?: string | null }>(
+    '/serial',
+    { productId: serialTask?.product?.id, status: 'IN_STOCK' },
+    { enabled: !!serialTask },
+  );
 
   function submitPutaway() {
     if (!confirmTask) return;
@@ -140,6 +149,12 @@ export default function WmsTasksPage() {
   }
 
   function doConfirmPick(t: FlatTask) {
+    // rastreável → abre o seletor de chassi (#490)
+    if ((t.product as any)?.tracksSerial) {
+      setSerialId('');
+      setSerialTask(t);
+      return;
+    }
     confirmPick.mutate(
       { orderId: t.orderId, taskId: t.id },
       {
@@ -250,6 +265,58 @@ export default function WmsTasksPage() {
                 </option>
               ))}
             </Select>
+          </div>
+        </form>
+      </FormDialog>
+
+      {/* #490: seleção do chassi na separação — o serial escolhido vai pra NF-e */}
+      <FormDialog
+        open={!!serialTask}
+        onOpenChange={(o) => !o && setSerialTask(null)}
+        title="Escolher chassi separado"
+        description={serialTask ? `${serialTask.product?.name ?? ''} — selecione o chassi do reboque que saiu do pátio` : ''}
+        formId="serial-pick-form"
+        submitLabel="Confirmar pick"
+        loading={confirmPick.isPending}
+      >
+        <form
+          id="serial-pick-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!serialTask) return;
+            if (!serialId) {
+              toast.error('Selecione o chassi');
+              return;
+            }
+            confirmPick.mutate(
+              { orderId: serialTask.orderId, taskId: serialTask.id, serialNumberId: serialId },
+              {
+                onSuccess: () => {
+                  toast.success('Pick confirmado com chassi vinculado');
+                  setSerialTask(null);
+                },
+                onError: (err: any) =>
+                  toast.error(err?.response?.data?.message ?? 'Não foi possível confirmar'),
+              },
+            );
+          }}
+          className="space-y-3 py-1"
+        >
+          <div>
+            <Label required>Chassi / Serial</Label>
+            <Select aria-label="Chassi" value={serialId} onChange={(e) => setSerialId(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {serialsDisponiveis.map((sn) => (
+                <option key={sn.id} value={sn.id}>
+                  {sn.chassi ?? sn.serial}
+                </option>
+              ))}
+            </Select>
+            {serialsDisponiveis.length === 0 && (
+              <p className="mt-1 text-xs text-content-muted">
+                Nenhum chassi IN_STOCK para este produto — cadastre os seriais do estoque.
+              </p>
+            )}
           </div>
         </form>
       </FormDialog>

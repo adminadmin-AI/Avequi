@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, RotateCcw, Ban, FileEdit, Copy } from 'lucide-react';
+import { ExternalLink, RotateCcw, Ban, FileEdit, Copy, FileDown, FileText } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import type { FiscalDocument } from '@/types/api';
@@ -107,6 +107,18 @@ export default function FiscalDetailPage() {
   const canCancel = doc.status === 'AUTHORIZED';
   const canCce = doc.status === 'AUTHORIZED';
 
+  // #482 — baixa o XML armazenado no banco com o nome padrão <chave>-nfe.xml
+  function downloadXml() {
+    if (!doc?.xml) return;
+    const blob = new Blob([doc.xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.chave ?? doc.focusRef ?? 'nota'}-nfe.xml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       {/* detail page pattern (F3.2 #317): back + metadata no header */}
@@ -152,6 +164,27 @@ export default function FiscalDetailPage() {
               )}
             </div>
             <div className="flex flex-wrap gap-2">
+              {/* #482 — download do XML autorizado e do DANFE (caminho da Focus) */}
+              {doc.xml && (
+                <Button variant="secondary" onClick={downloadXml}>
+                  <FileDown size={16} /> XML
+                </Button>
+              )}
+              {doc.danfeUrl && (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    window.open(
+                      doc.danfeUrl!.startsWith('http')
+                        ? doc.danfeUrl!
+                        : `https://api.focusnfe.com.br${doc.danfeUrl}`,
+                      '_blank',
+                    )
+                  }
+                >
+                  <FileText size={16} /> DANFE
+                </Button>
+              )}
               {canRetry && (
                 <Button onClick={doRetry} loading={retry.isPending}>
                   <RotateCcw size={16} /> Reprocessar
