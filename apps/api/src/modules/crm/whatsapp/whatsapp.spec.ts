@@ -265,6 +265,45 @@ describe('WhatsappService.send', () => {
       service.send(COMPANY, 'lead-1', { text: 'oi' }, 'seller-1'),
     ).rejects.toThrow(/sem número de WhatsApp/);
   });
+
+  describe('sendUploadedMedia (F3.5-C2 #552)', () => {
+    const img = {
+      buffer: Buffer.from('fake'),
+      mimetype: 'image/jpeg',
+      originalname: 'reboque.jpg',
+      size: 1024,
+    };
+
+    it('sobe pra Media API e envia por id', async () => {
+      http.post
+        .mockReturnValueOnce(of({ data: { id: 'media-99' } })) // upload
+        .mockReturnValueOnce(of({ data: { messages: [{ id: 'wamid.m1' }] } })); // send
+      await service.sendUploadedMedia(COMPANY, 'lead-1', img, 'olha o modelo', 'seller-1');
+      // 1ª chamada = upload em /media, 2ª = /messages com type image + id
+      expect(http.post.mock.calls[0][0]).toContain('/media');
+      const sendPayload = http.post.mock.calls[1][1];
+      expect(sendPayload.type).toBe('image');
+      expect(sendPayload.image.id).toBe('media-99');
+      expect(sendPayload.image.caption).toBe('olha o modelo');
+    });
+
+    it('imagem acima de 5MB → 400 (não sobe)', async () => {
+      await expect(
+        service.sendUploadedMedia(COMPANY, 'lead-1', { ...img, size: 6 * 1024 * 1024 }, undefined, 'seller-1'),
+      ).rejects.toThrow(/limite de 5MB/);
+      expect(http.post).not.toHaveBeenCalled();
+    });
+
+    it('janela expirada → 400', async () => {
+      prisma.whatsappConversation.findFirst.mockResolvedValue({
+        ...openConversation(),
+        windowExpiresAt: new Date(Date.now() - 1000),
+      });
+      await expect(
+        service.sendUploadedMedia(COMPANY, 'lead-1', img, undefined, 'seller-1'),
+      ).rejects.toThrow(/Janela de 24h expirada/);
+    });
+  });
 });
 
 describe('WhatsappController — segurança do webhook', () => {

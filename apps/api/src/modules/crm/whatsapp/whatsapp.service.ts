@@ -192,6 +192,135 @@ export class WhatsappService {
     };
   }
 
+  /**
+   * F3.5-C2 (#552) — envio de mídia pelo vendedor. Sobe o arquivo pra Media API
+   * da Meta (devolve media id) e envia por id — sem precisar de storage público.
+   * O media id fica guardado; o proxy fetchMedia baixa de volta pra exibir.
+   */
+  async sendUploadedMedia(
+    companyId: string,
+    leadId: string,
+    file: { buffer: Buffer; mimetype: string; originalname: string; size: number },
+    caption: string | undefined,
+    senderId: string,
+  ) {
+    const kind = this.mediaKind(file.mimetype);
+    this.assertMediaLimits(kind, file.size);
+
+    const conversation = await this.prisma.whatsappConversation.findFirst({
+      where: { leadId, companyId },
+      include: { lead: { select: { id: true, firstRespondedAt: true } } },
+    });
+    if (!conversation) throw new NotFoundException('Lead não tem conversa de WhatsApp');
+    if (!conversation.windowExpiresAt || conversation.windowExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Janela de 24h expirada — só é possível enviar template');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { waPhoneNumberId: true },
+    });
+    if (!company?.waPhoneNumberId) throw new BadRequestException('Loja sem número de WhatsApp');
+
+    // 1. upload pra Media API da Meta → media id
+    let mediaId: string;
+    try {
+      const form = new FormData();
+      form.append('messaging_product', 'whatsapp');
+      form.append('type', file.mimetype);
+      form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+      const up = await firstValueFrom(
+        this.http.post(`${this.graphBase()}/${company.waPhoneNumberId}/media`, form, {
+          headers: { Authorization: `Bearer ${this.accessToken()}` },
+        }),
+      );
+      mediaId = up.data?.id;
+      if (!mediaId) throw new Error('Meta não devolveu media id');
+    } catch (err) {
+      const axiosErr = err as AxiosError<any>;
+      this.logger.error(`Falha no upload de mídia (lead ${leadId}): ${axiosErr.message}`);
+      throw new BadRequestException(
+        `Falha no upload: ${axiosErr.response?.data?.error?.message ?? axiosErr.message}`,
+      );
+    }
+
+    // 2. envia a mensagem referenciando o media id
+    const media: Record<string, unknown> = { id: mediaId };
+    if (caption && kind !== 'audio') media.caption = caption;
+    if (kind === 'document') media.filename = file.originalname;
+
+    let waMessageId: string | null = null;
+    try {
+      const resp = await firstValueFrom(
+        this.http.post(
+          `${this.graphBase()}/${company.waPhoneNumberId}/messages`,
+          { messaging_product: 'whatsapp', to: conversation.waContactId, type: kind, [kind]: media },
+          { headers: { Authorization: `Bearer ${this.accessToken()}` } },
+        ),
+      );
+      waMessageId = resp.data?.messages?.[0]?.id ?? null;
+    } catch (err) {
+      const axiosErr = err as AxiosError<any>;
+      throw new BadRequestException(
+        `Meta recusou o envio: ${axiosErr.response?.data?.error?.message ?? axiosErr.message}`,
+      );
+    }
+
+    const now = new Date();
+    const typeEnum = this.outboundType({ mediaUrl: 'x', mediaType: kind });
+    const [message] = await this.prisma.$transaction([
+      this.prisma.whatsappMessage.create({
+        data: {
+          conversationId: conversation.id,
+          direction: WaMessageDirection.OUT,
+          type: typeEnum,
+          text: caption ?? null,
+          waMediaId: mediaId,
+          mediaMimeType: file.mimetype,
+          waMessageId,
+          status: WaMessageStatus.SENT,
+          statusAt: now,
+          sentById: senderId,
+        },
+      }),
+      this.prisma.whatsappConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now, unreadCount: 0 },
+      }),
+      this.prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          lastInteractionAt: now,
+          ...(conversation.lead.firstRespondedAt ? {} : { firstRespondedAt: now }),
+          activities: {
+            create: {
+              type: LeadActivityType.MESSAGE_OUT,
+              actorId: senderId,
+              properties: { waMessageId, media: kind, preview: caption?.slice(0, 140) ?? `[${kind}]` },
+            },
+          },
+        },
+      }),
+    ]);
+    this.eventEmitter.emit('crm.whatsapp.message_sent', { leadId, companyId, messageId: message.id });
+    return message;
+  }
+
+  /** image | audio | document a partir do mime; vídeo entra como document p/ simplificar */
+  private mediaKind(mime: string): 'image' | 'audio' | 'document' {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'document';
+  }
+
+  /** limites da Meta: imagem 5MB, áudio 16MB, documento 100MB */
+  private assertMediaLimits(kind: 'image' | 'audio' | 'document', size: number) {
+    const limits = { image: 5, audio: 16, document: 100 };
+    const maxMb = limits[kind];
+    if (size > maxMb * 1024 * 1024) {
+      throw new BadRequestException(`Arquivo excede o limite de ${maxMb}MB para ${kind}`);
+    }
+  }
+
   private buildOutboundPayload(to: string, input: SendMessageInput): Record<string, unknown> {
     if (input.mediaUrl) {
       const kind = input.mediaType ?? 'image';

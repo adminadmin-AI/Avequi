@@ -17,9 +17,10 @@ import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
+import { CrmSettingsService } from './crm-settings.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
-import { IsArray, IsInt, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsPositive, Min } from 'class-validator';
 
 class ReassignLeadDto {
   @ApiProperty({ description: 'Vendedor destino' })
@@ -79,6 +80,21 @@ class SendTemplateDto {
   variables?: string[];
 }
 
+class UpdateSettingsDto {
+  @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() slaFirstResponseMin?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() coolingHours?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() reopenLostDays?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() autoFollowupEnabled?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() autoFollowupStageId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() autoFollowupHours?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() autoFollowupTemplate?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() waPhoneNumberId?: string;
+}
+
+class SellerAvailabilityDto {
+  @ApiProperty() @IsBoolean() available: boolean;
+}
+
 /** Resolve o intervalo do dashboard a partir de ?days= (default 30) */
 function resolveRange(companyId: string, daysRaw?: string) {
   const days = Math.min(Math.max(parseInt(daysRaw ?? '30', 10) || 30, 1), 365);
@@ -98,7 +114,42 @@ export class CrmController {
     private readonly conversion: LeadConversionService,
     private readonly dashboard: CrmDashboardService,
     private readonly templates: WhatsappTemplateService,
+    private readonly settings: CrmSettingsService,
   ) {}
+
+  // ── Configuração (F3.5-C1 #551) ─────────────────────────────────────────────
+
+  @Get('settings')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Configuração do CRM da loja' })
+  getSettings(@CurrentUser() user: any) {
+    return this.settings.get(user.companyId);
+  }
+
+  @Patch('settings')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Atualizar configuração do CRM' })
+  updateSettings(@Body() dto: UpdateSettingsDto, @CurrentUser() user: any) {
+    return this.settings.update(user.companyId, dto);
+  }
+
+  @Get('settings/sellers')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Vendedores da loja e disponibilidade no rodízio' })
+  getSellers(@CurrentUser() user: any) {
+    return this.settings.sellers(user.companyId);
+  }
+
+  @Patch('settings/sellers/:userId/availability')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Ligar/desligar vendedor no rodízio (férias/folga)' })
+  setSellerAvailability(
+    @Param('userId') userId: string,
+    @Body() dto: SellerAvailabilityDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.settings.setSellerAvailability(user.companyId, userId, dto.available);
+  }
 
   // ── Dashboard (F3.1 #517) ───────────────────────────────────────────────────
 
