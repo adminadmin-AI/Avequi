@@ -9,11 +9,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { LgpdService } from './lgpd.service';
 import { RegisterConsentDto } from './dto/register-consent.dto';
 
 @ApiTags('LGPD')
 @ApiBearerAuth()
+// Dados pessoais de titulares: acesso restrito mesmo para leitura
+@Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
 @Controller('lgpd')
 export class LgpdController {
   constructor(private readonly lgpdService: LgpdService) {}
@@ -54,12 +57,14 @@ export class LgpdController {
   // ─── Anonimização ────────────────────────────────────────────────────────
 
   @Post('anonymize/:document')
+  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @ApiOperation({ summary: 'Solicitar anonimização de dados pessoais (direito ao esquecimento)' })
   requestAnonymization(@Param('document') document: string, @CurrentUser() user: any) {
     return this.lgpdService.requestAnonymization(user.companyId, document, user.id);
   }
 
   @Post('anonymize/:requestId/process')
+  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @HttpCode(200)
   @ApiOperation({ summary: 'Processar anonimização solicitada' })
   processAnonymization(@Param('requestId') requestId: string, @CurrentUser() user: any) {

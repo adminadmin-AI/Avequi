@@ -1,12 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AtpveStatus, BinRegistrationStatus } from '@prisma/client';
 import { BinRegistrationService } from './bin-registration.service';
 import { AtpveService } from './atpve.service';
 import { CreateBinRegistrationDto, UpdateBinRegistrationDto } from './dto/bin-registration.dto';
 import { CreateAtpveDto, UpdateAtpveDto } from './dto/atpve.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -14,7 +12,6 @@ const WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL'] as const
 
 @ApiTags('vehicle-tracking')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('vehicle-tracking')
 export class VehicleTrackingController {
   constructor(

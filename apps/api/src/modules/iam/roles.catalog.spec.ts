@@ -10,8 +10,8 @@ import {
 describe('Catálogo de perfis system (#339)', () => {
   const catalogo = new Set(allPermissionCodes());
 
-  it('tem exatamente 25 perfis (24 da issue #339 + Loja, recomendação da arquitetura)', () => {
-    expect(SYSTEM_ROLES.length).toBe(25);
+  it('tem exatamente 28 perfis (24 da #339 + split de Loja em 3 + Gerente Geral, decisão #463)', () => {
+    expect(SYSTEM_ROLES.length).toBe(28);
   });
 
   it('não tem codes de perfil duplicados', () => {
@@ -139,12 +139,61 @@ describe('Catálogo de perfis system (#339)', () => {
     }
   });
 
-  it('LOJA (migração 1:1 do STORE) participa de transferências e solicitações', () => {
-    const loja = resolveEffectivePermissions('LOJA');
-    expect(loja).toContain('stock.transfers.create');
-    expect(loja).toContain('purchases.requests.create');
-    expect(loja).not.toContain('stock.transfers.cancel');
-    expect(loja).not.toContain('sales.orders.create');
+  it('Loja em 3 perfis (decisão #463): operação vende sem faturar, faturamento herda e fatura', () => {
+    // LOJA_OPERACIONAL: vende e opera, mas NÃO fatura nem cancela/devolve
+    const operacional = resolveEffectivePermissions('LOJA_OPERACIONAL');
+    expect(operacional).toContain('sales.orders.create');
+    expect(operacional).toContain('customers.registry.create');
+    expect(operacional).toContain('stock.transfers.create');
+    expect(operacional).toContain('purchases.requests.create');
+    expect(operacional).not.toContain('sales.orders.invoice');
+    expect(operacional).not.toContain('sales.orders.return');
+    expect(operacional).not.toContain('sales.orders.cancel');
+
+    // LOJA_FATURAMENTO: herda a operação e acrescenta faturar; sem cancelar NF-e
+    const faturamento = resolveEffectivePermissions('LOJA_FATURAMENTO');
+    expect(faturamento).toContain('sales.orders.create'); // herdado
+    expect(faturamento).toContain('sales.orders.invoice');
+    expect(faturamento).not.toContain('fiscal.nfe.cancel');
+
+    // GERENTE_LOJA: herda faturamento + visão gerencial; sem devolução/cancelamento sensível
+    const gerente = resolveEffectivePermissions('GERENTE_LOJA');
+    expect(gerente).toContain('sales.orders.invoice'); // herdado
+    expect(gerente).toContain('sales.commissions.view');
+    expect(gerente).not.toContain('sales.orders.return');
+    expect(gerente).not.toContain('sales.orders.cancel');
+    expect(gerente).not.toContain('fiscal.nfe.cancel');
+  });
+
+  it('MANAGER mapeia para GERENTE_GERAL (não GERENTE_INDUSTRIAL); STORE para LOJA_OPERACIONAL', () => {
+    expect(ENUM_ROLE_TO_SYSTEM_ROLE.MANAGER).toBe('GERENTE_GERAL');
+    expect(ENUM_ROLE_TO_SYSTEM_ROLE.STORE).toBe('LOJA_OPERACIONAL');
+    // GERENTE_INDUSTRIAL segue no catálogo como perfil separado (uso real)
+    expect(findSystemRole('GERENTE_INDUSTRIAL')).toBeDefined();
+  });
+
+  it('GERENTE_GERAL: amplo (vende/fatura, opera compras/estoque/produção, aprova) mas SEM áreas sensíveis', () => {
+    const gg = resolveEffectivePermissions('GERENTE_GERAL');
+    // Amplitude operacional
+    expect(gg).toContain('sales.orders.invoice');
+    expect(gg).toContain('purchases.orders.approve');
+    expect(gg).toContain('stock.movements.create');
+    expect(gg).toContain('production.orders.create');
+    expect(gg).toContain('approvals.requests.approve');
+    // Financeiro/fiscal: só leitura
+    expect(gg).toContain('finance.entries.view');
+    expect(gg).toContain('fiscal.documents.view');
+    // Áreas sensíveis protegidas
+    for (const sensivel of [
+      'settings.users.create',
+      'finance.bank-accounts.create',
+      'fiscal.nfe.cancel',
+      'fiscal.tax-rules.create',
+      'sales.orders.return',
+      'sales.orders.cancel',
+    ]) {
+      expect(gg).not.toContain(sensivel);
+    }
   });
 
   it('cancelamento de NF-e restrito: só perfis fiscais/financeiros elevados', () => {

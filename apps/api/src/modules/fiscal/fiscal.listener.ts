@@ -22,15 +22,18 @@ export class FiscalListener {
 
   @OnEvent(SALE_INVOICED_EVENT, { async: true })
   async handleSaleInvoiced(event: SaleInvoicedEvent): Promise<void> {
-    // #222: NF-e (mod 55) para PJ ou venda interestadual; NFC-e (mod 65) para PF mesma UF
+    // #222: NF-e (mod 55) para PJ ou venda interestadual; NFC-e (mod 65) para PF mesma UF.
+    // Veículo (veicProd p/ emplacamento) não cabe no layout da NFC-e — sempre NF-e.
     const isCompany = event.customerType === 'COMPANY';
     const isInterstate =
       event.customerState && event.companyState && event.customerState !== event.companyState;
     const docType =
-      isCompany || isInterstate ? FiscalDocumentType.NFE : FiscalDocumentType.NFCE;
+      isCompany || isInterstate || event.hasVehicle
+        ? FiscalDocumentType.NFE
+        : FiscalDocumentType.NFCE;
 
     this.logger.log(
-      `Emissão fiscal OV=${event.salesOrderId} tipo=${docType} (customer=${event.customerType ?? 'N/A'}, interstate=${!!isInterstate})`,
+      `Emissão fiscal OV=${event.salesOrderId} tipo=${docType} (customer=${event.customerType ?? 'N/A'}, interstate=${!!isInterstate}, vehicle=${!!event.hasVehicle})`,
     );
     try {
       await this.fiscalService.emitForSale(event.salesOrderId, docType);

@@ -8,6 +8,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
+import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
@@ -21,17 +22,36 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly stockService: StockService,
+    private readonly taxCalc: TaxCalculationService,
   ) {}
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
-  async createOrder(dto: CreateSalesOrderDto, userId?: string) {
+  async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string) {
+    // #475: padrões comerciais do cadastro pré-preenchem a OV quando omitidos
+    let defaultCarrierId: string | undefined;
+    if (dto.customerId && !dto.carrierId) {
+      const cust = await this.prisma.customer.findFirst({
+        where: { id: dto.customerId, companyId },
+        select: { defaultCarrierId: true },
+      });
+      defaultCarrierId = (cust as any)?.defaultCarrierId ?? undefined;
+    }
+
     const order = await this.prisma.salesOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
+        paymentMethod: dto.paymentMethod,
+        deliveryAddressId: dto.deliveryAddressId,
+        // Frete → grupo transp da NF-e (#481)
+        freightModality: dto.freightModality,
+        freightValue: dto.freightValue,
+        carrierId: dto.carrierId ?? defaultCarrierId,
+        volumesQuantity: dto.volumesQuantity,
+        volumesSpecies: dto.volumesSpecies,
         createdById: userId,
         status: SalesOrderStatus.DRAFT,
         items: {
@@ -49,7 +69,7 @@ export class SalesService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'SalesOrder',
         action: 'CREATE',
         payload: { salesOrderId: order.id, itemCount: dto.items.length },
@@ -128,10 +148,10 @@ export class SalesService {
   //   Confirmação comercial. Dispara criação de PickingOrder via evento.
   //   Picking deve ser concluído antes do faturamento.
 
-  async confirmOrder(id: string, companyId: string, userId?: string) {
+  async confirmOrder(id: string, companyId: string, userId?: string, userRole?: string) {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, companyId },
-      include: { items: true },
+      include: { items: true, customer: true },
     });
 
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -142,11 +162,24 @@ export class SalesService {
       );
     }
 
+    // #475: cliente com faturamento bloqueado não confirma OV.
+    // DIRECTOR/SUPER_ADMIN podem sobrepor (decisão comercial consciente).
+    const cust = order.customer as any;
+    if (cust?.billingBlocked && userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN') {
+      throw new BadRequestException(
+        `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
+          'Somente DIRECTOR pode confirmar a venda mesmo assim.',
+      );
+    }
+
     const confirmed = await this.prisma.salesOrder.update({
       where: { id },
       data: { status: SalesOrderStatus.AWAITING_PICKING, confirmedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
+
+    // #475: alerta (não bloqueio) quando em aberto + esta OV estoura o limite
+    const creditAlert = await this.buildCreditAlert(companyId, order.customerId, order.items as any[]);
 
     await this.prisma.auditLog.create({
       data: {
@@ -174,7 +207,7 @@ export class SalesService {
       ),
     );
 
-    return confirmed;
+    return { ...confirmed, ...(creditAlert && { creditAlert }) };
   }
 
   // ─── S07.04a2: Marcar como pronto para faturar (AWAITING_PICKING → READY_TO_INVOICE)
@@ -192,11 +225,111 @@ export class SalesService {
       );
     }
 
+    // #491: separação concluída → conferência da carga (nova etapa antes da NF-e)
     return this.prisma.salesOrder.update({
       where: { id: salesOrderId },
-      data: { status: SalesOrderStatus.READY_TO_INVOICE, pickedAt: new Date() },
+      data: { status: SalesOrderStatus.AWAITING_CONFERENCE, pickedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
+  }
+
+  // ─── #491: Conferência da carga (AWAITING_CONFERENCE → READY_TO_INVOICE) ──
+  //   Dupla checagem independente da separação: quantidades + re-scan do chassi.
+
+  /**
+   * #475 — situação de crédito do cliente: em aberto (Receivable OPEN/OVERDUE)
+   * + valor adicional, contra o creditLimit. Retorna null sem limite ou dentro dele.
+   */
+  private async buildCreditAlert(
+    companyId: string,
+    customerId: string | null,
+    items: Array<{ quantity: any; unitPrice: any }>,
+  ): Promise<string | null> {
+    if (!customerId) return null;
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, companyId },
+      select: { creditLimit: true, name: true },
+    });
+    if (!customer?.creditLimit) return null;
+    const orderTotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
+    const open = await this.prisma.receivable.aggregate({
+      where: { companyId, customerId, status: { in: ['OPEN', 'OVERDUE'] as any } },
+      _sum: { amount: true },
+    });
+    const openTotal = Number(open._sum.amount ?? 0);
+    const limit = Number(customer.creditLimit);
+    if (openTotal + orderTotal <= limit) return null;
+    return (
+      `Limite de crédito excedido: em aberto R$ ${openTotal.toFixed(2)} + esta venda R$ ${orderTotal.toFixed(2)} ` +
+      `> limite R$ ${limit.toFixed(2)} (${customer.name})`
+    );
+  }
+
+  async conferOrder(
+    id: string,
+    companyId: string,
+    dto: { items: { saleItemId: string; quantity: number; serialNumberId?: string }[] },
+    userId?: string,
+  ) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+      include: { items: { include: { product: true, serialNumber: true } } },
+    });
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+    if (order.status !== SalesOrderStatus.AWAITING_CONFERENCE) {
+      throw new BadRequestException(
+        `Venda não está aguardando conferência. Status atual: ${order.status}`,
+      );
+    }
+
+    const divergencias: string[] = [];
+    for (const item of order.items as any[]) {
+      const conf = dto.items.find((c) => c.saleItemId === item.id);
+      if (!conf) {
+        divergencias.push(`Item ${item.product?.name ?? item.productId} não foi conferido`);
+        continue;
+      }
+      if (Number(conf.quantity) !== Number(item.quantity)) {
+        divergencias.push(
+          `${item.product?.name}: conferido ${conf.quantity}, esperado ${Number(item.quantity)}`,
+        );
+      }
+      // re-scan do chassi deve bater com o serial amarrado na separação
+      if (item.product?.tracksSerial) {
+        if (!item.serialNumberId) {
+          divergencias.push(`${item.product.name}: sem chassi vinculado na separação`);
+        } else if (conf.serialNumberId !== item.serialNumberId) {
+          divergencias.push(
+            `${item.product.name}: chassi conferido não confere com o separado (${item.serialNumber?.chassi ?? item.serialNumberId})`,
+          );
+        }
+      }
+    }
+    if (divergencias.length > 0) {
+      throw new BadRequestException(`Divergência na conferência: ${divergencias.join('; ')}`);
+    }
+
+    const conferred = await this.prisma.salesOrder.update({
+      where: { id },
+      data: {
+        status: SalesOrderStatus.READY_TO_INVOICE,
+        conferredAt: new Date(),
+        conferredById: userId ?? null,
+      },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'CONFER',
+        payload: { salesOrderId: id, itemCount: dto.items.length },
+      },
+    });
+
+    return conferred;
   }
 
   // ─── S07.04b: Faturar venda (READY_TO_INVOICE → INVOICED) — baixa estoque ──
@@ -206,7 +339,7 @@ export class SalesService {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true, pickingOrder: true, customer: true, company: true },
+        include: { items: { include: { product: true, serialNumber: true } }, pickingOrder: true, customer: true, company: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -225,6 +358,39 @@ export class SalesService {
         );
       }
 
+      // #498: pré-checagem de cobertura fiscal ANTES de consumir estoque —
+      // sem regra cadastrada o Faturar falha limpo, com ação orientada,
+      // em vez de emitir nota com tributação genérica (ex-FALLBACK_RULE)
+      const ufEmpresa = order.company?.state ?? 'PR';
+      const isInterstate = order.customer?.state && ufEmpresa !== order.customer.state;
+      const operationType = (isInterstate ? 'VENDA_INTERESTADUAL' : 'VENDA_INTERNA') as any;
+      for (const item of order.items as any[]) {
+        const ruleInput = {
+          companyId,
+          operationType,
+          ncm: item.product?.ncm ?? undefined,
+          productType: item.product?.type,
+          ufOrigem: ufEmpresa,
+          ufDestino: order.customer?.state ?? ufEmpresa,
+        };
+        const rule = await this.taxCalc.findBestRule(ruleInput, tx as any);
+        if (!rule) {
+          throw new BadRequestException(missingTaxRuleMessage(ruleInput as any));
+        }
+      }
+
+      // #492: item rastreável não fatura sem chassi — a NF-e precisa do
+      // veicProd do reboque que fisicamente saiu (emplacamento)
+      const semChassi = (order.items as any[]).filter(
+        (i) => i.product?.tracksSerial && !i.serialNumberId,
+      );
+      if (semChassi.length > 0) {
+        throw new BadRequestException(
+          `Itens sem chassi vinculado: ${semChassi.map((i) => i.product.name).join(', ')}. ` +
+            'Conclua a separação escolhendo o chassi de cada unidade antes de faturar.',
+        );
+      }
+
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
@@ -235,10 +401,16 @@ export class SalesService {
         );
       }
 
+      // #492: chassis reservados na separação viram SOLD na fatura
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: 'RESERVED_FOR_SALE' as any },
+        data: { status: 'SOLD' as any, soldAt: new Date() },
+      });
+
       const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.INVOICED, invoicedAt: new Date() },
-        include: { items: { include: { product: true } }, customer: true, warehouse: true },
+        include: { items: { include: { product: true } }, customer: true, warehouse: true, company: true },
       });
 
       await tx.auditLog.create({
@@ -271,6 +443,9 @@ export class SalesService {
         (invoiced as any).customer?.type,
         (invoiced as any).customer?.state,
         (invoiced as any).company?.state,
+        (invoiced.items as any[]).some(
+          (i) => i.product?.codigoMarcaModelo || i.product?.tracksSerial,
+        ),
       ),
     );
 
@@ -325,6 +500,12 @@ export class SalesService {
       }
 
       // 3. Atualizar status da venda
+      // #492: devolução física — chassis voltam ao estoque
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: { in: ['SOLD', 'RESERVED_FOR_SALE'] as any } },
+        data: { status: 'IN_STOCK' as any, soldAt: null, salesOrderId: null },
+      });
+
       const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.RETURNED, returnedAt: new Date() },
@@ -448,6 +629,12 @@ export class SalesService {
         }
       }
 
+      // #492: cancelamento libera chassis reservados na separação
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: 'RESERVED_FOR_SALE' as any },
+        data: { status: 'IN_STOCK' as any, salesOrderId: null },
+      });
+
       const cancelled = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.CANCELLED, cancelledAt: new Date() },
@@ -496,7 +683,7 @@ export class SalesService {
       include: {
         customer: true,
         warehouse: true,
-        items: { include: { product: true } },
+        items: { include: { product: true, serialNumber: true } }, // chassi visível na conferência (#491)
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },

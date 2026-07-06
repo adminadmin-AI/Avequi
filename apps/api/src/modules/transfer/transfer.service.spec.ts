@@ -87,11 +87,11 @@ describe('TransferService', () => {
 
       const result = await service.create(
         {
-          companyId: 'co-1',
           fromWarehouseId: 'wh-factory',
           toWarehouseId: 'wh-store',
           items: [{ productId: 'p-1', quantity: 10 }],
         },
+        'co-1',
         'u-1',
       );
 
@@ -103,14 +103,32 @@ describe('TransferService', () => {
       await expect(
         service.create(
           {
-            companyId: 'co-1',
             fromWarehouseId: 'wh-same',
             toWarehouseId: 'wh-same',
             items: [{ productId: 'p-1', quantity: 1 }],
           },
+          'co-1',
           'u-1',
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('IDOR: ignora companyId externo injetado no payload e usa o do JWT', async () => {
+      mockPrisma.storeTransfer.create.mockResolvedValue({ ...baseTransfer });
+
+      await service.create(
+        {
+          companyId: 'co-VITIMA',
+          fromWarehouseId: 'wh-factory',
+          toWarehouseId: 'wh-store',
+          items: [{ productId: 'p-1', quantity: 10 }],
+        } as any,
+        'co-1',
+        'u-1',
+      );
+
+      const createArg = mockPrisma.storeTransfer.create.mock.calls[0][0];
+      expect(createArg.data.companyId).toBe('co-1');
     });
   });
 

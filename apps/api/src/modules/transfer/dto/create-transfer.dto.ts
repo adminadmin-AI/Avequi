@@ -27,10 +27,6 @@ export class CreateTransferItemDto {
 export class CreateTransferDto {
   @IsString()
   @IsNotEmpty()
-  companyId: string;
-
-  @IsString()
-  @IsNotEmpty()
   fromWarehouseId: string;
 
   @IsString()

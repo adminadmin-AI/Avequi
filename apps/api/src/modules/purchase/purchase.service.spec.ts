@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PurchaseOrderStatus } from '@prisma/client';
 import { PurchaseService } from './purchase.service';
@@ -63,6 +64,11 @@ const mockEventEmitter = {
   emit: jest.fn(),
 };
 
+// SOD_ENFORCE default OFF (env ausente) — mesma semântica do approval.service
+const mockConfig = {
+  get: jest.fn().mockReturnValue(undefined),
+};
+
 const basePO = {
   id: 'po-1',
   companyId: 'co-1',
@@ -82,6 +88,7 @@ describe('PurchaseService', () => {
         PurchaseService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
 
@@ -162,6 +169,30 @@ describe('PurchaseService', () => {
       const result = await service.approvePO('po-1', 'co-1', 'user-2', 'MANAGER');
       expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
     });
+
+    // SoD atrás de SOD_ENFORCE (decisão Rafael 05/07) — coerente com approval.service
+    it('com SOD_ENFORCE ausente (default OFF): criador PODE aprovar a própria PO', async () => {
+      mockConfig.get.mockReturnValue(undefined);
+      const ownPO = { ...basePO, createdById: 'user-1' };
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(ownPO);
+      mockPrisma.pOItem.count.mockResolvedValue(1);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ ...ownPO, status: PurchaseOrderStatus.APPROVED });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      const result = await service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR');
+      expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
+    });
+
+    it('com SOD_ENFORCE=true: criador NÃO pode aprovar a própria PO', async () => {
+      mockConfig.get.mockReturnValue('true');
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({ ...basePO, createdById: 'user-1' });
+      mockPrisma.pOItem.count.mockResolvedValue(1);
+
+      await expect(
+        service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR'),
+      ).rejects.toThrow(ForbiddenException);
+      mockConfig.get.mockReturnValue(undefined); // restaura default para os demais testes
+    });
   });
 
   // ─── cancelPO ────────────────────────────────────────────────────────────
@@ -189,7 +220,7 @@ describe('PurchaseService', () => {
 
   describe('createReceipt', () => {
     it('deve rejeitar recebimento de PO não aprovada (DRAFT)', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(basePO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(basePO);
 
       await expect(
         service.createReceipt(
@@ -207,7 +238,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar recebimento de PO cancelada', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.CANCELLED,
       });
@@ -221,7 +252,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar item de PO inexistente no pedido', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -239,7 +270,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve rejeitar divergência de quantidade sem motivo obrigatório', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -258,7 +289,7 @@ describe('PurchaseService', () => {
 
     // S06.02 + S06.03: estoque atualizado e custo médio recalculado
     it('deve criar entrada no estoque, recalcular avgCost e emitir evento', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -338,7 +369,7 @@ describe('PurchaseService', () => {
 
     // S06.03: custo médio zero quando saldo anterior é zero (primeiro recebimento)
     it('deve usar custo unitário como avgCost no primeiro recebimento (saldo zero)', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -380,7 +411,7 @@ describe('PurchaseService', () => {
     });
 
     it('deve aceitar divergência com motivo informado', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
         ...basePO,
         status: PurchaseOrderStatus.APPROVED,
       });
@@ -446,7 +477,7 @@ describe('PurchaseService', () => {
     };
 
     it('PO 100 un, recebe 60 → PARTIALLY_RECEIVED', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(approvedPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(approvedPO);
       setupReceiptMocks();
       // After receiving 60, only 60 of 100 received
       mockPrisma.pOItem.findMany.mockResolvedValue([
@@ -486,7 +517,7 @@ describe('PurchaseService', () => {
           { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 60 },
         ],
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(partialPO);
       setupReceiptMocks();
       // After receiving 40 more, 100 of 100 received
       mockPrisma.pOItem.findMany.mockResolvedValue([
@@ -518,7 +549,7 @@ describe('PurchaseService', () => {
           { id: 'poi-1', productId: 'p-1', quantity: 100, unitCost: 5, receivedQuantity: 80 },
         ],
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(partialPO);
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(partialPO);
 
       await expect(
         service.createReceipt(

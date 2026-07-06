@@ -188,5 +188,218 @@ describe('fiscal-mapper', () => {
       expect(payload.items[0].ibs_cbs_situacao_tributaria).toBeUndefined();
       expect(payload.items[0].cbs_valor).toBeUndefined();
     });
+
+    it('mapeia FCP do UF destino com os nomes oficiais fcp_* (#445)', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{
+          ...baseInput.items[0],
+          tax: {
+            ...taxBase,
+            difal: { baseCalculo: 1000, aliquotaInterna: 18, aliquotaInterestadual: 12, valor: 60, fcpAliquota: 2, fcpValor: 20 },
+          },
+        }],
+      }) as any;
+      expect(payload.items[0]).toMatchObject({
+        icms_valor_uf_destino: 60,
+        fcp_base_calculo_uf_destino: 1000,
+        fcp_percentual_uf_destino: 2,
+        fcp_valor_uf_destino: 20,
+      });
+      expect(payload.items[0].icms_percentual_fcp).toBeUndefined(); // campo fantasma removido
+    });
+
+    it('indIeDest explícito do cadastro prevalece sobre a inferência (#474)', () => {
+      // Contribuinte com IE — indicador 1
+      const contrib = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Revenda', razaoSocial: 'REVENDA LTDA', document: '11.444.777/0001-61', ie: '251083110', indIeDest: 'CONTRIBUINTE', state: 'SC' },
+      }) as any;
+      expect(contrib.indicador_inscricao_estadual_destinatario).toBe('1');
+      expect(contrib.inscricao_estadual_destinatario).toBe('251083110');
+      expect(contrib.nome_destinatario).toBe('REVENDA LTDA'); // razão social no DANFE
+
+      // ISENTO explícito mesmo com IE preenchida — indicador 2 e IE omitida
+      const isento = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Empresa', document: '11.444.777/0001-61', ie: '251083110', indIeDest: 'ISENTO', state: 'SC' },
+      }) as any;
+      expect(isento.indicador_inscricao_estadual_destinatario).toBe('2');
+      expect(isento.inscricao_estadual_destinatario).toBeUndefined();
+
+      // NAO_CONTRIBUINTE explícito — indicador 9
+      const naoContrib = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'PF', document: '030.550.549-11', indIeDest: 'NAO_CONTRIBUINTE' },
+      }) as any;
+      expect(naoContrib.indicador_inscricao_estadual_destinatario).toBe('9');
+    });
+
+    it('grupo <entrega> com campos flat quando a OV tem endereço de entrega (#474)', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        recipient: { name: 'Cliente', document: '030.550.549-11' },
+        delivery: { address: 'ROD BR 277 KM 10', number: 'SN', neighborhood: 'ZONA RURAL', city: 'GUARAPUAVA', state: 'PR', zipCode: '85010-000' },
+      }) as any;
+      expect(payload).toMatchObject({
+        cpf_entrega: '03055054911',
+        logradouro_entrega: 'ROD BR 277 KM 10',
+        municipio_entrega: 'GUARAPUAVA',
+        uf_entrega: 'PR',
+        cep_entrega: '85010000',
+      });
+      // sem delivery → sem grupo entrega
+      const semEntrega = buildNFePayload({ ...baseInput, recipient: { name: 'X', document: '030.550.549-11' } }) as any;
+      expect(semEntrega.logradouro_entrega).toBeUndefined();
+    });
+
+    it('DIFAL sem FCP envia percentual e valor zerados', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{
+          ...baseInput.items[0],
+          tax: {
+            ...taxBase,
+            difal: { baseCalculo: 1000, aliquotaInterna: 17, aliquotaInterestadual: 12, valor: 50, fcpAliquota: 0, fcpValor: 0 },
+          },
+        }],
+      }) as any;
+      expect(payload.items[0].fcp_percentual_uf_destino).toBe(0);
+      expect(payload.items[0].fcp_valor_uf_destino).toBe(0);
+      expect(payload.items[0].fcp_base_calculo_uf_destino).toBeUndefined();
+    });
+  });
+
+  describe('origem da mercadoria — orig (#480)', () => {
+    it('usa a origem do produto no icms_origem', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], origem: '2' }],
+      }) as any;
+      expect(payload.items[0].icms_origem).toBe(2);
+    });
+
+    it('default 0 (nacional) quando o produto não tem origem', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.items[0].icms_origem).toBe(0);
+    });
+  });
+
+  describe('GTIN, CEST e unidade tributável (#484)', () => {
+    it('mapeia cEAN/cEANTrib quando o produto tem GTIN', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], ean: '7891234567895', cest: '01.023.00' }],
+      }) as any;
+      expect(payload.items[0].codigo_barras_comercial).toBe('7891234567895');
+      expect(payload.items[0].codigo_barras_tributavel).toBe('7891234567895');
+      expect(payload.items[0].cest).toBe('0102300');
+    });
+
+    it('omite GTIN/CEST quando não cadastrados (Focus emite SEM GTIN)', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.items[0].codigo_barras_comercial).toBeUndefined();
+      expect(payload.items[0].cest).toBeUndefined();
+    });
+
+    it('converte quantidade/valor pela unidade tributável', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        // 2 UN × fator 10 = 20 na unidade tributável; vUnTrib = 100 ÷ 10
+        items: [{ ...baseInput.items[0], unidadeTributavel: 'KG', fatorConversaoTributavel: 10 }],
+      }) as any;
+      expect(payload.items[0].unidade_tributavel).toBe('KG');
+      expect(payload.items[0].quantidade_tributavel).toBe(20);
+      expect(payload.items[0].valor_unitario_tributavel).toBe(10);
+    });
+  });
+
+  describe('grupo transp — transportador e volumes (#481)', () => {
+    const freight = {
+      modality: '2',
+      value: 350,
+      carrier: {
+        document: '11.444.777/0001-61',
+        name: 'TRANSPORTES XYZ LTDA',
+        ie: '123456789',
+        address: 'Rod BR 277, km 10',
+        city: 'São José dos Pinhais',
+        state: 'PR',
+      },
+      vehiclePlate: 'ABC-1D23',
+      vehiclePlateState: 'PR',
+      volumes: [{ quantidade: 2, especie: 'REBOQUE', pesoLiquido: 780.5, pesoBruto: 900 }],
+    };
+
+    it('sem freight mantém modalidade_frete 9 (comportamento anterior)', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.modalidade_frete).toBe('9');
+      expect(payload.cnpj_transportador).toBeUndefined();
+      expect(payload.volumes).toBeUndefined();
+    });
+
+    it('mapeia transportador com campos flat oficiais e placa normalizada', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      expect(payload.modalidade_frete).toBe('2');
+      // frete não vai no cabeçalho — é rateado por item (rejeição SEFAZ 535)
+      expect(payload.valor_frete).toBeUndefined();
+      expect(payload.cnpj_transportador).toBe('11444777000161');
+      expect(payload.nome_transportador).toBe('TRANSPORTES XYZ LTDA');
+      expect(payload.inscricao_estadual_transportador).toBe('123456789');
+      expect(payload.endereco_transportador).toBe('Rod BR 277, km 10');
+      expect(payload.municipio_transportador).toBe('São José dos Pinhais');
+      expect(payload.uf_transportador).toBe('PR');
+      expect(payload.veiculo_placa).toBe('ABC1D23');
+      expect(payload.veiculo_uf).toBe('PR');
+    });
+
+    it('mapeia volumes[] com quantidade, espécie e pesos', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      expect(payload.volumes).toEqual([
+        { quantidade: 2, especie: 'REBOQUE', peso_liquido: 780.5, peso_bruto: 900 },
+      ]);
+    });
+
+    it('modalidade 3 (veículo próprio) sem transportadora só envia modalidade e volumes', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '3', volumes: [{ quantidade: 1, especie: 'REBOQUE' }] },
+      }) as any;
+      expect(payload.modalidade_frete).toBe('3');
+      expect(payload.cnpj_transportador).toBeUndefined();
+      expect(payload.volumes).toEqual([{ quantidade: 1, especie: 'REBOQUE' }]);
+    });
+
+    it('detPag soma o vFrete ao total (vPag deve bater com o vNF)', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      // 250 (itens) + 350 (frete) — SEFAZ rejeita pagamento ≠ total da nota
+      expect(payload.formas_pagamento[0].valor_pagamento).toBe(600);
+    });
+
+    it('rateia o vFrete pelos itens proporcional ao valor, resíduo no último (rej. 535)', () => {
+      const payload = buildNFePayload({ ...baseInput, freight }) as any;
+      // itens de 200 e 50 (total 250) com frete 350 → 280 + 70
+      expect(payload.items[0].valor_frete).toBe(280);
+      expect(payload.items[1].valor_frete).toBe(70);
+      const soma = payload.items.reduce((s: number, i: any) => s + (i.valor_frete ?? 0), 0);
+      expect(soma).toBe(350);
+    });
+
+    it('sem valor de frete não emite valor_frete nos itens', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '3', volumes: [{ quantidade: 1 }] },
+      }) as any;
+      expect(payload.items[0].valor_frete).toBeUndefined();
+    });
+
+    it('transportador PF usa cpf_transportador', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        freight: { modality: '2', carrier: { document: '123.456.789-09', name: 'JOÃO FRETES' } },
+      }) as any;
+      expect(payload.cpf_transportador).toBe('12345678909');
+      expect(payload.cnpj_transportador).toBeUndefined();
+    });
   });
 });

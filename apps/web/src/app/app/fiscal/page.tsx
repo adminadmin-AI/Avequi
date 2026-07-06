@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Copy, ExternalLink, LayoutDashboard } from 'lucide-react';
+import { Copy, ExternalLink, FileDown, LayoutDashboard } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FiscalDocument, FiscalStatus, FiscalDocumentType } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -77,6 +78,34 @@ export default function FiscalPage() {
     toast.success('Chave copiada');
   }
 
+  // #482 — ZIP com os XMLs do período filtrado (default: mês corrente) p/ o contador
+  const [exporting, setExporting] = useState(false);
+  async function exportXmls() {
+    const now = new Date();
+    const f = from || dateToISO(new Date(now.getFullYear(), now.getMonth(), 1));
+    const t = to || dateToISO(now);
+    setExporting(true);
+    try {
+      const res = await apiClient.get('/fiscal/export', {
+        params: { from: f, to: t, ...(typeFilter && { type: typeFilter }) },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xmls-nfe-${f}_${t}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('XMLs exportados');
+    } catch (err: any) {
+      toast.error(
+        err?.response?.status === 404 ? 'Nenhum XML no período selecionado' : 'Erro ao exportar XMLs',
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const columns: Column<FiscalDocument>[] = [
     { key: 'ref', header: 'Ref', cell: (d) => <span className="font-mono text-xs">{d.focusRef ?? '—'}</span> },
     {
@@ -145,6 +174,15 @@ export default function FiscalPage() {
         description="NF-e e NFC-e emitidas pela empresa."
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={exportXmls}
+              loading={exporting}
+              title="Baixa um ZIP com os XMLs do período filtrado (default: mês corrente)"
+            >
+              <FileDown size={16} />
+              Exportar XMLs
+            </Button>
             <Button variant="secondary" onClick={() => router.push('/app/fiscal/dashboard')}>
               <LayoutDashboard size={16} />
               Dashboard

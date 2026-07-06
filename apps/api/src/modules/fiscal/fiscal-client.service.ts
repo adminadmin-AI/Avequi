@@ -1,20 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EmissionResponse, EmissorPort } from './emissor.port';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
-export interface FocusEmissionResponse {
-  status: 'autorizado' | 'processando_autorizacao' | 'rejeitado' | 'cancelado' | 'erro';
-  chave_nfe?: string;
-  xml?: string;
-  motivo?: string;
-  codigo?: string;
-  ref?: string;
-}
+// Compat: o shape da resposta agora vive no contrato EmissorPort (#501)
+export type FocusEmissionResponse = EmissionResponse;
 
 @Injectable()
-export class FiscalClientService {
+export class FiscalClientService implements EmissorPort {
   private readonly logger = new Logger(FiscalClientService.name);
   private readonly baseUrl: string;
   private readonly token: string;
@@ -111,6 +106,33 @@ export class FiscalClientService {
     } catch (err) {
       const result = this.handleError(err);
       return { ...result, protocolo: undefined };
+    }
+  }
+
+  /** Transforma um caminho relativo da Focus (caminho_danfe etc.) em URL absoluta */
+  absoluteUrl(path: string): string {
+    return path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+  }
+
+  /**
+   * Baixa um arquivo servido pela Focus (XML/DANFE) — aceita caminho relativo
+   * ou URL absoluta. Retorna null em erro (não lança). (#482)
+   */
+  async downloadFile(path: string): Promise<string | null> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<string>(this.absoluteUrl(path), {
+          auth: { username: this.token, password: '' },
+          responseType: 'text',
+          // impede o axios de tentar parsear o XML como JSON
+          transformResponse: [(d) => d],
+        }),
+      );
+      return typeof data === 'string' && data.length > 0 ? data : null;
+    } catch (err) {
+      const axiosErr = err as AxiosError;
+      this.logger.error(`Erro ao baixar arquivo da Focus (${path}): ${axiosErr.message}`);
+      return null;
     }
   }
 
