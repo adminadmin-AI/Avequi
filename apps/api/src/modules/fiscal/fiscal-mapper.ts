@@ -75,6 +75,11 @@ export interface FiscalItem {
   quantity: number;
   unitPrice: number;
   unit: string;
+  origem?: string; // origem da mercadoria 0-8 → orig no XML (#480)
+  ean?: string; // GTIN → cEAN/cEANTrib; ausente = Focus emite SEM GTIN (#484)
+  cest?: string; // código CEST quando sujeito a ST (#484)
+  unidadeTributavel?: string; // uTrib quando ≠ unidade comercial (#484)
+  fatorConversaoTributavel?: number; // qTrib = qCom × fator (#484)
   tax?: FiscalItemTax;
   vehicle?: FiscalVehicleData;
 }
@@ -156,6 +161,31 @@ export interface FiscalVehicleData {
   restricao: string;     // 0=Sem restrição
 }
 
+/** Grupo transp da NF-e — transportador, veículo e volumes (#481) */
+export interface FiscalFreight {
+  modality: string; // modFrete: 0-CIF 1-FOB 2-terceiros 3-próprio remetente 4-próprio destinatário 9-sem frete
+  value?: number; // vFrete
+  carrier?: {
+    document?: string; // CNPJ/CPF
+    name?: string; // razão social (xNome)
+    ie?: string;
+    address?: string; // xEnder (logradouro + número em campo único)
+    city?: string;
+    state?: string;
+  };
+  vehiclePlate?: string;
+  vehiclePlateState?: string;
+  rntc?: string;
+  volumes?: Array<{
+    quantidade: number;
+    especie?: string;
+    marca?: string;
+    numeracao?: string;
+    pesoLiquido?: number; // kg
+    pesoBruto?: number; // kg
+  }>;
+}
+
 export interface FiscalPayloadInput {
   ref: string; // referência única gerada pelo GDR (ex: "GDR-SO-<id>")
   emitter: FiscalEmitter;
@@ -166,6 +196,7 @@ export interface FiscalPayloadInput {
   consumidorFinal?: boolean; // true = indicador_consumidor_final: 1 na NF-e
   infCpl?: string; // informações complementares (#370)
   delivery?: FiscalDeliveryAddress; // grupo <entrega> quando ≠ endereço fiscal (#474)
+  freight?: FiscalFreight; // grupo transp — ausente = modalidade 9 (#481)
 }
 
 /**
@@ -214,7 +245,19 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string) {
     valor_unitario_comercial: item.unitPrice,
     valor_total_bruto: Number((item.quantity * item.unitPrice).toFixed(2)),
     codigo_ncm: (item.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
-    icms_origem: 0,
+    icms_origem: Number(item.origem ?? '0'), // orig do produto — 1/2/3/8 = importado (#480)
+    // GTIN (cEAN/cEANTrib): omitir quando não cadastrado — a Focus emite "SEM GTIN" (#484)
+    ...(item.ean && {
+      codigo_barras_comercial: item.ean.replace(/\D/g, ''),
+      codigo_barras_tributavel: item.ean.replace(/\D/g, ''),
+    }),
+    ...(item.cest && { cest: item.cest.replace(/\D/g, '') }),
+    // Unidade tributável quando ≠ comercial: qTrib = qCom × fator, vUnTrib = vUnCom ÷ fator (#484)
+    ...(item.unidadeTributavel && {
+      unidade_tributavel: item.unidadeTributavel,
+      quantidade_tributavel: Number((item.quantity * (item.fatorConversaoTributavel ?? 1)).toFixed(4)),
+      valor_unitario_tributavel: Number((item.unitPrice / (item.fatorConversaoTributavel ?? 1)).toFixed(10)),
+    }),
     icms_situacao_tributaria: t?.icmsCst ?? '00',
     icms_modalidade_base_calculo: '3', // 3=Valor da operação
     ...(t && {
@@ -325,6 +368,48 @@ function mapRecipientFlat(
   };
 }
 
+/**
+ * Grupo transp da NF-e — campos flat do transportador + volumes[] (#481).
+ * Sem freight → modalidade 9 (sem frete), comportamento anterior preservado.
+ * Nomes conforme dicionário Focus (NotaFiscalXML): cnpj/cpf_transportador,
+ * nome_transportador, inscricao_estadual_transportador, endereco/municipio/
+ * uf_transportador, volumes[{quantidade, especie, marca, numeracao,
+ * peso_liquido, peso_bruto}], valor_frete.
+ * Placa: veiculo_placa/veiculo_uf/veiculo_rntc — validar na auditoria de
+ * homologação (nomes não constam do trecho público do dicionário).
+ */
+function mapFreightFlat(f?: FiscalFreight): Record<string, unknown> {
+  if (!f) return { modalidade_frete: '9' };
+  const doc = f.carrier?.document?.replace(/\D/g, '') ?? '';
+  return {
+    modalidade_frete: f.modality,
+    ...(f.value != null && f.value > 0 && { valor_frete: Number(f.value.toFixed(2)) }),
+    ...(f.carrier && {
+      ...(doc && (doc.length === 11 ? { cpf_transportador: doc } : { cnpj_transportador: doc })),
+      ...(f.carrier.name && { nome_transportador: f.carrier.name }),
+      ...(f.carrier.ie && { inscricao_estadual_transportador: f.carrier.ie.replace(/\D/g, '') }),
+      ...(f.carrier.address && { endereco_transportador: f.carrier.address }),
+      ...(f.carrier.city && { municipio_transportador: f.carrier.city }),
+      ...(f.carrier.state && { uf_transportador: f.carrier.state }),
+    }),
+    ...(f.vehiclePlate && {
+      veiculo_placa: f.vehiclePlate.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+      ...(f.vehiclePlateState && { veiculo_uf: f.vehiclePlateState }),
+      ...(f.rntc && { veiculo_rntc: f.rntc }),
+    }),
+    ...(f.volumes?.length && {
+      volumes: f.volumes.map((v) => ({
+        quantidade: v.quantidade,
+        ...(v.especie && { especie: v.especie }),
+        ...(v.marca && { marca: v.marca }),
+        ...(v.numeracao && { numeracao: v.numeracao }),
+        ...(v.pesoLiquido != null && { peso_liquido: Number(v.pesoLiquido.toFixed(3)) }),
+        ...(v.pesoBruto != null && { peso_bruto: Number(v.pesoBruto.toFixed(3)) }),
+      })),
+    }),
+  };
+}
+
 /** Grupo <entrega> da NF-e — campos flat *_entrega (#474). CPF/CNPJ do recebedor é obrigatório no grupo. */
 function mapDeliveryFlat(d: FiscalDeliveryAddress, r?: FiscalRecipient): Record<string, unknown> {
   const doc = (d.document ?? r?.document ?? '').replace(/\D/g, '');
@@ -380,7 +465,7 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     finalidade_emissao: '1',
     consumidor_final: input.consumidorFinal ? '1' : '0',
     presenca_comprador: '1', // 1=Presencial (venda em loja)
-    modalidade_frete: '9', // 9=Sem frete (default — ajustar quando houver transporte)
+    ...mapFreightFlat(input.freight), // grupo transp — sem freight = modalidade 9 (#481)
     ...(input.infCpl && { informacoes_adicionais_contribuinte: input.infCpl }),
     ...mapEmitterFlat(input.emitter),
     ...mapRecipientFlat(input.recipient, input.consumidorFinal),

@@ -93,6 +93,7 @@ export const NAV: NavSection[] = [
       { href: '/app/products', label: 'Produtos', icon: Package },
       { href: '/app/customers', label: 'Clientes', icon: Users },
       { href: '/app/suppliers', label: 'Fornecedores', icon: Handshake },
+      { href: '/app/carriers', label: 'Transportadoras', icon: Truck },
     ],
   },
   {

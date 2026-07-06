@@ -483,4 +483,58 @@ describe('TaxCalculationService', () => {
     expect(result.cbs).toBeUndefined();
     expect(result.cClassTrib).toBeUndefined();
   });
+
+  describe('origem importada — alíquota interestadual 4% RSF 13/2012 (#480)', () => {
+    const interstate = {
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERESTADUAL,
+      ufOrigem: 'PR',
+      ufDestino: 'SP',
+      itemValue: 1000,
+    };
+
+    it('aplica 4% para origem importada (orig 1) em operação interestadual', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({ operationType: TaxOperationType.VENDA_INTERESTADUAL, cfop: '6101', icmsAliquota: dec(12), ipiAliquota: dec(0) }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '1' });
+      expect(result.icms.aliquota).toBe(4);
+      expect(result.icms.valor).toBe(40); // 1000 × 4%
+    });
+
+    it('mantém a alíquota da regra para origem nacional (orig 0)', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({ operationType: TaxOperationType.VENDA_INTERESTADUAL, cfop: '6101', icmsAliquota: dec(12), ipiAliquota: dec(0) }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '0' });
+      expect(result.icms.aliquota).toBe(12);
+    });
+
+    it('não mexe na alíquota interna mesmo com origem importada', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([makeRule({ ipiAliquota: dec(0) })]);
+      const result = await service.calculateTaxes({
+        ...interstate,
+        operationType: TaxOperationType.VENDA_INTERNA,
+        ufDestino: 'PR',
+        origem: '2',
+      });
+      expect(result.icms.aliquota).toBe(18);
+    });
+
+    it('DIFAL usa a interestadual de 4% quando importado (diferencial maior)', async () => {
+      prisma.taxRule.findMany.mockResolvedValue([
+        makeRule({
+          operationType: TaxOperationType.VENDA_INTERESTADUAL,
+          cfop: '6101',
+          icmsAliquota: dec(12),
+          ipiAliquota: dec(0),
+          icmsInternaDestino: dec(18),
+          fcpAliquotaDestino: null,
+        }),
+      ]);
+      const result = await service.calculateTaxes({ ...interstate, origem: '3', consumidorFinal: true });
+      expect(result.difal?.aliquotaInterestadual).toBe(4);
+      expect(result.difal?.valor).toBe(140); // 1000 × (18% − 4%)
+    });
+  });
 });

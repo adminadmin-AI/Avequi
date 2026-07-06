@@ -10,6 +10,13 @@ import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { PRODUCT_TYPE_LABELS, UNIT_LABELS, enumOptions } from '@/lib/enums';
 
+// número opcional: '' vira undefined (z.coerce transformaria '' em 0)
+const optionalNumber = (min = 0) =>
+  z.preprocess(
+    (v) => (v === '' || v == null ? undefined : Number(v)),
+    z.number().min(min).optional(),
+  );
+
 const schema = z.object({
   sku: z.string().min(1, 'Informe o SKU'),
   name: z.string().min(1, 'Informe o nome'),
@@ -23,10 +30,40 @@ const schema = z.object({
     'COMPONENT',
   ]),
   unit: z.enum(['UN', 'KG', 'G', 'M', 'M2', 'M3', 'L', 'PC', 'CX', 'PR']),
-  ncm: z.string().optional(),
+  ncm: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.replace(/\D/g, '').length === 8, 'NCM deve ter 8 dígitos'),
   costPrice: z.coerce.number().min(0).optional(),
   salePrice: z.coerce.number().min(0).optional(),
+  // Fiscal e logística (#480/#484)
+  origem: z.enum(['0', '1', '2', '3', '4', '5', '6', '7', '8']).optional(),
+  ean: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^(\d{8}|\d{12,14})$/.test(v.replace(/\D/g, '')), 'GTIN: 8, 12, 13 ou 14 dígitos'),
+  cest: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.replace(/\D/g, '').length === 7, 'CEST deve ter 7 dígitos'),
+  pesoLiquido: optionalNumber(),
+  pesoBruto: optionalNumber(),
+  unidadeTributavel: z.string().max(6).optional(),
+  fatorConversaoTributavel: optionalNumber(0.000001),
 });
+
+/** Tabela A do ICMS — origem da mercadoria (orig) (#480) */
+const ORIGEM_LABELS: Record<string, string> = {
+  '0': '0 — Nacional',
+  '1': '1 — Estrangeira, importação direta',
+  '2': '2 — Estrangeira, adquirida no mercado interno',
+  '3': '3 — Nacional, conteúdo de importação > 40%',
+  '4': '4 — Nacional, processos produtivos básicos',
+  '5': '5 — Nacional, conteúdo de importação ≤ 40%',
+  '6': '6 — Estrangeira, importação direta sem similar nacional',
+  '7': '7 — Estrangeira, mercado interno sem similar nacional',
+  '8': '8 — Nacional, conteúdo de importação > 70%',
+};
 
 export type ProductFormValues = z.infer<typeof schema>;
 
@@ -122,6 +159,44 @@ export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: 
             placeholder="0,00"
           />
         </Field>
+      </div>
+
+      {/* ─── Fiscal e logística (#480/#484) ─── */}
+      <div className="border-t border-border pt-4 space-y-4">
+        <p className="text-sm font-medium text-content-secondary">Fiscal e logística (NF-e)</p>
+        <Field label="Origem da mercadoria" error={errors.origem?.message}>
+          <Select {...register('origem')}>
+            {Object.entries(ORIGEM_LABELS).map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="GTIN / EAN" error={errors.ean?.message}>
+            <Input {...register('ean')} placeholder="Vazio = SEM GTIN" />
+          </Field>
+          <Field label="CEST" error={errors.cest?.message}>
+            <Input {...register('cest')} placeholder="Somente com ST" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Peso líquido (kg)" error={errors.pesoLiquido?.message}>
+            <Input type="number" step="0.001" min="0" {...register('pesoLiquido')} placeholder="0,000" />
+          </Field>
+          <Field label="Peso bruto (kg)" error={errors.pesoBruto?.message}>
+            <Input type="number" step="0.001" min="0" {...register('pesoBruto')} placeholder="0,000" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Unidade tributável" error={errors.unidadeTributavel?.message}>
+            <Input {...register('unidadeTributavel')} placeholder="Vazio = mesma comercial" maxLength={6} />
+          </Field>
+          <Field label="Fator de conversão" error={errors.fatorConversaoTributavel?.message}>
+            <Input type="number" step="0.000001" min="0" {...register('fatorConversaoTributavel')} placeholder="qTrib = qtd × fator" />
+          </Field>
+        </div>
       </div>
     </form>
   );

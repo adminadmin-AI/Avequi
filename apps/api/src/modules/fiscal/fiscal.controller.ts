@@ -1,18 +1,25 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   HttpCode,
   Logger,
+  NotFoundException,
   Param,
   Post,
+  Query,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
+import type { Response } from 'express';
+import archiver = require('archiver');
+import { FiscalDocumentType } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -113,6 +120,49 @@ export class FiscalController {
   @ApiOperation({ summary: 'Listar documentos fiscais da empresa' })
   findAll(@CurrentUser() user: any) {
     return this.fiscalService.findAll(user.companyId);
+  }
+
+  /**
+   * #482 — ZIP com os XMLs do período para o contador (guarda de 5 anos).
+   * Declarado ANTES de :id para não ser capturado pela rota de detalhe.
+   */
+  @Get('export')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @ApiOperation({ summary: 'Exportar XMLs do período em ZIP (contador)' })
+  @ApiQuery({ name: 'from', description: 'Data inicial (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'to', description: 'Data final (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'type', required: false, enum: FiscalDocumentType })
+  async export(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+    @Query('type') type?: FiscalDocumentType,
+  ) {
+    const fromDate = new Date(`${from}T00:00:00-03:00`);
+    const toDate = new Date(`${to}T23:59:59.999-03:00`);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      throw new BadRequestException('Parâmetros from/to inválidos — use YYYY-MM-DD');
+    }
+
+    const xmls = await this.fiscalService.listXmlsForExport(user.companyId, fromDate, toDate, type);
+    if (xmls.length === 0) {
+      throw new NotFoundException('Nenhum XML no período informado');
+    }
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="xmls-nfe-${from}_${to}.zip"`,
+    });
+
+    const zip = archiver('zip', { zlib: { level: 9 } });
+    zip.on('error', (err) => {
+      this.logger.error(`Erro ao gerar ZIP de XMLs: ${err.message}`);
+      res.destroy(err);
+    });
+    zip.pipe(res);
+    for (const f of xmls) zip.append(f.xml, { name: f.name });
+    await zip.finalize();
   }
 
   @Get(':id')
