@@ -321,7 +321,7 @@ export class SalesService {
           ufOrigem: ufEmpresa,
           ufDestino: order.customer?.state ?? ufEmpresa,
         };
-        const rule = await this.taxCalc.findBestRule(ruleInput);
+        const rule = await this.taxCalc.findBestRule(ruleInput, tx as any);
         if (!rule) {
           throw new BadRequestException(missingTaxRuleMessage(ruleInput as any));
         }
@@ -358,7 +358,7 @@ export class SalesService {
       const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.INVOICED, invoicedAt: new Date() },
-        include: { items: { include: { product: true } }, customer: true, warehouse: true },
+        include: { items: { include: { product: true } }, customer: true, warehouse: true, company: true },
       });
 
       await tx.auditLog.create({
@@ -391,6 +391,9 @@ export class SalesService {
         (invoiced as any).customer?.type,
         (invoiced as any).customer?.state,
         (invoiced as any).company?.state,
+        (invoiced.items as any[]).some(
+          (i) => i.product?.codigoMarcaModelo || i.product?.tracksSerial,
+        ),
       ),
     );
 

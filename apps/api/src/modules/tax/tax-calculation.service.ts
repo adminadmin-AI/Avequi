@@ -187,9 +187,14 @@ export class TaxCalculationService {
    * Busca a regra mais específica (maior priority) para a operação.
    * Ordem de especificidade: NCM + productType + UF > NCM + UF > UF > geral
    * Pública para pré-checagem de cobertura antes de efeitos colaterais (#498).
+   * `client` permite passar o tx de uma transação aberta — o client global
+   * exigiria uma 2ª conexão do pool e trava com connection_limit baixo.
    */
-  async findBestRule(input: Omit<TaxInput, 'itemValue'> & { itemValue?: number }) {
-    const rules = await this.prisma.taxRule.findMany({
+  async findBestRule(
+    input: Omit<TaxInput, 'itemValue'> & { itemValue?: number },
+    client: Pick<PrismaService, 'taxRule'> = this.prisma,
+  ) {
+    const rules = await client.taxRule.findMany({
       where: {
         companyId: input.companyId,
         operationType: input.operationType,
