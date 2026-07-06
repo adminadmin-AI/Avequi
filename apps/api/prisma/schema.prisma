@@ -114,6 +114,16 @@ model Company {
   scheduledPayments        ScheduledPayment[]
   collectionAttempts       CollectionAttempt[]
   carriers                 Carrier[]
+  // IAM v2 — F1 (#335/#336/#337)
+  roles                Role[]
+  userRoleAssignments  UserRoleAssignment[]
+  userPermissions      UserPermission[]
+  orgBranches          Branch[]
+  departments          Department[]
+  userSessions         UserSession[]
+  auditLogsV2          AuditLogV2[]
+  securityEvents       SecurityEvent[]
+  permissionChangeLogs PermissionChangeLog[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -259,6 +269,20 @@ model User {
   rfqsCreated               RequestForQuotation[] @relation("RfqCreatedBy")
   nfeManifests              NfeManifest[]          @relation("NfeManifestBy")
   anonymizationRequests     AnonymizationRequest[] @relation("AnonymizationRequestedBy")
+  // IAM v2 — F1 (#335/#336/#337) — campos e relações aditivas
+  lockedUntil   DateTime? // lockout de conta (#336) — null = não bloqueado
+  roleAssignments           UserRoleAssignment[]
+  permissionExceptions      UserPermission[]
+  departmentLinks           UserDepartment[]
+  teamLinks                 UserTeam[]
+  managedDepartments        Department[]          @relation("DepartmentManager")
+  ledTeams                  Team[]                @relation("TeamLeader")
+  sessions                  UserSession[]
+  trustedDevices            TrustedDevice[]
+  auditLogsV2               AuditLogV2[]
+  securityEvents            SecurityEvent[]
+  permissionChangesReceived PermissionChangeLog[] @relation("PermissionChangeTarget")
+  permissionChangesMade     PermissionChangeLog[] @relation("PermissionChangeAuthor")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -288,6 +312,8 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
+  // IAM v2 (#336): sessão amarrada ao refresh token (Decisão 4 — híbrido)
+  session   UserSession?
 
   @@map("gdr_refresh_tokens")
 }
@@ -2810,4 +2836,442 @@ model RfqQuoteItem {
   quantity   Decimal  @db.Decimal(14, 4)
 
   @@map("gdr_rfq_quote_items")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IAM v2 — Fase F1 (M0): fundação de dados (#335 RBAC · #336 Sessões · #337 Auditoria)
+// Segue docs/iam/ARQUITETURA-IAM-V2.md (proposta do PR #461).
+// Tabelas 100% novas e aditivas — nenhum modelo existente foi alterado de forma
+// destrutiva. Nesta fase NENHUM código lê estas tabelas (Fase M0 da migração).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── #335 — RBAC core ─────────────────────────────────────────────────────────
+
+/// Catálogo de permissões granulares. code = "modulo.recurso.acao"
+/// (ex.: "production.orders.approve"). O catálogo é versionado em código
+/// (Decisão 2) e materializado aqui via seed idempotente (#338).
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique // ex: "sales.order.create"
+  name        String  // pt-BR, ex: "Criar Pedido de Venda"
+  description String?
+  module      String  // ex: "sales"
+  resource    String  // ex: "order"
+  action      String  // ex: "create" — ações padronizadas do catálogo em código
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions      RolePermission[]
+  userPermissions      UserPermission[]
+  permissionChangeLogs PermissionChangeLog[]
+
+  @@index([module])
+  @@index([module, resource])
+  @@map("gdr_permissions")
+}
+
+/// Perfil de acesso (role RBAC). isSystem = perfil built-in (22+ da #339),
+/// não editável. companyId null = perfil global; preenchido = perfil
+/// customizado da empresa. Herança via parentId (Supervisor herda Operador).
+model Role {
+  id          String   @id @default(cuid())
+  code        String   // ex: "GERENTE_INDUSTRIAL"
+  name        String   // ex: "Gerente Industrial"
+  description String?
+  isSystem    Boolean  @default(false)
+  parentId    String?
+  parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
+  children    Role[]   @relation("RoleHierarchy")
+  companyId   String?  // null = global
+  company     Company? @relation(fields: [companyId], references: [id])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions      RolePermission[]
+  userAssignments      UserRoleAssignment[]
+  permissionChangeLogs PermissionChangeLog[]
+
+  // Unicidade de `code` POR empresa/grupo: empresas diferentes podem ter perfis
+  // com o mesmo code (ex.: "GERENTE_LOJA") sem colidir. Segue o padrao
+  // @@unique([companyId, code]) usado no resto do schema.
+  // OBS: perfis GLOBAIS/system (companyId = null) NAO sao cobertos por este
+  // indice (no Postgres, NULLs sao distintos em UNIQUE). A unicidade dos codes
+  // globais e garantida por um INDICE PARCIAL criado na migration
+  // (gdr_roles_code_global_key ... WHERE "companyId" IS NULL), que o Prisma nao
+  // consegue expressar no schema.
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("gdr_roles")
+}
+
+/// Vínculo perfil ↔ permissão. granted=false = deny explícito (vence grant).
+/// scope JSON: restrição de escopo (ex.: {"branch": ["CWB"]}) — ABAC mínimo
+/// da Decisão 1; null = sem restrição.
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  scope        Json?
+  granted      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("gdr_role_permissions")
+}
+
+/// Atribuição de perfil a usuário, com escopo empresa + filial (Decisão 3).
+/// NOME: "UserRoleAssignment" e não "UserRole" — o enum UserRole (User.role)
+/// já existe e CONTINUA valendo como fallback durante toda a migração.
+/// branchId null = todas as filiais. expiresAt = atribuição temporária.
+model UserRoleAssignment {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role      @relation(fields: [roleId], references: [id])
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  branchId  String?
+  branch    Branch?   @relation(fields: [branchId], references: [id])
+  expiresAt DateTime?
+  grantedBy String    // userId de quem concedeu (sem FK: preservado mesmo se o concessor sair)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, roleId, companyId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([companyId])
+  @@map("gdr_user_role_assignments")
+}
+
+/// Exceção por usuário: grant OU deny (granted=false) de uma permissão
+/// específica, acima do que os perfis dão. reason = justificativa (auditável).
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
+  granted      Boolean    @default(true)
+  scope        Json?
+  expiresAt    DateTime?
+  grantedBy    String     // userId de quem concedeu
+  reason       String?    // justificativa da exceção
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, permissionId, companyId])
+  @@index([userId])
+  @@index([companyId])
+  @@map("gdr_user_permissions")
+}
+
+// ─── #335 — Organização (Branch = segurança agora; Dept/Team = estrutura, Decisão 3) ──
+
+/// Filial física (CWB, JOI, GUA). Entra no CÁLCULO de permissão
+/// (UserRoleAssignment.branchId / scope JSON) — Decisão 3, estágio 1.
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   // ex: CWB, JOI, GUA
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  cnpj      String?
+  address   Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userRoleAssignments UserRoleAssignment[]
+
+  @@unique([companyId, code])
+  @@map("gdr_branches")
+}
+
+/// Departamento — APENAS estrutura organizacional nesta fase (Decisão 3):
+/// NÃO participa do cálculo de permissão até a fase 2 do multi-tenant (#347).
+model Department {
+  id        String       @id @default(cuid())
+  name      String
+  code      String
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id])
+  managerId String?
+  manager   User?        @relation("DepartmentManager", fields: [managerId], references: [id])
+  parentId  String?
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentHierarchy")
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  teams Team[]
+  users UserDepartment[]
+
+  @@unique([companyId, code])
+  @@map("gdr_departments")
+}
+
+/// Equipe dentro de um departamento — estrutura organizacional (Decisão 3).
+model Team {
+  id           String     @id @default(cuid())
+  name         String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  leaderId     String?
+  leader       User?      @relation("TeamLeader", fields: [leaderId], references: [id])
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  members UserTeam[]
+
+  @@map("gdr_teams")
+}
+
+/// Junction usuário ↔ departamento.
+model UserDepartment {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  isPrimary    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, departmentId])
+  @@map("gdr_user_departments")
+}
+
+/// Junction usuário ↔ equipe.
+model UserTeam {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId])
+  @@map("gdr_user_teams")
+}
+
+// ─── #336 — Sessões, dispositivos e tentativas de login ──────────────────────
+
+enum SessionRevokedReason {
+  LOGOUT       // logout voluntário
+  EXPIRED      // inatividade / expiração
+  ADMIN_REVOKE // revogada remotamente por admin
+  SECURITY     // evento de segurança (reuso de refresh, lockout, etc.)
+}
+
+/// Sessão de usuário (Decisão 4 — híbrido): o access token JWT continua
+/// stateless (15 min) e ganha o claim sessionId; o REFRESH é amarrado à
+/// sessão — revogar a sessão mata o refresh. refreshTokenId aponta para o
+/// RefreshToken vigente (atualizado a cada rotação).
+model UserSession {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId         String
+  company           Company       @relation(fields: [companyId], references: [id])
+  refreshTokenId    String?       @unique
+  refreshToken      RefreshToken? @relation(fields: [refreshTokenId], references: [id])
+  ipAddress         String?
+  userAgent         String?
+  deviceFingerprint String?
+  city              String?       // GeoIP lookup (quando disponível)
+  country           String?
+  expiresAt         DateTime?
+  lastActivityAt    DateTime      @default(now())
+  revokedAt         DateTime?
+  revokedReason     SessionRevokedReason?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  auditLogsV2 AuditLogV2[]
+
+  @@index([userId, revokedAt])
+  @@index([companyId])
+  @@index([deviceFingerprint])
+  @@map("gdr_user_sessions")
+}
+
+enum LoginFailReason {
+  WRONG_PASSWORD
+  INACTIVE
+  LOCKED
+  MFA_FAILED
+}
+
+/// Tentativa de login (sucesso ou falha) — base do lockout (#342):
+/// 5 falhas em 15min → User.lockedUntil. Sem FK para User de propósito:
+/// registra também tentativas com e-mail inexistente.
+model LoginAttempt {
+  id         String           @id @default(cuid())
+  email      String
+  ipAddress  String?
+  userAgent  String?
+  success    Boolean
+  failReason LoginFailReason?
+  createdAt  DateTime         @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("gdr_login_attempts")
+}
+
+/// Dispositivo confiável do usuário (fingerprint). Dispositivo novo gera
+/// SecurityEvent(WARNING) no login.
+model TrustedDevice {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint String
+  name        String?   // ex: "Notebook do Rafael"
+  trusted     Boolean   @default(false)
+  trustedAt   DateTime?
+  trustedBy   String?   // userId de quem marcou como confiável
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, fingerprint])
+  @@map("gdr_trusted_devices")
+}
+
+// ─── #337 — Auditoria enterprise (v2 nasce AO LADO da v1 — sem DROP) ─────────
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  CANCEL
+  FINALIZE
+  REOPEN
+  EXPORT
+  IMPORT
+  PRINT
+  EXECUTE
+  PROCESS
+  LOGIN
+  LOGOUT
+  OTHER
+}
+
+/// Auditoria v2 (redesign da #337). A tabela gdr_audit_logs (v1) NÃO é
+/// alterada nem removida — a v2 nasce ao lado e a v1 será aposentada depois,
+/// sem DROP. Escrita async via fila Bull (Decisão 5); registros NUNCA são
+/// deletados (retenção 5–7 anos).
+model AuditLogV2 {
+  id        String       @id @default(cuid())
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id])
+  sessionId String?
+  session   UserSession? @relation(fields: [sessionId], references: [id])
+  entity    String       // ex: "Product"
+  entityId  String?
+  action    AuditAction
+  module    String?      // ex: "production"
+  oldValue  Json?        // diff: estado anterior
+  newValue  Json?        // diff: estado novo
+  ipAddress String?
+  userAgent String?
+  requestId String?      // correlação de request
+  duration  Int?         // ms
+  createdAt DateTime     @default(now())
+
+  @@index([companyId, entity, entityId])
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([requestId])
+  @@map("gdr_audit_logs_v2")
+}
+
+enum SecurityEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  PASSWORD_CHANGED
+  ROLE_CHANGED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+  SESSION_REVOKED
+  LOCKOUT
+  ACCOUNT_UNLOCKED
+  MFA_ENABLED
+  MFA_DISABLED
+  TOKEN_REUSE_DETECTED
+  NEW_DEVICE
+  SUSPICIOUS_ACTIVITY
+}
+
+enum SecurityEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// Evento de segurança — gravação SÍNCRONA (mesma transação da ação, Decisão 5).
+/// companyId/userId opcionais: login falho de e-mail desconhecido não tem nenhum dos dois.
+model SecurityEvent {
+  id        String                @id @default(cuid())
+  companyId String?
+  company   Company?              @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?                 @relation(fields: [userId], references: [id])
+  eventType SecurityEventType
+  severity  SecurityEventSeverity @default(INFO)
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime              @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("gdr_security_events")
+}
+
+enum PermissionChangeType {
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+}
+
+/// Trilha de mudanças de acesso — gravação SÍNCRONA (Decisão 5): auditoria
+/// de permissão que se perde numa fila é auditoria que não existe.
+model PermissionChangeLog {
+  id              String      @id @default(cuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  targetUserId    String
+  targetUser      User        @relation("PermissionChangeTarget", fields: [targetUserId], references: [id])
+  changedByUserId String
+  changedByUser   User        @relation("PermissionChangeAuthor", fields: [changedByUserId], references: [id])
+  changeType      PermissionChangeType
+  roleId          String?
+  role            Role?       @relation(fields: [roleId], references: [id])
+  permissionId    String?
+  permission      Permission? @relation(fields: [permissionId], references: [id])
+  previousState   Json?
+  newState        Json?
+  reason          String?
+  createdAt       DateTime    @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@map("gdr_permission_change_logs")
 }
