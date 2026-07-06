@@ -1,12 +1,24 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+
+/** Produtor rural e contribuinte exigem IE numérica (#474) — evita rejeição SEFAZ 728/234 */
+function validateFiscalConsistency(dto: { indIeDest?: string | null; isRuralProducer?: boolean; ie?: string | null }) {
+  const ieNumerica = dto.ie && /^\d+$/.test(dto.ie.replace(/[.\-\/ ]/g, ''));
+  if (dto.isRuralProducer && !ieNumerica) {
+    throw new BadRequestException('Produtor rural exige IE de produtor preenchida (numérica)');
+  }
+  if (dto.indIeDest === 'CONTRIBUINTE' && !ieNumerica) {
+    throw new BadRequestException('Cliente contribuinte de ICMS exige IE válida (numérica)');
+  }
+}
 
 @Injectable()
 export class CustomerService {
@@ -29,6 +41,8 @@ export class CustomerService {
         throw new ConflictException(`Documento '${dto.document}' já cadastrado para esta empresa`);
       }
     }
+
+    validateFiscalConsistency(dto);
 
     const customer = await this.prisma.customer.create({
       data: { ...dto, companyId },
@@ -77,9 +91,41 @@ export class CustomerService {
   async findOne(id: string, companyId: string) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, companyId },
+      include: { addresses: { orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] } },
     });
     if (!customer) throw new NotFoundException(`Cliente ${id} não encontrado`);
     return customer;
+  }
+
+  // ─── Endereços de entrega 1:N (#474) ────────────────────────────────────────
+
+  async addAddress(customerId: string, dto: CustomerAddressDto, companyId: string) {
+    await this.findOne(customerId, companyId); // valida tenant
+    if (dto.isDefault) {
+      await this.prisma.customerAddress.updateMany({ where: { customerId }, data: { isDefault: false } });
+    }
+    return this.prisma.customerAddress.create({ data: { ...dto, customerId } });
+  }
+
+  async updateAddress(customerId: string, addressId: string, dto: Partial<CustomerAddressDto>, companyId: string) {
+    await this.findOne(customerId, companyId);
+    const addr = await this.prisma.customerAddress.findFirst({ where: { id: addressId, customerId } });
+    if (!addr) throw new NotFoundException(`Endereço ${addressId} não encontrado`);
+    if (dto.isDefault) {
+      await this.prisma.customerAddress.updateMany({ where: { customerId }, data: { isDefault: false } });
+    }
+    return this.prisma.customerAddress.update({ where: { id: addressId }, data: dto });
+  }
+
+  async removeAddress(customerId: string, addressId: string, companyId: string) {
+    await this.findOne(customerId, companyId);
+    const addr = await this.prisma.customerAddress.findFirst({ where: { id: addressId, customerId } });
+    if (!addr) throw new NotFoundException(`Endereço ${addressId} não encontrado`);
+    const inUse = await this.prisma.salesOrder.count({ where: { deliveryAddressId: addressId } });
+    if (inUse > 0) {
+      throw new ConflictException('Endereço usado em vendas — não pode ser excluído');
+    }
+    return this.prisma.customerAddress.delete({ where: { id: addressId } });
   }
 
   async update(id: string, dto: UpdateCustomerDto, user: { id?: string; companyId: string }) {
@@ -94,6 +140,12 @@ export class CustomerService {
 
     // Defesa em profundidade: descarta qualquer companyId injetado no payload
     const { companyId: _ignored, ...data } = dto as any;
+
+    validateFiscalConsistency({
+      indIeDest: data.indIeDest ?? existing.indIeDest,
+      isRuralProducer: data.isRuralProducer ?? existing.isRuralProducer,
+      ie: data.ie !== undefined ? data.ie : existing.ie,
+    });
 
     const customer = await this.prisma.customer.update({
       where: { id },

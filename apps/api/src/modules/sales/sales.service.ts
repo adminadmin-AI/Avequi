@@ -33,6 +33,7 @@ export class SalesService {
         customerId: dto.customerId,
         notes: dto.notes,
         paymentMethod: dto.paymentMethod,
+        deliveryAddressId: dto.deliveryAddressId,
         createdById: userId,
         status: SalesOrderStatus.DRAFT,
         items: {

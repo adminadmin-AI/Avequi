@@ -30,6 +30,11 @@ export class CreateSalesOrderDto {
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
+  @ApiPropertyOptional({ description: 'Endereço de entrega do cliente (CustomerAddress) — grupo <entrega> da NF-e (#474)' })
+  @IsOptional()
+  @IsString()
+  deliveryAddressId?: string;
+
   @ApiProperty({ type: [CreateSaleItemDto] })
   @IsArray()
   @ArrayMinSize(1)

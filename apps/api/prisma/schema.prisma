@@ -419,15 +419,26 @@ enum CustomerType {
   COMPANY
 }
 
+/// Indicador de IE do destinatário (indIEDest da NF-e) — explícito no cadastro (#474)
+enum IcmsIndicator {
+  CONTRIBUINTE     // 1 — exige IE válida
+  ISENTO           // 2 — contribuinte isento de IE
+  NAO_CONTRIBUINTE // 9 — consumidor final PF/PJ não contribuinte
+}
+
 model Customer {
   id           String       @id @default(cuid())
   companyId    String
   company      Company      @relation(fields: [companyId], references: [id])
   type         CustomerType @default(COMPANY)
-  name         String
+  name         String       // nome fantasia / apelido comercial
+  razaoSocial  String?      @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
   document     String?
   email        String?
+  fiscalEmail  String?      @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
   phone        String?
+  phone2       String?
+  contactName  String?      @map("contact_name")
   address      String?       // logradouro (rua, av, etc.)
   number       String?       @db.VarChar(10)
   complement   String?       @db.VarChar(60)
@@ -437,7 +448,12 @@ model Customer {
   zipCode      String?       @map("zip_code") @db.VarChar(8) // CEP sem máscara
   ibgeCode     String?       @map("ibge_code") @db.VarChar(7) // código município IBGE
   ie           String?       @db.VarChar(14) // inscrição estadual
+  // Fiscal (#474) — indIeDest null = inferir por IE/CPF (cadastros antigos)
+  indIeDest        IcmsIndicator? @map("ind_ie_dest")
+  isRuralProducer  Boolean    @default(false) @map("is_rural_producer") // IE de produtor no campo ie
+  isSimplesNacional Boolean   @default(false) @map("is_simples_nacional")
   isActive     Boolean      @default(true)
+  addresses    CustomerAddress[]
   salesOrders  SalesOrder[]
   quotations   Quotation[]
   receivables  Receivable[]
@@ -447,6 +463,29 @@ model Customer {
 
   @@unique([companyId, document])
   @@map("gdr_customers")
+}
+
+/// Endereços de entrega do cliente (1:N) — grupo <entrega> da NF-e (#474)
+model CustomerAddress {
+  id           String   @id @default(cuid())
+  customerId   String   @map("customer_id")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label        String   // ex: "Obra Fazenda Santa Fé", "Depósito Matriz"
+  address      String
+  number       String?  @db.VarChar(10)
+  complement   String?  @db.VarChar(60)
+  neighborhood String?  @db.VarChar(60)
+  city         String
+  state        String   @db.VarChar(2)
+  zipCode      String?  @map("zip_code") @db.VarChar(8)
+  ibgeCode     String?  @map("ibge_code") @db.VarChar(7)
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  salesOrders  SalesOrder[]
+
+  @@index([customerId])
+  @@map("gdr_customer_addresses")
 }
 
 // ─── BOM — Bill of Materials ──────────────────────────────────────────────────
@@ -776,6 +815,8 @@ model SalesOrder {
   warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
   status      SalesOrderStatus @default(DRAFT)
   paymentMethod PaymentMethod? @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
+  deliveryAddressId String?    @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
+  deliveryAddress   CustomerAddress? @relation(fields: [deliveryAddressId], references: [id])
   notes       String?
   createdById String?
   createdBy   User?            @relation("SOCreatedBy", fields: [createdById], references: [id])

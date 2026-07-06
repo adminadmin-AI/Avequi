@@ -320,7 +320,31 @@ export interface Supplier extends BaseEntity {
   isActive: boolean;
 }
 
+export type IcmsIndicator = 'CONTRIBUINTE' | 'ISENTO' | 'NAO_CONTRIBUINTE';
+
+export interface CustomerAddress {
+  id: string;
+  label: string;
+  address: string;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city: string;
+  state: string;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  isDefault: boolean;
+}
+
 export interface Customer extends BaseEntity {
+  razaoSocial?: string | null;
+  fiscalEmail?: string | null;
+  phone2?: string | null;
+  contactName?: string | null;
+  indIeDest?: IcmsIndicator | null;
+  isRuralProducer?: boolean;
+  isSimplesNacional?: boolean;
+  addresses?: CustomerAddress[];
   companyId: string;
   type: CustomerType;
   name: string;

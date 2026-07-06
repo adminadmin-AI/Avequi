@@ -49,6 +49,7 @@ export class FiscalService {
       include: {
         company: true,
         customer: true,
+        deliveryAddress: true,
         items: { include: { product: true, serialNumber: true } },
       },
     });
@@ -97,9 +98,11 @@ export class FiscalService {
       ? 'VENDA_INTERESTADUAL' as any
       : 'VENDA_INTERNA' as any;
 
-    // Consumidor final: pessoa física (CPF, 11 dígitos) ou sem IE
+    // Consumidor final: indicador explícito do cadastro (#474); fallback: PF (CPF) ou sem IE
     const recipientDoc = order.customer?.document?.replace(/\D/g, '') ?? '';
-    const consumidorFinal = !order.customer?.ie || recipientDoc.length === 11;
+    const consumidorFinal = order.customer?.indIeDest
+      ? order.customer.indIeDest !== 'CONTRIBUINTE'
+      : !order.customer?.ie || recipientDoc.length === 11;
 
     const items: FiscalItem[] = [];
     for (const i of order.items) {
@@ -250,8 +253,11 @@ export class FiscalService {
       recipient: order.customer
         ? {
             name: order.customer.name,
+            razaoSocial: order.customer.razaoSocial ?? undefined,
             document: order.customer.document ?? undefined,
             ie: order.customer.ie ?? undefined,
+            indIeDest: order.customer.indIeDest ?? undefined,
+            email: order.customer.fiscalEmail ?? order.customer.email ?? undefined,
             address: order.customer.address ?? undefined,
             number: order.customer.number ?? undefined,
             complement: order.customer.complement ?? undefined,
@@ -260,6 +266,19 @@ export class FiscalService {
             state: order.customer.state ?? undefined,
             zipCode: order.customer.zipCode ?? undefined,
             ibgeCode: order.customer.ibgeCode ?? undefined,
+          }
+        : undefined,
+      // Grupo <entrega> quando a OV tem endereço de entrega (#474)
+      delivery: order.deliveryAddress
+        ? {
+            address: order.deliveryAddress.address,
+            number: order.deliveryAddress.number ?? undefined,
+            complement: order.deliveryAddress.complement ?? undefined,
+            neighborhood: order.deliveryAddress.neighborhood ?? undefined,
+            city: order.deliveryAddress.city,
+            state: order.deliveryAddress.state,
+            zipCode: order.deliveryAddress.zipCode ?? undefined,
+            document: order.customer?.document ?? undefined,
           }
         : undefined,
       items,
