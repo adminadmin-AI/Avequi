@@ -42,6 +42,8 @@ import {
   Wrench,
   Zap,
   MessageCircle,
+  KanbanSquare,
+  Timer,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -102,6 +104,8 @@ export const NAV: NavSection[] = [
     title: 'Comercial',
     items: [
       { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle },
+      { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare },
+      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
     ],
