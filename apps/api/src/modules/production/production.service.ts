@@ -46,22 +46,23 @@ export class ProductionService {
 
   // ─── S13.01: Criar Ordem de Produção ─────────────────────────────────────
 
-  async create(dto: CreateProductionOrderDto, userId?: string) {
+  async create(dto: CreateProductionOrderDto, companyId: string, userId?: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     // Valida produto
     const product = await this.prisma.product.findFirst({
-      where: { id: dto.productId, companyId: dto.companyId },
+      where: { id: dto.productId, companyId },
     });
     if (!product) throw new NotFoundException(`Produto ${dto.productId} não encontrado`);
 
     // Valida armazém
     const warehouse = await this.prisma.warehouse.findFirst({
-      where: { id: dto.warehouseId, companyId: dto.companyId },
+      where: { id: dto.warehouseId, companyId },
     });
     if (!warehouse) throw new NotFoundException(`Armazém ${dto.warehouseId} não encontrado`);
 
     // Carrega BOM ativo para gerar itens da OP
     const bom = await this.prisma.bomVersion.findFirst({
-      where: { productId: dto.productId, companyId: dto.companyId, isActive: true },
+      where: { productId: dto.productId, companyId, isActive: true },
       include: { items: { include: { component: true } } },
     });
 
@@ -73,7 +74,7 @@ export class ProductionService {
 
     const order = await this.prisma.productionOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         productId: dto.productId,
         warehouseId: dto.warehouseId,
         plannedQty: dto.plannedQty,
@@ -90,7 +91,7 @@ export class ProductionService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'ProductionOrder',
         action: 'CREATE',
         payload: { id: order.id, productId: dto.productId, plannedQty: dto.plannedQty },

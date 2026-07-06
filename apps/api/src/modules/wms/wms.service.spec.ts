@@ -7,6 +7,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 const mockEventEmitter = { emit: jest.fn() };
 
 const mockPrisma = {
+  product: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   location: {
     create: jest.fn(),
     findMany: jest.fn(),
@@ -87,11 +90,11 @@ describe('WmsService', () => {
 
   describe('createLocation', () => {
     it('cria uma location com sucesso', async () => {
-      const dto = { companyId: 'c1', warehouseId: 'w1', code: 'A-01', description: 'Rack A' };
-      const created = { id: 'loc1', ...dto, type: 'STORAGE', isActive: true };
+      const dto = { warehouseId: 'w1', code: 'A-01', description: 'Rack A' };
+      const created = { id: 'loc1', companyId: 'c1', ...dto, type: 'STORAGE', isActive: true };
       mockPrisma.location.create.mockResolvedValue(created);
 
-      const result = await service.createLocation(dto);
+      const result = await service.createLocation(dto, 'c1');
 
       expect(mockPrisma.location.create).toHaveBeenCalledWith({
         data: {
@@ -106,14 +109,24 @@ describe('WmsService', () => {
     });
 
     it('usa STORAGE como type padrão quando não informado', async () => {
-      const dto = { companyId: 'c1', warehouseId: 'w1', code: 'B-01' };
+      const dto = { warehouseId: 'w1', code: 'B-01' };
       mockPrisma.location.create.mockResolvedValue({ id: 'loc2', type: 'STORAGE' });
 
-      await service.createLocation(dto);
+      await service.createLocation(dto, 'c1');
 
       expect(mockPrisma.location.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ type: 'STORAGE' }) }),
       );
+    });
+
+    it('IDOR: ignora companyId externo injetado no payload e usa o do JWT', async () => {
+      const dto = { companyId: 'c-VITIMA', warehouseId: 'w1', code: 'C-01' } as any;
+      mockPrisma.location.create.mockResolvedValue({ id: 'loc3' });
+
+      await service.createLocation(dto, 'c1');
+
+      const createArg = mockPrisma.location.create.mock.calls[0][0];
+      expect(createArg.data.companyId).toBe('c1');
     });
   });
 

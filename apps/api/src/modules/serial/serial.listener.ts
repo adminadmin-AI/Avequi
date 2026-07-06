@@ -71,30 +71,7 @@ export class SerialListener {
     }
   }
 
-  @OnEvent(SALE_INVOICED_EVENT, { async: true })
-  async onSaleInvoiced(event: SaleInvoicedEvent): Promise<void> {
-    try {
-      const items = event.items.map((i: any) => ({
-        saleItemId: i.saleItemId,
-        productId: i.productId,
-        quantity: i.quantity,
-      }));
-
-      const result = await this.serialService.assignForSale(
-        event.companyId,
-        event.salesOrderId,
-        items,
-      );
-
-      if (result.assigned > 0) {
-        this.logger.log(
-          `OV ${event.salesOrderId}: ${result.assigned} seriais vinculados automaticamente`,
-        );
-      }
-    } catch (err) {
-      this.logger.error(
-        `Erro ao vincular seriais para OV ${event.salesOrderId}: ${(err as Error).message}`,
-      );
-    }
-  }
+  // #492: o vínculo de serial por FIFO pós-fatura foi REMOVIDO — o chassi é
+  // escolhido na separação (PickTask, #490) e validado na conferência (#491).
+  // A emissão fiscal lê SaleItem.serialNumber já consistente, sem corrida.
 }

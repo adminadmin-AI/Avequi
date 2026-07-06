@@ -8,6 +8,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
+import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
@@ -21,17 +22,26 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly stockService: StockService,
+    private readonly taxCalc: TaxCalculationService,
   ) {}
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
-  async createOrder(dto: CreateSalesOrderDto, userId?: string) {
+  async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string) {
     const order = await this.prisma.salesOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
+        paymentMethod: dto.paymentMethod,
+        deliveryAddressId: dto.deliveryAddressId,
+        // Frete → grupo transp da NF-e (#481)
+        freightModality: dto.freightModality,
+        freightValue: dto.freightValue,
+        carrierId: dto.carrierId,
+        volumesQuantity: dto.volumesQuantity,
+        volumesSpecies: dto.volumesSpecies,
         createdById: userId,
         status: SalesOrderStatus.DRAFT,
         items: {
@@ -49,7 +59,7 @@ export class SalesService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'SalesOrder',
         action: 'CREATE',
         payload: { salesOrderId: order.id, itemCount: dto.items.length },
@@ -192,11 +202,82 @@ export class SalesService {
       );
     }
 
+    // #491: separação concluída → conferência da carga (nova etapa antes da NF-e)
     return this.prisma.salesOrder.update({
       where: { id: salesOrderId },
-      data: { status: SalesOrderStatus.READY_TO_INVOICE, pickedAt: new Date() },
+      data: { status: SalesOrderStatus.AWAITING_CONFERENCE, pickedAt: new Date() },
       include: { items: { include: { product: true } }, customer: true, warehouse: true },
     });
+  }
+
+  // ─── #491: Conferência da carga (AWAITING_CONFERENCE → READY_TO_INVOICE) ──
+  //   Dupla checagem independente da separação: quantidades + re-scan do chassi.
+
+  async conferOrder(
+    id: string,
+    companyId: string,
+    dto: { items: { saleItemId: string; quantity: number; serialNumberId?: string }[] },
+    userId?: string,
+  ) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+      include: { items: { include: { product: true, serialNumber: true } } },
+    });
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+    if (order.status !== SalesOrderStatus.AWAITING_CONFERENCE) {
+      throw new BadRequestException(
+        `Venda não está aguardando conferência. Status atual: ${order.status}`,
+      );
+    }
+
+    const divergencias: string[] = [];
+    for (const item of order.items as any[]) {
+      const conf = dto.items.find((c) => c.saleItemId === item.id);
+      if (!conf) {
+        divergencias.push(`Item ${item.product?.name ?? item.productId} não foi conferido`);
+        continue;
+      }
+      if (Number(conf.quantity) !== Number(item.quantity)) {
+        divergencias.push(
+          `${item.product?.name}: conferido ${conf.quantity}, esperado ${Number(item.quantity)}`,
+        );
+      }
+      // re-scan do chassi deve bater com o serial amarrado na separação
+      if (item.product?.tracksSerial) {
+        if (!item.serialNumberId) {
+          divergencias.push(`${item.product.name}: sem chassi vinculado na separação`);
+        } else if (conf.serialNumberId !== item.serialNumberId) {
+          divergencias.push(
+            `${item.product.name}: chassi conferido não confere com o separado (${item.serialNumber?.chassi ?? item.serialNumberId})`,
+          );
+        }
+      }
+    }
+    if (divergencias.length > 0) {
+      throw new BadRequestException(`Divergência na conferência: ${divergencias.join('; ')}`);
+    }
+
+    const conferred = await this.prisma.salesOrder.update({
+      where: { id },
+      data: {
+        status: SalesOrderStatus.READY_TO_INVOICE,
+        conferredAt: new Date(),
+        conferredById: userId ?? null,
+      },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'CONFER',
+        payload: { salesOrderId: id, itemCount: dto.items.length },
+      },
+    });
+
+    return conferred;
   }
 
   // ─── S07.04b: Faturar venda (READY_TO_INVOICE → INVOICED) — baixa estoque ──
@@ -206,7 +287,7 @@ export class SalesService {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: true, pickingOrder: true, customer: true, company: true },
+        include: { items: { include: { product: true, serialNumber: true } }, pickingOrder: true, customer: true, company: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -225,6 +306,39 @@ export class SalesService {
         );
       }
 
+      // #498: pré-checagem de cobertura fiscal ANTES de consumir estoque —
+      // sem regra cadastrada o Faturar falha limpo, com ação orientada,
+      // em vez de emitir nota com tributação genérica (ex-FALLBACK_RULE)
+      const ufEmpresa = order.company?.state ?? 'PR';
+      const isInterstate = order.customer?.state && ufEmpresa !== order.customer.state;
+      const operationType = (isInterstate ? 'VENDA_INTERESTADUAL' : 'VENDA_INTERNA') as any;
+      for (const item of order.items as any[]) {
+        const ruleInput = {
+          companyId,
+          operationType,
+          ncm: item.product?.ncm ?? undefined,
+          productType: item.product?.type,
+          ufOrigem: ufEmpresa,
+          ufDestino: order.customer?.state ?? ufEmpresa,
+        };
+        const rule = await this.taxCalc.findBestRule(ruleInput);
+        if (!rule) {
+          throw new BadRequestException(missingTaxRuleMessage(ruleInput as any));
+        }
+      }
+
+      // #492: item rastreável não fatura sem chassi — a NF-e precisa do
+      // veicProd do reboque que fisicamente saiu (emplacamento)
+      const semChassi = (order.items as any[]).filter(
+        (i) => i.product?.tracksSerial && !i.serialNumberId,
+      );
+      if (semChassi.length > 0) {
+        throw new BadRequestException(
+          `Itens sem chassi vinculado: ${semChassi.map((i) => i.product.name).join(', ')}. ` +
+            'Conclua a separação escolhendo o chassi de cada unidade antes de faturar.',
+        );
+      }
+
       for (const item of order.items) {
         const qty = Number(item.quantity);
 
@@ -234,6 +348,12 @@ export class SalesService {
           `Faturamento OV #${id}`, userId, tx,
         );
       }
+
+      // #492: chassis reservados na separação viram SOLD na fatura
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: 'RESERVED_FOR_SALE' as any },
+        data: { status: 'SOLD' as any, soldAt: new Date() },
+      });
 
       const updated = await tx.salesOrder.update({
         where: { id },
@@ -325,6 +445,12 @@ export class SalesService {
       }
 
       // 3. Atualizar status da venda
+      // #492: devolução física — chassis voltam ao estoque
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: { in: ['SOLD', 'RESERVED_FOR_SALE'] as any } },
+        data: { status: 'IN_STOCK' as any, soldAt: null, salesOrderId: null },
+      });
+
       const updated = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.RETURNED, returnedAt: new Date() },
@@ -448,6 +574,12 @@ export class SalesService {
         }
       }
 
+      // #492: cancelamento libera chassis reservados na separação
+      await tx.serialNumber.updateMany({
+        where: { salesOrderId: id, status: 'RESERVED_FOR_SALE' as any },
+        data: { status: 'IN_STOCK' as any, salesOrderId: null },
+      });
+
       const cancelled = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.CANCELLED, cancelledAt: new Date() },
@@ -496,7 +628,7 @@ export class SalesService {
       include: {
         customer: true,
         warehouse: true,
-        items: { include: { product: true } },
+        items: { include: { product: true, serialNumber: true } }, // chassi visível na conferência (#491)
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },

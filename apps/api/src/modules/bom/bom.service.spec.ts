@@ -36,10 +36,11 @@ describe('BomService', () => {
   });
 
   describe('create', () => {
+    const mockUser = { id: 'user-1', companyId: 'company-1' };
+
     it('should throw NotFoundException when a componentId does not exist in DB', async () => {
       const dto = {
         productId: 'prod-1',
-        companyId: 'company-1',
         items: [
           { componentId: 'comp-missing', quantity: 1 },
         ],
@@ -48,13 +49,12 @@ describe('BomService', () => {
       // Return empty array — component not found
       mockPrisma.product.findMany.mockResolvedValueOnce([]);
 
-      await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto, mockUser)).rejects.toThrow(NotFoundException);
     });
 
     it('should auto-increment version (first BOM = v1)', async () => {
       const dto = {
         productId: 'prod-1',
-        companyId: 'company-1',
         items: [{ componentId: 'comp-1', quantity: 2 }],
       };
 
@@ -70,10 +70,10 @@ describe('BomService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValueOnce({});
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, mockUser);
       expect(mockPrisma.bomVersion.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ version: 1 }),
+          data: expect.objectContaining({ version: 1, companyId: 'company-1' }),
         }),
       );
       expect(result.version).toBe(1);
@@ -82,7 +82,6 @@ describe('BomService', () => {
     it('should auto-increment version to v2 when v1 already exists', async () => {
       const dto = {
         productId: 'prod-1',
-        companyId: 'company-1',
         items: [{ componentId: 'comp-1', quantity: 2 }],
       };
 
@@ -98,13 +97,38 @@ describe('BomService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValueOnce({});
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, mockUser);
       expect(mockPrisma.bomVersion.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ version: 2 }),
         }),
       );
       expect(result.version).toBe(2);
+    });
+
+    it('IDOR: ignora companyId externo injetado no payload e usa o do JWT', async () => {
+      const dto = {
+        productId: 'prod-1',
+        companyId: 'company-VITIMA',
+        items: [{ componentId: 'comp-1', quantity: 2 }],
+      } as any;
+
+      mockPrisma.product.findMany.mockResolvedValueOnce([{ id: 'comp-1' }]);
+      mockPrisma.bomVersion.findFirst.mockResolvedValueOnce(null);
+      mockPrisma.bomVersion.create.mockResolvedValueOnce({ id: 'bom-v1', version: 1, items: [] });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await service.create(dto, mockUser);
+
+      // Componentes validados contra a empresa do JWT
+      expect(mockPrisma.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ companyId: 'company-1' }),
+        }),
+      );
+      // BOM criada na empresa do JWT, não na injetada
+      const createArg = mockPrisma.bomVersion.create.mock.calls[0][0];
+      expect(createArg.data.companyId).toBe('company-1');
     });
   });
 

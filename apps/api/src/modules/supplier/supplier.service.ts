@@ -11,23 +11,28 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 export class SupplierService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateSupplierDto, user?: any) {
+  async create(dto: CreateSupplierDto, user: { id?: string; companyId: string }) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    const companyId = user.companyId;
+
     // Check CNPJ uniqueness per company
     if (dto.cnpj) {
       const existing = await this.prisma.supplier.findUnique({
-        where: { companyId_cnpj: { companyId: dto.companyId, cnpj: dto.cnpj } },
+        where: { companyId_cnpj: { companyId, cnpj: dto.cnpj } },
       });
       if (existing) {
         throw new ConflictException(`CNPJ '${dto.cnpj}' já cadastrado para esta empresa`);
       }
     }
 
-    const supplier = await this.prisma.supplier.create({ data: dto });
+    const supplier = await this.prisma.supplier.create({
+      data: { ...dto, companyId },
+    });
 
     await this.prisma.auditLog.create({
       data: {
         userId: user?.id,
-        companyId: dto.companyId,
+        companyId,
         entity: 'Supplier',
         action: 'CREATE',
         payload: { ...dto },
@@ -68,15 +73,22 @@ export class SupplierService {
     return supplier;
   }
 
-  async update(id: string, dto: UpdateSupplierDto, user?: any) {
-    const existing = await this.prisma.supplier.findFirst({ where: { id } });
+  async update(id: string, dto: UpdateSupplierDto, user: { id?: string; companyId: string }) {
+    // Busca escopada pela empresa do usuário — impede editar fornecedor de outro tenant
+    const existing = await this.prisma.supplier.findFirst({
+      where: { id, companyId: user.companyId },
+    });
     if (!existing) throw new NotFoundException(`Fornecedor ${id} não encontrado`);
 
-    const companyId = dto.companyId || existing.companyId;
+    // companyId é imutável: registro nunca muda de empresa via update
+    const companyId = existing.companyId;
+
+    // Defesa em profundidade: descarta qualquer companyId injetado no payload
+    const { companyId: _ignored, ...data } = dto as any;
 
     const supplier = await this.prisma.supplier.update({
       where: { id },
-      data: dto,
+      data,
     });
 
     await this.prisma.auditLog.create({

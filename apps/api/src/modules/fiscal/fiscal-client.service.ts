@@ -11,6 +11,11 @@ export interface FocusEmissionResponse {
   motivo?: string;
   codigo?: string;
   ref?: string;
+  numero?: string | number;
+  serie?: string | number;
+  protocolo?: string;
+  caminho_xml_nota_fiscal?: string; // path relativo do XML autorizado na Focus (#482)
+  caminho_danfe?: string; // path relativo do PDF do DANFE na Focus (#482)
 }
 
 @Injectable()
@@ -111,6 +116,33 @@ export class FiscalClientService {
     } catch (err) {
       const result = this.handleError(err);
       return { ...result, protocolo: undefined };
+    }
+  }
+
+  /** Transforma um caminho relativo da Focus (caminho_danfe etc.) em URL absoluta */
+  absoluteUrl(path: string): string {
+    return path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+  }
+
+  /**
+   * Baixa um arquivo servido pela Focus (XML/DANFE) — aceita caminho relativo
+   * ou URL absoluta. Retorna null em erro (não lança). (#482)
+   */
+  async downloadFile(path: string): Promise<string | null> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<string>(this.absoluteUrl(path), {
+          auth: { username: this.token, password: '' },
+          responseType: 'text',
+          // impede o axios de tentar parsear o XML como JSON
+          transformResponse: [(d) => d],
+        }),
+      );
+      return typeof data === 'string' && data.length > 0 ? data : null;
+    } catch (err) {
+      const axiosErr = err as AxiosError;
+      this.logger.error(`Erro ao baixar arquivo da Focus (${path}): ${axiosErr.message}`);
+      return null;
     }
   }
 

@@ -7,9 +7,8 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
 import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
@@ -17,15 +16,20 @@ import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import { RecordCountDto } from './dto/record-count.dto';
 import { WmsService } from './wms.service';
 
-@UseGuards(JwtAuthGuard)
+const WMS_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE'];
+
 @Controller('wms')
 export class WmsController {
   constructor(private readonly wmsService: WmsService) {}
 
   // POST /wms/locations
   @Post('locations')
-  createLocation(@Body() dto: CreateLocationDto) {
-    return this.wmsService.createLocation(dto);
+  @Roles(...WMS_WRITE_ROLES)
+  createLocation(
+    @Body() dto: CreateLocationDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.wmsService.createLocation(dto, req.user.companyId);
   }
 
   // GET /wms/locations?warehouseId=...
@@ -66,6 +70,7 @@ export class WmsController {
 
   // PATCH /wms/receiving/:id/tasks/:taskId/putaway
   @Patch('receiving/:id/tasks/:taskId/putaway')
+  @Roles(...WMS_WRITE_ROLES)
   confirmPutaway(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
@@ -106,6 +111,7 @@ export class WmsController {
 
   // PATCH /wms/picking/:id/tasks/:taskId/confirm
   @Patch('picking/:id/tasks/:taskId/confirm')
+  @Roles(...WMS_WRITE_ROLES)
   confirmPickTask(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
@@ -119,6 +125,7 @@ export class WmsController {
 
   // POST /wms/inventory
   @Post('inventory')
+  @Roles(...WMS_WRITE_ROLES)
   createInventoryCount(
     @Body() dto: CreateInventoryCountDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -155,6 +162,7 @@ export class WmsController {
 
   // PATCH /wms/inventory/:id/items/:itemId/count
   @Patch('inventory/:id/items/:itemId/count')
+  @Roles(...WMS_WRITE_ROLES)
   recordCount(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
@@ -166,6 +174,7 @@ export class WmsController {
 
   // POST /wms/inventory/:id/reconcile
   @Post('inventory/:id/reconcile')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   reconcile(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -186,6 +195,7 @@ export class WmsController {
 
   // PATCH /wms/locations/:id/toggle
   @Patch('locations/:id/toggle')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   toggleLocation(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -195,6 +205,7 @@ export class WmsController {
 
   // PATCH /wms/warehouses/:id/wms
   @Patch('warehouses/:id/wms')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   toggleWarehouseWms(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -204,6 +215,7 @@ export class WmsController {
 
   // POST /wms/inventory/:id/cancel
   @Post('inventory/:id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   cancelInventoryCount(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

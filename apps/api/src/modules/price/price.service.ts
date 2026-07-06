@@ -6,10 +6,11 @@ import { CreatePriceTableDto } from './dto/create-price-table.dto';
 export class PriceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreatePriceTableDto) {
+  async create(dto: CreatePriceTableDto, companyId: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     return this.prisma.priceTable.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         name: dto.name,
         type: (dto.type as any) ?? 'STANDARD',
         validFrom: new Date(dto.validFrom),

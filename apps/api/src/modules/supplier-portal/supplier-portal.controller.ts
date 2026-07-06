@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { SupplierTokenGuard } from './guards/supplier-token.guard';
 import { SupplierPortalService } from './supplier-portal.service';
 import { CreateSupplierTokenDto } from './dto/create-supplier-token.dto';
@@ -21,6 +22,7 @@ export class SupplierPortalController {
 
   // ── Admin endpoints (JWT protected) ──────────────────────────────────────────
   @UseGuards(JwtAuthGuard)
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @Post('tokens')
   createToken(
     @Request() req: { user: { companyId: string } },
@@ -30,6 +32,7 @@ export class SupplierPortalController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @Get('tokens')
   listTokens(
     @Request() req: { user: { companyId: string } },
@@ -39,6 +42,7 @@ export class SupplierPortalController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @Patch('tokens/:id/revoke')
   revokeToken(
     @Request() req: { user: { companyId: string } },

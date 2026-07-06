@@ -7,15 +7,15 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { SerialStatus } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateSerialDto } from './dto/create-serial.dto';
 import { UpdateSerialDto } from './dto/update-serial.dto';
 import { SerialService } from './serial.service';
 
-@UseGuards(JwtAuthGuard)
+const SERIAL_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION', 'WAREHOUSE'];
+
 @Controller('serial')
 export class SerialController {
   constructor(private readonly serialService: SerialService) {}
@@ -48,6 +48,7 @@ export class SerialController {
 
   // POST /serial
   @Post()
+  @Roles(...SERIAL_WRITE_ROLES)
   create(
     @Request() req: { user: { companyId: string; id?: string } },
     @Body() dto: CreateSerialDto,
@@ -81,6 +82,7 @@ export class SerialController {
 
   // PATCH /serial/:id
   @Patch(':id')
+  @Roles(...SERIAL_WRITE_ROLES)
   update(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -91,6 +93,7 @@ export class SerialController {
 
   // PATCH /serial/:id/link-production
   @Patch(':id/link-production')
+  @Roles(...SERIAL_WRITE_ROLES)
   linkToProduction(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -105,6 +108,7 @@ export class SerialController {
 
   // PATCH /serial/:id/link-sale
   @Patch(':id/link-sale')
+  @Roles(...SERIAL_WRITE_ROLES)
   linkToSale(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -119,6 +123,7 @@ export class SerialController {
 
   // PATCH /serial/:id/scrap
   @Patch(':id/scrap')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
   scrap(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

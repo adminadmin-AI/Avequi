@@ -111,7 +111,7 @@ O frontend está conectado ao **Vercel** para deploy automático.
 
 | Ambiente | URL | Quando |
 |---|---|---|
-| Produção | https://avequi.vercel.app | Push na branch `main` |
+| Produção | https://avequi-web-psi.vercel.app | Push na branch `main` |
 | Preview | URL gerada por PR | Cada Pull Request gera um link único |
 
 ```
@@ -121,7 +121,7 @@ Vercel detecta o push automaticamente
        ↓
 Build: npm install → turbo build --filter=web
        ↓
-Deploy em https://avequi.vercel.app
+Deploy em https://avequi-web-psi.vercel.app
 ```
 
 **Para ver o status de um deploy:**
@@ -418,7 +418,7 @@ Antes de abrir um Pull Request, confirme:
 | Repositório de código | https://github.com/adminadmin-AI/Avequi |
 | Issues & backlog | https://github.com/adminadmin-AI/Avequi |
 | Project board (GitHub Projects) | https://github.com/users/adminadmin-AI/projects/7 |
-| Vercel (deploy/preview) | https://avequi.vercel.app |
+| Vercel (deploy/preview) | https://avequi-web-psi.vercel.app |
 | Supabase (banco de dados) | https://supabase.com/dashboard/project/avliarleakraczikvwwz |
 | Brandbook v2.0 | https://avequi-brandbook.vercel.app/ |
 | PRD Técnico | [`docs/PRD.md`](docs/PRD.md) |

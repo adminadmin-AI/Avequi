@@ -6,20 +6,16 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TaxRuleService } from './tax-rule.service';
 import { CreateTaxRuleDto } from './dto/create-tax-rule.dto';
 import { UpdateTaxRuleDto } from './dto/update-tax-rule.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('tax-rules')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('tax-rules')
 export class TaxRuleController {
   constructor(private readonly taxRuleService: TaxRuleService) {}
