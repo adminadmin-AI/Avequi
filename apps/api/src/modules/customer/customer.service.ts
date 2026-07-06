@@ -178,8 +178,14 @@ export class CustomerService {
       },
     });
     if (!customer) throw new NotFoundException(`Cliente ${id} não encontrado`);
-    const open = await this.prisma.receivable.aggregate({
-      where: { companyId, customerId: id, status: { in: ['OPEN', 'OVERDUE'] as any } },
+    // Em aberto vive em FinancialEntry (AUTO_SALES) — ver nota no sales.service (#475)
+    const open = await this.prisma.financialEntry.aggregate({
+      where: {
+        companyId,
+        type: 'RECEIVABLE' as any,
+        status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
+        salesOrder: { customerId: id },
+      },
       _sum: { amount: true },
     });
     const openReceivables = Number(open._sum.amount ?? 0);

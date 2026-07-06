@@ -252,8 +252,15 @@ export class SalesService {
     });
     if (!customer?.creditLimit) return null;
     const orderTotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
-    const open = await this.prisma.receivable.aggregate({
-      where: { companyId, customerId, status: { in: ['OPEN', 'OVERDUE'] as any } },
+    // Em aberto vive em FinancialEntry (AUTO_SALES cria lá; a tabela Receivable
+    // é do módulo de cobrança #382-399 e ainda não é populada pelas vendas)
+    const open = await this.prisma.financialEntry.aggregate({
+      where: {
+        companyId,
+        type: 'RECEIVABLE' as any,
+        status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
+        salesOrder: { customerId },
+      },
       _sum: { amount: true },
     });
     const openTotal = Number(open._sum.amount ?? 0);

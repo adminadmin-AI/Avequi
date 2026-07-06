@@ -30,6 +30,7 @@ const mockPrisma = {
     findFirst: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
   },
   fiscalDocument: {
     findFirst: jest.fn(),
@@ -41,9 +42,6 @@ const mockPrisma = {
   // #475: crédito e bloqueio de faturamento
   customer: {
     findFirst: jest.fn(),
-  },
-  receivable: {
-    aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
   },
   $transaction: jest.fn(),
 };
@@ -228,7 +226,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(order);
       mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: 1000, name: 'Cliente X' });
       // em aberto 800 + OV 500 (5 × 100) > limite 1000
-      mockPrisma.receivable.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
+      mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
       mockPrisma.salesOrder.update.mockResolvedValue({
         ...order,
         status: SalesOrderStatus.AWAITING_PICKING,
@@ -253,7 +251,7 @@ describe('SalesService', () => {
       };
       mockPrisma.salesOrder.findFirst.mockResolvedValue(order);
       mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: 10000, name: 'Cliente X' });
-      mockPrisma.receivable.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
+      mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 800 } });
       mockPrisma.salesOrder.update.mockResolvedValue({
         ...order,
         status: SalesOrderStatus.AWAITING_PICKING,
