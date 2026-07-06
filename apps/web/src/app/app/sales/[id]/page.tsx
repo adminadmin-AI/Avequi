@@ -120,6 +120,24 @@ export default function SalesDetailPage() {
     }
   }
 
+  // #491: conferência da carga — dupla checagem antes de liberar a NF-e
+  const confer = useMutation({
+    mutationFn: () =>
+      apiClient.post(`${RESOURCE}/${id}/conference`, {
+        items: (order?.items ?? []).map((it) => ({
+          saleItemId: it.id,
+          quantity: Number(it.quantity),
+          ...(it.serialNumberId && { serialNumberId: it.serialNumberId }),
+        })),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [RESOURCE] });
+      toast.success('Carga conferida — OV liberada para faturamento');
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Divergência na conferência'),
+  });
+
   function submitReturn() {
     if (returnReason.trim().length < 3) {
       toast.error('Informe o motivo (mín. 3 caracteres)');
@@ -214,6 +232,42 @@ export default function SalesDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* #491: Conferência da carga */}
+      {order.status === 'AWAITING_CONFERENCE' && (
+        <Card className="mb-5 border-warning/40">
+          <CardHeader>
+            <CardTitle className="text-base">Conferência da carga</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pb-5">
+            <p className="text-sm text-content-secondary">
+              Confira fisicamente os itens separados. Itens com chassi devem bater com o
+              reboque que sai do pátio — o chassi vai na NF-e e define o emplacamento.
+            </p>
+            <ul className="space-y-1.5">
+              {(order.items ?? []).map((it) => (
+                <li key={it.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                  <span>
+                    {Number(it.quantity)}× {it.product?.name ?? it.productId}
+                  </span>
+                  {it.serialNumber ? (
+                    <span className="font-mono text-xs text-content-secondary">
+                      chassi {it.serialNumber.chassi ?? it.serialNumber.serial}
+                    </span>
+                  ) : it.product?.tracksSerial ? (
+                    <Badge variant="danger">sem chassi</Badge>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <Button onClick={() => confer.mutate()} loading={confer.isPending}>
+                Confirmar carga conferida
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Itens */}
       <Card className="mb-5">

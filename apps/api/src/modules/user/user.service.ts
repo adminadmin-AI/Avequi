@@ -19,11 +19,12 @@ const SELECT_SAFE = {
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, companyId: string) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const { password: _pw, ...rest } = dto;
     return this.prisma.user.create({
-      data: { ...rest, passwordHash },
+      data: { ...rest, companyId, passwordHash },
       select: SELECT_SAFE,
     });
   }
@@ -52,7 +53,9 @@ export class UserService {
 
   async update(id: string, dto: UpdateUserDto, companyId: string) {
     await this.findOne(id, companyId);
-    const { password, ...rest } = dto;
+    // Defesa em profundidade: descarta password (hash separado) e qualquer
+    // companyId injetado no payload — usuário nunca muda de empresa via update
+    const { password, companyId: _ignored, ...rest } = dto as any;
     const data: any = { ...rest };
     if (password) {
       data.passwordHash = await bcrypt.hash(password, 10);

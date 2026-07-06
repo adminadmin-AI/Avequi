@@ -3,14 +3,11 @@ import {
   Get,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
 import { QuerySalesCubeDto } from './dto/query-sales-cube.dto';
 import { QueryProductionCostsDto } from './dto/query-production-costs.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

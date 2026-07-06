@@ -41,6 +41,13 @@ const mockTx = {
   batchEvent: {
     create: jest.fn(),
   },
+  // #225: consume/scrap/adjust sincronizam StockMovement + StockBalance
+  stockMovement: {
+    create: jest.fn(),
+  },
+  stockBalance: {
+    updateMany: jest.fn(),
+  },
 };
 
 const mockPrisma = {

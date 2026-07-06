@@ -1,9 +1,11 @@
 /**
  * Catálogo dos perfis (roles) system do IAM v2 — issue #339 (Fase F2/M1).
  *
- * 25 perfis padrão (`isSystem = true`): os 24 da issue #339 + o perfil "Loja"
- * recomendado pela arquitetura (docs/iam/ARQUITETURA-IAM-V2.md, Parte 4.2)
- * para a migração 1:1 do enum `STORE`.
+ * 28 perfis padrão (`isSystem = true`): os 24 da issue #339 + ajustes de
+ * negócio do Rafael (#463): (a) o perfil "Loja" foi dividido em três em cadeia
+ * de herança — LOJA_OPERACIONAL → LOJA_FATURAMENTO → GERENTE_LOJA (venda,
+ * faturamento controlado e gerência de filial); (b) GERENTE_GERAL, perfil
+ * gerencial amplo que recebe o enum `MANAGER` (antes ia p/ GERENTE_INDUSTRIAL).
  *
  * Coerência: as permissões seguem a matriz RBAC draft da Parte 4.3 da
  * arquitetura e a filosofia do docs/RBAC.md (PR #453): NA DÚVIDA, RESTRINGIR.
@@ -161,6 +163,47 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.dashboards.view',
       'analytics.reports.view',
       'analytics.reports.create',
+    ]),
+  },
+  {
+    code: 'GERENTE_GERAL',
+    name: 'Gerente Geral',
+    description:
+      'Gerência ampla e transversal (recebe o enum MANAGER): opera e enxerga vendas, compras, estoque e produção (CRUD + aprovações operacionais), dashboards e leitura de financeiro/fiscal. Fatura venda (o MANAGER já faturava). PROTEGIDO por padrão (fora deste perfil): administração de permissões/usuários, configuração bancária/cobrança, ações fiscais críticas (cancelamento NF-e, CC-e, inutilização, regras tributárias), devolução/cancelamento sensível de venda e mudanças estruturais de segurança.',
+    permissions: dedupe([
+      ...DASHBOARDS_OPERACIONAIS,
+      'dashboard.finance.view',
+      ...resourceCodes('dashboard', 'alerts'),
+      // Vendas: operação + faturar; SEM devolução/cancelamento sensível
+      'sales.orders.view',
+      'sales.orders.create',
+      'sales.orders.reserve',
+      'sales.orders.confirm',
+      'sales.orders.invoice',
+      ...resourceCodes('sales', 'quotations'),
+      ...resourceCodes('sales', 'demand'),
+      ...resourceCodes('sales', 'forecast'),
+      'sales.commissions.view',
+      ...moduleCodes('customers'),
+      // Compras e fornecedores: operação + aprovações
+      ...moduleCodes('purchases', 'suppliers'),
+      // Estoque e produção: operação completa
+      ...moduleCodes('stock', 'production'),
+      // Produtos
+      'products.catalog.view',
+      'products.catalog.create',
+      'products.catalog.update',
+      'products.pricing.view',
+      'products.pricing.create',
+      // Financeiro e fiscal: SOMENTE leitura (sem operar/configurar)
+      'finance.entries.view',
+      'finance.reports.view',
+      'fiscal.documents.view',
+      // Aprovações operacionais
+      'approvals.requests.view',
+      'approvals.requests.approve',
+      // Analytics
+      ...moduleCodes('analytics'),
     ]),
   },
   {
@@ -538,14 +581,24 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: [...DASHBOARDS_OPERACIONAIS],
   },
 
-  // ── Migração 1:1 do enum STORE (recomendação da arquitetura, Parte 4.2) ────
+  // ── Loja / Filial — split controlado (decisão Rafael, #463) ────────────────
+  // Em vez de um único perfil "Loja" poderoso, três perfis em cadeia de herança:
+  // operação → faturamento → gerência. O faturamento (emitir NF-e) NÃO é
+  // liberado automaticamente: exige atribuir LOJA_FATURAMENTO explicitamente.
   {
-    code: 'LOJA',
-    name: 'Loja (Filial)',
+    code: 'LOJA_OPERACIONAL',
+    name: 'Loja — Operação',
     description:
-      'Perfil da loja/filial: transferências entre filiais (criar/despachar/receber) e solicitações de compra; leitura de produtos e saldos. Equivale ao enum STORE — mantido para a migração 1:1.',
+      'Operação de balcão da loja/filial: vende (criar/reservar/confirmar pedido), cadastra cliente, transferências entre filiais e solicitações de compra; leitura de produto, preço e estoque. NÃO fatura (sem NF-e), não devolve nem cancela venda. Escopo por filial via branchId. Recebe os usuários do enum STORE na migração (espelhamento 1:1).',
     permissions: dedupe([
       'dashboard.stock.view',
+      'dashboard.sales.view',
+      'sales.orders.view',
+      'sales.orders.create',
+      'sales.orders.reserve',
+      'sales.orders.confirm',
+      'customers.registry.view',
+      'customers.registry.create',
       'stock.balances.view',
       'stock.transfers.view',
       'stock.transfers.create',
@@ -556,6 +609,34 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'purchases.requests.cancel',
       'products.catalog.view',
       'products.pricing.view',
+    ]),
+  },
+  {
+    code: 'LOJA_FATURAMENTO',
+    name: 'Loja — Faturamento',
+    description:
+      'Herda Loja — Operação e acrescenta faturar/emitir NF-e do pedido de venda + leitura de documentos fiscais. NÃO cancela NF-e nem faz financeiro. Atribuído manualmente pelo admin a quem realmente fatura na loja (faturamento não é liberado a todo usuário de loja).',
+    parentCode: 'LOJA_OPERACIONAL',
+    permissions: [
+      'sales.orders.invoice',
+      'fiscal.documents.view',
+    ],
+  },
+  {
+    code: 'GERENTE_LOJA',
+    name: 'Gerente de Loja',
+    description:
+      'Herda Loja — Faturamento e acrescenta visão gerencial da filial: dashboards, acompanhamento de vendas/estoque, orçamentos, comissões e alertas. NÃO inclui devolução/cancelamento sensível de venda (reservado para permissão/fase futura) nem cancelamento fiscal crítico. Escopo por filial via branchId.',
+    parentCode: 'LOJA_FATURAMENTO',
+    permissions: dedupe([
+      'dashboard.executive.view',
+      'dashboard.purchases.view',
+      ...resourceCodes('dashboard', 'alerts'),
+      'stock.movements.view',
+      'sales.quotations.view',
+      'sales.commissions.view',
+      'analytics.dashboards.view',
+      'analytics.reports.view',
     ]),
   },
 ];
@@ -572,13 +653,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
 export const ENUM_ROLE_TO_SYSTEM_ROLE: Record<string, string> = {
   SUPER_ADMIN: 'ADMIN_GLOBAL',
   DIRECTOR: 'DIRETOR',
-  MANAGER: 'GERENTE_INDUSTRIAL',
+  // MANAGER = "Gerente Geral" no negócio (não "Gerente Industrial") — decisão
+  // Rafael #463. GERENTE_INDUSTRIAL segue no catálogo para uso real em gerência
+  // industrial, mas o enum antigo mapeia para o perfil amplo GERENTE_GERAL.
+  MANAGER: 'GERENTE_GERAL',
   COMMERCIAL: 'VENDEDOR',
   PRODUCTION: 'OPERADOR_PCP',
   QUALITY: 'QUALIDADE',
   WAREHOUSE: 'ALMOXARIFE',
   FINANCIAL: 'FINANCEIRO',
-  STORE: 'LOJA',
+  STORE: 'LOJA_OPERACIONAL',
   READER: 'SOMENTE_LEITURA',
 };
 

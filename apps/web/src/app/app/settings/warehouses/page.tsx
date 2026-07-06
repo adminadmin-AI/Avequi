@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { Plus, Pencil, Power } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Warehouse, Company } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -17,13 +16,12 @@ import { WarehouseForm, type WarehouseFormValues } from './warehouse-form';
 const RESOURCE = '/warehouses';
 
 export default function WarehousesPage() {
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const toast = useToast();
   const confirm = useConfirm();
 
   const { data: warehouses = [], isLoading } = useList<Warehouse>(RESOURCE);
   const { data: companies = [] } = useList<Company>('/companies');
-  const create = useCreate<Warehouse, WarehouseFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<Warehouse, WarehouseFormValues>(RESOURCE);
   const update = useUpdate<Warehouse>(RESOURCE);
 
   const companyName = useMemo(() => {
@@ -62,7 +60,7 @@ export default function WarehousesPage() {
       );
     } else {
       create.mutate(
-        { ...payload, companyId },
+        payload,
         {
           onSuccess: () => {
             toast.success('Depósito criado');

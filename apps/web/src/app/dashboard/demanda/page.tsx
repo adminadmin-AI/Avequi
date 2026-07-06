@@ -91,7 +91,7 @@ export default function DemandaPage() {
   });
 
   function handleSubmit() {
-    upsertMut.mutate({ companyId, productId: form.productId, period: form.period, quantity: Number(form.quantity), notes: form.notes || undefined });
+    upsertMut.mutate({ productId: form.productId, period: form.period, quantity: Number(form.quantity), notes: form.notes || undefined });
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────

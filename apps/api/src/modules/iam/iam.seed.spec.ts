@@ -34,13 +34,19 @@ function createFakePrisma(users: FakeRecord[] = []) {
       findMany: jest.fn(async () => permissions.map((p) => ({ ...p }))),
     },
     role: {
-      upsert: jest.fn(async ({ where, update, create }: any) => {
-        const found = roles.find((r) => r.code === where.code);
-        if (found) {
-          Object.assign(found, update);
-          return found;
-        }
-        const created = { id: nextId(), parentId: null, companyId: null, ...create };
+      // Espelha o novo padrão do seed (findFirst por code+companyId, depois
+      // create/update) — necessário porque com @@unique([companyId, code]) o
+      // `code` não é mais unique isolado (#462).
+      findFirst: jest.fn(async ({ where }: any) => {
+        const found = roles.find(
+          (r) =>
+            r.code === where.code &&
+            (r.companyId ?? null) === (where.companyId ?? null),
+        );
+        return found ? { ...found } : null;
+      }),
+      create: jest.fn(async ({ data }: any) => {
+        const created = { id: nextId(), parentId: null, companyId: null, ...data };
         roles.push(created);
         return created;
       }),
@@ -223,7 +229,7 @@ describe('Seed de IAM — idempotência (#338/#339)', () => {
     expect(prisma._state.userRoleAssignments.length).toBe(3);
     expect(prisma._state.userRoleAssignments.every((a) => a.grantedBy === SEED_GRANTED_BY)).toBe(true);
 
-    const roleLoja = prisma._state.roles.find((r) => r.code === 'LOJA');
+    const roleLoja = prisma._state.roles.find((r) => r.code === 'LOJA_OPERACIONAL');
     const doU3 = prisma._state.userRoleAssignments.find((a) => a.userId === 'u3');
     expect(doU3.roleId).toBe(roleLoja.id);
 

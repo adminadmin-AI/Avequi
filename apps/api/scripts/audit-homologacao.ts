@@ -99,8 +99,9 @@ function reboqueItem(opts: {
   const interstate = opts.ufDest !== 'PR';
   const icmsAliq = interstate ? 12 : 12; // reboque: 12% interna PR e 12% interestadual
   const interna = CITIES[opts.ufDest].interna;
+  const fcpAliq = CITIES[opts.ufDest].fcpEsperado; // SP/RJ 2% (#445)
   const difal = interstate && opts.consumidorFinal && !opts.contribuinte && interna > icmsAliq
-    ? { baseCalculo: total, aliquotaInterna: interna, aliquotaInterestadual: icmsAliq, valor: r2(total * (interna - icmsAliq) / 100) }
+    ? { baseCalculo: total, aliquotaInterna: interna, aliquotaInterestadual: icmsAliq, valor: r2(total * (interna - icmsAliq) / 100), fcpAliquota: fcpAliq, fcpValor: r2(total * fcpAliq / 100) }
     : undefined;
   const ibs = opts.ibsCbs === false ? undefined : {
     cClassTrib: typeof opts.ibsCbs === 'object' ? opts.ibsCbs.cClassTrib : '000001',
@@ -185,6 +186,7 @@ async function runScenario(
     difal?: { vICMSUFDest: string } | false;
     fcpEsperado?: number;
     vNF?: string;
+    tPag?: string;
   },
 ): Promise<Result> {
   const ref = `GDR-AUD-${RUN}-${id}`;
@@ -222,11 +224,14 @@ async function runScenario(
       checks.push({
         name: `FCP UF destino (regra de negócio: ${expect.fcpEsperado}%)`,
         ok: pFcp === expect.fcpEsperado,
-        detail: `XML envia pFCPUFDest=${pFcp}% — NF-e real #14236 usa 2% p/ SP`,
+        detail: `pFCPUFDest=${pFcp}% (vFCPUFDest=${tag(xml, 'vFCPUFDest') ?? '0'})`,
       });
     }
     if (expect.vNF) {
       checks.push({ name: 'total da nota (vNF)', ok: tag(xml, 'vNF') === expect.vNF, detail: `vNF=${tag(xml, 'vNF')} (esperado ${expect.vNF})` });
+    }
+    if (expect.tPag) {
+      checks.push({ name: `detPag tPag=${expect.tPag} (#479)`, ok: tag(xml, 'tPag') === expect.tPag, detail: `tPag=${tag(xml, 'tPag')}` });
     }
   }
 
@@ -295,9 +300,9 @@ async function main() {
   const roundTotal = r2(3 * 1234.56);
   await runScenario('C3', 'Arredondamento: 3 × R$1.234,56 PR→SC (DIFAL)', nfe(base('SC', 1234.56, { qty: 3 })),
     { difal: { vICMSUFDest: difalV(roundTotal, 17) }, ibscbs: { vCBS: cbs(roundTotal), vIBSUF: ibsUf(roundTotal) }, vNF: roundTotal.toFixed(2) });
-  const descPayload = nfe(base('PR', 45000)) as any;
+  const descPayload = nfe({ ...base('PR', 45000), paymentMethod: '17' }) as any;
   descPayload.items[0].valor_desconto = 500;
-  await runScenario('C4', 'Item com desconto R$500 (PR)', descPayload, { vNF: '44500.00' });
+  await runScenario('C4', 'Item com desconto R$500 + pagamento PIX (tPag 17)', descPayload, { vNF: '44500.00', tPag: '17' });
 
   // ── Bloco D — Ciclo de vida ──
   const transferItem = reboqueItem({ value: 30000, ufDest: 'SC', consumidorFinal: false, contribuinte: true });

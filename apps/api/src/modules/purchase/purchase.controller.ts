@@ -33,7 +33,7 @@ export class PurchaseController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
   @ApiOperation({ summary: 'Criar pedido de compra em rascunho' })
   createPO(@Body() dto: CreatePurchaseOrderDto, @CurrentUser() user: any) {
-    return this.purchaseService.createPO({ ...dto, companyId: user.companyId }, user.id);
+    return this.purchaseService.createPO(dto, user.companyId, user.id);
   }
 
   @Patch('orders/:id')
@@ -126,7 +126,7 @@ export class PurchaseController {
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'STORE')
   @ApiOperation({ summary: 'Criar solicitação de compra' })
   createRequest(@Body() dto: CreatePurchaseRequestDto, @CurrentUser() user: any) {
-    return this.purchaseService.createRequest({ ...dto, companyId: user.companyId }, user.id);
+    return this.purchaseService.createRequest(dto, user.companyId, user.id);
   }
 
   @Get('requests')
@@ -140,6 +140,7 @@ export class PurchaseController {
   }
 
   @Post('requests/:id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE')
   @ApiOperation({ summary: 'Cancelar solicitação de compra' })
   cancelRequest(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.cancelRequest(id, user.companyId);

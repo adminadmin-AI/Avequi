@@ -1,15 +1,15 @@
-import { Body, Controller, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Request } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { MrpService } from './mrp.service';
 
 @ApiTags('MRP')
-@UseGuards(JwtAuthGuard)
 @Controller('mrp')
 export class MrpController {
   constructor(private readonly mrpService: MrpService) {}
 
   @Post('run')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Disparar nova rodada MRP' })
   run(@Request() req: { user: { companyId: string; sub: string } }) {
     return this.mrpService.run(req.user.companyId, req.user.sub);
@@ -40,6 +40,7 @@ export class MrpController {
   }
 
   @Post('suggestions/:id/convert')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Converter sugestão MRP em PO (BUY) ou OP (MAKE)' })
   convert(
     @Param('id') id: string,
@@ -49,6 +50,7 @@ export class MrpController {
   }
 
   @Post('suggestions/convert-batch')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
   @ApiOperation({ summary: 'Converter múltiplas sugestões MRP em PO/OP' })
   convertBatch(
     @Body() body: { suggestionIds: string[] },

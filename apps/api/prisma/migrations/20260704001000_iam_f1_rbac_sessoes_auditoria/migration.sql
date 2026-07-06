@@ -272,7 +272,15 @@ CREATE INDEX "gdr_permissions_module_idx" ON "gdr_permissions"("module");
 CREATE INDEX "gdr_permissions_module_resource_idx" ON "gdr_permissions"("module", "resource");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "gdr_roles_code_key" ON "gdr_roles"("code");
+-- Unicidade de `code` POR empresa/grupo: empresas diferentes podem reutilizar
+-- o mesmo code (ex.: "GERENTE_LOJA") sem colisao.
+CREATE UNIQUE INDEX "gdr_roles_companyId_code_key" ON "gdr_roles"("companyId", "code");
+
+-- CreateIndex
+-- Perfis GLOBAIS/system (companyId IS NULL) precisam de unicidade entre si.
+-- Como o indice composto acima trata NULLs como distintos, este indice PARCIAL
+-- garante que nao existam dois codes globais iguais.
+CREATE UNIQUE INDEX "gdr_roles_code_global_key" ON "gdr_roles"("code") WHERE "companyId" IS NULL;
 
 -- CreateIndex
 CREATE INDEX "gdr_roles_companyId_idx" ON "gdr_roles"("companyId");
