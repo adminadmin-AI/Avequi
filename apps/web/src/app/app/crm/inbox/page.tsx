@@ -24,6 +24,7 @@ import { ConversationSummary, WaMessage, windowRemaining } from './inbox-types';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
+import { TemplateSender } from './template-sender';
 
 /**
  * Inbox WhatsApp (CRM F1.3 #509) — a tela do vendedor. Resposta 100% LIVRE:
@@ -309,9 +310,7 @@ export default function InboxPage() {
                   </Button>
                 </div>
               ) : (
-                <p className="text-center text-xs text-muted-foreground">
-                  Janela de 24h expirada — o reengajamento por template chega na F3.2 (#518).
-                </p>
+                <TemplateSender leadId={selected.leadId} />
               )}
             </footer>
           </>

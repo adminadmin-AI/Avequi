@@ -131,6 +131,7 @@ model Company {
   leads                 Lead[]
   pipelineStages        PipelineStage[]
   whatsappConversations WhatsappConversation[]
+  whatsappTemplates     WhatsappTemplate[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -3596,6 +3597,33 @@ model WhatsappMessage {
   errorDetail    String?              @map("error_detail") // payload de erro da Meta em FAILED
   createdAt      DateTime             @default(now()) @map("created_at")
 
+  /// true = mensagem template paga (fora da janela 24h) — alimenta o custo do F3.1/F4.4
+  isTemplate   Boolean @default(false) @map("is_template")
+  templateName String? @map("template_name")
+
   @@index([conversationId, createdAt])
   @@map("gdr_whatsapp_messages")
+}
+
+/// F3.2 (#518) — templates aprovados no Meta Business p/ reengajar lead fora
+/// da janela de 24h. Sincronizados do painel da Meta (status APPROVED/PENDING/REJECTED).
+model WhatsappTemplate {
+  id            String   @id @default(cuid())
+  companyId     String   @map("company_id")
+  company       Company  @relation(fields: [companyId], references: [id])
+  /// nome do template no Meta (ex: "reengajamento_reboque")
+  name          String
+  language      String   @default("pt_BR")
+  category      String? // MARKETING / UTILITY / AUTHENTICATION
+  status        String   @default("PENDING") // APPROVED / PENDING / REJECTED
+  /// corpo com placeholders {{1}} {{2}} — preview p/ o vendedor
+  bodyText      String?  @map("body_text")
+  /// nº de variáveis do corpo (p/ montar o payload de components)
+  variableCount Int      @default(0) @map("variable_count")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, name, language])
+  @@map("gdr_whatsapp_templates")
 }
