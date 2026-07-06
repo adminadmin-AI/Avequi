@@ -165,4 +165,41 @@ export class CustomerService {
     return customer;
   }
 
+  /** #475 — situação de crédito: limite, em aberto (Receivable OPEN/OVERDUE) e disponível */
+  async creditStatus(id: string, companyId: string) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, companyId },
+      select: {
+        id: true,
+        name: true,
+        creditLimit: true,
+        billingBlocked: true,
+        billingBlockReason: true,
+      },
+    });
+    if (!customer) throw new NotFoundException(`Cliente ${id} não encontrado`);
+    // Em aberto vive em FinancialEntry (AUTO_SALES) — ver nota no sales.service (#475)
+    const open = await this.prisma.financialEntry.aggregate({
+      where: {
+        companyId,
+        type: 'RECEIVABLE' as any,
+        status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
+        salesOrder: { customerId: id },
+      },
+      _sum: { amount: true },
+    });
+    const openReceivables = Number(open._sum.amount ?? 0);
+    const creditLimit = customer.creditLimit ? Number(customer.creditLimit) : null;
+    return {
+      customerId: customer.id,
+      name: customer.name,
+      creditLimit,
+      openReceivables,
+      available: creditLimit != null ? Math.max(0, creditLimit - openReceivables) : null,
+      overLimit: creditLimit != null && openReceivables > creditLimit,
+      billingBlocked: (customer as any).billingBlocked,
+      billingBlockReason: (customer as any).billingBlockReason,
+    };
+  }
+
 }

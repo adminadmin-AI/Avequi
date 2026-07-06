@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerType, IcmsIndicator } from '@prisma/client';
 
@@ -106,6 +106,44 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsBoolean()
   isSimplesNacional?: boolean;
+
+  // ── Crédito e cobrança (#475) ──
+  @ApiPropertyOptional({ example: 50000, description: 'Limite de crédito (R$) — null = sem limite' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  creditLimit?: number;
+
+  @ApiPropertyOptional({ default: false, description: 'Bloqueia confirmação de OV (#475)' })
+  @IsOptional()
+  @IsBoolean()
+  billingBlocked?: boolean;
+
+  @ApiPropertyOptional({ example: 'Inadimplência — 3 títulos vencidos' })
+  @IsOptional()
+  @IsString()
+  billingBlockReason?: string;
+
+  // ── Padrões comerciais (#475) — pré-preenchem a OV ──
+  @ApiPropertyOptional({ description: 'Vendedor padrão (User) — flui até a comissão' })
+  @IsOptional()
+  @IsString()
+  defaultSellerId?: string;
+
+  @ApiPropertyOptional({ example: '30/60/90', description: 'Condição de pagamento padrão' })
+  @IsOptional()
+  @IsString()
+  defaultPaymentTerms?: string;
+
+  @ApiPropertyOptional({ description: 'Transportadora padrão (Carrier)' })
+  @IsOptional()
+  @IsString()
+  defaultCarrierId?: string;
+
+  @ApiPropertyOptional({ description: 'Observações internas — nunca vão para documentos' })
+  @IsOptional()
+  @IsString()
+  internalNotes?: string;
 }
 
 export class CustomerAddressDto {

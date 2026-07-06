@@ -48,10 +48,17 @@ const makeRule = (overrides: Record<string, any> = {}) => ({
 
 describe('TaxCalculationService', () => {
   let service: TaxCalculationService;
-  let prisma: { taxRule: { findMany: jest.Mock } };
+  let prisma: {
+    taxRule: { findMany: jest.Mock };
+    tributaryClassification: { findUnique: jest.Mock };
+  };
 
   beforeEach(async () => {
-    prisma = { taxRule: { findMany: jest.fn() } };
+    prisma = {
+      taxRule: { findMany: jest.fn() },
+      // default: classificação sem redução (gRed só com percRed > 0) (#446)
+      tributaryClassification: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
     const module = await Test.createTestingModule({
       providers: [
         TaxCalculationService,
@@ -158,6 +165,57 @@ describe('TaxCalculationService', () => {
       ufDestino: 'PR',
     });
     expect(rule).toBeNull();
+  });
+
+  // ─── Vigência temporal (#500) ─────────────────────────────────────────────
+
+  it('filtra regras pela vigência com a data de emissão informada', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const emissao = new Date('2027-06-15T12:00:00-03:00');
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      emissionDate: emissao,
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    expect(args.where.AND).toEqual(
+      expect.arrayContaining([
+        { OR: [{ validFrom: null }, { validFrom: { lte: emissao } }] },
+        { OR: [{ validTo: null }, { validTo: { gte: emissao } }] },
+      ]),
+    );
+  });
+
+  it('sem emissionDate usa agora como data de vigência', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const antes = new Date();
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    const usado = args.where.AND[0].OR[1].validFrom.lte as Date;
+    expect(usado.getTime()).toBeGreaterThanOrEqual(antes.getTime());
+    expect(usado.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('desempata por versão mais recente: orderBy priority desc + validFrom desc nulls last', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    await service.findBestRule({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+    });
+    const args = prisma.taxRule.findMany.mock.calls[0][0];
+    expect(args.orderBy).toEqual([
+      { priority: 'desc' },
+      { validFrom: { sort: 'desc', nulls: 'last' } },
+    ]);
   });
 
   // ─── Testes por tipo de operação CFOP (#163) ─────────────────────────────
@@ -423,6 +481,57 @@ describe('TaxCalculationService', () => {
     expect(result.ibsMun).toEqual({ cst: '000', baseCalculo: 1000, aliquota: 0, valor: 0 });
     // Fase teste 2026: IBS/CBS não entram no totalTributos (compensados com PIS/COFINS)
     expect(result.totalTributos).toBe(189 + 50 + 6.5 + 30);
+  });
+
+  it('gRed: CST 200 com redução 60% calcula pAliqEfet e valor efetivo (#446)', async () => {
+    prisma.tributaryClassification.findUnique.mockResolvedValue({
+      percRedIbs: { toString: () => '60' },
+      percRedCbs: { toString: () => '60' },
+    });
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({
+        cClassTrib: '200003',
+        cbsCst: '200',
+        cbsAliquota: dec(0.9),
+        ibsUfCst: '200',
+        ibsUfAliquota: dec(0.1),
+        ibsMunCst: '200',
+        ibsMunAliquota: dec(0),
+      }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      itemValue: 1000,
+    });
+    // CBS: 0,9% × (1 − 60%) = 0,36% → R$ 3,60 sobre R$ 1.000
+    expect(result.cbs).toMatchObject({ aliquota: 0.9, pRedAliq: 60, pAliqEfet: 0.36, valor: 3.6 });
+    // IBS UF: 0,1% × 0,4 = 0,04% → R$ 0,40
+    expect(result.ibsUf).toMatchObject({ aliquota: 0.1, pRedAliq: 60, pAliqEfet: 0.04, valor: 0.4 });
+    // IBS Mun alíquota 0: efetiva 0, mas gRed presente (CST 2xx exige)
+    expect(result.ibsMun).toMatchObject({ pRedAliq: 60, pAliqEfet: 0, valor: 0 });
+    expect(prisma.tributaryClassification.findUnique).toHaveBeenCalledWith({
+      where: { code: '200003' },
+      select: { percRedIbs: true, percRedCbs: true },
+    });
+  });
+
+  it('gRed ausente quando a classificação não tem redução (#446)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({ cClassTrib: '000001', cbsCst: '000', cbsAliquota: dec(0.9), ibsUfAliquota: dec(0.1), ibsMunAliquota: dec(0) }),
+    ]);
+    const result = await service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      itemValue: 1000,
+    });
+    expect(result.cbs!.pRedAliq).toBeUndefined();
+    expect(result.cbs!.pAliqEfet).toBeUndefined();
+    expect(result.cbs!.valor).toBe(9);
   });
 
   it('calcula FCP do UF destino no DIFAL quando a regra tem fcpAliquotaDestino (#445)', async () => {
