@@ -67,7 +67,9 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     code !== 'settings.users.view' &&
     code !== 'approvals.requests.view' &&
     code !== 'dashboard.finance.view' &&
-    code !== 'suppliers.portal-tokens.view',
+    code !== 'suppliers.portal-tokens.view' &&
+    // Trilha de auditoria (iam.*) é sensível: fora do perfil somente-leitura
+    !code.startsWith('iam.'),
 );
 
 export const SYSTEM_ROLES: SystemRoleDef[] = [
@@ -120,9 +122,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'DIRETOR',
     name: 'Diretor',
     description:
-      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR.',
+      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR. NÃO vê a trilha de auditoria (iam.audit-logs): logs podem conter dados sensíveis de segurança/operação — restritos a ADMIN_GLOBAL, ADMIN_EMPRESA e AUDITOR (decisão Rafael, #341).',
     permissions: dedupe([
-      ...actionCodes('view'),
+      // Trilha de auditoria (iam.*) fica FORA da diretoria — ver descrição.
+      ...actionCodes('view').filter((code) => !code.startsWith('iam.')),
       'products.catalog.update',
       'production.bom.activate',
       'purchases.orders.approve',
@@ -561,7 +564,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'AUDITOR',
     name: 'Auditor',
     description:
-      'Vê TUDO (inclusive financeiro, comissões, usuários, LGPD e fila de aprovações) e exporta; nenhuma mutação. As permissões de auditoria (audit.logs.*) entram na F5 (#343), quando os endpoints existirem.',
+      'Vê TUDO (inclusive financeiro, comissões, usuários, LGPD, fila de aprovações e a trilha de auditoria iam.audit-logs) e exporta; nenhuma mutação.',
     permissions: dedupe([
       ...actionCodes('view'),
       'analytics.export.execute',

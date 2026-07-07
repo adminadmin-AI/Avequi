@@ -22,11 +22,15 @@ import { ShadowModeService } from './shadow-mode.service';
  * + MFA/2FA TOTP com backup codes e EncryptionService (issue #344, Fase F4.1)
  * + password policy: complexidade, histórico e rotação (issue #345, F4.2).
  *
- * O PermissionService segue em shadow mode (nenhum guard novo). O
- * SessionService já é CONSUMIDO pelo AuthModule (login cria sessão, refresh
- * mantém, logout revoga); a consulta de denylist
+ * O PermissionService agora TAMBÉM alimenta o PermissionGuard global (#341,
+ * F5.1 — common/guards/permission.guard.ts): enforcement real nas rotas com
+ * @RequirePermission (por ora, só o módulo IAM — dogfooding; os demais
+ * controllers migram na parte 2, após o merge do PR #453). O shadow mode
+ * segue disponível para os endpoints que só têm @Roles. O SessionService já
+ * é CONSUMIDO pelo AuthModule (login cria sessão, refresh mantém, logout
+ * revoga); a consulta de denylist
  * (SessionDenylistService.isSessionDenylisted) fica exposta para o
- * JwtAuthGuard da issue #341 (Onda B).
+ * JwtAuthGuard (pendência da #341).
  *
  * O AuditService é exportado para o AuditInterceptor global (app.module) e
  * para services que adotarem logWithDiff() gradualmente (Decisão 5).
