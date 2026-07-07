@@ -13,6 +13,10 @@ import { WhatsappController } from './whatsapp.controller';
 import { WhatsappService } from './whatsapp.service';
 import { WHATSAPP_QUEUE } from './whatsapp.types';
 import { getQueueToken } from '@nestjs/bull';
+import { webmOpusToOgg } from './audio.util';
+
+// remux real usa ffmpeg — nos testes do service basta simular o resultado
+jest.mock('./audio.util', () => ({ webmOpusToOgg: jest.fn() }));
 
 const COMPANY = 'company-1';
 
@@ -302,6 +306,63 @@ describe('WhatsappService.send', () => {
       await expect(
         service.sendUploadedMedia(COMPANY, 'lead-1', img, undefined, 'seller-1'),
       ).rejects.toThrow(/Janela de 24h expirada/);
+    });
+  });
+
+  describe('áudio gravado no browser (F3.5-C6 #556)', () => {
+    const webm = {
+      buffer: Buffer.from('webm-opus-fake'),
+      mimetype: 'audio/webm;codecs=opus',
+      originalname: 'voice-note.webm',
+      size: 2048,
+    };
+
+    beforeEach(() => {
+      (webmOpusToOgg as jest.Mock).mockReset();
+    });
+
+    it('audio/webm é remuxado p/ ogg antes de subir (Meta recusa webm)', async () => {
+      (webmOpusToOgg as jest.Mock).mockResolvedValue(Buffer.from('OggS-fake'));
+      http.post
+        .mockReturnValueOnce(of({ data: { id: 'media-audio-1' } }))
+        .mockReturnValueOnce(of({ data: { messages: [{ id: 'wamid.a1' }] } }));
+
+      await service.sendUploadedMedia(COMPANY, 'lead-1', webm, undefined, 'seller-1');
+
+      expect(webmOpusToOgg).toHaveBeenCalledWith(webm.buffer);
+      // upload declara audio/ogg (não webm) e envia como type audio
+      const uploadForm = http.post.mock.calls[0][1] as FormData;
+      expect(uploadForm.get('type')).toBe('audio/ogg');
+      const sendPayload = http.post.mock.calls[1][1];
+      expect(sendPayload.type).toBe('audio');
+      expect(sendPayload.audio.id).toBe('media-audio-1');
+      expect(sendPayload.audio.caption).toBeUndefined(); // Meta não aceita caption em áudio
+      // a mensagem gravada preserva o mime final
+      const created = prisma.$transaction.mock.calls[0][0];
+      expect(created).toBeDefined();
+    });
+
+    it('áudio já suportado (mp4/aac do Safari) passa direto, sem conversão', async () => {
+      http.post
+        .mockReturnValueOnce(of({ data: { id: 'media-audio-2' } }))
+        .mockReturnValueOnce(of({ data: { messages: [{ id: 'wamid.a2' }] } }));
+      await service.sendUploadedMedia(
+        COMPANY,
+        'lead-1',
+        { ...webm, mimetype: 'audio/mp4', originalname: 'voice-note.m4a' },
+        undefined,
+        'seller-1',
+      );
+      expect(webmOpusToOgg).not.toHaveBeenCalled();
+      expect((http.post.mock.calls[0][1] as FormData).get('type')).toBe('audio/mp4');
+    });
+
+    it('falha na conversão → 400 orientando anexo mp3/m4a (não sobe nada)', async () => {
+      (webmOpusToOgg as jest.Mock).mockRejectedValue(new Error('ffmpeg saiu com 1'));
+      await expect(
+        service.sendUploadedMedia(COMPANY, 'lead-1', webm, undefined, 'seller-1'),
+      ).rejects.toThrow(/Não foi possível converter o áudio/);
+      expect(http.post).not.toHaveBeenCalled();
     });
   });
 });
