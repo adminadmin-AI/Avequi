@@ -10,6 +10,7 @@ import { LeadConversionService } from './lead-conversion.service';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
+import { QuickReplyService } from './quick-reply.service';
 import { FollowupScheduler } from './followup.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
@@ -40,6 +41,7 @@ import { SiteLeadController } from './connectors/site.controller';
     CrmDashboardService,
     WhatsappTemplateService,
     CrmSettingsService,
+    QuickReplyService,
     FollowupScheduler,
     CrmListener,
     WhatsappService,

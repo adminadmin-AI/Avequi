@@ -227,7 +227,8 @@ export class WhatsappService {
       const form = new FormData();
       form.append('messaging_product', 'whatsapp');
       form.append('type', file.mimetype);
-      form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+      // Uint8Array satisfaz BlobPart — Buffer não (tipagem SharedArrayBuffer do Node 22)
+      form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname);
       const up = await firstValueFrom(
         this.http.post(`${this.graphBase()}/${company.waPhoneNumberId}/media`, form, {
           headers: { Authorization: `Bearer ${this.accessToken()}` },

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -18,9 +18,10 @@ import { LeadConversionService } from './lead-conversion.service';
 import { CrmDashboardService } from './crm-dashboard.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
+import { QuickReplyService } from './quick-reply.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
-import { IsArray, IsBoolean, IsInt, IsPositive, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
 
 class ReassignLeadDto {
   @ApiProperty({ description: 'Vendedor destino' })
@@ -95,6 +96,27 @@ class SellerAvailabilityDto {
   @ApiProperty() @IsBoolean() available: boolean;
 }
 
+class CreateQuickReplyDto {
+  @ApiProperty({ description: 'Atalho sem a barra (ex: "pix")' })
+  @IsString()
+  @MaxLength(30)
+  shortcut: string;
+
+  @ApiProperty({ description: 'Texto da resposta; suporta a variável {nome}' })
+  @IsString()
+  @MaxLength(4000)
+  text: string;
+
+  @ApiProperty({ enum: ['STORE', 'PERSONAL'], description: 'Compartilhada da loja ou pessoal' })
+  @IsIn(['STORE', 'PERSONAL'])
+  scope: 'STORE' | 'PERSONAL';
+}
+
+class UpdateQuickReplyDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) shortcut?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(4000) text?: string;
+}
+
 /** Resolve o intervalo do dashboard a partir de ?days= (default 30) */
 function resolveRange(companyId: string, daysRaw?: string) {
   const days = Math.min(Math.max(parseInt(daysRaw ?? '30', 10) || 30, 1), 365);
@@ -115,7 +137,37 @@ export class CrmController {
     private readonly dashboard: CrmDashboardService,
     private readonly templates: WhatsappTemplateService,
     private readonly settings: CrmSettingsService,
+    private readonly quickReplies: QuickReplyService,
   ) {}
+
+  // ── Respostas rápidas (F3.5-C3 #553) ────────────────────────────────────────
+
+  @Get('quick-replies')
+  @ApiOperation({ summary: 'Respostas rápidas visíveis (loja + pessoais do vendedor)' })
+  quickRepliesList(@CurrentUser() user: any) {
+    return this.quickReplies.list({ id: user.id, companyId: user.companyId, role: user.role });
+  }
+
+  @Post('quick-replies')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Criar resposta rápida (escopo loja exige gerente)' })
+  quickReplyCreate(@Body() dto: CreateQuickReplyDto, @CurrentUser() user: any) {
+    return this.quickReplies.create({ id: user.id, companyId: user.companyId, role: user.role }, dto);
+  }
+
+  @Patch('quick-replies/:id')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Editar resposta rápida (pessoal só pelo dono)' })
+  quickReplyUpdate(@Param('id') id: string, @Body() dto: UpdateQuickReplyDto, @CurrentUser() user: any) {
+    return this.quickReplies.update({ id: user.id, companyId: user.companyId, role: user.role }, id, dto);
+  }
+
+  @Delete('quick-replies/:id')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Excluir resposta rápida' })
+  quickReplyRemove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.quickReplies.remove({ id: user.id, companyId: user.companyId, role: user.role }, id);
+  }
 
   // ── Configuração (F3.5-C1 #551) ─────────────────────────────────────────────
 

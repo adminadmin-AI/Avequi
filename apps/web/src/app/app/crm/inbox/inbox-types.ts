@@ -68,6 +68,21 @@ export interface LeadDetail {
   activities: LeadActivity[];
 }
 
+/** Resposta rápida (F3.5-C3 #553): owner null = compartilhada da loja */
+export interface QuickReply {
+  id: string;
+  shortcut: string;
+  text: string;
+  ownerId: string | null;
+  owner: { id: string; name: string } | null;
+}
+
+/** Resolve as variáveis da resposta rápida ({nome} = primeiro nome do lead) */
+export function renderQuickReply(text: string, leadName: string | null | undefined): string {
+  const firstName = leadName?.trim().split(/\s+/)[0] ?? '';
+  return text.replaceAll('{nome}', firstName);
+}
+
 export const SOURCE_LABEL: Record<string, string> = {
   WHATSAPP: 'WhatsApp',
   META_ADS: 'Meta Ads',
