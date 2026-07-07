@@ -67,7 +67,8 @@ describe('Catálogo de permissões (#338)', () => {
     // Se este número mudar, foi intencional? Atualize junto com o PR que
     // adiciona/remove endpoints.
     // 229 = 226 + 3 da #352 (iam.roles.view / iam.roles.manage / iam.roles.assign)
-    expect(PERMISSIONS_CATALOG.length).toBe(229);
+    // 232 = 229 + 3 da #347 (iam.org.view / iam.org.manage / iam.org.assign)
+    expect(PERMISSIONS_CATALOG.length).toBe(232);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

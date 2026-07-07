@@ -8,6 +8,8 @@ import { AuditProcessor } from './audit.processor';
 import { AuditService } from './audit.service';
 import { AUDIT_QUEUE } from './audit.types';
 import { MfaService } from './mfa.service';
+import { OrgStructureController } from './org-structure.controller';
+import { OrgStructureService } from './org-structure.service';
 import { PasswordPolicyService } from './password-policy.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { PermissionService } from './permission.service';
@@ -45,12 +47,18 @@ import { UserAccessService } from './user-access.service';
     PrismaModule,
     BullModule.registerQueue({ name: AUDIT_QUEUE }),
   ],
-  controllers: [AuditController, RolesAdminController, UserAccessController],
+  controllers: [
+    AuditController,
+    OrgStructureController,
+    RolesAdminController,
+    UserAccessController,
+  ],
   providers: [
     AuditProcessor,
     AuditService,
     EncryptionService,
     MfaService,
+    OrgStructureService,
     PasswordPolicyService,
     PermissionCacheService,
     PermissionService,

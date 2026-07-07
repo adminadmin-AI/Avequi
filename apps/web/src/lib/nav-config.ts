@@ -208,6 +208,11 @@ export const NAV: NavSection[] = [
       // só UX (o backend é a autoridade); a visibilidade fina por permissão
       // (<Can permission="iam.roles.view">) entra com o #472 (/auth/me/permissions).
       { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound },
+      // Organização (#347, F5.2 fase 1): idem — SEM gate de enum. O acesso segue
+      // a matriz RBAC v2 (iam.org.view: ADMIN_GLOBAL/ADMIN_EMPRESA/DIRETOR/RH/
+      // ADMIN_FILIAL/AUDITOR). O enum legado não expressa esses perfis. Só UX;
+      // o backend (@RequirePermission) é a autoridade.
+      { href: '/app/settings/organization', label: 'Organização', icon: Network },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, roles: ADMIN_ROLES },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, roles: ['SUPER_ADMIN', 'DIRECTOR'] },
       { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, roles: ['SUPER_ADMIN'] },
