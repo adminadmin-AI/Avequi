@@ -19,6 +19,7 @@ import { CrmDashboardService } from './crm-dashboard.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
 import { QuickReplyService } from './quick-reply.service';
+import { ReminderService } from './reminder.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -117,6 +118,24 @@ class UpdateQuickReplyDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(4000) text?: string;
 }
 
+class AddNoteDto {
+  @ApiProperty({ description: 'Texto da nota manual (vai pra timeline)' })
+  @IsString()
+  @MaxLength(4000)
+  text: string;
+}
+
+class CreateReminderDto {
+  @ApiProperty({ description: 'O que fazer (ex: "ligar amanhã 14h")' })
+  @IsString()
+  @MaxLength(300)
+  text: string;
+
+  @ApiProperty({ description: 'Vencimento ISO-8601 (futuro)' })
+  @IsString()
+  dueAt: string;
+}
+
 /** Resolve o intervalo do dashboard a partir de ?days= (default 30) */
 function resolveRange(companyId: string, daysRaw?: string) {
   const days = Math.min(Math.max(parseInt(daysRaw ?? '30', 10) || 30, 1), 365);
@@ -138,7 +157,54 @@ export class CrmController {
     private readonly templates: WhatsappTemplateService,
     private readonly settings: CrmSettingsService,
     private readonly quickReplies: QuickReplyService,
+    private readonly reminders: ReminderService,
   ) {}
+
+  // ── Notas e lembretes (F3.5-C5 #555) ────────────────────────────────────────
+
+  @Post('leads/:id/notes')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Adicionar nota manual à timeline do lead' })
+  addNote(@Param('id') id: string, @Body() dto: AddNoteDto, @CurrentUser() user: any) {
+    return this.reminders.addNote(this.actor(user), id, dto.text);
+  }
+
+  @Get('leads/:id/reminders')
+  @ApiOperation({ summary: 'Lembretes pendentes do lead' })
+  leadReminders(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.reminders.listByLead(this.actor(user), id);
+  }
+
+  @Post('leads/:id/reminders')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Agendar lembrete de follow-up ("ligar amanhã 14h")' })
+  createReminder(@Param('id') id: string, @Body() dto: CreateReminderDto, @CurrentUser() user: any) {
+    return this.reminders.createReminder(this.actor(user), id, dto);
+  }
+
+  @Get('reminders')
+  @ApiOperation({ summary: 'Meus lembretes pendentes (vencidos primeiro)' })
+  myReminders(@CurrentUser() user: any) {
+    return this.reminders.listMine(this.actor(user));
+  }
+
+  @Patch('reminders/:id/done')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Concluir lembrete' })
+  reminderDone(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.reminders.markDone(this.actor(user), id);
+  }
+
+  @Delete('reminders/:id')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Excluir lembrete' })
+  reminderRemove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.reminders.remove(this.actor(user), id);
+  }
+
+  private actor(user: any) {
+    return { id: user.id, companyId: user.companyId, role: user.role };
+  }
 
   // ── Respostas rápidas (F3.5-C3 #553) ────────────────────────────────────────
 
