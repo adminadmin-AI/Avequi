@@ -21,10 +21,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
-import { ConversationSummary, WaMessage, windowRemaining } from './inbox-types';
+import {
+  ConversationSummary,
+  QuickReply,
+  WaMessage,
+  renderQuickReply,
+  windowRemaining,
+} from './inbox-types';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
+import { QuickReplyPicker } from './quick-reply-picker';
 import { TemplateSender } from './template-sender';
 
 /**
@@ -43,6 +50,8 @@ export default function InboxPage() {
   const [showPanel, setShowPanel] = useState(false);
   const [draft, setDraft] = useState('');
   const [newLeadOpen, setNewLeadOpen] = useState(false);
+  const [pickerIndex, setPickerIndex] = useState(0);
+  const [pickerDismissed, setPickerDismissed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const knownLeads = useRef<Set<string>>(new Set());
 
@@ -113,6 +122,65 @@ export default function InboxPage() {
     const text = draft.trim();
     if (!text || !selectedLeadId || send.isPending) return;
     send.mutate(text);
+  }
+
+  // ── Respostas rápidas (F3.5-C3 #553): "/" abre a lista, Tab/Enter expande ──
+  const { data: quickReplies = [] } = useQuery<QuickReply[]>({
+    queryKey: ['crm-quick-replies'],
+    queryFn: async () => (await apiClient.get('/crm/quick-replies')).data,
+    staleTime: 60_000,
+  });
+
+  // draft do tipo "/" ou "/atalho-parcial" → termo de busca; senão picker fechado
+  const slashQuery = useMemo(() => {
+    const m = draft.match(/^\/([a-z0-9_-]*)$/i);
+    return m ? m[1].toLowerCase() : null;
+  }, [draft]);
+
+  const pickerMatches = useMemo(() => {
+    if (slashQuery == null || pickerDismissed) return [];
+    // API devolve pessoais primeiro — em atalho repetido, a pessoal vence
+    const seen = new Set<string>();
+    return quickReplies.filter((q) => {
+      if (!q.shortcut.startsWith(slashQuery) || seen.has(q.shortcut)) return false;
+      seen.add(q.shortcut);
+      return true;
+    });
+  }, [slashQuery, pickerDismissed, quickReplies]);
+
+  useEffect(() => {
+    setPickerIndex(0);
+    if (slashQuery == null) setPickerDismissed(false); // Esc vale só p/ o "/" atual
+  }, [slashQuery]);
+
+  function pickQuickReply(q: QuickReply) {
+    setDraft(renderQuickReply(q.text, selected?.lead.name));
+    setPickerDismissed(false);
+  }
+
+  function handleComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (pickerMatches.length > 0) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const delta = e.key === 'ArrowDown' ? 1 : -1;
+        setPickerIndex((i) => (i + delta + pickerMatches.length) % pickerMatches.length);
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        pickQuickReply(pickerMatches[pickerIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setPickerDismissed(true);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   }
 
   const windowLeft = selected ? windowRemaining(selected.windowExpiresAt) : null;
@@ -301,7 +369,12 @@ export default function InboxPage() {
 
             <footer className="border-t p-3">
               {windowLeft ? (
-                <div className="flex items-end gap-2">
+                <div className="relative flex items-end gap-2">
+                  <QuickReplyPicker
+                    matches={pickerMatches}
+                    activeIndex={pickerIndex}
+                    onPick={pickQuickReply}
+                  />
                   <label
                     className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
                     title="Anexar foto/PDF"
@@ -325,16 +398,11 @@ export default function InboxPage() {
                   </label>
                   <textarea
                     className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
-                    placeholder="Escreva livremente... (Enter envia, Shift+Enter quebra linha)"
+                    placeholder='Escreva livremente... ("/" abre respostas rápidas, Enter envia)'
                     rows={1}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
+                    onKeyDown={handleComposerKeyDown}
                   />
                   <Button onClick={handleSend} disabled={!draft.trim() || send.isPending} aria-label="Enviar">
                     {send.isPending ? (

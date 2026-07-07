@@ -42,6 +42,7 @@ import {
   Wrench,
   Zap,
   MessageCircle,
+  MessageSquareText,
   KanbanSquare,
   Settings2,
   Timer,
@@ -106,6 +107,7 @@ export const NAV: NavSection[] = [
     items: [
       { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle },
       { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare },
+      { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText },
       { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },

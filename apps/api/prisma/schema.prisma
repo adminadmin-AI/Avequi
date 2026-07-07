@@ -132,6 +132,7 @@ model Company {
   pipelineStages        PipelineStage[]
   whatsappConversations WhatsappConversation[]
   whatsappTemplates     WhatsappTemplate[]
+  quickReplies          QuickReply[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -301,6 +302,7 @@ model User {
   assignedLeads             Lead[]                 @relation("LeadAssignee")
   /// Vendedor disponível p/ receber lead no rodízio (#513) — férias/folga = false
   crmAvailable              Boolean                @default(true) @map("crm_available")
+  quickReplies              QuickReply[] // F3.5-C3 (#553) — respostas rápidas pessoais
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
   createdAt                 DateTime               @default(now())
@@ -3626,4 +3628,25 @@ model WhatsappTemplate {
 
   @@unique([companyId, name, language])
   @@map("gdr_whatsapp_templates")
+}
+
+/// F3.5-C3 (#553) — resposta rápida (canned response) do inbox, DENTRO da janela
+/// 24h (custo zero — não confundir com WhatsappTemplate, que é pago). ownerId null
+/// = compartilhada da loja; preenchido = pessoal do vendedor. Unicidade do atalho
+/// por escopo é validada no QuickReplyService (Postgres trata NULLs como distintos).
+model QuickReply {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  company   Company  @relation(fields: [companyId], references: [id])
+  /// atalho sem a barra, normalizado minúsculo (ex: "pix" → vendedor digita "/pix")
+  shortcut  String   @db.VarChar(30)
+  /// corpo da resposta; suporta a variável {nome} (primeiro nome do lead, resolvida no inbox)
+  text      String
+  ownerId   String?  @map("owner_id")
+  owner     User?    @relation(fields: [ownerId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, shortcut])
+  @@map("gdr_quick_replies")
 }
