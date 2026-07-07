@@ -13,6 +13,7 @@ const mockPrisma = {
   bankAccount: { findMany: jest.fn() },
   stockBalance: { findMany: jest.fn() },
   saleItem: { findMany: jest.fn() },
+  fiscalDocumentItem: { findMany: jest.fn() },
 };
 
 describe('FinanceKpiService (#382/#387)', () => {
@@ -31,6 +32,7 @@ describe('FinanceKpiService (#382/#387)', () => {
     mockPrisma.bankAccount.findMany.mockResolvedValue([]);
     mockPrisma.stockBalance.findMany.mockResolvedValue([]);
     mockPrisma.saleItem.findMany.mockResolvedValue([]);
+    mockPrisma.fiscalDocumentItem.findMany.mockResolvedValue([]);
   });
 
   it('calcula PMP e PMR como média de paidAt − createdAt em dias', async () => {
@@ -104,4 +106,44 @@ describe('FinanceKpiService (#382/#387)', () => {
     expect(kpis.caixaDisponivel).toBe(0);
     expect(kpis.endividamentoLiquido).toBe(0);
   });
+
+  // ─── Margem de contribuição por SKU (#386) ────────────────────────────────
+
+  it('margem por SKU: receita − custo − impostos, ordenada por margem', async () => {
+    mockPrisma.saleItem.findMany.mockResolvedValue([
+      { productId: 'p1', quantity: 2, unitPrice: 5000, product: { sku: 'MOD-CAR-001', name: 'Carga 1,5m', avgCost: 3000 } },
+      { productId: 'p1', quantity: 1, unitPrice: 5000, product: { sku: 'MOD-CAR-001', name: 'Carga 1,5m', avgCost: 3000 } },
+      { productId: 'p2', quantity: 1, unitPrice: 800, product: { sku: 'ACC-001', name: 'Acessório', avgCost: 900 } },
+    ]);
+    mockPrisma.fiscalDocumentItem.findMany.mockResolvedValue([
+      { productId: 'p1', taxes: [{ valorIcms: 1800, valorIpi: 0, valorPis: 0, valorCofins: 0, difalValor: 0, difalFcpValor: 0 }] },
+      { productId: 'p2', taxes: [{ valorIcms: 96, valorPis: 5.2, valorCofins: 24 }] },
+    ]);
+
+    const result = await service.getMarginBySku('co-1');
+    expect(result.items).toHaveLength(2);
+    const p1 = result.items[0];
+    // receita 15000, custo 9000, impostos 1800 → margem 4200 (28%)
+    expect(p1.sku).toBe('MOD-CAR-001');
+    expect(p1.quantidade).toBe(3);
+    expect(p1.receita).toBe(15000);
+    expect(p1.custo).toBe(9000);
+    expect(p1.impostos).toBe(1800);
+    expect(p1.margemContribuicao).toBe(4200);
+    expect(p1.margemPct).toBe(28);
+    // p2: 800 − 900 − 125.2 = −225.2 (margem NEGATIVA aparece — é o ponto do relatório)
+    const p2 = result.items[1];
+    expect(p2.margemContribuicao).toBe(-225.2);
+    expect(result.totais.margemContribuicao).toBe(4200 - 225.2);
+  });
+
+  it('margem sem impostos persistidos usa 0 (não quebra)', async () => {
+    mockPrisma.saleItem.findMany.mockResolvedValue([
+      { productId: 'p1', quantity: 1, unitPrice: 1000, product: { sku: 'X', name: 'X', avgCost: 400 } },
+    ]);
+    const result = await service.getMarginBySku('co-1');
+    expect(result.items[0].impostos).toBe(0);
+    expect(result.items[0].margemContribuicao).toBe(600);
+  });
+
 });

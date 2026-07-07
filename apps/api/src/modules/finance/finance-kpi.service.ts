@@ -74,6 +74,116 @@ export class FinanceKpiService {
     };
   }
 
+  /**
+   * #386 — Margem de contribuição por SKU (Wellington 5.4 Pricing).
+   * receita (SaleItem faturado) − custo (avgCost × qtd) − impostos destacados
+   * (FiscalDocumentItemTax: ICMS+IPI+PIS+COFINS+DIFAL/FCP das NF-e AUTORIZADAS).
+   */
+  async getMarginBySku(companyId: string, filters: { from?: string; to?: string } = {}) {
+    const to = filters.to ? new Date(`${filters.to}T23:59:59-03:00`) : new Date();
+    const from = filters.from
+      ? new Date(`${filters.from}T00:00:00-03:00`)
+      : new Date(to.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const vendidos = await this.prisma.saleItem.findMany({
+      where: {
+        salesOrder: { companyId, status: 'INVOICED' as any, invoicedAt: { gte: from, lte: to } },
+      },
+      select: {
+        quantity: true,
+        unitPrice: true,
+        productId: true,
+        product: { select: { sku: true, name: true, avgCost: true } },
+      },
+    });
+
+    // impostos por produto — itens fiscais das NF-e autorizadas do período
+    const fiscalItems = await this.prisma.fiscalDocumentItem.findMany({
+      where: {
+        productId: { not: null },
+        fiscalDocument: {
+          companyId,
+          status: 'AUTHORIZED' as any,
+          salesOrder: { invoicedAt: { gte: from, lte: to } },
+        },
+      },
+      select: { productId: true, taxes: true },
+    });
+    const impostosPorProduto = new Map<string, number>();
+    for (const fi of fiscalItems) {
+      const t = (fi as any).taxes?.[0] ?? (fi as any).taxes;
+      const taxes = Array.isArray((fi as any).taxes) ? (fi as any).taxes : t ? [t] : [];
+      const total = taxes.reduce(
+        (s: number, tx: any) =>
+          s +
+          Number(tx?.valorIcms ?? 0) +
+          Number(tx?.valorIpi ?? 0) +
+          Number(tx?.valorPis ?? 0) +
+          Number(tx?.valorCofins ?? 0) +
+          Number(tx?.difalValor ?? 0) +
+          Number(tx?.difalFcpValor ?? 0),
+        0,
+      );
+      impostosPorProduto.set(fi.productId!, (impostosPorProduto.get(fi.productId!) ?? 0) + total);
+    }
+
+    const porProduto = new Map<
+      string,
+      { sku: string; name: string; qty: number; receita: number; custo: number }
+    >();
+    for (const i of vendidos) {
+      const b = porProduto.get(i.productId) ?? {
+        sku: i.product?.sku ?? i.productId,
+        name: i.product?.name ?? '',
+        qty: 0,
+        receita: 0,
+        custo: 0,
+      };
+      const qty = Number(i.quantity);
+      b.qty += qty;
+      b.receita += qty * Number(i.unitPrice);
+      b.custo += qty * Number(i.product?.avgCost ?? 0);
+      porProduto.set(i.productId, b);
+    }
+
+    const items = [...porProduto.entries()]
+      .map(([productId, b]) => {
+        const impostos = round2(impostosPorProduto.get(productId) ?? 0);
+        const margem = round2(b.receita - b.custo - impostos);
+        return {
+          productId,
+          sku: b.sku,
+          name: b.name,
+          quantidade: b.qty,
+          receita: round2(b.receita),
+          custo: round2(b.custo),
+          impostos,
+          margemContribuicao: margem,
+          margemPct: b.receita > 0 ? round1((margem / b.receita) * 100) : null,
+        };
+      })
+      .sort((a, b) => b.margemContribuicao - a.margemContribuicao);
+
+    const totais = items.reduce(
+      (acc, i) => ({
+        receita: acc.receita + i.receita,
+        custo: acc.custo + i.custo,
+        impostos: acc.impostos + i.impostos,
+        margemContribuicao: acc.margemContribuicao + i.margemContribuicao,
+      }),
+      { receita: 0, custo: 0, impostos: 0, margemContribuicao: 0 },
+    );
+
+    return {
+      period: { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) },
+      totais: {
+        ...mapRound2(totais),
+        margemPct: totais.receita > 0 ? round1((totais.margemContribuicao / totais.receita) * 100) : null,
+      },
+      items,
+    };
+  }
+
   /** PMP/PMR: média de (paidAt − createdAt) em dias das entries PAID no período */
   private async prazoMedio(
     companyId: string,
@@ -168,6 +278,10 @@ export class FinanceKpiService {
     const total = Number(paid._sum.paidAmount ?? paid._sum.amount ?? 0);
     return total / 90;
   }
+}
+
+function mapRound2<T extends Record<string, number>>(obj: T): T {
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, Math.round((v as number) * 100) / 100])) as T;
 }
 
 function round1(v: number): number {

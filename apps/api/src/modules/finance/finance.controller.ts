@@ -79,6 +79,18 @@ export class FinanceController {
     return this.kpiService.getKpis(req.user.companyId, { from, to });
   }
 
+  @Get('margin-by-sku')
+  @ApiOperation({ summary: 'Margem de contribuição por SKU — receita × custo × impostos (#386)' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  getMarginBySku(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.kpiService.getMarginBySku(req.user.companyId, { from, to });
+  }
+
   @Get('reports/dre')
   @ApiOperation({ summary: 'DRE gerencial por período' })
   @ApiQuery({ name: 'from', required: false })
