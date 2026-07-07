@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CollectionAttemptChannel, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
@@ -16,7 +17,10 @@ import { TriggerCollectionDto } from './dto/trigger-collection.dto';
 export class FinanceService {
   private readonly logger = new Logger(FinanceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly advanceService: SupplierAdvanceService,
+  ) {}
 
   // ─── S09.02: Gerar CR de venda confirmada ────────────────────────────────
 
@@ -106,6 +110,20 @@ export class FinanceService {
     });
 
     this.logger.log(`PAYABLE criado: ${entry.id} — GR ${params.goodsReceiptId} — R$ ${params.amount}`);
+
+    // #393: abate adiantamentos abertos do fornecedor automaticamente
+    try {
+      const po = await this.prisma.purchaseOrder.findUnique({
+        where: { id: params.purchaseOrderId },
+        select: { supplierId: true },
+      });
+      if (po?.supplierId) {
+        await this.advanceService.applyToPayable(params.companyId, po.supplierId, entry.id);
+      }
+    } catch (err) {
+      // adiantamento é conveniência — falha não pode quebrar a criação do payable
+      this.logger.error(`Falha ao aplicar adiantamento no payable ${entry.id}: ${(err as Error).message}`);
+    }
   }
 
   // ─── Lançamento manual (avulso) ────────────────────────────────────────────
@@ -633,6 +651,25 @@ export class FinanceService {
       orderBy: { dueDate: 'asc' },
     });
 
+    // #392: parcelas de dívida PENDING no período entram como saída projetada
+    const debtInstallments = await this.prisma.debtInstallment.findMany({
+      where: {
+        debt: { companyId, status: 'ACTIVE' },
+        status: 'PENDING',
+        dueDate: { gte: today, lte: endDate },
+      },
+      select: { amount: true, dueDate: true },
+    });
+    for (const di of debtInstallments) {
+      entries.push({
+        type: FinancialEntryType.PAYABLE,
+        amount: di.amount,
+        paidAmount: null,
+        dueDate: di.dueDate,
+        description: 'Parcela de financiamento (#392)',
+      } as any);
+    }
+
     // Build day-by-day projection
     const projection: Array<{
       date: string;
@@ -683,6 +720,152 @@ export class FinanceService {
       alertDaysCount: alertDays.length,
       firstAlertDate: alertDays.length > 0 ? alertDays[0].date : null,
       projection,
+    };
+  }
+
+  /**
+   * #383 — Fluxo de caixa 13 semanas rolantes (padrão de tesouraria industrial).
+   * Agrega a projeção diária em semanas civis (segunda a domingo).
+   */
+  async getCashFlowWeekly(companyId: string, filters: { weeks?: number; bankAccountId?: string } = {}) {
+    const weeks = filters.weeks ?? 13;
+    const daily = await this.getCashFlowProjection(companyId, {
+      days: weeks * 7 + 6, // margem p/ completar a última semana civil
+      bankAccountId: filters.bankAccountId,
+    });
+
+    const buckets = new Map<string, { weekStart: string; weekEnd: string; inflow: number; outflow: number; projectedBalance: number }>();
+    for (const d of daily.projection) {
+      const date = new Date(`${d.date}T12:00:00Z`);
+      const dow = (date.getUTCDay() + 6) % 7; // 0 = segunda
+      const start = new Date(date.getTime() - dow * 86_400_000);
+      const key = start.toISOString().slice(0, 10);
+      const end = new Date(start.getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
+      const b = buckets.get(key) ?? { weekStart: key, weekEnd: end, inflow: 0, outflow: 0, projectedBalance: 0 };
+      b.inflow += d.receivable;
+      b.outflow += d.payable;
+      b.projectedBalance = d.projectedBalance; // saldo do último dia da semana
+      buckets.set(key, b);
+    }
+
+    const weeksArr = [...buckets.values()].slice(0, weeks).map((b) => ({
+      ...b,
+      inflow: +b.inflow.toFixed(2),
+      outflow: +b.outflow.toFixed(2),
+      netFlow: +(b.inflow - b.outflow).toFixed(2),
+      projectedBalance: +b.projectedBalance.toFixed(2),
+      alert: b.projectedBalance < 0,
+    }));
+
+    return {
+      currentBalance: daily.currentBalance,
+      weeks: weeksArr.length,
+      firstAlertWeek: weeksArr.find((w) => w.alert)?.weekStart ?? null,
+      projection: weeksArr,
+    };
+  }
+
+  /** #383 — Fluxo de caixa 12 meses rolantes (agrega a projeção diária por mês) */
+  async getCashFlowMonthly(companyId: string, filters: { months?: number; bankAccountId?: string } = {}) {
+    const months = filters.months ?? 12;
+    const daily = await this.getCashFlowProjection(companyId, {
+      days: months * 31,
+      bankAccountId: filters.bankAccountId,
+    });
+
+    const buckets = new Map<string, { month: string; inflow: number; outflow: number; projectedBalance: number }>();
+    for (const d of daily.projection) {
+      const key = d.date.slice(0, 7); // YYYY-MM
+      const b = buckets.get(key) ?? { month: key, inflow: 0, outflow: 0, projectedBalance: 0 };
+      b.inflow += d.receivable;
+      b.outflow += d.payable;
+      b.projectedBalance = d.projectedBalance;
+      buckets.set(key, b);
+    }
+
+    const monthsArr = [...buckets.values()].slice(0, months).map((b) => ({
+      ...b,
+      inflow: +b.inflow.toFixed(2),
+      outflow: +b.outflow.toFixed(2),
+      netFlow: +(b.inflow - b.outflow).toFixed(2),
+      projectedBalance: +b.projectedBalance.toFixed(2),
+      alert: b.projectedBalance < 0,
+    }));
+
+    return {
+      currentBalance: daily.currentBalance,
+      months: monthsArr.length,
+      firstAlertMonth: monthsArr.find((m) => m.alert)?.month ?? null,
+      projection: monthsArr,
+    };
+  }
+
+  /**
+   * #390 — Projeção de caixa com cenários (base / otimista / estresse).
+   * Deriva da projeção diária: receitas × revenueMultiplier × (1 − inadimplência
+   * efetiva), despesas × expenseMultiplier. Inadimplência base estimada do aging
+   * atual (vencido aberto / recebível total vencido) e escalada por cenário.
+   */
+  async getCashFlowScenarios(companyId: string, filters: { days?: number; bankAccountId?: string } = {}) {
+    const daily = await this.getCashFlowProjection(companyId, filters);
+
+    // inadimplência histórica: % dos recebíveis vencidos que segue em aberto
+    const hoje = new Date();
+    const [vencidoAberto, recebidoRecente] = await Promise.all([
+      this.prisma.financialEntry.aggregate({
+        where: {
+          companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: { in: [FinancialEntryStatus.OVERDUE, FinancialEntryStatus.OPEN, FinancialEntryStatus.PARTIALLY_PAID] },
+          dueDate: { lt: hoje },
+        },
+        _sum: { amount: true, paidAmount: true },
+      }),
+      this.prisma.financialEntry.aggregate({
+        where: {
+          companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.PAID,
+          paidAt: { gte: new Date(hoje.getTime() - 90 * 86_400_000) },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+    const aberto = Number(vencidoAberto._sum.amount ?? 0) - Number(vencidoAberto._sum.paidAmount ?? 0);
+    const recebido = Number(recebidoRecente._sum.amount ?? 0);
+    const baseDefaultRate = aberto + recebido > 0 ? aberto / (aberto + recebido) : 0;
+
+    const scenarios = [
+      { name: 'base', revenueMultiplier: 1.0, expenseMultiplier: 1.0, defaultRateMultiplier: 1.0, description: 'Projeção sem ajustes' },
+      { name: 'otimista', revenueMultiplier: 1.15, expenseMultiplier: 0.95, defaultRateMultiplier: 0.7, description: '+15% receitas, −5% despesas, −30% inadimplência' },
+      { name: 'estresse', revenueMultiplier: 0.8, expenseMultiplier: 1.1, defaultRateMultiplier: 1.5, description: '−20% receitas, +10% despesas, +50% inadimplência' },
+    ];
+
+    const results = scenarios.map((sc) => {
+      const rate = Math.min(1, baseDefaultRate * sc.defaultRateMultiplier);
+      let balance = daily.currentBalance;
+      let firstAlertDate: string | null = null;
+      const projection = daily.projection.map((d) => {
+        const inflow = round2fin(d.receivable * sc.revenueMultiplier * (1 - rate));
+        const outflow = round2fin(d.payable * sc.expenseMultiplier);
+        balance = round2fin(balance + inflow - outflow);
+        if (balance < 0 && !firstAlertDate) firstAlertDate = d.date;
+        return { date: d.date, inflow, outflow, netFlow: round2fin(inflow - outflow), projectedBalance: balance, alert: balance < 0 };
+      });
+      return {
+        ...sc,
+        effectiveDefaultRate: round2fin(rate * 100), // %
+        finalBalance: balance,
+        firstAlertDate,
+        projection,
+      };
+    });
+
+    return {
+      currentBalance: daily.currentBalance,
+      days: daily.days,
+      baseDefaultRate: round2fin(baseDefaultRate * 100),
+      scenarios: results,
     };
   }
 
@@ -1220,4 +1403,8 @@ export class FinanceService {
     result.setDate(result.getDate() + days);
     return result;
   }
+}
+
+function round2fin(v: number): number {
+  return Math.round(v * 100) / 100;
 }

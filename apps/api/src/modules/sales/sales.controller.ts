@@ -12,6 +12,8 @@ import { SalesOrderStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SalesService } from './sales.service';
+import { DiscountPolicyService } from './discount-policy.service';
+import { UpdateDiscountPolicyDto } from './dto/discount-policy.dto';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ConferOrderDto } from './dto/confer-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -23,13 +25,16 @@ const SALES_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', '
 @ApiBearerAuth()
 @Controller('sales')
 export class SalesController {
-  constructor(private readonly salesService: SalesService) {}
+  constructor(
+    private readonly salesService: SalesService,
+    private readonly discountPolicyService: DiscountPolicyService,
+  ) {}
 
   @Post()
   @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    return this.salesService.createOrder(dto, user.companyId, user.id);
+    return this.salesService.createOrder(dto, user.companyId, user.id, user?.role);
   }
 
   @Get()
@@ -46,6 +51,31 @@ export class SalesController {
     @Query('to') to?: string,
   ) {
     return this.salesService.findAll(user.companyId, { status, customerId, from, to });
+  }
+
+  @Get('discount-policies')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'FINANCIAL')
+  @ApiOperation({ summary: 'Alçadas de desconto por papel (#391)' })
+  listDiscountPolicies(@CurrentUser() user: any) {
+    return this.discountPolicyService.findAll(user.companyId);
+  }
+
+  @Post('discount-policies/seed-defaults')
+  @Roles('SUPER_ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Criar alçadas padrão (10/20/100%) — idempotente (#391)' })
+  seedDiscountPolicies(@CurrentUser() user: any) {
+    return this.discountPolicyService.seedDefaults(user.companyId);
+  }
+
+  @Patch('discount-policies/:id')
+  @Roles('SUPER_ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Ajustar alçada de desconto (#391)' })
+  updateDiscountPolicy(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: UpdateDiscountPolicyDto,
+  ) {
+    return this.discountPolicyService.update(id, user.companyId, dto);
   }
 
   @Get(':id')

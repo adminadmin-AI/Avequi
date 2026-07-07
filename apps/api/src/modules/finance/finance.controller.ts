@@ -8,11 +8,22 @@ import {
   Post,
   Query,
   Request,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
+import { FinanceKpiService } from './finance-kpi.service';
+import { ProvisionService } from './provision.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
+import { CreateSupplierAdvanceDto } from './dto/supplier-advance.dto';
+import { DebtService } from './debt.service';
+import { ManagementBookService } from './management-book.service';
+import { CreateDebtDto } from './dto/debt.dto';
+import { UpdateProvisionRuleDto, WriteOffDto } from './dto/provision.dto';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
@@ -33,7 +44,14 @@ const FINANCE_ENTRY_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL'];
 @Roles(...FINANCE_READ_ROLES)
 @Controller('finance')
 export class FinanceController {
-  constructor(private readonly financeService: FinanceService) {}
+  constructor(
+    private readonly financeService: FinanceService,
+    private readonly kpiService: FinanceKpiService,
+    private readonly provisionService: ProvisionService,
+    private readonly advanceService: SupplierAdvanceService,
+    private readonly debtService: DebtService,
+    private readonly bookService: ManagementBookService,
+  ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
 
@@ -61,6 +79,156 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.createManualEntry(req.user.companyId, dto);
+  }
+
+  @Get('kpis')
+  @ApiOperation({ summary: 'KPIs financeiros: PMP, PMR, ciclo, cash runway, liquidez (#382/#387)' })
+  @ApiQuery({ name: 'from', required: false, description: 'YYYY-MM-DD (default: 90 dias atrás)' })
+  @ApiQuery({ name: 'to', required: false, description: 'YYYY-MM-DD (default: hoje)' })
+  getKpis(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.kpiService.getKpis(req.user.companyId, { from, to });
+  }
+
+  @Get('margin-by-sku')
+  @ApiOperation({ summary: 'Margem de contribuição por SKU — receita × custo × impostos (#386)' })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  getMarginBySku(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.kpiService.getMarginBySku(req.user.companyId, { from, to });
+  }
+
+  @Get('pdd')
+  @ApiOperation({ summary: 'PDD — provisão para devedores duvidosos por faixa de atraso (#389)' })
+  getPdd(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.getPdd(req.user.companyId);
+  }
+
+  @Get('provision-rules')
+  @ApiOperation({ summary: 'Faixas de provisão do PDD (#389)' })
+  listProvisionRules(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.findRules(req.user.companyId);
+  }
+
+  @Post('provision-rules/seed-defaults')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @ApiOperation({ summary: 'Criar as 6 faixas padrão do PDD (idempotente) (#389)' })
+  seedProvisionDefaults(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.seedDefaults(req.user.companyId);
+  }
+
+  @Patch('provision-rules/:id')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @ApiOperation({ summary: 'Ajustar uma faixa de provisão (#389)' })
+  updateProvisionRule(
+    @Param('id') id: string,
+    @Body() dto: UpdateProvisionRuleDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.provisionService.updateRule(id, req.user.companyId, dto);
+  }
+
+  @Post('entries/:id/write-off')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @ApiOperation({ summary: 'Write-off — baixa por perda com justificativa auditada (#389)' })
+  writeOff(
+    @Param('id') id: string,
+    @Body() dto: WriteOffDto,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.provisionService.writeOff(id, req.user.companyId, dto.reason, req.user.id);
+  }
+
+  // ─── Adiantamentos a fornecedor (#393) ────────────────────────────────────
+
+  @Get('supplier-advances')
+  @ApiOperation({ summary: 'Adiantamentos + saldo aberto por fornecedor (#393)' })
+  listAdvances(@Request() req: { user: { companyId: string } }) {
+    return this.advanceService.report(req.user.companyId);
+  }
+
+  @Post('supplier-advances')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Criar adiantamento a fornecedor (#393)' })
+  createAdvance(
+    @Body() dto: CreateSupplierAdvanceDto,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.advanceService.create(req.user.companyId, dto, req.user.id);
+  }
+
+  @Post('supplier-advances/:id/cancel')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Cancelar adiantamento não aplicado (#393)' })
+  cancelAdvance(@Param('id') id: string, @Request() req: { user: { id?: string; companyId: string } }) {
+    return this.advanceService.cancel(id, req.user.companyId, req.user.id);
+  }
+
+  // ─── Gestão de dívida (#392) ──────────────────────────────────────────────
+
+  @Get('debts/dashboard')
+  @ApiOperation({ summary: 'Endividamento: saldo por tipo + próximos vencimentos (#392)' })
+  debtDashboard(@Request() req: { user: { companyId: string } }) {
+    return this.debtService.dashboard(req.user.companyId);
+  }
+
+  @Get('debts')
+  @ApiOperation({ summary: 'Listar dívidas/financiamentos (#392)' })
+  listDebts(@Request() req: { user: { companyId: string } }) {
+    return this.debtService.findAll(req.user.companyId);
+  }
+
+  @Post('debts')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Contratar dívida — gera cronograma PRICE/SAC (#392)' })
+  createDebt(@Body() dto: CreateDebtDto, @Request() req: { user: { id?: string; companyId: string } }) {
+    return this.debtService.create(req.user.companyId, dto, req.user.id);
+  }
+
+  @Get('debts/:id')
+  @ApiOperation({ summary: 'Dívida com cronograma completo (#392)' })
+  getDebt(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
+    return this.debtService.findOne(id, req.user.companyId);
+  }
+
+  @Post('debts/:id/installments/:number/pay')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Baixar parcela do financiamento (#392)' })
+  payDebtInstallment(
+    @Param('id') id: string,
+    @Param('number') number: string,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.debtService.payInstallment(id, parseInt(number, 10), req.user.companyId, req.user.id);
+  }
+
+  @Get('management-book')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @ApiOperation({ summary: 'Book gerencial mensal consolidado — JSON ou xlsx (#394)' })
+  @ApiQuery({ name: 'month', required: false, description: 'YYYY-MM (default: mês anterior)' })
+  @ApiQuery({ name: 'format', required: false, enum: ['json', 'xlsx'] })
+  async managementBook(
+    @Request() req: { user: { companyId: string } },
+    @Res({ passthrough: true }) res: Response,
+    @Query('month') month?: string,
+    @Query('format') format?: string,
+  ) {
+    if (format === 'xlsx') {
+      const buffer = await this.bookService.getBookXlsx(req.user.companyId, month);
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="book-gerencial-${month ?? 'mes-anterior'}.xlsx"`,
+      });
+      return new StreamableFile(buffer);
+    }
+    return this.bookService.getBook(req.user.companyId, month);
   }
 
   @Get('reports/dre')

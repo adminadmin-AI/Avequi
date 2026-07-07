@@ -55,6 +55,8 @@ export default function CustomersPage() {
       defaultPaymentTerms: values.defaultPaymentTerms || undefined,
       defaultCarrierId: values.defaultCarrierId || undefined,
       internalNotes: values.internalNotes || undefined,
+      creditScore: values.creditScore || undefined,
+      creditNotes: values.creditNotes || undefined,
     };
     if (editing) {
       update.mutate(
@@ -247,6 +249,8 @@ export default function CustomersPage() {
                   defaultPaymentTerms: (editing as any).defaultPaymentTerms ?? '',
                   defaultCarrierId: (editing as any).defaultCarrierId ?? '',
                   internalNotes: (editing as any).internalNotes ?? '',
+                  creditScore: (editing as any).creditScore ?? '',
+                  creditNotes: (editing as any).creditNotes ?? '',
                 }
               : undefined
           }

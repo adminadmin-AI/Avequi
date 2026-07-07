@@ -2,11 +2,13 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { FinanceService } from './finance.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockPrisma = {
+  debtInstallment: { findMany: jest.fn().mockResolvedValue([]) },
   financialEntry: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -61,6 +63,7 @@ describe('FinanceService', () => {
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
 
@@ -591,5 +594,126 @@ describe('FinanceService', () => {
       expect(result.totalBalance).toBe(8000);
       expect(result.accounts).toHaveLength(2);
     });
+  });
+});
+
+describe('FinanceService — fluxo de caixa 13 semanas / 12 meses (#383)', () => {
+  let service: FinanceService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        FinanceService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
+      ],
+    }).compile();
+    service = module.get(FinanceService);
+  });
+
+  function dailyStub(days: number) {
+    // 2026-07-06 é uma segunda-feira — semanas civis alinhadas
+    const projection = [] as any[];
+    let balance = 1000;
+    for (let i = 0; i < days; i++) {
+      const date = new Date(Date.UTC(2026, 6, 6) + 0);
+      date.setUTCDate(date.getUTCDate() + i);
+      balance += 10 - 5;
+      projection.push({
+        date: date.toISOString().slice(0, 10),
+        receivable: 10,
+        payable: 5,
+        netFlow: 5,
+        projectedBalance: balance,
+        alert: false,
+      });
+    }
+    return { currentBalance: 1000, days, alertDaysCount: 0, firstAlertDate: null, projection };
+  }
+
+  it('agrega semanas civis (seg-dom): 13 semanas com inflow/outflow somados', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(dailyStub(13 * 7 + 7) as any);
+    const result = await service.getCashFlowWeekly('co-1');
+    expect(result.weeks).toBe(13);
+    const w1 = result.projection[0];
+    expect(w1.weekStart).toBe('2026-07-06'); // segunda
+    expect(w1.weekEnd).toBe('2026-07-12'); // domingo
+    expect(w1.inflow).toBe(70); // 7 dias × 10
+    expect(w1.outflow).toBe(35);
+    expect(w1.netFlow).toBe(35);
+    // saldo da semana = saldo do último dia dela
+    expect(w1.projectedBalance).toBe(1000 + 7 * 5);
+  });
+
+  it('agrega por mês: 12 meses com saldo do último dia do mês', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(dailyStub(370) as any);
+    const result = await service.getCashFlowMonthly('co-1');
+    expect(result.months).toBe(12);
+    expect(result.projection[0].month).toBe('2026-07');
+    // julho: dias 06-31 = 26 dias × 10
+    expect(result.projection[0].inflow).toBe(260);
+    expect(result.projection[1].month).toBe('2026-08');
+    expect(result.projection[1].inflow).toBe(310); // 31 dias
+  });
+
+  it('marca alerta quando o saldo projetado da semana fica negativo', async () => {
+    const stub = dailyStub(21);
+    stub.projection.forEach((d: any, i: number) => {
+      if (i >= 7) d.projectedBalance = -100;
+    });
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(stub as any);
+    const result = await service.getCashFlowWeekly('co-1', { weeks: 3 });
+    expect(result.projection[1].alert).toBe(true);
+    expect(result.firstAlertWeek).toBe(result.projection[1].weekStart);
+  });
+});
+
+describe('FinanceService — cenários de caixa (#390)', () => {
+  let service: FinanceService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        FinanceService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
+      ],
+    }).compile();
+    service = module.get(FinanceService);
+    jest.clearAllMocks();
+    // inadimplência: 20k vencido aberto, 80k recebido → 20%
+    (mockPrisma.financialEntry as any).aggregate = jest.fn()
+      .mockResolvedValueOnce({ _sum: { amount: 20000, paidAmount: 0 } })
+      .mockResolvedValueOnce({ _sum: { amount: 80000 } });
+  });
+
+  it('estresse reduz entradas (rev×0.8 e inadimplência ×1.5) e aumenta saídas ×1.1', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue({
+      currentBalance: 1000,
+      days: 2,
+      alertDaysCount: 0,
+      firstAlertDate: null,
+      projection: [
+        { date: '2026-07-08', receivable: 1000, payable: 500, netFlow: 500, projectedBalance: 1500, alert: false },
+        { date: '2026-07-09', receivable: 0, payable: 2000, netFlow: -2000, projectedBalance: -500, alert: true },
+      ],
+    } as any);
+
+    const result = await service.getCashFlowScenarios('co-1');
+    expect(result.baseDefaultRate).toBe(20);
+    expect(result.scenarios.map((s: any) => s.name)).toEqual(['base', 'otimista', 'estresse']);
+
+    const base = result.scenarios[0];
+    // base: inflow 1000 × (1−0.2) = 800; outflow 500 → dia1 saldo 1300
+    expect(base.projection[0].inflow).toBe(800);
+    expect(base.projection[0].projectedBalance).toBe(1300);
+
+    const stress = result.scenarios[2];
+    // estresse: rate 30%; inflow 1000×0.8×0.7 = 560; outflow 550 → 1010; dia2 outflow 2200 → −1190
+    expect(stress.effectiveDefaultRate).toBe(30);
+    expect(stress.projection[0].inflow).toBe(560);
+    expect(stress.projection[0].outflow).toBe(550);
+    expect(stress.finalBalance).toBe(1000 + 560 - 550 - 2200);
+    expect(stress.firstAlertDate).toBe('2026-07-09');
   });
 });

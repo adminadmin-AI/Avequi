@@ -147,6 +147,16 @@ export class CustomerService {
       ie: data.ie !== undefined ? data.ie : existing.ie,
     });
 
+    // #388: mudança em limite/score é decisão de crédito — registra quem/quando
+    const creditChanged =
+      (data.creditLimit !== undefined && Number(data.creditLimit ?? 0) !== Number(existing.creditLimit ?? 0)) ||
+      (data.creditScore !== undefined && data.creditScore !== (existing as any).creditScore);
+    if (creditChanged) {
+      data.creditApprovedById = user.id ?? null;
+      data.creditApprovedAt = new Date();
+      data.lastCreditReview = new Date();
+    }
+
     const customer = await this.prisma.customer.update({
       where: { id },
       data,
@@ -175,6 +185,11 @@ export class CustomerService {
         creditLimit: true,
         billingBlocked: true,
         billingBlockReason: true,
+        creditScore: true,
+        creditApprovedById: true,
+        creditApprovedAt: true,
+        creditNotes: true,
+        lastCreditReview: true,
       },
     });
     if (!customer) throw new NotFoundException(`Cliente ${id} não encontrado`);
@@ -199,6 +214,12 @@ export class CustomerService {
       overLimit: creditLimit != null && openReceivables > creditLimit,
       billingBlocked: (customer as any).billingBlocked,
       billingBlockReason: (customer as any).billingBlockReason,
+      // #388 — política de crédito
+      creditScore: (customer as any).creditScore ?? null,
+      creditApprovedById: (customer as any).creditApprovedById ?? null,
+      creditApprovedAt: (customer as any).creditApprovedAt ?? null,
+      creditNotes: (customer as any).creditNotes ?? null,
+      lastCreditReview: (customer as any).lastCreditReview ?? null,
     };
   }
 

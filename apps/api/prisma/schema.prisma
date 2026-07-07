@@ -139,6 +139,11 @@ model Company {
   updatedAt             DateTime               @updatedAt
 
   @@map("gdr_companies")
+  collectionRules CollectionRule[] // régua de cobrança (#384)
+  provisionRules ProvisionRule[] // PDD (#389)
+  supplierAdvances SupplierAdvance[] // adiantamentos (#393)
+  debts Debt[] // dívidas/financiamentos (#392)
+  discountPolicies DiscountPolicy[] // alçadas de desconto (#391)
 }
 
 enum CompanyType {
@@ -318,6 +323,7 @@ model User {
   updatedAt                 DateTime               @updatedAt
 
   @@map("gdr_users")
+  creditApprovals Customer[] @relation("CustomerCreditApprover") // aprovador de limite (#388)
 }
 
 enum UserRole {
@@ -495,6 +501,7 @@ model Supplier {
 
   @@unique([companyId, cnpj])
   @@map("gdr_suppliers")
+  advances SupplierAdvance[] // adiantamentos (#393)
 }
 
 // ─── Cliente ──────────────────────────────────────────────────────────────────
@@ -548,6 +555,13 @@ model Customer {
   defaultCarrierId    String?           @map("default_carrier_id")
   defaultCarrier      Carrier?          @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
   internalNotes       String?           @map("internal_notes") // nunca vai para documentos fiscais
+  // Política de crédito (#388) — complementa o #475
+  creditScore         String?           @map("credit_score") @db.VarChar(1) // A-E (classificação interna)
+  creditApprovedById  String?           @map("credit_approved_by_id")
+  creditApprovedBy    User?             @relation("CustomerCreditApprover", fields: [creditApprovedById], references: [id])
+  creditApprovedAt    DateTime?         @map("credit_approved_at")
+  creditNotes         String?           @map("credit_notes") // observações do analista
+  lastCreditReview    DateTime?         @map("last_credit_review")
   isActive            Boolean           @default(true)
   leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
   addresses           CustomerAddress[]
@@ -1161,6 +1175,7 @@ enum FinancialEntryStatus {
   PARTIALLY_PAID
   PAID
   CANCELLED
+  WRITTEN_OFF // baixa por perda (PDD #389) — distinto de cancelamento
 }
 
 enum PaymentMethod {
@@ -1314,6 +1329,118 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// Alçadas de desconto (#391): teto de desconto por papel — acima disso, bloqueia
+model DiscountPolicy {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  role           String   // papel do usuário (UserRole)
+  maxDiscountPct Decimal  @map("max_discount_pct") @db.Decimal(5, 2) // teto %
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, role])
+  @@map("gdr_discount_policies")
+}
+
+/// Gestão de dívida (#392): FINAME, leasing, capital de giro — cronograma de amortização
+model Debt {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  type              String   // FINAME | LEASING | CAPITAL_GIRO | CHEQUE_ESPECIAL | OUTROS
+  bank              String
+  description       String?
+  principal         Decimal  @db.Decimal(14, 2) // valor original
+  interestRate      Decimal  @map("interest_rate") @db.Decimal(7, 4) // % a.m.
+  amortizationType  String   @default("PRICE") @map("amortization_type") // PRICE | SAC
+  installmentsCount Int      @map("installments_count")
+  contractedAt      DateTime @map("contracted_at")
+  firstDueDate      DateTime @map("first_due_date")
+  status            String   @default("ACTIVE") // ACTIVE | SETTLED | CANCELLED
+  installments      DebtInstallment[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_debts")
+}
+
+model DebtInstallment {
+  id           String    @id @default(cuid())
+  debtId       String
+  debt         Debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  number       Int
+  dueDate      DateTime  @map("due_date")
+  amount       Decimal   @db.Decimal(14, 2) // parcela (juros + amortização)
+  interest     Decimal   @db.Decimal(14, 2)
+  amortization Decimal   @db.Decimal(14, 2)
+  balance      Decimal   @db.Decimal(14, 2) // saldo devedor após a parcela
+  status       String    @default("PENDING") // PENDING | PAID
+  paidAt       DateTime? @map("paid_at")
+
+  @@unique([debtId, number])
+  @@index([dueDate, status])
+  @@map("gdr_debt_installments")
+}
+
+/// Adiantamento a fornecedor (#393): pago antecipado, abatido do payable quando a NF chega
+model SupplierAdvance {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id])
+  amount        Decimal   @db.Decimal(14, 2)
+  appliedAmount Decimal   @default(0) @map("applied_amount") @db.Decimal(14, 2)
+  status        String    @default("OPEN") // OPEN | PARTIALLY_APPLIED | APPLIED | CANCELLED
+  paidAt        DateTime? @map("paid_at")
+  purchaseOrderId String? @map("purchase_order_id") // vínculo opcional com a PO
+  note          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([companyId, supplierId])
+  @@map("gdr_supplier_advances")
+}
+
+/// PDD — Provisão para Devedores Duvidosos (#389): % de provisão por faixa de atraso
+model ProvisionRule {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  daysFrom   Int
+  daysTo     Int      // 99999 = sem teto (última faixa)
+  percentage Decimal  @db.Decimal(5, 2) // 1.00 = 1%
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, daysFrom])
+  @@map("gdr_provision_rules")
+}
+
+/// Régua de cobrança (#384) — escalonamento automático por faixa de atraso.
+/// PRE_DUE usa dias negativos (ex.: -3 a -1 = lembrete antes do vencimento).
+model CollectionRule {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  stage       String   // PRE_DUE | OVERDUE_7 | OVERDUE_30 | OVERDUE_60 | OVERDUE_90 | LEGAL
+  daysFrom    Int      // início da faixa (relativo ao vencimento)
+  daysTo      Int      // fim da faixa (9999 = sem teto, estágio LEGAL)
+  channels    String[] // EMAIL, WHATSAPP, PHONE, SYSTEM
+  autoBlock   Boolean  @default(false) // bloqueia faturamento do cliente (#475)
+  escalate    Boolean  @default(false) // notificação de escalonamento (gerente/diretoria)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, stage])
+  @@map("gdr_collection_rules")
 }
 
 model CollectionAttempt {

@@ -14,6 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { ScheduledPaymentStatus } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
+import { ReconciliationService } from './reconciliation.service';
+import { CreateEntryFromStatementDto, ImportOfxDto, MatchStatementDto } from './dto/reconciliation.dto';
 import { ConfigureBankAccountDto } from './dto/configure-bank-account.dto';
 import { CreateScheduledPaymentDto } from './dto/create-scheduled-payment.dto';
 
@@ -26,7 +28,10 @@ const BANKING_WRITE_ROLES = ['SUPER_ADMIN', 'FINANCIAL'];
 @Roles(...BANKING_READ_ROLES)
 @Controller('banking')
 export class BankingController {
-  constructor(private readonly financeService: FinanceService) {}
+  constructor(
+    private readonly financeService: FinanceService,
+    private readonly reconciliation: ReconciliationService,
+  ) {}
 
   // ─── Bank Accounts ──────────────────────────────────────────────────────
 
@@ -42,10 +47,105 @@ export class BankingController {
     return this.financeService.getBankingOverview(req.user.companyId);
   }
 
+  @Get('cash-flow/weekly')
+  @ApiOperation({ summary: 'Fluxo de caixa 13 semanas rolantes (#383)' })
+  @ApiQuery({ name: 'weeks', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowWeekly(
+    @Request() req: { user: { companyId: string } },
+    @Query('weeks') weeks?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowWeekly(req.user.companyId, {
+      weeks: weeks ? parseInt(weeks, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
+  @Get('cash-flow/monthly')
+  @ApiOperation({ summary: 'Fluxo de caixa 12 meses rolantes (#383)' })
+  @ApiQuery({ name: 'months', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowMonthly(
+    @Request() req: { user: { companyId: string } },
+    @Query('months') months?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowMonthly(req.user.companyId, {
+      months: months ? parseInt(months, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
+  @Get('cash-flow/scenarios')
+  @ApiOperation({ summary: 'Projeção de caixa em 3 cenários: base, otimista, estresse (#390)' })
+  @ApiQuery({ name: 'days', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowScenarios(
+    @Request() req: { user: { companyId: string } },
+    @Query('days') days?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowScenarios(req.user.companyId, {
+      days: days ? parseInt(days, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
+  // ─── Conciliação bancária (#385) ──────────────────────────────────────────
+
+  @Post('reconciliation/import')
+  @Roles(...BANKING_WRITE_ROLES)
+  @ApiOperation({ summary: 'Importar OFX e rodar match automático (#385)' })
+  importOfx(@Body() dto: ImportOfxDto, @Request() req: { user: { companyId: string } }) {
+    return this.reconciliation.importOfx(req.user.companyId, dto.bankAccountId, dto.ofxContent);
+  }
+
+  @Post('reconciliation/auto-match')
+  @Roles(...BANKING_WRITE_ROLES)
+  @ApiOperation({ summary: 'Rodar match automático nos itens não conciliados (#385)' })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  autoMatch(@Request() req: { user: { companyId: string } }, @Query('bankAccountId') bankAccountId?: string) {
+    return this.reconciliation.autoMatch(req.user.companyId, bankAccountId);
+  }
+
   @Get('reconciliation/unmatched')
-  @ApiOperation({ summary: 'Conciliação: lançamentos sem correspondência (placeholder)' })
-  getUnmatchedReconciliation() {
-    return [];
+  @ApiOperation({ summary: 'Itens do extrato sem correspondência + sugestões (#385)' })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  getUnmatchedReconciliation(
+    @Request() req: { user: { companyId: string } },
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.reconciliation.getUnmatched(req.user.companyId, bankAccountId);
+  }
+
+  @Post('reconciliation/:statementId/match')
+  @Roles(...BANKING_WRITE_ROLES)
+  @ApiOperation({ summary: 'Vincular manualmente item do extrato a um lançamento (#385)' })
+  matchManual(
+    @Param('statementId') statementId: string,
+    @Body() dto: MatchStatementDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.reconciliation.matchManual(req.user.companyId, statementId, dto.entryId);
+  }
+
+  @Post('reconciliation/:statementId/unmatch')
+  @Roles(...BANKING_WRITE_ROLES)
+  @ApiOperation({ summary: 'Desfazer conciliação de um item do extrato (#385)' })
+  unmatch(@Param('statementId') statementId: string, @Request() req: { user: { companyId: string } }) {
+    return this.reconciliation.unmatch(req.user.companyId, statementId);
+  }
+
+  @Post('reconciliation/:statementId/create-entry')
+  @Roles(...BANKING_WRITE_ROLES)
+  @ApiOperation({ summary: 'Criar lançamento avulso a partir de item do extrato (tarifas etc.) (#385)' })
+  createEntryFromStatement(
+    @Param('statementId') statementId: string,
+    @Body() dto: CreateEntryFromStatementDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.reconciliation.createEntryFromStatement(req.user.companyId, statementId, dto);
   }
 
   @Get('accounts/:id')
