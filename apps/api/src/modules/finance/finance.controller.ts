@@ -8,7 +8,10 @@ import {
   Post,
   Query,
   Request,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,6 +21,7 @@ import { ProvisionService } from './provision.service';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { CreateSupplierAdvanceDto } from './dto/supplier-advance.dto';
 import { DebtService } from './debt.service';
+import { ManagementBookService } from './management-book.service';
 import { CreateDebtDto } from './dto/debt.dto';
 import { UpdateProvisionRuleDto, WriteOffDto } from './dto/provision.dto';
 import { PayEntryDto } from './dto/pay-entry.dto';
@@ -46,6 +50,7 @@ export class FinanceController {
     private readonly provisionService: ProvisionService,
     private readonly advanceService: SupplierAdvanceService,
     private readonly debtService: DebtService,
+    private readonly bookService: ManagementBookService,
   ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
@@ -202,6 +207,28 @@ export class FinanceController {
     @Request() req: { user: { id?: string; companyId: string } },
   ) {
     return this.debtService.payInstallment(id, parseInt(number, 10), req.user.companyId, req.user.id);
+  }
+
+  @Get('management-book')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @ApiOperation({ summary: 'Book gerencial mensal consolidado — JSON ou xlsx (#394)' })
+  @ApiQuery({ name: 'month', required: false, description: 'YYYY-MM (default: mês anterior)' })
+  @ApiQuery({ name: 'format', required: false, enum: ['json', 'xlsx'] })
+  async managementBook(
+    @Request() req: { user: { companyId: string } },
+    @Res({ passthrough: true }) res: Response,
+    @Query('month') month?: string,
+    @Query('format') format?: string,
+  ) {
+    if (format === 'xlsx') {
+      const buffer = await this.bookService.getBookXlsx(req.user.companyId, month);
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="book-gerencial-${month ?? 'mes-anterior'}.xlsx"`,
+      });
+      return new StreamableFile(buffer);
+    }
+    return this.bookService.getBook(req.user.companyId, month);
   }
 
   @Get('reports/dre')
