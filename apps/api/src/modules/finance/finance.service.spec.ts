@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { FinanceService } from './finance.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ describe('FinanceService', () => {
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
 
@@ -602,6 +604,7 @@ describe('FinanceService — fluxo de caixa 13 semanas / 12 meses (#383)', () =>
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
     service = module.get(FinanceService);
@@ -672,6 +675,7 @@ describe('FinanceService — cenários de caixa (#390)', () => {
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: SupplierAdvanceService, useValue: { applyToPayable: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
     service = module.get(FinanceService);
