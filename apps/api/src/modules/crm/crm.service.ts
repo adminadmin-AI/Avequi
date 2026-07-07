@@ -49,6 +49,7 @@ export class CrmService {
             phone: true,
             source: true,
             interest: true,
+            sdrStatus: true, // badge IA no inbox (F4.4 #524)
             stage: { select: { id: true, name: true, color: true, type: true } },
             assignedTo: { select: { id: true, name: true } },
           },
