@@ -66,7 +66,8 @@ describe('Catálogo de permissões (#338)', () => {
   it('tem o total esperado de permissões (guarda contra edição acidental)', () => {
     // Se este número mudar, foi intencional? Atualize junto com o PR que
     // adiciona/remove endpoints.
-    expect(PERMISSIONS_CATALOG.length).toBe(226);
+    // 229 = 226 + 3 da #352 (iam.roles.view / iam.roles.manage / iam.roles.assign)
+    expect(PERMISSIONS_CATALOG.length).toBe(229);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
