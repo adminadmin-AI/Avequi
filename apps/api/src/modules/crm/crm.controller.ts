@@ -20,6 +20,7 @@ import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
 import { QuickReplyService } from './quick-reply.service';
 import { ReminderService } from './reminder.service';
+import { LeadListService, LeadListFilters } from './lead-list.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -125,6 +126,34 @@ class AddNoteDto {
   text: string;
 }
 
+class BulkReassignDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  leadIds: string[];
+
+  @ApiProperty({ description: 'Vendedor destino' })
+  @IsString()
+  toUserId: string;
+}
+
+class BulkStageDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  leadIds: string[];
+
+  @ApiProperty({ description: 'Estágio destino' })
+  @IsString()
+  stageId: string;
+
+  @ApiPropertyOptional({ description: 'Obrigatório quando o destino é Perdido' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  lostReason?: string;
+}
+
 class CreateReminderDto {
   @ApiProperty({ description: 'O que fazer (ex: "ligar amanhã 14h")' })
   @IsString()
@@ -158,7 +187,62 @@ export class CrmController {
     private readonly settings: CrmSettingsService,
     private readonly quickReplies: QuickReplyService,
     private readonly reminders: ReminderService,
+    private readonly leadList: LeadListService,
   ) {}
+
+  // ── Lista de leads (F3.5-C7 #557) ───────────────────────────────────────────
+
+  @Get('leads')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Lista de leads em tabela: filtros, ordenação e paginação' })
+  leadsList(@CurrentUser() user: any, @Query() q: Record<string, string>) {
+    return this.leadList.list(user.companyId, this.listFilters(q));
+  }
+
+  @Get('leads.csv')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Export CSV da lista de leads (mesmos filtros)' })
+  async leadsCsv(@CurrentUser() user: any, @Res() res: Response, @Query() q: Record<string, string>) {
+    const csv = await this.leadList.csv(user.companyId, this.listFilters(q));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm-leads.csv"');
+    res.send(csv);
+  }
+
+  @Post('leads/bulk/reassign')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Reatribuir leads em lote (gerente)' })
+  bulkReassign(@Body() dto: BulkReassignDto, @CurrentUser() user: any) {
+    return this.leadList.bulkReassign(user.companyId, dto.leadIds, dto.toUserId, user.id);
+  }
+
+  @Post('leads/bulk/stage')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Mudar estágio em lote (Perdido exige motivo)' })
+  bulkStage(@Body() dto: BulkStageDto, @CurrentUser() user: any) {
+    return this.leadList.bulkChangeStage(
+      user.companyId,
+      dto.leadIds,
+      dto.stageId,
+      user.id,
+      dto.lostReason,
+    );
+  }
+
+  private listFilters(q: Record<string, string>): LeadListFilters {
+    return {
+      source: q.source || undefined,
+      stageId: q.stageId || undefined,
+      assignedToId: q.assignedToId || undefined,
+      from: q.from || undefined,
+      to: q.to || undefined,
+      search: q.search || undefined,
+      page: q.page ? parseInt(q.page, 10) : undefined,
+      pageSize: q.pageSize ? parseInt(q.pageSize, 10) : undefined,
+      sortBy: q.sortBy as LeadListFilters['sortBy'],
+      sortDir: q.sortDir as LeadListFilters['sortDir'],
+    };
+  }
 
   // ── Notas e lembretes (F3.5-C5 #555) ────────────────────────────────────────
 
