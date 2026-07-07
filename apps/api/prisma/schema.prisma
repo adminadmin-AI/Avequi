@@ -139,6 +139,7 @@ model Company {
   updatedAt             DateTime               @updatedAt
 
   @@map("gdr_companies")
+  collectionRules CollectionRule[] // régua de cobrança (#384)
 }
 
 enum CompanyType {
@@ -1314,6 +1315,26 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// Régua de cobrança (#384) — escalonamento automático por faixa de atraso.
+/// PRE_DUE usa dias negativos (ex.: -3 a -1 = lembrete antes do vencimento).
+model CollectionRule {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  stage       String   // PRE_DUE | OVERDUE_7 | OVERDUE_30 | OVERDUE_60 | OVERDUE_90 | LEGAL
+  daysFrom    Int      // início da faixa (relativo ao vencimento)
+  daysTo      Int      // fim da faixa (9999 = sem teto, estágio LEGAL)
+  channels    String[] // EMAIL, WHATSAPP, PHONE, SYSTEM
+  autoBlock   Boolean  @default(false) // bloqueia faturamento do cliente (#475)
+  escalate    Boolean  @default(false) // notificação de escalonamento (gerente/diretoria)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, stage])
+  @@map("gdr_collection_rules")
 }
 
 model CollectionAttempt {
