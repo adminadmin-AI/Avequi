@@ -22,6 +22,7 @@ import { QuickReplyService } from './quick-reply.service';
 import { ReminderService } from './reminder.service';
 import { LeadListService, LeadListFilters } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
+import { SdrAgentService } from './sdr/sdr-agent.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -97,6 +98,23 @@ class UpdateSettingsDto {
   @IsInt()
   @Min(0)
   leadRetentionDays?: number;
+  @ApiPropertyOptional({ description: 'SDR IA: kill switch da loja (#523)' })
+  @IsOptional()
+  @IsBoolean()
+  sdrEnabled?: boolean;
+  @ApiPropertyOptional({ description: 'SDR IA: model id (A/B opus/sonnet/haiku)' })
+  @IsOptional()
+  @IsString()
+  sdrModel?: string;
+  @ApiPropertyOptional({ description: 'SDR IA: handoff garantido após N trocas' })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  sdrMaxTurns?: number;
+  @ApiPropertyOptional({ enum: ['24_7', 'OFF_HOURS'] })
+  @IsOptional()
+  @IsIn(['24_7', 'OFF_HOURS'])
+  sdrSchedule?: '24_7' | 'OFF_HOURS';
   @ApiPropertyOptional() @IsOptional() @IsString() waPhoneNumberId?: string;
 }
 
@@ -195,7 +213,18 @@ export class CrmController {
     private readonly reminders: ReminderService,
     private readonly leadList: LeadListService,
     private readonly leadLgpd: LeadLgpdService,
+    private readonly sdr: SdrAgentService,
   ) {}
+
+  // ── SDR IA (F4 #521/#524) ───────────────────────────────────────────────────
+
+  @Post('leads/:id/sdr/takeover')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Assumir conversa da IA (takeover explícito — IA silencia)' })
+  async sdrTakeover(@Param('id') id: string, @CurrentUser() user: any) {
+    const taken = await this.sdr.takeover(id, user.id);
+    return { taken };
+  }
 
   // ── LGPD (F3.5-C8 #558) ─────────────────────────────────────────────────────
 

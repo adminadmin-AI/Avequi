@@ -15,6 +15,7 @@
     "db:seed:iam": "ts-node -r tsconfig-paths/register prisma/seed-iam.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bull": "^10.2.3",
     "@nestjs/common": "^10.4.15",

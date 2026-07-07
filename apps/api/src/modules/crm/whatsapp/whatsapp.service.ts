@@ -141,6 +141,7 @@ export class WhatsappService {
       leadId,
       companyId,
       messageId: message.id,
+      senderId, // vendedor humano digitou = takeover implícito do SDR (#521)
     });
     return message;
   }
@@ -304,7 +305,12 @@ export class WhatsappService {
         },
       }),
     ]);
-    this.eventEmitter.emit('crm.whatsapp.message_sent', { leadId, companyId, messageId: message.id });
+    this.eventEmitter.emit('crm.whatsapp.message_sent', {
+      leadId,
+      companyId,
+      messageId: message.id,
+      senderId, // takeover implícito do SDR (#521)
+    });
     return message;
   }
 
