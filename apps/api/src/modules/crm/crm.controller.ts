@@ -23,6 +23,7 @@ import { ReminderService } from './reminder.service';
 import { LeadListService, LeadListFilters } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
+import { SdrDashboardService } from './sdr/sdr-dashboard.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -214,6 +215,7 @@ export class CrmController {
     private readonly leadList: LeadListService,
     private readonly leadLgpd: LeadLgpdService,
     private readonly sdr: SdrAgentService,
+    private readonly sdrDashboard: SdrDashboardService,
   ) {}
 
   // ── SDR IA (F4 #521/#524) ───────────────────────────────────────────────────
@@ -224,6 +226,38 @@ export class CrmController {
   async sdrTakeover(@Param('id') id: string, @CurrentUser() user: any) {
     const taken = await this.sdr.takeover(id, user.id);
     return { taken };
+  }
+
+  @Get('sdr/overview')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Métricas do SDR IA: atendidos, handoff, descarte, score, custo' })
+  @ApiQuery({ name: 'days', required: false })
+  sdrOverview(@CurrentUser() user: any, @Query('days') days?: string) {
+    const range = resolveRange(user.companyId, days);
+    return this.sdrDashboard.overview(user.companyId, range.from, range.to);
+  }
+
+  @Get('sdr/discards')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Fila de revisão: descartes da IA dos últimos 7 dias' })
+  sdrDiscards(@CurrentUser() user: any) {
+    return this.sdrDashboard.discards(user.companyId);
+  }
+
+  @Post('sdr/discards/:leadId/revert')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Reverter descarte da IA (feedback p/ ajuste de prompt)' })
+  sdrRevertDiscard(@Param('leadId') leadId: string, @CurrentUser() user: any) {
+    return this.sdrDashboard.revertDiscard(user.companyId, leadId, user.id);
+  }
+
+  @Get('sdr/incidents')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Incidentes de guardrail do SDR (bloqueios do F4.3)' })
+  @ApiQuery({ name: 'days', required: false })
+  sdrIncidents(@CurrentUser() user: any, @Query('days') days?: string) {
+    const range = resolveRange(user.companyId, days);
+    return this.sdrDashboard.incidents(user.companyId, range.from, range.to);
   }
 
   // ── LGPD (F3.5-C8 #558) ─────────────────────────────────────────────────────

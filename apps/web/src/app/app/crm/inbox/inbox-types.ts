@@ -21,6 +21,8 @@ export interface ConversationSummary {
     phone: string | null;
     source: string;
     interest: string | null;
+    /** F4 (#524): ACTIVE/QUALIFIED = IA atendendo agora */
+    sdrStatus: 'ACTIVE' | 'QUALIFIED' | 'HANDOFF' | 'DISCARDED' | null;
     stage: StageRef | null;
     assignedTo: { id: string; name: string } | null;
   };
@@ -58,6 +60,7 @@ export interface LeadDetail {
   phone: string | null;
   email: string | null;
   source: string;
+  sdrStatus?: 'ACTIVE' | 'QUALIFIED' | 'HANDOFF' | 'DISCARDED' | null;
   interest: string | null;
   estimatedValue: string | null;
   lostReason: string | null;

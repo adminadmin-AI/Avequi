@@ -15,6 +15,7 @@ import { ReminderService } from './reminder.service';
 import { LeadListService } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
+import { SdrDashboardService } from './sdr/sdr-dashboard.service';
 import { SdrToolsService } from './sdr/sdr-tools';
 import { FollowupScheduler } from './followup.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
@@ -51,6 +52,7 @@ import { SiteLeadController } from './connectors/site.controller';
     LeadListService,
     LeadLgpdService,
     SdrAgentService,
+    SdrDashboardService,
     SdrToolsService,
     FollowupScheduler,
     CrmListener,

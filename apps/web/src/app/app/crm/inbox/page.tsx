@@ -46,7 +46,7 @@ export default function InboxPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  const [scope, setScope] = useState<'mine' | 'all' | 'ia'>('mine');
   const [search, setSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
@@ -58,13 +58,23 @@ export default function InboxPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const knownLeads = useRef<Set<string>>(new Set());
 
-  const { data: conversations = [], isLoading } = useQuery<ConversationSummary[]>({
+  const { data: allConversations = [], isLoading } = useQuery<ConversationSummary[]>({
     queryKey: ['crm-conversations', scope, search],
     queryFn: async () =>
-      (await apiClient.get('/crm/conversations', { params: { scope, search: search || undefined } }))
-        .data,
+      (
+        await apiClient.get('/crm/conversations', {
+          params: { scope: scope === 'ia' ? 'all' : scope, search: search || undefined },
+        })
+      ).data,
     refetchInterval: 5000,
   });
+  // vista "Atendimentos da IA" (#524): conversas com SDR ativo em tempo real
+  const conversations =
+    scope === 'ia'
+      ? allConversations.filter(
+          (c) => c.lead.sdrStatus === 'ACTIVE' || c.lead.sdrStatus === 'QUALIFIED',
+        )
+      : allConversations;
 
   // notificação in-app de lead novo (sem refresh)
   useEffect(() => {
@@ -217,7 +227,7 @@ export default function InboxPage() {
             />
           </div>
           <div className="flex gap-1">
-            {(['mine', 'all'] as const).map((s) => (
+            {(['mine', 'all', 'ia'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
@@ -225,7 +235,7 @@ export default function InboxPage() {
                   scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                 }`}
               >
-                {s === 'mine' ? 'Meus' : 'Todos'}
+                {s === 'mine' ? 'Meus' : s === 'all' ? 'Todos' : '🤖 IA'}
               </button>
             ))}
           </div>
@@ -274,6 +284,11 @@ export default function InboxPage() {
                   )}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {(c.lead.sdrStatus === 'ACTIVE' || c.lead.sdrStatus === 'QUALIFIED') && (
+                    <Badge variant="info" className="text-[10px]">
+                      🤖 IA
+                    </Badge>
+                  )}
                   {c.lead.stage && (
                     <Badge variant="neutral" className="text-[10px]">
                       {c.lead.stage.name}

@@ -17,6 +17,10 @@ interface Settings {
   autoFollowupHours: number;
   autoFollowupTemplate: string | null;
   leadRetentionDays: number;
+  sdrEnabled: boolean;
+  sdrModel: string;
+  sdrMaxTurns: number;
+  sdrSchedule: '24_7' | 'OFF_HOURS';
   waPhoneNumberId: string | null;
 }
 interface Seller {
@@ -125,6 +129,50 @@ export default function CrmSettingsPage() {
             />
           </Field>
         </div>
+      </section>
+
+      {/* SDR IA (F4 #524): kill switch, modelo A/B, trocas e horário */}
+      <section className="space-y-3 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">🤖 SDR IA (atendente automático)</h2>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!form.sdrEnabled}
+              onChange={(e) => setForm({ ...form, sdrEnabled: e.target.checked })}
+            />
+            Ligado
+          </label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Modelo (A/B)">
+            <select
+              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              value={form.sdrModel ?? 'claude-opus-4-8'}
+              onChange={(e) => setForm({ ...form, sdrModel: e.target.value })}
+            >
+              <option value="claude-opus-4-8">Opus 4.8 (qualidade)</option>
+              <option value="claude-sonnet-5">Sonnet 5 (equilíbrio)</option>
+              <option value="claude-haiku-4-5">Haiku 4.5 (custo)</option>
+            </select>
+          </Field>
+          <Field label="Handoff após (trocas da IA)">
+            <NumInput value={form.sdrMaxTurns} onChange={(v) => setForm({ ...form, sdrMaxTurns: v })} />
+          </Field>
+          <Field label="Horário de atuação">
+            <select
+              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              value={form.sdrSchedule ?? '24_7'}
+              onChange={(e) => setForm({ ...form, sdrSchedule: e.target.value as Settings['sdrSchedule'] })}
+            >
+              <option value="24_7">24/7 (sempre)</option>
+              <option value="OFF_HOURS">Só fora do expediente</option>
+            </select>
+          </Field>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Requer ANTHROPIC_API_KEY no servidor. Métricas e fila de revisão no painel SDR IA.
+        </p>
       </section>
 
       <div className="flex gap-2">

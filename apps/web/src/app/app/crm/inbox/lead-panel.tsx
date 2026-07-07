@@ -51,6 +51,17 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
     staleTime: 5 * 60_000,
   });
 
+  // takeover explícito do SDR IA (F4.4 #524) — IA silencia em 1 clique
+  const takeover = useMutation({
+    mutationFn: () => apiClient.post(`/crm/leads/${leadId}/sdr/takeover`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
+      toast.success('Você assumiu a conversa — IA silenciada');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no takeover'),
+  });
+
   const changeStage = useMutation({
     mutationFn: (body: { stageId: string; lostReason?: string }) =>
       apiClient.patch(`/crm/leads/${leadId}/stage`, body),
@@ -92,6 +103,14 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       </div>
 
       <div className="space-y-3 p-3 text-sm">
+        {(lead.sdrStatus === 'ACTIVE' || lead.sdrStatus === 'QUALIFIED') && (
+          <div className="flex items-center justify-between rounded-md border border-sky-500/40 bg-sky-500/5 p-2">
+            <span className="text-xs">🤖 IA atendendo esta conversa</span>
+            <Button size="sm" variant="secondary" disabled={takeover.isPending} onClick={() => takeover.mutate()}>
+              Assumir conversa
+            </Button>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Info label="Origem" value={SOURCE_LABEL[lead.source] ?? lead.source} />
           <Info label="Telefone" value={lead.phone ?? '—'} />
