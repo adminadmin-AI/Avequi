@@ -1,7 +1,23 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CollectionAttemptChannel, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
+import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { INSTALLMENT_METHODS, isCardMethod } from '../acquirer/payment-classification';
+
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+
+/**
+ * Divide um total em N parcelas de centavos consistentes: as N−1 primeiras
+ * iguais (piso) e a última absorvendo o resto, de modo que a soma feche exato.
+ * Fonte única do rateio de parcelas (cartão, boleto e createInstallments).
+ */
+function splitInstallments(total: number, n: number): { number: number; amount: number }[] {
+  const base = Math.floor((total / n) * 100) / 100;
+  return Array.from({ length: n }, (_, i) => ({
+    number: i + 1,
+    amount: i === n - 1 ? round2(total - base * (n - 1)) : base,
+  }));
+}
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -24,6 +40,15 @@ export class FinanceService {
 
   // ─── S09.02: Gerar CR de venda confirmada ────────────────────────────────
 
+  /**
+   * #586 — Gera os títulos da venda a partir do PLANO DE PAGAMENTO (#584):
+   * - à vista (PIX/dinheiro/TED) → 1 CR contra o CLIENTE, D+0;
+   * - boleto/cheque N× → N parcelas contra o CLIENTE, vencendo a cada 30 dias;
+   * - cartão crédito N× → N CRs contra a ADQUIRENTE, valor LÍQUIDO (bruto − MDR),
+   *   liquidando em D+settlement, +30 dias por parcela; MDR vira despesa PAGA;
+   * - cartão débito → 1 CR líquido contra a ADQUIRENTE em D+settlement.
+   * Sem plano → comportamento legado (1 CR cliente, 30 dias).
+   */
   async createReceivableForSale(params: {
     companyId: string;
     salesOrderId: string;
@@ -31,40 +56,137 @@ export class FinanceService {
     dueDate?: Date;
     fiscalDocumentId?: string;
   }): Promise<void> {
-    // Idempotência: uma venda → no máximo um CR
-    const existing = await this.prisma.financialEntry.findUnique({
-      where: { salesOrderId: params.salesOrderId },
+    // Idempotência: se a venda já tem qualquer CR, não regenera (1:N desde #586)
+    const existing = await this.prisma.financialEntry.findFirst({
+      where: { salesOrderId: params.salesOrderId, type: FinancialEntryType.RECEIVABLE },
     });
     if (existing) {
       this.logger.warn(`CR já existe para OV ${params.salesOrderId}`);
       return;
     }
 
-    const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
-
-    const entry = await this.prisma.financialEntry.create({
-      data: {
-        companyId: params.companyId,
-        type: FinancialEntryType.RECEIVABLE,
-        status: FinancialEntryStatus.OPEN,
-        amount: params.amount,
-        dueDate,
-        description: `Conta a receber referente à venda #${params.salesOrderId}`,
-        salesOrderId: params.salesOrderId,
-        fiscalDocumentId: params.fiscalDocumentId ?? null,
-      },
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: params.salesOrderId, companyId: params.companyId },
+      include: { payments: true },
     });
+    const plan = order?.payments ?? [];
+
+    // ── Legado: venda sem plano de pagamento → 1 CR cliente em 30 dias ──────
+    if (plan.length === 0) {
+      const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
+      const entry = await this.prisma.financialEntry.create({
+        data: {
+          companyId: params.companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.OPEN,
+          amount: params.amount,
+          dueDate,
+          description: `Conta a receber referente à venda #${params.salesOrderId}`,
+          salesOrderId: params.salesOrderId,
+          fiscalDocumentId: params.fiscalDocumentId ?? null,
+        },
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: params.companyId,
+          entity: 'FinancialEntry',
+          action: 'CREATE_RECEIVABLE',
+          payload: { id: entry.id, salesOrderId: params.salesOrderId, amount: params.amount },
+        },
+      });
+      this.logger.log(`RECEIVABLE criado: ${entry.id} — OV ${params.salesOrderId} — R$ ${params.amount}`);
+      return;
+    }
+
+    // ── Plano de pagamento → N títulos ──────────────────────────────────────
+    const invoiceDate = new Date();
+
+    const receivables: any[] = [];
+
+    for (const p of plan) {
+      const n = p.installments ?? 1;
+      const gross = Number(p.amount);
+
+      if (isCardMethod(p.method)) {
+        // Devedor = ADQUIRENTE (não o cliente!), valor LÍQUIDO (bruto − MDR),
+        // liquidação real. A MDR NÃO vira uma despesa separada: como a receita
+        // do ERP deriva dos recebíveis (getDre), lançar a MDR à parte contaria
+        // duas vezes. O valor/percentual da MDR fica em SalesPayment.mdrAmount
+        // p/ relatório de taxas de cartão (fonte da conciliação #588).
+        const mdr = Number(p.mdrAmount ?? 0);
+        const net = round2(gross - mdr);
+        const settlement = p.settlementDays ?? 30;
+        for (const inst of splitInstallments(net, n)) {
+          receivables.push({
+            companyId: params.companyId,
+            type: FinancialEntryType.RECEIVABLE,
+            status: FinancialEntryStatus.OPEN,
+            amount: inst.amount,
+            dueDate: this.addDays(invoiceDate, settlement + 30 * (inst.number - 1)),
+            description: `Venda #${params.salesOrderId} — cartão ${inst.number}/${n} (líquido adquirente)`,
+            salesOrderId: params.salesOrderId,
+            debtorType: DebtorType.ACQUIRER,
+            acquirerId: p.acquirerId,
+            salesPaymentId: p.id,
+            installmentNumber: inst.number,
+          });
+        }
+      } else if (INSTALLMENT_METHODS.includes(p.method)) {
+        // Cliente paga em N parcelas — vencimento a cada 30 dias
+        for (const inst of splitInstallments(gross, n)) {
+          receivables.push({
+            companyId: params.companyId,
+            type: FinancialEntryType.RECEIVABLE,
+            status: FinancialEntryStatus.OPEN,
+            amount: inst.amount,
+            dueDate: this.addDays(invoiceDate, 30 * inst.number),
+            description: `Venda #${params.salesOrderId} — ${p.method} ${inst.number}/${n}`,
+            salesOrderId: params.salesOrderId,
+            debtorType: DebtorType.CUSTOMER,
+            salesPaymentId: p.id,
+            installmentNumber: inst.number,
+          });
+        }
+      } else {
+        // À vista (PIX/dinheiro/TED) — cliente, D+0
+        receivables.push({
+          companyId: params.companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.OPEN,
+          amount: gross,
+          dueDate: invoiceDate,
+          description: `Venda #${params.salesOrderId} — ${p.method} à vista`,
+          salesOrderId: params.salesOrderId,
+          debtorType: DebtorType.CUSTOMER,
+          salesPaymentId: p.id,
+          installmentNumber: 1,
+        });
+      }
+    }
+
+    // NF-e vinculada ao primeiro título (fiscalDocumentId segue @unique)
+    if (params.fiscalDocumentId && receivables.length > 0) {
+      receivables[0].fiscalDocumentId = params.fiscalDocumentId;
+    }
+
+    // 1 statement (createMany) em vez de N inserts sequenciais — evita segurar
+    // a conexão do pooler por N round-trips (lição P2024, #498). A unique parcial
+    // (salesPaymentId, installmentNumber) faz um evento duplicado falhar atômico
+    // em vez de duplicar o plano.
+    await this.prisma.financialEntry.createMany({ data: receivables });
 
     await this.prisma.auditLog.create({
       data: {
         companyId: params.companyId,
         entity: 'FinancialEntry',
-        action: 'CREATE_RECEIVABLE',
-        payload: { id: entry.id, salesOrderId: params.salesOrderId, amount: params.amount },
+        action: 'CREATE_RECEIVABLES_PLAN',
+        payload: { salesOrderId: params.salesOrderId, receivables: receivables.length },
       },
     });
 
-    this.logger.log(`RECEIVABLE criado: ${entry.id} — OV ${params.salesOrderId} — R$ ${params.amount}`);
+    this.logger.log(
+      `Plano de pagamento OV ${params.salesOrderId}: ${receivables.length} título(s) gerado(s)`,
+    );
   }
 
   // ─── S09.03: Gerar CP de recebimento de compra ───────────────────────────
@@ -298,20 +420,17 @@ export class FinanceService {
     }
 
     const totalAmount = Number(entry.amount);
-    const installmentAmount = Math.floor((totalAmount / dto.numberOfInstallments) * 100) / 100;
-    const lastInstallmentAmount = +(totalAmount - installmentAmount * (dto.numberOfInstallments - 1)).toFixed(2);
-
-    const installmentsData = Array.from({ length: dto.numberOfInstallments }, (_, i) => {
+    const installmentsData = splitInstallments(totalAmount, dto.numberOfInstallments).map((inst) => {
       const dueDate = new Date(dto.firstDueDate);
-      dueDate.setDate(dueDate.getDate() + i * dto.intervalDays);
+      dueDate.setDate(dueDate.getDate() + (inst.number - 1) * dto.intervalDays);
 
       return {
         companyId: entry.companyId,
         type: entry.type,
         status: FinancialEntryStatus.OPEN,
-        amount: i === dto.numberOfInstallments - 1 ? lastInstallmentAmount : installmentAmount,
+        amount: inst.amount,
         dueDate,
-        description: `${entry.description ?? 'Parcela'} (${i + 1}/${dto.numberOfInstallments})`,
+        description: `${entry.description ?? 'Parcela'} (${inst.number}/${dto.numberOfInstallments})`,
         parentEntryId: entry.id,
         salesOrderId: entry.salesOrderId ?? null,
         purchaseOrderId: entry.purchaseOrderId ?? null,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -197,6 +197,9 @@ export class FinanceKpiService {
         type,
         status: FinancialEntryStatus.PAID,
         paidAt: { gte: from, lte: to },
+        // #586: PMR/PMP medem comportamento do CLIENTE/fornecedor — ciclo de
+        // liquidação de adquirente (D+30 fixo do cartão) desfiguraria a média
+        debtorType: DebtorType.CUSTOMER,
       },
       select: { createdAt: true, paidAt: true },
     });

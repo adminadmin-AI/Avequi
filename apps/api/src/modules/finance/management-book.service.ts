@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FinanceService } from './finance.service';
@@ -167,7 +167,14 @@ export class ManagementBookService {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const abertos = await this.prisma.financialEntry.findMany({
-      where: { companyId, status: { in: OPEN_STATUSES }, dueDate: { lt: hoje } },
+      // #586: aging de inadimplência considera dívida do CLIENTE; título de
+      // adquirente "vencido" é liquidação de cartão a conciliar (#588), não atraso.
+      where: {
+        companyId,
+        status: { in: OPEN_STATUSES },
+        dueDate: { lt: hoje },
+        debtorType: DebtorType.CUSTOMER,
+      },
       select: { type: true, amount: true, paidAmount: true, dueDate: true },
     });
     const buckets = AGING_BUCKETS.map((b) => ({ faixa: b.label, receber: 0, pagar: 0 }));

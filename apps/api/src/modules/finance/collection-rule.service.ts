@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -118,6 +118,9 @@ export class CollectionRuleService {
         type: FinancialEntryType.RECEIVABLE,
         status: { in: OPEN_STATUSES },
         dueDate: { lte: maxDue },
+        // #586: régua cobra CLIENTE — título de adquirente (cartão) atrasado é
+        // conciliação (#588), não cobrança (autoBlock bloquearia cliente inocente)
+        debtorType: DebtorType.CUSTOMER,
       },
       select: {
         id: true,
