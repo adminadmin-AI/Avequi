@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
@@ -33,8 +33,11 @@ interface DraftItem {
 
 export default function NewSalePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const qc = useQueryClient();
+  // Conversão de lead (CRM F2.2 #515): chega com ?customerId=&leadId=
+  const leadId = searchParams.get('leadId');
 
   const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
@@ -43,7 +46,7 @@ export default function NewSalePage() {
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-  const [customerId, setCustomerId] = useState('');
+  const [customerId, setCustomerId] = useState(searchParams.get('customerId') ?? '');
   const [warehouseId, setWarehouseId] = useState('');
   const [deliveryAddressId, setDeliveryAddressId] = useState('');
   const [notes, setNotes] = useState('');
@@ -149,7 +152,15 @@ export default function NewSalePage() {
       })),
     };
     create.mutate(payload, {
-      onSuccess: (res) => {
+      onSuccess: async (res) => {
+        // vincula a OV ao lead → fecha automático quando a NF-e sair (F2.2 #515)
+        if (leadId) {
+          try {
+            await apiClient.post(`/crm/leads/${leadId}/link-order`, { salesOrderId: res.data.id });
+          } catch {
+            /* vínculo é best-effort; a venda já foi criada */
+          }
+        }
         toast.success('Ordem de venda criada');
         router.push(`/app/sales/${res.data.id}`);
       },

@@ -6,7 +6,8 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: assinatura X-Hub-Signature-256 do webhook WhatsApp (#508) é HMAC do corpo bruto
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.use(helmet());
 
