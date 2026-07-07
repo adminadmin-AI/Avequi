@@ -651,6 +651,25 @@ export class FinanceService {
       orderBy: { dueDate: 'asc' },
     });
 
+    // #392: parcelas de dívida PENDING no período entram como saída projetada
+    const debtInstallments = await this.prisma.debtInstallment.findMany({
+      where: {
+        debt: { companyId, status: 'ACTIVE' },
+        status: 'PENDING',
+        dueDate: { gte: today, lte: endDate },
+      },
+      select: { amount: true, dueDate: true },
+    });
+    for (const di of debtInstallments) {
+      entries.push({
+        type: FinancialEntryType.PAYABLE,
+        amount: di.amount,
+        paidAmount: null,
+        dueDate: di.dueDate,
+        description: 'Parcela de financiamento (#392)',
+      } as any);
+    }
+
     // Build day-by-day projection
     const projection: Array<{
       date: string;

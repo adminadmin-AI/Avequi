@@ -5,6 +5,7 @@ import { ReconciliationService } from './reconciliation.service';
 import { CollectionRuleService } from './collection-rule.service';
 import { ProvisionService } from './provision.service';
 import { SupplierAdvanceService } from './supplier-advance.service';
+import { DebtService } from './debt.service';
 import { FinanceController } from './finance.controller';
 import { BankingController } from './banking.controller';
 import { BillingController } from './billing.controller';
@@ -14,7 +15,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 @Module({
   imports: [PrismaModule],
   controllers: [FinanceController, BankingController, BillingController],
-  providers: [FinanceService, FinanceKpiService, ReconciliationService, CollectionRuleService, ProvisionService, SupplierAdvanceService, FinanceListener],
+  providers: [FinanceService, FinanceKpiService, ReconciliationService, CollectionRuleService, ProvisionService, SupplierAdvanceService, DebtService, FinanceListener],
   exports: [FinanceService],
 })
 export class FinanceModule {}

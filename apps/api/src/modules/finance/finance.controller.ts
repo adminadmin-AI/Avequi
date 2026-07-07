@@ -17,6 +17,8 @@ import { FinanceKpiService } from './finance-kpi.service';
 import { ProvisionService } from './provision.service';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { CreateSupplierAdvanceDto } from './dto/supplier-advance.dto';
+import { DebtService } from './debt.service';
+import { CreateDebtDto } from './dto/debt.dto';
 import { UpdateProvisionRuleDto, WriteOffDto } from './dto/provision.dto';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -43,6 +45,7 @@ export class FinanceController {
     private readonly kpiService: FinanceKpiService,
     private readonly provisionService: ProvisionService,
     private readonly advanceService: SupplierAdvanceService,
+    private readonly debtService: DebtService,
   ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
@@ -161,6 +164,44 @@ export class FinanceController {
   @ApiOperation({ summary: 'Cancelar adiantamento não aplicado (#393)' })
   cancelAdvance(@Param('id') id: string, @Request() req: { user: { id?: string; companyId: string } }) {
     return this.advanceService.cancel(id, req.user.companyId, req.user.id);
+  }
+
+  // ─── Gestão de dívida (#392) ──────────────────────────────────────────────
+
+  @Get('debts/dashboard')
+  @ApiOperation({ summary: 'Endividamento: saldo por tipo + próximos vencimentos (#392)' })
+  debtDashboard(@Request() req: { user: { companyId: string } }) {
+    return this.debtService.dashboard(req.user.companyId);
+  }
+
+  @Get('debts')
+  @ApiOperation({ summary: 'Listar dívidas/financiamentos (#392)' })
+  listDebts(@Request() req: { user: { companyId: string } }) {
+    return this.debtService.findAll(req.user.companyId);
+  }
+
+  @Post('debts')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Contratar dívida — gera cronograma PRICE/SAC (#392)' })
+  createDebt(@Body() dto: CreateDebtDto, @Request() req: { user: { id?: string; companyId: string } }) {
+    return this.debtService.create(req.user.companyId, dto, req.user.id);
+  }
+
+  @Get('debts/:id')
+  @ApiOperation({ summary: 'Dívida com cronograma completo (#392)' })
+  getDebt(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
+    return this.debtService.findOne(id, req.user.companyId);
+  }
+
+  @Post('debts/:id/installments/:number/pay')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Baixar parcela do financiamento (#392)' })
+  payDebtInstallment(
+    @Param('id') id: string,
+    @Param('number') number: string,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.debtService.payInstallment(id, parseInt(number, 10), req.user.companyId, req.user.id);
   }
 
   @Get('reports/dre')

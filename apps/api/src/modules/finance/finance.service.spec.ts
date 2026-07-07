@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockPrisma = {
+  debtInstallment: { findMany: jest.fn().mockResolvedValue([]) },
   financialEntry: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
