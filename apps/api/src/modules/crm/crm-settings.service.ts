@@ -10,6 +10,7 @@ const PARAM_KEYS = {
   autoFollowupStageId: 'CRM_AUTO_FOLLOWUP_STAGE_ID',
   autoFollowupHours: 'CRM_AUTO_FOLLOWUP_HOURS',
   autoFollowupTemplate: 'CRM_AUTO_FOLLOWUP_TEMPLATE',
+  leadRetentionDays: 'CRM_LEAD_RETENTION_DAYS',
 } as const;
 
 const DEFAULTS = {
@@ -20,6 +21,7 @@ const DEFAULTS = {
   autoFollowupStageId: null as string | null,
   autoFollowupHours: 48,
   autoFollowupTemplate: null as string | null,
+  leadRetentionDays: 0, // 0 = expurgo LGPD desligado (#558)
 };
 
 export interface CrmSettings {
@@ -30,6 +32,8 @@ export interface CrmSettings {
   autoFollowupStageId: string | null;
   autoFollowupHours: number;
   autoFollowupTemplate: string | null;
+  /** LGPD (#558): anonimizar leads perdidos após N dias (0 = desligado) */
+  leadRetentionDays: number;
   waPhoneNumberId: string | null;
 }
 
@@ -65,6 +69,7 @@ export class CrmSettingsService {
       autoFollowupStageId: byKey.get(PARAM_KEYS.autoFollowupStageId) ?? DEFAULTS.autoFollowupStageId,
       autoFollowupHours: num(PARAM_KEYS.autoFollowupHours, DEFAULTS.autoFollowupHours),
       autoFollowupTemplate: byKey.get(PARAM_KEYS.autoFollowupTemplate) ?? DEFAULTS.autoFollowupTemplate,
+      leadRetentionDays: num(PARAM_KEYS.leadRetentionDays, DEFAULTS.leadRetentionDays),
       waPhoneNumberId: company?.waPhoneNumberId ?? null,
     };
   }
@@ -97,6 +102,12 @@ export class CrmSettingsService {
       setParam(PARAM_KEYS.autoFollowupHours, String(input.autoFollowupHours));
     if (input.autoFollowupTemplate !== undefined)
       setParam(PARAM_KEYS.autoFollowupTemplate, input.autoFollowupTemplate ?? '');
+    if (input.leadRetentionDays != null) {
+      if (input.leadRetentionDays < 0) {
+        throw new BadRequestException('Retenção não pode ser negativa (0 desliga o expurgo)');
+      }
+      setParam(PARAM_KEYS.leadRetentionDays, String(input.leadRetentionDays));
+    }
 
     if (input.waPhoneNumberId !== undefined) {
       writes.push(

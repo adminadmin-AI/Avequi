@@ -3529,6 +3529,9 @@ model Lead {
   /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
   firstRespondedAt  DateTime?             @map("first_responded_at")
   lastInteractionAt DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
+  /// LGPD (#558): anonimizado a pedido do titular ou por retenção — nome/telefone/
+  /// email/conversa apagados; source/stage/OV preservados p/ métricas agregadas
+  anonymizedAt      DateTime?             @map("anonymized_at")
   activities        LeadActivity[]
   reminders         LeadReminder[]
   conversation      WhatsappConversation?
