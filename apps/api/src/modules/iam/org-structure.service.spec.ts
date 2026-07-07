@@ -464,16 +464,16 @@ describe('OrgStructureController — permissões aplicadas', () => {
     }
   });
 
-  it('TODAS as rotas têm @Roles SUPER_ADMIN/DIRECTOR/MANAGER (dupla proteção)', () => {
+  it('NENHUMA rota usa @Roles — o gate efetivo é o RBAC v2 (decisão Rafael #347)', () => {
+    // Removido o @Roles(SUPER_ADMIN/DIRECTOR/MANAGER): o enum legado bloquearia
+    // ADMIN_EMPRESA/RH/ADMIN_FILIAL/AUDITOR (perfis só-RBAC-v2). A autoridade é
+    // o @RequirePermission (PermissionGuard). Ver org-structure.access.spec.ts.
     for (const method of Object.keys(ORG_PERMISSION_BY_METHOD)) {
       const handler = OrgStructureController.prototype[
         method as keyof OrgStructureController
       ];
       const roles = Reflect.getMetadata('roles', handler as object);
-      expect({ method, roles }).toEqual({
-        method,
-        roles: ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'],
-      });
+      expect({ method, roles }).toEqual({ method, roles: undefined });
     }
   });
 });

@@ -10,7 +10,6 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { OrgStructureService } from './org-structure.service';
 import {
   AddUserDepartmentDto,
@@ -25,13 +24,25 @@ import {
 
 /**
  * Estrutura organizacional (Filiais, Departamentos, Equipes) + vínculos de
- * usuários — issue #347 (IAM F5.2, FASE 1: CRUD e vínculos; o enforcement de
- * escopo por filial no sistema todo é a fase 2).
+ * usuários — issue #347 (IAM F5.2).
  *
- * Dupla proteção (padrão do #470/#341): @Roles corta pelo enum legado
- * (SUPER_ADMIN/DIRECTOR/MANAGER) e @RequirePermission refina pelo RBAC v2
- * (iam.org.view / iam.org.manage / iam.org.assign). Escopo multi-tenant:
- * companyId SEMPRE do JWT — nunca de query/body (anti-IDOR).
+ * ⚠️ FASE 1 (este PR): apenas CADASTRO da estrutura e vínculos de pessoas.
+ * NÃO há enforcement de escopo por filial/departamento/equipe — nenhum módulo
+ * do ERP (vendas/estoque/produção/financeiro) passa a filtrar dados por filial,
+ * e o PermissionService.can() NÃO ganha escopo organizacional. "Gerente da
+ * filial X só vê dados da filial X" é a FASE 2 (issue separada), porque muda o
+ * comportamento do ERP inteiro. Aqui primeiro cadastramos e vinculamos.
+ *
+ * Autorização por RBAC v2 (@RequirePermission), gate ÚNICO — SEM @Roles(enum)
+ * (mesma decisão do #352): o enum legado só reconhece SUPER_ADMIN/DIRECTOR/
+ * MANAGER e bloquearia ADMIN_EMPRESA, RH, ADMIN_FILIAL e AUDITOR (perfis
+ * só-RBAC-v2). Acesso efetivo pela matriz aprovada:
+ *   - iam.org.view   → ADMIN_GLOBAL, ADMIN_EMPRESA, DIRETOR, RH, ADMIN_FILIAL, AUDITOR
+ *   - iam.org.manage → ADMIN_GLOBAL, ADMIN_EMPRESA, DIRETOR (redesenha a estrutura)
+ *   - iam.org.assign → ADMIN_GLOBAL, ADMIN_EMPRESA, DIRETOR, RH (aloca pessoas)
+ * RH aloca pessoas (assign) mas NÃO redesenha a estrutura (sem manage);
+ * ADMIN_FILIAL e AUDITOR só visualizam nesta fase. O backend é a autoridade;
+ * o frontend (<Can>/usePermission) é só UX. companyId SEMPRE do JWT (anti-IDOR).
  */
 @ApiTags('iam')
 @ApiBearerAuth()
@@ -42,15 +53,13 @@ export class OrgStructureController {
   // ─── Filiais ───────────────────────────────────────────────────────────────
 
   @Get('branches')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.view')
-  @ApiOperation({ summary: 'Listar filiais da empresa — SUPER_ADMIN/DIRECTOR/MANAGER' })
+  @ApiOperation({ summary: 'Listar filiais da empresa' })
   async listBranches(@CurrentUser() user: any) {
     return this.orgStructureService.listBranches(user.companyId);
   }
 
   @Post('branches')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({ summary: 'Criar filial (código único por empresa → 409)' })
   async createBranch(@CurrentUser() user: any, @Body() dto: CreateBranchDto) {
@@ -61,7 +70,6 @@ export class OrgStructureController {
   }
 
   @Patch('branches/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({ summary: 'Editar filial (nome, CNPJ, ativa/inativa)' })
   async updateBranch(
@@ -77,7 +85,6 @@ export class OrgStructureController {
   }
 
   @Delete('branches/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({
     summary: 'Excluir filial (referenciada em atribuições com escopo → 409)',
@@ -92,7 +99,6 @@ export class OrgStructureController {
   // ─── Departamentos ─────────────────────────────────────────────────────────
 
   @Get('departments')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.view')
   @ApiOperation({
     summary: 'Listar departamentos da empresa (com hierarquia e gerente)',
@@ -102,7 +108,6 @@ export class OrgStructureController {
   }
 
   @Post('departments')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({
     summary: 'Criar departamento (pai e gerente opcionais; código único → 409)',
@@ -115,7 +120,6 @@ export class OrgStructureController {
   }
 
   @Patch('departments/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({
     summary: 'Editar departamento (hierarquia com defesa a ciclo → 400)',
@@ -133,7 +137,6 @@ export class OrgStructureController {
   }
 
   @Delete('departments/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({
     summary:
@@ -149,7 +152,6 @@ export class OrgStructureController {
   // ─── Equipes ───────────────────────────────────────────────────────────────
 
   @Get('teams')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.view')
   @ApiOperation({ summary: 'Listar equipes da empresa (via departamento)' })
   async listTeams(@CurrentUser() user: any) {
@@ -157,7 +159,6 @@ export class OrgStructureController {
   }
 
   @Post('teams')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({ summary: 'Criar equipe dentro de um departamento (líder opcional)' })
   async createTeam(@CurrentUser() user: any, @Body() dto: CreateTeamDto) {
@@ -168,7 +169,6 @@ export class OrgStructureController {
   }
 
   @Patch('teams/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({ summary: 'Editar equipe (nome, departamento, líder, ativa/inativa)' })
   async updateTeam(
@@ -184,7 +184,6 @@ export class OrgStructureController {
   }
 
   @Delete('teams/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.manage')
   @ApiOperation({ summary: 'Excluir equipe (com membros → 409)' })
   async deleteTeam(@CurrentUser() user: any, @Param('id') id: string) {
@@ -199,7 +198,6 @@ export class OrgStructureController {
   // UserRoleAssignment (POST /iam/users/:userId/roles, #352) — não duplicado.
 
   @Get('users/:userId/departments')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.view')
   @ApiOperation({ summary: 'Departamentos do usuário (com flag de principal)' })
   async listUserDepartments(@CurrentUser() user: any, @Param('userId') userId: string) {
@@ -207,7 +205,6 @@ export class OrgStructureController {
   }
 
   @Post('users/:userId/departments')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.assign')
   @ApiOperation({
     summary:
@@ -226,7 +223,6 @@ export class OrgStructureController {
   }
 
   @Delete('users/:userId/departments/:departmentId')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.assign')
   @ApiOperation({ summary: 'Remover vínculo do usuário com o departamento' })
   async removeUserDepartment(
@@ -244,7 +240,6 @@ export class OrgStructureController {
   // ─── Vínculos usuário ↔ equipe ────────────────────────────────────────────
 
   @Get('users/:userId/teams')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.view')
   @ApiOperation({ summary: 'Equipes do usuário' })
   async listUserTeams(@CurrentUser() user: any, @Param('userId') userId: string) {
@@ -252,7 +247,6 @@ export class OrgStructureController {
   }
 
   @Post('users/:userId/teams')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.assign')
   @ApiOperation({ summary: 'Vincular usuário a equipe (duplicado → 409)' })
   async addUserTeam(
@@ -268,7 +262,6 @@ export class OrgStructureController {
   }
 
   @Delete('users/:userId/teams/:teamId')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @RequirePermission('iam.org.assign')
   @ApiOperation({ summary: 'Remover vínculo do usuário com a equipe' })
   async removeUserTeam(

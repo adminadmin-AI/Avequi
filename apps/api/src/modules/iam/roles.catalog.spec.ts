@@ -140,6 +140,37 @@ describe('Catálogo de perfis system (#339)', () => {
     }
   });
 
+  it('iam.org.* segue a matriz da decisão Rafael #347 fase 1 (estrutura organizacional)', () => {
+    // Estrutura organizacional é CADASTRO da empresa (≠ segurança IAM). Por isso
+    // o DIRETOR gerencia a estrutura (manage/assign) mesmo sem gerenciar perfis;
+    // RH aloca pessoas (assign) sem redesenhar a estrutura (sem manage);
+    // ADMIN_FILIAL e AUDITOR só visualizam nesta fase.
+    const eff = (role: string) => new Set(resolveEffectivePermissions(role));
+    // [view, manage, assign] esperados por perfil
+    const MATRIZ: Record<string, [boolean, boolean, boolean]> = {
+      ADMIN_GLOBAL: [true, true, true],
+      ADMIN_EMPRESA: [true, true, true],
+      DIRETOR: [true, true, true],
+      RH: [true, false, true],
+      ADMIN_FILIAL: [true, false, false],
+      AUDITOR: [true, false, false],
+      SOMENTE_LEITURA: [false, false, false],
+      VISITANTE: [false, false, false],
+    };
+    for (const [role, [v, m, a]] of Object.entries(MATRIZ)) {
+      const p = eff(role);
+      expect(p.has('iam.org.view')).toBe(v);
+      expect(p.has('iam.org.manage')).toBe(m);
+      expect(p.has('iam.org.assign')).toBe(a);
+    }
+    // Separação org × IAM: DIRETOR gerencia estrutura mas NÃO perfis/permissões.
+    const diretor = eff('DIRETOR');
+    expect(diretor.has('iam.org.manage')).toBe(true);
+    expect(diretor.has('iam.org.assign')).toBe(true);
+    expect(diretor.has('iam.roles.manage')).toBe(false);
+    expect(diretor.has('iam.roles.assign')).toBe(false);
+  });
+
   it('SOMENTE_LEITURA só tem leitura e NÃO vê módulos sensíveis', () => {
     const leitura = findSystemRole('SOMENTE_LEITURA')!;
     const mutacoes = leitura.permissions.filter((p) => !p.endsWith('.view'));
