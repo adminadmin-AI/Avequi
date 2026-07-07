@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PasswordPolicyService } from '../iam/password-policy.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -11,22 +12,48 @@ const SELECT_SAFE = {
   role: true,
   isActive: true,
   companyId: true,
+  mustChangePassword: true,
   createdAt: true,
   updatedAt: true,
 };
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly passwordPolicy: PasswordPolicyService,
+  ) {}
 
   async create(dto: CreateUserDto, companyId: string) {
-    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    // #345: senha definida pelo admin também passa pela política de
+    // complexidade (inclusive não conter o nome/e-mail do NOVO usuário).
+    this.passwordPolicy.validateComplexity(dto.password, {
+      email: dto.email,
+      name: dto.name,
+    });
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const { password: _pw, ...rest } = dto;
-    return this.prisma.user.create({
-      data: { ...rest, companyId, passwordHash },
+    const user = await this.prisma.user.create({
+      // companyId SEMPRE vem do JWT (nunca do body — #450). #345:
+      // passwordChangedAt marca a criação; mustChangePassword=true por PADRÃO
+      // (senha definida por admin é temporária — decisão Rafael #468), salvo se
+      // o admin passar explicitamente `false`.
+      data: {
+        ...rest,
+        companyId,
+        passwordHash,
+        passwordChangedAt: new Date(),
+        mustChangePassword: dto.mustChangePassword ?? true,
+      },
       select: SELECT_SAFE,
     });
+
+    // #345: hash inicial entra no histórico — o bloqueio de reuso das
+    // últimas 5 senhas vale desde a primeira troca (best-effort).
+    await this.passwordPolicy.recordPasswordChange(user.id, null, passwordHash);
+
+    return user;
   }
 
   async findAll(requestingUser: { role: string; companyId: string }) {
@@ -52,18 +79,48 @@ export class UserService {
   }
 
   async update(id: string, dto: UpdateUserDto, companyId: string) {
-    await this.findOne(id, companyId);
+    const existing = await this.findOne(id, companyId);
     // Defesa em profundidade: descarta password (hash separado) e qualquer
-    // companyId injetado no payload — usuário nunca muda de empresa via update
+    // companyId injetado no payload — usuário nunca muda de empresa via update (#450)
     const { password, companyId: _ignored, ...rest } = dto as any;
     const data: any = { ...rest };
+    let previousHash: string | null = null;
     if (password) {
+      // #345: reset de senha por admin também obedece à política —
+      // complexidade + bloqueio de reuso das últimas 5 senhas do usuário.
+      this.passwordPolicy.validateComplexity(password, {
+        email: dto.email ?? existing.email,
+        name: dto.name ?? existing.name,
+      });
+      await this.passwordPolicy.assertNotReused(id, password);
+
+      // Hash atual ANTES do update — na primeira troca ele entra no histórico.
+      const current = await this.prisma.user.findUnique({
+        where: { id },
+        select: { passwordHash: true },
+      });
+      previousHash = current?.passwordHash ?? null;
+
       data.passwordHash = await bcrypt.hash(password, 10);
+      data.passwordChangedAt = new Date();
+      // #468 (decisão Rafael): reset de senha por admin força a troca no
+      // próximo login por PADRÃO — salvo se o admin passar mustChangePassword
+      // explicitamente (ex.: false para não forçar).
+      if (data.mustChangePassword === undefined) {
+        data.mustChangePassword = true;
+      }
     }
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data,
       select: SELECT_SAFE,
     });
+
+    if (password) {
+      // #345: registra a troca no histórico (best-effort).
+      await this.passwordPolicy.recordPasswordChange(id, previousHash, data.passwordHash);
+    }
+
+    return updated;
   }
 }

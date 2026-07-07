@@ -309,9 +309,13 @@ model User {
   pushSubscriptions         PushSubscription[] // CRM V2.1 (#568) — web push por dispositivo
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
+  // IAM v2 — F4.2 (#345) — password policy (campos ADITIVOS)
+  passwordChangedAt  DateTime? // null = nunca trocou (rotação usa createdAt como base)
+  mustChangePassword Boolean   @default(false) // primeiro acesso / reset por admin
+  passwordHistory    PasswordHistory[]
+  defaultForCustomersSeller Customer[]             @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
-  defaultForCustomersSeller Customer[]             @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
 
   @@map("gdr_users")
 }
@@ -3008,6 +3012,10 @@ model Role {
   // responde mfaSetupRequired=true mas NÃO bloqueia — o enforcement duro
   // (bloquear login sem MFA após grace period) é decisão pendente do Rafael.
   requireMfa  Boolean  @default(false)
+  // IAM v2 — F4.2 (#345): rotação de senha OPCIONAL por perfil. null = SEM
+  // rotação (DEFAULT — NIST SP 800-63B recomenda CONTRA rotação periódica;
+  // ligar é decisão do Rafael). Ex.: 90 = senha expira após 90 dias.
+  passwordMaxAgeDays Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -3048,6 +3056,20 @@ model UserMFA {
   updatedAt   DateTime  @updatedAt
 
   @@map("gdr_user_mfa")
+}
+
+/// IAM v2 — F4.2 (#345): histórico de senhas (hashes bcrypt). Guarda as
+/// últimas N (5) para bloquear reuso na troca de senha. Nunca expõe hash em
+/// API — consumo interno do PasswordPolicyService apenas.
+model PasswordHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String // bcrypt
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("gdr_password_history")
 }
 
 /// Vínculo perfil ↔ permissão. granted=false = deny explícito (vence grant).

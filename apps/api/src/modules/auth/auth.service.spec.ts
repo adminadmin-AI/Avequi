@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { AuthService, MFA_PENDING_SCOPE } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
+import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 
 function hashToken(token: string): string {
@@ -47,6 +48,16 @@ const mockMfaService = {
   recordFailedVerify: jest.fn(),
 };
 
+// #345: PasswordPolicyService mockado — default senha OK (fluxo antigo intacto).
+const mockPasswordPolicy = {
+  validateComplexity: jest.fn(),
+  assertNotReused: jest.fn(),
+  recordPasswordChange: jest.fn(),
+  getMaxAgeDays: jest.fn(),
+  isPasswordExpired: jest.fn(),
+  getPolicy: jest.fn(),
+};
+
 const mockUser = {
   id: 'user-1',
   email: 'admin@gdr.com.br',
@@ -70,6 +81,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: SessionService, useValue: mockSessionService },
         { provide: MfaService, useValue: mockMfaService },
+        { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
       ],
     }).compile();
 
@@ -91,6 +103,12 @@ describe('AuthService', () => {
     mockMfaService.roleRequiresMfa.mockResolvedValue(false);
     mockMfaService.verifyCode.mockResolvedValue(false);
     mockMfaService.recordFailedVerify.mockResolvedValue(undefined);
+    // Defaults #345: senha dentro da política e não vencida.
+    mockPasswordPolicy.validateComplexity.mockReturnValue(undefined);
+    mockPasswordPolicy.assertNotReused.mockResolvedValue(undefined);
+    mockPasswordPolicy.recordPasswordChange.mockResolvedValue(undefined);
+    mockPasswordPolicy.isPasswordExpired.mockResolvedValue(false);
+    mockPasswordPolicy.getMaxAgeDays.mockResolvedValue(null);
   });
 
   // ─── validateUser ──────────────────────────────────────────────────────────

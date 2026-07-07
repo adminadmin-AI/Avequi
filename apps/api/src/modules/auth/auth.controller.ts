@@ -18,6 +18,7 @@ import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
+import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 
 @ApiTags('auth')
@@ -27,6 +28,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
     private readonly mfaService: MfaService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   @Public()
@@ -58,6 +60,45 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
   async logout(@Body('refreshToken') refreshToken: string) {
     await this.authService.logout(refreshToken);
+  }
+
+  // ─── Password policy (#345) ────────────────────────────────────────────────
+
+  @Public()
+  @Get('password-policy')
+  @ApiOperation({ summary: 'Política de senha vigente (regras de complexidade e histórico)' })
+  passwordPolicyInfo() {
+    return this.passwordPolicy.getPolicy();
+  }
+
+  /**
+   * @Public + resolução manual de identidade no service: o endpoint aceita
+   * DUAS credenciais — access token normal (header Authorization, exige
+   * currentPassword) OU passwordChangeToken restrito no body (emitido pelo
+   * login quando a senha venceu / mustChangePassword). O guard global de JWT
+   * rejeitaria o token restrito, por isso a rota é pública e a autenticação
+   * é feita explicitamente dentro do AuthService.changePassword.
+   */
+  @Public()
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      'Trocar senha — autenticado (Bearer + senha atual) OU com passwordChangeToken restrito do login (senha vencida/troca obrigatória)',
+  })
+  async changePassword(
+    @Request() req: any,
+    @Body('currentPassword') currentPassword: string,
+    @Body('newPassword') newPassword: string,
+    @Body('passwordChangeToken') passwordChangeToken: string,
+  ) {
+    return this.authService.changePassword({
+      authorizationHeader: req.headers?.authorization,
+      passwordChangeToken,
+      currentPassword,
+      newPassword,
+    });
   }
 
   // ─── MFA/2FA TOTP (#344) ───────────────────────────────────────────────────

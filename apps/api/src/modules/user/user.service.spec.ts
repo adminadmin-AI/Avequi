@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PasswordPolicyService } from '../iam/password-policy.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -9,8 +10,18 @@ const mockPrisma = {
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
   },
+};
+
+// #468: mock do PasswordPolicyService (validação real coberta em
+// user.service.password-policy.spec.ts). Aqui é no-op para não interferir
+// nos testes de CRUD básico.
+const mockPasswordPolicy = {
+  validateComplexity: jest.fn(),
+  assertNotReused: jest.fn().mockResolvedValue(undefined),
+  recordPasswordChange: jest.fn().mockResolvedValue(undefined),
 };
 
 const SAFE_USER = {
@@ -33,6 +44,7 @@ describe('UserService', () => {
       providers: [
         UserService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
       ],
     }).compile();
 
@@ -48,8 +60,7 @@ describe('UserService', () => {
         email: 'joao@gdr.com.br',
         password: 'senha123',
         role: 'MANAGER' as any,
-        companyId: 'co-1',
-      });
+      }, 'co-1');
 
       const args = mockPrisma.user.create.mock.calls[0][0];
       // senha em claro nao pode ir para o banco em nenhum campo
@@ -68,8 +79,7 @@ describe('UserService', () => {
         email: 'joao@gdr.com.br',
         password: 'senha123',
         role: 'MANAGER' as any,
-        companyId: 'co-1',
-      });
+      }, 'co-1');
 
       const args = mockPrisma.user.create.mock.calls[0][0];
       expect(args.select).toBeDefined();
