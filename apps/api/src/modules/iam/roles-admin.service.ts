@@ -161,7 +161,12 @@ export class RolesAdminService {
   async createRole(actor: Actor, dto: CreateRoleDto) {
     const code = dto.code ?? deriveRoleCode(dto.name);
 
-    const existing = await this.prisma.role.findUnique({ where: { code } });
+    // Role.code é único por empresa (@@unique([companyId, code]) desde #462) e
+    // os perfis system são globais (companyId = null). Um perfil custom não pode
+    // colidir com outro da MESMA empresa nem com um perfil de sistema.
+    const existing = await this.prisma.role.findFirst({
+      where: { code, OR: [{ companyId: actor.companyId }, { companyId: null }] },
+    });
     if (existing) {
       throw new ConflictException(
         `Já existe um perfil com o código '${code}'. Escolha outro nome ou informe um código diferente.`,

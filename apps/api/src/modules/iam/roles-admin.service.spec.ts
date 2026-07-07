@@ -125,7 +125,7 @@ describe('RolesAdminService', () => {
 
   describe('createRole', () => {
     it('cria perfil custom com changelog ROLE_CREATED e auditoria', async () => {
-      prisma.role.findUnique.mockResolvedValue(null);
+      prisma.role.findFirst.mockResolvedValue(null); // check de existência do code
       prisma.role.create.mockResolvedValue({ ...CUSTOM_ROLE });
 
       const result = await service.createRole(ACTOR, { name: 'Comprador Júnior' });
@@ -149,15 +149,16 @@ describe('RolesAdminService', () => {
     });
 
     it('409 quando o code já existe', async () => {
-      prisma.role.findUnique.mockResolvedValue(SYSTEM_ROLE);
+      prisma.role.findFirst.mockResolvedValue(SYSTEM_ROLE);
       await expect(
         service.createRole(ACTOR, { name: 'Admin Global' }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('copia permissões do perfil de origem (duplicar)', async () => {
-      prisma.role.findUnique.mockResolvedValue(null);
-      prisma.role.findFirst.mockResolvedValue(SYSTEM_ROLE); // findVisibleRole(origem)
+      prisma.role.findFirst
+        .mockResolvedValueOnce(null) // check de existência do novo code
+        .mockResolvedValueOnce(SYSTEM_ROLE); // findVisibleRole(origem)
       prisma.rolePermission.findMany.mockResolvedValue([
         { permissionId: 'p1', granted: true },
         { permissionId: 'p2', granted: true },
