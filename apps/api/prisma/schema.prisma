@@ -134,6 +134,7 @@ model Company {
   whatsappTemplates     WhatsappTemplate[]
   quickReplies          QuickReply[]
   leadReminders         LeadReminder[]
+  sdrUsages             SdrUsage[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -1789,6 +1790,7 @@ enum AlertType {
   RENAVE_OP_FAILED // operação RENAVE/ATPV-e falhou — retry manual (#527)
   BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
   CRM_REMINDER_DUE // lembrete de follow-up do CRM venceu (#555)
+  CRM_SDR_HANDOFF // SDR IA transferiu lead quente p/ vendedor (#522)
 }
 
 enum AlertSeverity {
@@ -3532,6 +3534,9 @@ model Lead {
   /// LGPD (#558): anonimizado a pedido do titular ou por retenção — nome/telefone/
   /// email/conversa apagados; source/stage/OV preservados p/ métricas agregadas
   anonymizedAt      DateTime?             @map("anonymized_at")
+  /// F4 SDR IA (#521): null = nunca atendido pela IA
+  sdrStatus         SdrLeadStatus?        @map("sdr_status")
+  sdrUsages         SdrUsage[]
   activities        LeadActivity[]
   reminders         LeadReminder[]
   conversation      WhatsappConversation?
@@ -3678,4 +3683,36 @@ model LeadReminder {
   @@index([companyId, userId, doneAt, dueAt])
   @@index([doneAt, notifiedAt, dueAt]) // varredura do cron
   @@map("gdr_lead_reminders")
+}
+
+/// F4 SDR IA (#521): estado do atendimento automático do lead.
+/// null = nunca atendido pela IA. ACTIVE/QUALIFIED respondem; HANDOFF (humano
+/// assumiu ou IA transferiu) e DISCARDED (spam/engano) silenciam a IA.
+enum SdrLeadStatus {
+  ACTIVE
+  QUALIFIED
+  HANDOFF
+  DISCARDED
+}
+
+/// F4 SDR IA (#521/#524) — usage da API Anthropic por turno de conversa.
+/// Alimenta a coluna de custo do painel de supervisão.
+model SdrUsage {
+  id                  String   @id @default(cuid())
+  companyId           String   @map("company_id")
+  company             Company  @relation(fields: [companyId], references: [id])
+  leadId              String   @map("lead_id")
+  lead                Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  model               String // model id usado (permite A/B opus/sonnet/haiku)
+  inputTokens         Int      @default(0) @map("input_tokens")
+  outputTokens        Int      @default(0) @map("output_tokens")
+  cacheReadTokens     Int      @default(0) @map("cache_read_tokens")
+  cacheCreationTokens Int      @default(0) @map("cache_creation_tokens")
+  /// custo estimado do turno em USD (preço de tabela do modelo)
+  costUsd             Decimal  @default(0) @map("cost_usd") @db.Decimal(10, 6)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@index([leadId])
+  @@map("gdr_sdr_usage")
 }

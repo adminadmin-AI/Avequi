@@ -296,6 +296,7 @@ export enum AlertType {
   RENAVE_OP_FAILED = 'RENAVE_OP_FAILED',
   BIN_REGISTER_FAILED = 'BIN_REGISTER_FAILED',
   CRM_REMINDER_DUE = 'CRM_REMINDER_DUE',
+  CRM_SDR_HANDOFF = 'CRM_SDR_HANDOFF',
 }
 
 export enum AlertSeverity {
@@ -572,4 +573,12 @@ export enum WaMessageStatus {
   DELIVERED = 'DELIVERED',
   READ = 'READ',
   FAILED = 'FAILED',
+}
+
+// F4 SDR IA (#521)
+export enum SdrLeadStatus {
+  ACTIVE = 'ACTIVE',
+  QUALIFIED = 'QUALIFIED',
+  HANDOFF = 'HANDOFF',
+  DISCARDED = 'DISCARDED',
 }

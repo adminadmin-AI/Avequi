@@ -11,6 +11,11 @@ const PARAM_KEYS = {
   autoFollowupHours: 'CRM_AUTO_FOLLOWUP_HOURS',
   autoFollowupTemplate: 'CRM_AUTO_FOLLOWUP_TEMPLATE',
   leadRetentionDays: 'CRM_LEAD_RETENTION_DAYS',
+  // F4 SDR IA (#521/#523/#524)
+  sdrEnabled: 'CRM_SDR_ENABLED',
+  sdrModel: 'CRM_SDR_MODEL',
+  sdrMaxTurns: 'CRM_SDR_MAX_TURNS',
+  sdrSchedule: 'CRM_SDR_SCHEDULE',
 } as const;
 
 const DEFAULTS = {
@@ -22,6 +27,10 @@ const DEFAULTS = {
   autoFollowupHours: 48,
   autoFollowupTemplate: null as string | null,
   leadRetentionDays: 0, // 0 = expurgo LGPD desligado (#558)
+  sdrEnabled: false, // kill switch: SDR IA desligado por default (#523)
+  sdrModel: 'claude-opus-4-8', // decisão Claudio #521; permite A/B sonnet/haiku
+  sdrMaxTurns: 12, // handoff garantido após N trocas da IA (#523)
+  sdrSchedule: '24_7' as '24_7' | 'OFF_HOURS',
 };
 
 export interface CrmSettings {
@@ -34,6 +43,11 @@ export interface CrmSettings {
   autoFollowupTemplate: string | null;
   /** LGPD (#558): anonimizar leads perdidos após N dias (0 = desligado) */
   leadRetentionDays: number;
+  /** F4 SDR IA: kill switch por loja (#523) */
+  sdrEnabled: boolean;
+  sdrModel: string;
+  sdrMaxTurns: number;
+  sdrSchedule: '24_7' | 'OFF_HOURS';
   waPhoneNumberId: string | null;
 }
 
@@ -70,6 +84,11 @@ export class CrmSettingsService {
       autoFollowupHours: num(PARAM_KEYS.autoFollowupHours, DEFAULTS.autoFollowupHours),
       autoFollowupTemplate: byKey.get(PARAM_KEYS.autoFollowupTemplate) ?? DEFAULTS.autoFollowupTemplate,
       leadRetentionDays: num(PARAM_KEYS.leadRetentionDays, DEFAULTS.leadRetentionDays),
+      sdrEnabled: byKey.get(PARAM_KEYS.sdrEnabled) === 'true',
+      sdrModel: byKey.get(PARAM_KEYS.sdrModel) || DEFAULTS.sdrModel,
+      sdrMaxTurns: num(PARAM_KEYS.sdrMaxTurns, DEFAULTS.sdrMaxTurns),
+      sdrSchedule:
+        byKey.get(PARAM_KEYS.sdrSchedule) === 'OFF_HOURS' ? 'OFF_HOURS' : DEFAULTS.sdrSchedule,
       waPhoneNumberId: company?.waPhoneNumberId ?? null,
     };
   }
@@ -107,6 +126,18 @@ export class CrmSettingsService {
         throw new BadRequestException('Retenção não pode ser negativa (0 desliga o expurgo)');
       }
       setParam(PARAM_KEYS.leadRetentionDays, String(input.leadRetentionDays));
+    }
+    if (input.sdrEnabled != null) setParam(PARAM_KEYS.sdrEnabled, String(input.sdrEnabled));
+    if (input.sdrModel != null) setParam(PARAM_KEYS.sdrModel, input.sdrModel);
+    if (input.sdrMaxTurns != null) {
+      if (input.sdrMaxTurns < 2) throw new BadRequestException('Mínimo de 2 trocas da IA');
+      setParam(PARAM_KEYS.sdrMaxTurns, String(input.sdrMaxTurns));
+    }
+    if (input.sdrSchedule != null) {
+      if (!['24_7', 'OFF_HOURS'].includes(input.sdrSchedule)) {
+        throw new BadRequestException('Horário do SDR: 24_7 ou OFF_HOURS');
+      }
+      setParam(PARAM_KEYS.sdrSchedule, input.sdrSchedule);
     }
 
     if (input.waPhoneNumberId !== undefined) {

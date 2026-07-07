@@ -14,6 +14,8 @@ import { QuickReplyService } from './quick-reply.service';
 import { ReminderService } from './reminder.service';
 import { LeadListService } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
+import { SdrAgentService } from './sdr/sdr-agent.service';
+import { SdrToolsService } from './sdr/sdr-tools';
 import { FollowupScheduler } from './followup.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
@@ -48,6 +50,8 @@ import { SiteLeadController } from './connectors/site.controller';
     ReminderService,
     LeadListService,
     LeadLgpdService,
+    SdrAgentService,
+    SdrToolsService,
     FollowupScheduler,
     CrmListener,
     WhatsappService,
