@@ -122,9 +122,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'DIRETOR',
     name: 'Diretor',
     description:
-      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR.',
+      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR. NÃO vê a trilha de auditoria (iam.audit-logs): logs podem conter dados sensíveis de segurança/operação — restritos a ADMIN_GLOBAL, ADMIN_EMPRESA e AUDITOR (decisão Rafael, #341).',
     permissions: dedupe([
-      ...actionCodes('view'),
+      // Trilha de auditoria (iam.*) fica FORA da diretoria — ver descrição.
+      ...actionCodes('view').filter((code) => !code.startsWith('iam.')),
       'products.catalog.update',
       'production.bom.activate',
       'purchases.orders.approve',

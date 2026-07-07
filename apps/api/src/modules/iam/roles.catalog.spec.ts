@@ -104,6 +104,19 @@ describe('Catálogo de perfis system (#339)', () => {
     expect(auditor.permissions).toContain('iam.audit-logs.view');
   });
 
+  it('iam.audit-logs.view só vai para ADMIN_GLOBAL, ADMIN_EMPRESA e AUDITOR (decisão Rafael #341)', () => {
+    const temAuditLog = (code: string) =>
+      findSystemRole(code)!.permissions.includes('iam.audit-logs.view');
+    // Quem PODE ver a trilha de auditoria
+    expect(temAuditLog('ADMIN_GLOBAL')).toBe(true);
+    expect(temAuditLog('ADMIN_EMPRESA')).toBe(true);
+    expect(temAuditLog('AUDITOR')).toBe(true);
+    // DIRETOR NÃO vê: logs podem conter dados sensíveis de segurança/operação
+    expect(temAuditLog('DIRETOR')).toBe(false);
+    // READER também não (já coberto acima, reforço explícito)
+    expect(temAuditLog('SOMENTE_LEITURA')).toBe(false);
+  });
+
   it('SOMENTE_LEITURA só tem leitura e NÃO vê módulos sensíveis', () => {
     const leitura = findSystemRole('SOMENTE_LEITURA')!;
     const mutacoes = leitura.permissions.filter((p) => !p.endsWith('.view'));
