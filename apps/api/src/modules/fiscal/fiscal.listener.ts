@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { FiscalDocumentType, FinancialEntryStatus } from '@prisma/client';
+import { FiscalDocumentType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
 import { TRANSFER_DISPATCHED_EVENT, TransferDispatchedEvent } from '../transfer/events/transfer-dispatched.event';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
@@ -58,16 +58,19 @@ export class FiscalListener {
   async handleFiscalCancelled(event: FiscalCancelledEvent): Promise<void> {
     this.logger.log(`Revertendo efeitos do cancelamento fiscal doc=${event.fiscalDocumentId}`);
 
-    // Reverter lançamento financeiro vinculado
-    const entry = await this.prisma.financialEntry.findFirst({
-      where: { fiscalDocumentId: event.fiscalDocumentId },
+    // Reverter os títulos da venda (#586: a venda gera N recebíveis — parcelas
+    // e formas — então cancela TODOS os RECEIVABLE abertos da OV, não só o que
+    // carrega o fiscalDocumentId). Fallback por fiscalDocumentId quando o evento
+    // não trouxer a OV.
+    const where = event.salesOrderId
+      ? { salesOrderId: event.salesOrderId, type: FinancialEntryType.RECEIVABLE }
+      : { fiscalDocumentId: event.fiscalDocumentId };
+    const cancelled = await this.prisma.financialEntry.updateMany({
+      where: { ...where, status: { not: FinancialEntryStatus.CANCELLED } },
+      data: { status: FinancialEntryStatus.CANCELLED },
     });
-    if (entry && entry.status !== FinancialEntryStatus.CANCELLED) {
-      await this.prisma.financialEntry.update({
-        where: { id: entry.id },
-        data: { status: FinancialEntryStatus.CANCELLED },
-      });
-      this.logger.log(`FinancialEntry ${entry.id} → CANCELLED`);
+    if (cancelled.count > 0) {
+      this.logger.log(`${cancelled.count} título(s) da OV ${event.salesOrderId ?? '—'} → CANCELLED`);
     }
 
     // Reverter movimentação de estoque vinculada à venda

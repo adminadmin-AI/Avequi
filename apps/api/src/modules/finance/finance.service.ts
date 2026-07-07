@@ -1,7 +1,23 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, PaymentMethod, ScheduledPaymentStatus } from '@prisma/client';
+import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { INSTALLMENT_METHODS, isCardMethod } from '../acquirer/payment-classification';
+
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+
+/**
+ * Divide um total em N parcelas de centavos consistentes: as N−1 primeiras
+ * iguais (piso) e a última absorvendo o resto, de modo que a soma feche exato.
+ * Fonte única do rateio de parcelas (cartão, boleto e createInstallments).
+ */
+function splitInstallments(total: number, n: number): { number: number; amount: number }[] {
+  const base = Math.floor((total / n) * 100) / 100;
+  return Array.from({ length: n }, (_, i) => ({
+    number: i + 1,
+    amount: i === n - 1 ? round2(total - base * (n - 1)) : base,
+  }));
+}
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -84,76 +100,51 @@ export class FinanceService {
 
     // ── Plano de pagamento → N títulos ──────────────────────────────────────
     const invoiceDate = new Date();
-    const round2 = (v: number) => Math.round(v * 100) / 100;
-    const CARD: PaymentMethod[] = [
-      PaymentMethod.CARTAO,
-      PaymentMethod.CARTAO_CREDITO,
-      PaymentMethod.CARTAO_DEBITO,
-    ];
-    const INSTALLMENT_METHODS: PaymentMethod[] = [PaymentMethod.BOLETO, PaymentMethod.CHEQUE];
 
     const receivables: any[] = [];
-    const mdrExpenses: any[] = [];
 
     for (const p of plan) {
       const n = p.installments ?? 1;
       const gross = Number(p.amount);
 
-      if (CARD.includes(p.method)) {
-        // Devedor = ADQUIRENTE (não o cliente!), valor líquido, liquidação real
+      if (isCardMethod(p.method)) {
+        // Devedor = ADQUIRENTE (não o cliente!), valor LÍQUIDO (bruto − MDR),
+        // liquidação real. A MDR NÃO vira uma despesa separada: como a receita
+        // do ERP deriva dos recebíveis (getDre), lançar a MDR à parte contaria
+        // duas vezes. O valor/percentual da MDR fica em SalesPayment.mdrAmount
+        // p/ relatório de taxas de cartão (fonte da conciliação #588).
         const mdr = Number(p.mdrAmount ?? 0);
         const net = round2(gross - mdr);
         const settlement = p.settlementDays ?? 30;
-        const base = Math.floor((net / n) * 100) / 100;
-        const lastAmount = round2(net - base * (n - 1));
-        for (let k = 1; k <= n; k++) {
+        for (const inst of splitInstallments(net, n)) {
           receivables.push({
             companyId: params.companyId,
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.OPEN,
-            amount: k === n ? lastAmount : base,
-            dueDate: this.addDays(invoiceDate, settlement + 30 * (k - 1)),
-            description: `Venda #${params.salesOrderId} — cartão ${k}/${n} (líquido adquirente)`,
+            amount: inst.amount,
+            dueDate: this.addDays(invoiceDate, settlement + 30 * (inst.number - 1)),
+            description: `Venda #${params.salesOrderId} — cartão ${inst.number}/${n} (líquido adquirente)`,
             salesOrderId: params.salesOrderId,
             debtorType: DebtorType.ACQUIRER,
             acquirerId: p.acquirerId,
             salesPaymentId: p.id,
-            installmentNumber: k,
-          });
-        }
-        if (mdr > 0) {
-          // MDR já retida pela adquirente na liquidação — despesa financeira PAGA
-          mdrExpenses.push({
-            companyId: params.companyId,
-            type: FinancialEntryType.PAYABLE,
-            status: FinancialEntryStatus.PAID,
-            amount: mdr,
-            dueDate: this.addDays(invoiceDate, settlement),
-            paidAt: invoiceDate,
-            paymentNote: 'MDR retida pela adquirente na liquidação (CR já é líquido)',
-            description: `Venda #${params.salesOrderId} — taxa MDR cartão (${p.mdrRate}%)`,
-            salesOrderId: params.salesOrderId,
-            debtorType: DebtorType.ACQUIRER,
-            acquirerId: p.acquirerId,
-            salesPaymentId: p.id,
+            installmentNumber: inst.number,
           });
         }
       } else if (INSTALLMENT_METHODS.includes(p.method)) {
         // Cliente paga em N parcelas — vencimento a cada 30 dias
-        const base = Math.floor((gross / n) * 100) / 100;
-        const lastAmount = round2(gross - base * (n - 1));
-        for (let k = 1; k <= n; k++) {
+        for (const inst of splitInstallments(gross, n)) {
           receivables.push({
             companyId: params.companyId,
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.OPEN,
-            amount: k === n ? lastAmount : base,
-            dueDate: this.addDays(invoiceDate, 30 * k),
-            description: `Venda #${params.salesOrderId} — ${p.method} ${k}/${n}`,
+            amount: inst.amount,
+            dueDate: this.addDays(invoiceDate, 30 * inst.number),
+            description: `Venda #${params.salesOrderId} — ${p.method} ${inst.number}/${n}`,
             salesOrderId: params.salesOrderId,
             debtorType: DebtorType.CUSTOMER,
             salesPaymentId: p.id,
-            installmentNumber: k,
+            installmentNumber: inst.number,
           });
         }
       } else {
@@ -177,52 +168,25 @@ export class FinanceService {
     if (params.fiscalDocumentId && receivables.length > 0) {
       receivables[0].fiscalDocumentId = params.fiscalDocumentId;
     }
-    // Despesa MDR na categoria própria (cria on-demand)
-    if (mdrExpenses.length > 0) {
-      const categoryId = await this.ensureMdrCategory(params.companyId);
-      for (const e of mdrExpenses) e.categoryId = categoryId;
-    }
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const ids: string[] = [];
-      for (const data of [...receivables, ...mdrExpenses]) {
-        const e = await tx.financialEntry.create({ data });
-        ids.push(e.id);
-      }
-      return ids;
-    });
+    // 1 statement (createMany) em vez de N inserts sequenciais — evita segurar
+    // a conexão do pooler por N round-trips (lição P2024, #498). A unique parcial
+    // (salesPaymentId, installmentNumber) faz um evento duplicado falhar atômico
+    // em vez de duplicar o plano.
+    await this.prisma.financialEntry.createMany({ data: receivables });
 
     await this.prisma.auditLog.create({
       data: {
         companyId: params.companyId,
         entity: 'FinancialEntry',
         action: 'CREATE_RECEIVABLES_PLAN',
-        payload: {
-          salesOrderId: params.salesOrderId,
-          receivables: receivables.length,
-          mdrExpenses: mdrExpenses.length,
-          entryIds: created,
-        },
+        payload: { salesOrderId: params.salesOrderId, receivables: receivables.length },
       },
     });
 
     this.logger.log(
-      `Plano de pagamento OV ${params.salesOrderId}: ${receivables.length} CR + ${mdrExpenses.length} despesa(s) MDR`,
+      `Plano de pagamento OV ${params.salesOrderId}: ${receivables.length} título(s) gerado(s)`,
     );
-  }
-
-  /** Categoria de despesa das taxas de cartão (#586) — cria on-demand */
-  private async ensureMdrCategory(companyId: string): Promise<string> {
-    const NAME = 'Taxas de Cartão (MDR)';
-    const found = await this.prisma.financialCategory.findFirst({
-      where: { companyId, name: NAME },
-      select: { id: true },
-    });
-    if (found) return found.id;
-    const created = await this.prisma.financialCategory.create({
-      data: { companyId, name: NAME, type: 'EXPENSE' as any },
-    });
-    return created.id;
   }
 
   // ─── S09.03: Gerar CP de recebimento de compra ───────────────────────────
@@ -456,20 +420,17 @@ export class FinanceService {
     }
 
     const totalAmount = Number(entry.amount);
-    const installmentAmount = Math.floor((totalAmount / dto.numberOfInstallments) * 100) / 100;
-    const lastInstallmentAmount = +(totalAmount - installmentAmount * (dto.numberOfInstallments - 1)).toFixed(2);
-
-    const installmentsData = Array.from({ length: dto.numberOfInstallments }, (_, i) => {
+    const installmentsData = splitInstallments(totalAmount, dto.numberOfInstallments).map((inst) => {
       const dueDate = new Date(dto.firstDueDate);
-      dueDate.setDate(dueDate.getDate() + i * dto.intervalDays);
+      dueDate.setDate(dueDate.getDate() + (inst.number - 1) * dto.intervalDays);
 
       return {
         companyId: entry.companyId,
         type: entry.type,
         status: FinancialEntryStatus.OPEN,
-        amount: i === dto.numberOfInstallments - 1 ? lastInstallmentAmount : installmentAmount,
+        amount: inst.amount,
         dueDate,
-        description: `${entry.description ?? 'Parcela'} (${i + 1}/${dto.numberOfInstallments})`,
+        description: `${entry.description ?? 'Parcela'} (${inst.number}/${dto.numberOfInstallments})`,
         parentEntryId: entry.id,
         salesOrderId: entry.salesOrderId ?? null,
         purchaseOrderId: entry.purchaseOrderId ?? null,

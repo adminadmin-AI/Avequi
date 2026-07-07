@@ -5,12 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DebtorType, FinancialEntryStatus, PaymentMethod, SalesOrderStatus } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, FinancialEntryType, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
+import { isCardMethod } from '../acquirer/payment-classification';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -32,12 +33,6 @@ export class SalesService {
 
   // ─── Plano de pagamento (#584) ────────────────────────────────────────────
 
-  private static readonly CARD_METHODS: PaymentMethod[] = [
-    PaymentMethod.CARTAO,
-    PaymentMethod.CARTAO_CREDITO,
-    PaymentMethod.CARTAO_DEBITO,
-  ];
-
   /**
    * Valida o plano (soma fecha itens + frete) e congela MDR/prazo de liquidação
    * da taxa vigente da adquirente. Retorna as linhas prontas p/ criar (#584/#585).
@@ -48,7 +43,9 @@ export class SalesService {
     expectedTotal: number,
   ) {
     const sum = payments.reduce((s, p) => s + p.amount, 0);
-    if (Math.abs(sum - expectedTotal) > 0.01) {
+    // Tolerância de meio centavo: diferença de R$0,01 já é discrepância real
+    // (valores têm 2 casas), então > 0.005 rejeita 1 centavo mas aceita o exato.
+    if (Math.abs(sum - expectedTotal) > 0.005) {
       throw new BadRequestException(
         `Plano de pagamento não fecha: formas somam R$ ${sum.toFixed(2)}, ` +
           `venda + frete = R$ ${expectedTotal.toFixed(2)}`,
@@ -58,7 +55,7 @@ export class SalesService {
     const rows: any[] = [];
     for (const p of payments) {
       const installments = p.installments ?? 1;
-      const isCard = SalesService.CARD_METHODS.includes(p.method);
+      const isCard = isCardMethod(p.method);
 
       if (!isCard) {
         rows.push({ method: p.method, amount: p.amount, installments });
@@ -640,9 +637,10 @@ export class SalesService {
         );
       }
 
-      // 2. Cancelar CRs (contas a receber) vinculadas (#178) — 1:N desde #586
+      // 2. Cancelar CRs (contas a receber) vinculadas (#178) — 1:N desde #586.
+      // Só RECEIVABLE: não varrer eventuais PAYABLE da mesma OV.
       const entries = await tx.financialEntry.findMany({
-        where: { salesOrderId: id },
+        where: { salesOrderId: id, type: FinancialEntryType.RECEIVABLE },
       });
 
       let crCancelled = false;

@@ -226,10 +226,14 @@ export class AcquirerService {
     });
     if (fees.length === 0) return null;
 
-    // bandeira exata > genérica; depois vigência mais recente
+    // bandeira exata > genérica; depois faixa de parcelas mais específica
+    // (mais estreita); por fim vigência mais recente.
     fees.sort((a, b) => {
       const brandScore = (f: { brand: string | null }) => (f.brand ? 1 : 0);
       if (brandScore(b) !== brandScore(a)) return brandScore(b) - brandScore(a);
+      const span = (f: { installmentsFrom: number; installmentsTo: number }) =>
+        f.installmentsTo - f.installmentsFrom;
+      if (span(a) !== span(b)) return span(a) - span(b); // faixa menor vence
       const vf = (f: { validFrom: Date | null }) => f.validFrom?.getTime() ?? 0;
       return vf(b) - vf(a);
     });

@@ -87,9 +87,10 @@ export class DashboardService {
         _count: { id: true },
       }),
 
-      // Recebíveis vencidos
+      // Recebíveis vencidos (inadimplência do CLIENTE — #586: liquidação de
+      // adquirente atrasada é conciliação de cartão, não inadimplência)
       this.prisma.financialEntry.aggregate({
-        where: { companyId, type: 'RECEIVABLE', status: 'OVERDUE' },
+        where: { companyId, type: 'RECEIVABLE', status: 'OVERDUE', debtorType: 'CUSTOMER' },
         _sum: { amount: true },
         _count: { id: true },
       }),

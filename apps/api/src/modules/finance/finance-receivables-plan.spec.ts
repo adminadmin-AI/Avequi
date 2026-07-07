@@ -1,32 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DebtorType, FinancialEntryStatus, FinancialEntryType, PaymentMethod } from '@prisma/client';
+import { DebtorType, FinancialEntryType, PaymentMethod } from '@prisma/client';
 import { FinanceService } from './finance.service';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * #586 — geração de títulos a partir do plano de pagamento (#584).
- * Cartão → recebível LÍQUIDO contra a ADQUIRENTE na data de liquidação;
- * boleto → parcelas contra o CLIENTE; à vista → D+0; MDR → despesa PAGA.
+ * Cartão → recebível LÍQUIDO contra a ADQUIRENTE na data de liquidação (a MDR
+ * fica netada no CR e registrada em SalesPayment, sem despesa em dobro no DRE);
+ * boleto → parcelas contra o CLIENTE; à vista → D+0. 1 createMany por venda.
  */
-
-const txCreated: any[] = [];
-const tx = {
-  financialEntry: {
-    create: jest.fn((args: any) => {
-      txCreated.push(args.data);
-      return Promise.resolve({ id: `fe-${txCreated.length}`, ...args.data });
-    }),
-  },
-};
 
 const mockPrisma = {
   salesOrder: { findFirst: jest.fn() },
-  financialEntry: { findFirst: jest.fn(), create: jest.fn() },
-  financialCategory: { findFirst: jest.fn(), create: jest.fn() },
+  financialEntry: { findFirst: jest.fn(), create: jest.fn(), createMany: jest.fn() },
   auditLog: { create: jest.fn() },
-  $transaction: jest.fn((fn: any) => fn(tx)),
 };
+
+/** Linhas passadas ao createMany na última chamada */
+function rows(): any[] {
+  return mockPrisma.financialEntry.createMany.mock.calls.at(-1)![0].data;
+}
 
 function pay(overrides: Record<string, any> = {}) {
   return {
@@ -59,41 +53,30 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
     }).compile();
     service = module.get(FinanceService);
     jest.clearAllMocks();
-    txCreated.length = 0;
     mockPrisma.financialEntry.findFirst.mockResolvedValue(null); // sem CR anterior
+    mockPrisma.financialEntry.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.auditLog.create.mockResolvedValue({});
-    mockPrisma.financialCategory.findFirst.mockResolvedValue({ id: 'cat-mdr' });
-    mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
   });
 
-  it('cartão crédito 4x: 4 CRs líquidos contra a ADQUIRENTE em D+30/60/90/120 + MDR paga', async () => {
+  it('cartão crédito 4x: 4 CRs LÍQUIDOS contra a ADQUIRENTE em D+30/60/90/120, sem despesa MDR', async () => {
     mockPrisma.salesOrder.findFirst.mockResolvedValue({ id: 'so-1', payments: [pay()] });
 
     await service.createReceivableForSale({ companyId: 'co-1', salesOrderId: 'so-1', amount: 8000 });
 
-    const crs = txCreated.filter((e) => e.type === FinancialEntryType.RECEIVABLE);
-    const mdr = txCreated.filter((e) => e.type === FinancialEntryType.PAYABLE);
-
-    expect(crs).toHaveLength(4);
-    // líquido: 8000 − 280 = 7720 → 1930 por parcela
-    expect(crs.reduce((s, e) => s + e.amount, 0)).toBeCloseTo(7720, 2);
-    for (const [i, cr] of crs.entries()) {
+    const all = rows();
+    // nada de PAYABLE (MDR não vira despesa — netada no CR)
+    expect(all.every((e) => e.type === FinancialEntryType.RECEIVABLE)).toBe(true);
+    expect(all).toHaveLength(4);
+    // líquido: 8000 − 280 = 7720
+    expect(all.reduce((s, e) => s + e.amount, 0)).toBeCloseTo(7720, 2);
+    for (const [i, cr] of all.entries()) {
       expect(cr.debtorType).toBe(DebtorType.ACQUIRER);
       expect(cr.acquirerId).toBe('acq-1');
-      expect(cr.salesPaymentId).toBe('sp-1');
       expect(cr.installmentNumber).toBe(i + 1);
-      expect(daysFromNow(cr.dueDate)).toBe(30 + 30 * i); // D+30, +30/parcela
+      expect(daysFromNow(cr.dueDate)).toBe(30 + 30 * i);
     }
-    // MDR: despesa PAGA na categoria própria, contra a adquirente
-    expect(mdr).toHaveLength(1);
-    expect(mdr[0]).toEqual(
-      expect.objectContaining({
-        amount: 280,
-        status: FinancialEntryStatus.PAID,
-        debtorType: DebtorType.ACQUIRER,
-        categoryId: 'cat-mdr',
-      }),
-    );
+    // 1 statement (createMany), não N inserts
+    expect(mockPrisma.financialEntry.createMany).toHaveBeenCalledTimes(1);
   });
 
   it('boleto 3x: 3 parcelas contra o CLIENTE a cada 30 dias, soma = bruto', async () => {
@@ -104,14 +87,12 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
 
     await service.createReceivableForSale({ companyId: 'co-1', salesOrderId: 'so-1', amount: 1000 });
 
-    const crs = txCreated.filter((e) => e.type === FinancialEntryType.RECEIVABLE);
-    expect(crs).toHaveLength(3);
-    expect(crs.reduce((s, e) => s + e.amount, 0)).toBeCloseTo(1000, 2);
-    expect(crs.map((e) => daysFromNow(e.dueDate))).toEqual([30, 60, 90]);
-    for (const cr of crs) expect(cr.debtorType).toBe(DebtorType.CUSTOMER);
-    // arredondamento: 333.33 + 333.33 + 333.34
-    expect(crs[2].amount).toBeCloseTo(333.34, 2);
-    expect(txCreated.filter((e) => e.type === FinancialEntryType.PAYABLE)).toHaveLength(0);
+    const all = rows();
+    expect(all).toHaveLength(3);
+    expect(all.reduce((s, e) => s + e.amount, 0)).toBeCloseTo(1000, 2);
+    expect(all.map((e) => daysFromNow(e.dueDate))).toEqual([30, 60, 90]);
+    for (const cr of all) expect(cr.debtorType).toBe(DebtorType.CUSTOMER);
+    expect(all[2].amount).toBeCloseTo(333.34, 2); // resto no último
   });
 
   it('cartão débito: 1 CR líquido contra a ADQUIRENTE em D+1', async () => {
@@ -122,11 +103,11 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
 
     await service.createReceivableForSale({ companyId: 'co-1', salesOrderId: 'so-1', amount: 500 });
 
-    const crs = txCreated.filter((e) => e.type === FinancialEntryType.RECEIVABLE);
-    expect(crs).toHaveLength(1);
-    expect(crs[0].amount).toBeCloseTo(490.05, 2);
-    expect(crs[0].debtorType).toBe(DebtorType.ACQUIRER);
-    expect(daysFromNow(crs[0].dueDate)).toBe(1);
+    const all = rows();
+    expect(all).toHaveLength(1);
+    expect(all[0].amount).toBeCloseTo(490.05, 2);
+    expect(all[0].debtorType).toBe(DebtorType.ACQUIRER);
+    expect(daysFromNow(all[0].dueDate)).toBe(1);
   });
 
   it('PIX à vista: 1 CR contra o CLIENTE em D+0', async () => {
@@ -137,17 +118,15 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
 
     await service.createReceivableForSale({ companyId: 'co-1', salesOrderId: 'so-1', amount: 750 });
 
-    const crs = txCreated.filter((e) => e.type === FinancialEntryType.RECEIVABLE);
-    expect(crs).toHaveLength(1);
-    expect(crs[0]).toEqual(
+    const all = rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toEqual(
       expect.objectContaining({ amount: 750, debtorType: DebtorType.CUSTOMER, installmentNumber: 1 }),
     );
-    expect(daysFromNow(crs[0].dueDate)).toBe(0);
+    expect(daysFromNow(all[0].dueDate)).toBe(0);
   });
 
-  it('plano misto: NF-e vinculada só ao primeiro título; cria categoria MDR se faltar', async () => {
-    mockPrisma.financialCategory.findFirst.mockResolvedValue(null);
-    mockPrisma.financialCategory.create.mockResolvedValue({ id: 'cat-nova' });
+  it('plano misto: NF-e vinculada só ao primeiro título', async () => {
     mockPrisma.salesOrder.findFirst.mockResolvedValue({
       id: 'so-1',
       payments: [
@@ -163,15 +142,13 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
       fiscalDocumentId: 'fd-1',
     });
 
-    const withNfe = txCreated.filter((e) => e.fiscalDocumentId === 'fd-1');
+    const all = rows();
+    const withNfe = all.filter((e) => e.fiscalDocumentId === 'fd-1');
     expect(withNfe).toHaveLength(1); // fiscalDocumentId é @unique
-    expect(txCreated[0].fiscalDocumentId).toBe('fd-1');
-    const mdr = txCreated.find((e) => e.type === FinancialEntryType.PAYABLE);
-    expect(mdr?.categoryId).toBe('cat-nova');
-    expect(mockPrisma.financialCategory.create).toHaveBeenCalled();
+    expect(all[0].fiscalDocumentId).toBe('fd-1');
   });
 
-  it('sem plano → legado: 1 CR cliente em 30 dias (fora da transação)', async () => {
+  it('sem plano → legado: 1 CR cliente em 30 dias (create simples, sem createMany)', async () => {
     mockPrisma.salesOrder.findFirst.mockResolvedValue({ id: 'so-1', payments: [] });
     mockPrisma.financialEntry.create.mockResolvedValue({ id: 'fe-legacy' });
 
@@ -180,7 +157,7 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
     expect(mockPrisma.financialEntry.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 300 }) }),
     );
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.financialEntry.createMany).not.toHaveBeenCalled();
   });
 
   it('idempotência: CR existente → não regenera nada', async () => {
@@ -189,6 +166,6 @@ describe('FinanceService — títulos por plano de pagamento (#586)', () => {
     await service.createReceivableForSale({ companyId: 'co-1', salesOrderId: 'so-1', amount: 300 });
 
     expect(mockPrisma.salesOrder.findFirst).not.toHaveBeenCalled();
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.financialEntry.createMany).not.toHaveBeenCalled();
   });
 });
