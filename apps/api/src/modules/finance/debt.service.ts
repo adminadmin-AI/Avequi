@@ -199,7 +199,7 @@ export class DebtService {
           type: 'PAYABLE_DUE' as any,
           severity: 'WARNING' as any,
           title,
-          message: `R$ ${Number(p.amount).toFixed(2)} vence em ${p.dueDate.toISOString().slice(0, 10)} (#392)`,
+          body: `R$ ${Number(p.amount).toFixed(2)} vence em ${p.dueDate.toISOString().slice(0, 10)} (#392)`,
         },
       });
     }

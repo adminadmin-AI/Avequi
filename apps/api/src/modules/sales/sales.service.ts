@@ -7,6 +7,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DiscountPolicyService } from './discount-policy.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
@@ -23,11 +24,15 @@ export class SalesService {
     private readonly eventEmitter: EventEmitter2,
     private readonly stockService: StockService,
     private readonly taxCalc: TaxCalculationService,
+    private readonly discountPolicy: DiscountPolicyService,
   ) {}
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
-  async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string) {
+  async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string, userRole?: string) {
+    // #391: desconto acima da alçada do papel bloqueia a criação
+    await this.discountPolicy.assertWithinLimit(companyId, userRole, dto.items, userId);
+
     // #475: padrões comerciais do cadastro pré-preenchem a OV quando omitidos
     let defaultCarrierId: string | undefined;
     if (dto.customerId && !dto.carrierId) {

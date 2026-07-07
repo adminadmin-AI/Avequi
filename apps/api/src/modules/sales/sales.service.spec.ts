@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SalesOrderStatus } from '@prisma/client';
 import { SalesService } from './sales.service';
+import { DiscountPolicyService } from './discount-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
@@ -80,6 +81,7 @@ describe('SalesService', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: StockService, useValue: mockStockService },
         { provide: TaxCalculationService, useValue: mockTaxCalc },
+        { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
