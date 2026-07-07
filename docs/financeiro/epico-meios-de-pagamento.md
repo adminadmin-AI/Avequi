@@ -50,5 +50,21 @@ No cartão, **o devedor do título é a adquirente (Cielo/Rede/Stone), não o cl
 ## 7. Decisões e inputs
 
 - ✅ **Autorização de cartão:** TEF/gateway **integrado** ao ERP (`tpIntegra=1`) — autorização automática é gate do faturamento.
+- ✅ **`debtorType: CUSTOMER | ACQUIRER`** no título (ver §8) — decisão derivada da convivência com os Sprints 1–2.
 - ⏳ **Adquirentes/bandeiras** que a GDR usa e as taxas contratadas (seed da issue #585).
 - ⏳ **Qual TEF/gateway** integrar (define o adapter do #596).
+
+## 8. Convivência com os Sprints 1–2 do financeiro (implantados 07/07 — PRs #578–#600)
+
+Enquanto este épico era desenhado, outra sessão implantou os Sprints 1–2 da consultoria financeira (KPIs, fluxo 13 semanas, conciliação OFX, régua de cobrança, PDD, política de crédito, alçadas de desconto, book gerencial). **Nada colide estruturalmente** (`FinancialEntry` não mudou), mas os serviços novos **assumem que todo recebível é dívida do cliente** — premissa que o item (c) quebra ao criar títulos contra a adquirente.
+
+**Decisão de design:** o título ganha **`debtorType: CUSTOMER | ACQUIRER`** (+ `acquirerId`), e 4 consumidores filtram por ele (detalhado no #586):
+
+| Consumidor | Local | Risco sem o filtro |
+|---|---|---|
+| Régua de cobrança | `collection-rule.service.ts:127-167` | cobra e **bloqueia o cliente** (`autoBlock`) por atraso de liquidação da adquirente |
+| Limite de crédito | `sales.service.ts:257` · `customer.service.ts:197` | cartão autorizado **consome o limite** do cliente que já pagou |
+| PDD | `provision.service.ts:79` | provisiona risco-adquirente na régua de risco-cliente |
+| KPI PMR | `finance-kpi.service.ts:187` | D+30/60 do cartão desfigura o prazo médio de recebimento |
+
+**Sinergias:** fluxo 13 semanas (#579) e conciliação OFX (#580) passam a operar com dados reais quando o #586 corrigir vencimentos/valores líquidos; a conciliação de cartão (#588) cobre o **lado adquirente** e complementa o match OFX (lado banco); a venda balcão (#595) compõe com as alçadas de desconto (#599) e o `billingBlocked`.
