@@ -1,0 +1,16 @@
+{
+  "name": "Avequi ERP — GDR Reboques",
+  "short_name": "Avequi",
+  "description": "ERP integrado — CRM, vendas, produção e fiscal",
+  "start_url": "/app/crm/inbox",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#3D2CE6",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -2,7 +2,9 @@ import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { NotificationModule } from '../notification/notification.module';
 import { CrmController } from './crm.controller';
+import { CrmPushListener } from './crm-push.listener';
 import { CrmService } from './crm.service';
 import { CrmListener } from './crm.listener';
 import { FunnelService } from './funnel.service';
@@ -35,6 +37,7 @@ import { SiteLeadController } from './connectors/site.controller';
 @Module({
   imports: [
     PrismaModule,
+    NotificationModule,
     HttpModule.register({ timeout: 15000 }),
     BullModule.registerQueue({ name: WHATSAPP_QUEUE }, { name: CRM_LEADS_QUEUE }),
   ],
@@ -56,6 +59,7 @@ import { SiteLeadController } from './connectors/site.controller';
     SdrToolsService,
     FollowupScheduler,
     CrmListener,
+    CrmPushListener,
     WhatsappService,
     WhatsappWebhookProcessor,
     StoreResolver,

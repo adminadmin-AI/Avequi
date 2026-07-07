@@ -37,6 +37,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ReportModule } from './modules/report/report.module';
 import { ForecastModule } from './modules/forecast/forecast.module';
 import { AlertModule } from './modules/alert/alert.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SerialModule } from './modules/serial/serial.module';
@@ -147,6 +148,7 @@ import { IamModule } from './modules/iam/iam.module';
     ReportModule,
     ForecastModule,
     AlertModule,
+    NotificationModule,
     QualityModule,
     AnalyticsModule,
     SerialModule,

@@ -32,6 +32,7 @@ import { AudioRecorder } from './audio-recorder';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
+import { PushBanner } from './push-banner';
 import { QuickReplyPicker } from './quick-reply-picker';
 import { RemindersStrip } from './reminders-strip';
 import { TemplateSender } from './template-sender';
@@ -75,6 +76,12 @@ export default function InboxPage() {
           (c) => c.lead.sdrStatus === 'ACTIVE' || c.lead.sdrStatus === 'QUALIFIED',
         )
       : allConversations;
+
+  // deep link do push (#568): clique na notificação abre direto a conversa
+  useEffect(() => {
+    const leadId = new URLSearchParams(window.location.search).get('lead');
+    if (leadId) setSelectedLeadId(leadId);
+  }, []);
 
   // notificação in-app de lead novo (sem refresh)
   useEffect(() => {
@@ -241,6 +248,7 @@ export default function InboxPage() {
           </div>
         </div>
 
+        <PushBanner />
         <RemindersStrip onOpenLead={(leadId) => setSelectedLeadId(leadId)} />
 
         <div className="flex-1 overflow-y-auto">

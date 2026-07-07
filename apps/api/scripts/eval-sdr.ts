@@ -411,7 +411,8 @@ async function runScenario(scenario: Scenario, model: string) {
   const world = makeWorld();
   const { prisma, crmStub, whatsappStub } = makeStubs(world);
 
-  const tools = new SdrToolsService(prisma, crmStub);
+  // emitter inerte: o eval não testa web push (#568), só o agente
+  const tools = new SdrToolsService(prisma, crmStub, { emit: () => true } as any);
   const realExecute = tools.execute.bind(tools);
   tools.execute = async (companyId: string, leadId: string, name: string, input: any) => {
     world.toolCalls.push({ name, input });
