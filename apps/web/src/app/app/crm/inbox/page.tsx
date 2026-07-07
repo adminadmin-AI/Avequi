@@ -32,6 +32,7 @@ import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
 import { QuickReplyPicker } from './quick-reply-picker';
+import { RemindersStrip } from './reminders-strip';
 import { TemplateSender } from './template-sender';
 
 /**
@@ -227,6 +228,8 @@ export default function InboxPage() {
             ))}
           </div>
         </div>
+
+        <RemindersStrip onOpenLead={(leadId) => setSelectedLeadId(leadId)} />
 
         <div className="flex-1 overflow-y-auto">
           {isLoading && (

@@ -133,6 +133,7 @@ model Company {
   whatsappConversations WhatsappConversation[]
   whatsappTemplates     WhatsappTemplate[]
   quickReplies          QuickReply[]
+  leadReminders         LeadReminder[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -303,6 +304,7 @@ model User {
   /// Vendedor disponível p/ receber lead no rodízio (#513) — férias/folga = false
   crmAvailable              Boolean                @default(true) @map("crm_available")
   quickReplies              QuickReply[] // F3.5-C3 (#553) — respostas rápidas pessoais
+  leadReminders             LeadReminder[] // F3.5-C5 (#555) — lembretes de follow-up
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
   createdAt                 DateTime               @default(now())
@@ -1786,6 +1788,7 @@ enum AlertType {
   MANIFEST_OVERDUE
   RENAVE_OP_FAILED // operação RENAVE/ATPV-e falhou — retry manual (#527)
   BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
+  CRM_REMINDER_DUE // lembrete de follow-up do CRM venceu (#555)
 }
 
 enum AlertSeverity {
@@ -3527,6 +3530,7 @@ model Lead {
   firstRespondedAt  DateTime?             @map("first_responded_at")
   lastInteractionAt DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
   activities        LeadActivity[]
+  reminders         LeadReminder[]
   conversation      WhatsappConversation?
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
@@ -3649,4 +3653,26 @@ model QuickReply {
 
   @@index([companyId, shortcut])
   @@map("gdr_quick_replies")
+}
+
+/// F3.5-C5 (#555) — lembrete de follow-up do vendedor ("ligar amanhã 14h").
+/// Nota manual NÃO tem model próprio: é LeadActivity type NOTE na timeline.
+model LeadReminder {
+  id         String    @id @default(cuid())
+  companyId  String    @map("company_id")
+  company    Company   @relation(fields: [companyId], references: [id])
+  leadId     String    @map("lead_id")
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId     String    @map("user_id") // vendedor dono do lembrete
+  user       User      @relation(fields: [userId], references: [id])
+  text       String
+  dueAt      DateTime  @map("due_at")
+  doneAt     DateTime? @map("done_at")
+  /// cron já gerou o Alert CRM_REMINDER_DUE deste lembrete — não realertar
+  notifiedAt DateTime? @map("notified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([companyId, userId, doneAt, dueAt])
+  @@index([doneAt, notifiedAt, dueAt]) // varredura do cron
+  @@map("gdr_lead_reminders")
 }

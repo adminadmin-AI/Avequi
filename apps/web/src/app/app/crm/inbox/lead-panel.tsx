@@ -14,6 +14,7 @@ import {
   SOURCE_LABEL,
   StageRef,
 } from './inbox-types';
+import { LeadNotesReminders } from './lead-notes-reminders';
 
 /**
  * Painel lateral do lead (F1.3 #509): dados, troca rápida de estágio,
@@ -165,6 +166,8 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
             Cliente: {lead.customer.name}
           </p>
         )}
+
+        <LeadNotesReminders leadId={leadId} />
 
         <div>
           <h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Timeline</h3>

@@ -68,6 +68,17 @@ export interface LeadDetail {
   activities: LeadActivity[];
 }
 
+/** Lembrete de follow-up (F3.5-C5 #555) */
+export interface Reminder {
+  id: string;
+  leadId: string;
+  text: string;
+  dueAt: string;
+  doneAt: string | null;
+  user?: { id: string; name: string };
+  lead?: { id: string; name: string | null; phone: string | null };
+}
+
 /** Resposta rápida (F3.5-C3 #553): owner null = compartilhada da loja */
 export interface QuickReply {
   id: string;
