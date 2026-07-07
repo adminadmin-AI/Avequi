@@ -1018,11 +1018,13 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-/** PaymentMethod → código tPag da NF-e (tabela 4.3.4.1) (#479) */
+/** PaymentMethod → código tPag da NF-e (tabela 4.3.4.1) (#479/#584) */
 const NFE_PAYMENT_CODES: Record<PaymentMethod, string> = {
   DINHEIRO: '01',
   CHEQUE: '02',
-  CARTAO: '03', // 03=crédito; granularidade crédito/débito fica para evolução do enum
+  CARTAO: '03', // legado — granularidade abaixo (#584)
+  CARTAO_CREDITO: '03',
+  CARTAO_DEBITO: '04',
   BOLETO: '15',
   PIX: '17',
   TED: '18',

@@ -5,12 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FinancialEntryStatus, SalesOrderStatus } from '@prisma/client';
+import { FinancialEntryStatus, PaymentMethod, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
+import { AcquirerService } from '../acquirer/acquirer.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
@@ -25,7 +27,77 @@ export class SalesService {
     private readonly stockService: StockService,
     private readonly taxCalc: TaxCalculationService,
     private readonly discountPolicy: DiscountPolicyService,
+    private readonly acquirerService: AcquirerService,
   ) {}
+
+  // ─── Plano de pagamento (#584) ────────────────────────────────────────────
+
+  private static readonly CARD_METHODS: PaymentMethod[] = [
+    PaymentMethod.CARTAO,
+    PaymentMethod.CARTAO_CREDITO,
+    PaymentMethod.CARTAO_DEBITO,
+  ];
+
+  /**
+   * Valida o plano (soma fecha itens + frete) e congela MDR/prazo de liquidação
+   * da taxa vigente da adquirente. Retorna as linhas prontas p/ criar (#584/#585).
+   */
+  private async buildPaymentsData(
+    companyId: string,
+    payments: SalesPaymentInputDto[],
+    expectedTotal: number,
+  ) {
+    const sum = payments.reduce((s, p) => s + p.amount, 0);
+    if (Math.abs(sum - expectedTotal) > 0.01) {
+      throw new BadRequestException(
+        `Plano de pagamento não fecha: formas somam R$ ${sum.toFixed(2)}, ` +
+          `venda + frete = R$ ${expectedTotal.toFixed(2)}`,
+      );
+    }
+
+    const rows: any[] = [];
+    for (const p of payments) {
+      const installments = p.installments ?? 1;
+      const isCard = SalesService.CARD_METHODS.includes(p.method);
+
+      if (!isCard) {
+        rows.push({ method: p.method, amount: p.amount, installments });
+        continue;
+      }
+
+      if (!p.acquirerId) {
+        throw new BadRequestException(
+          `Pagamento com ${p.method} exige a adquirente (acquirerId) para resolver taxa e prazo de liquidação`,
+        );
+      }
+      const modality = AcquirerService.modalityFor(p.method, installments)!;
+      const fee = await this.acquirerService.resolveFee(companyId, {
+        acquirerId: p.acquirerId,
+        brand: p.brand,
+        modality,
+        installments,
+      });
+      if (!fee) {
+        throw new BadRequestException(
+          `Nenhuma taxa vigente para ${p.method} ${installments}x` +
+            `${p.brand ? ` (${p.brand})` : ''} nessa adquirente. Cadastre a taxa MDR antes de vender.`,
+        );
+      }
+      // Congela taxa/prazo no momento da venda — mudança de contrato não retroage
+      const mdrAmount = Math.round(p.amount * fee.mdrRate) / 100;
+      rows.push({
+        method: p.method,
+        amount: p.amount,
+        installments,
+        acquirerId: p.acquirerId,
+        brand: p.brand?.toUpperCase() ?? null,
+        mdrRate: fee.mdrRate,
+        mdrAmount,
+        settlementDays: fee.settlementDays,
+      });
+    }
+    return rows;
+  }
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
@@ -43,13 +115,28 @@ export class SalesService {
       defaultCarrierId = (cust as any)?.defaultCarrierId ?? undefined;
     }
 
+    // #584: plano de pagamento — valida soma (itens + frete) e congela MDR/prazo
+    let paymentsData: any[] | undefined;
+    if (dto.payments?.length) {
+      const itemsTotal = dto.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+      const expectedTotal = itemsTotal + (dto.freightValue ?? 0);
+      paymentsData = await this.buildPaymentsData(companyId, dto.payments, expectedTotal);
+    }
+    // Retrocompat detPag: forma legada = a de maior valor do plano
+    const legacyMethod =
+      dto.paymentMethod ??
+      (paymentsData?.length
+        ? [...paymentsData].sort((a, b) => b.amount - a.amount)[0].method
+        : undefined);
+
     const order = await this.prisma.salesOrder.create({
       data: {
         companyId,
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
-        paymentMethod: dto.paymentMethod,
+        paymentMethod: legacyMethod,
+        ...(paymentsData ? { payments: { create: paymentsData } } : {}),
         deliveryAddressId: dto.deliveryAddressId,
         // Frete → grupo transp da NF-e (#481)
         freightModality: dto.freightModality,
@@ -68,7 +155,7 @@ export class SalesService {
           })),
         },
       },
-      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+      include: { items: { include: { product: true } }, customer: true, warehouse: true, payments: true },
     });
 
     await this.prisma.auditLog.create({
@@ -82,6 +169,67 @@ export class SalesService {
     });
 
     return order;
+  }
+
+  // ─── S07.02b: Redefinir plano de pagamento antes do faturamento (#584) ────
+
+  async setPayments(
+    id: string,
+    companyId: string,
+    payments: SalesPaymentInputDto[],
+    userId?: string,
+  ) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+      include: { items: true },
+    });
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+
+    const editableStatuses: SalesOrderStatus[] = [
+      SalesOrderStatus.DRAFT,
+      SalesOrderStatus.RESERVED,
+      SalesOrderStatus.CONFIRMED,
+      SalesOrderStatus.AWAITING_PICKING,
+      SalesOrderStatus.AWAITING_CONFERENCE,
+      SalesOrderStatus.READY_TO_INVOICE,
+    ];
+    if (!editableStatuses.includes(order.status)) {
+      throw new BadRequestException(
+        `Plano de pagamento não pode ser alterado com a venda ${order.status} — apenas antes do faturamento`,
+      );
+    }
+
+    const itemsTotal = order.items.reduce(
+      (s, i) => s + Number(i.quantity) * Number(i.unitPrice),
+      0,
+    );
+    const expectedTotal = itemsTotal + Number(order.freightValue ?? 0);
+    const paymentsData = await this.buildPaymentsData(companyId, payments, expectedTotal);
+    const legacyMethod = [...paymentsData].sort((a, b) => b.amount - a.amount)[0].method;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.salesPayment.deleteMany({ where: { salesOrderId: id } });
+      return tx.salesOrder.update({
+        where: { id },
+        data: {
+          paymentMethod: legacyMethod, // retrocompat detPag
+          payments: { create: paymentsData },
+        },
+        include: { payments: true },
+      });
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'SET_PAYMENTS',
+        payload: { salesOrderId: id, forms: paymentsData.length },
+      },
+    });
+
+    return updated;
   }
 
   // ─── S07.03: Reservar estoque (DRAFT → RESERVED) ─────────────────────────
