@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
+import { FinanceKpiService } from './finance-kpi.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
@@ -33,7 +34,10 @@ const FINANCE_ENTRY_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL'];
 @Roles(...FINANCE_READ_ROLES)
 @Controller('finance')
 export class FinanceController {
-  constructor(private readonly financeService: FinanceService) {}
+  constructor(
+    private readonly financeService: FinanceService,
+    private readonly kpiService: FinanceKpiService,
+  ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
 
@@ -61,6 +65,18 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.createManualEntry(req.user.companyId, dto);
+  }
+
+  @Get('kpis')
+  @ApiOperation({ summary: 'KPIs financeiros: PMP, PMR, ciclo, cash runway, liquidez (#382/#387)' })
+  @ApiQuery({ name: 'from', required: false, description: 'YYYY-MM-DD (default: 90 dias atrás)' })
+  @ApiQuery({ name: 'to', required: false, description: 'YYYY-MM-DD (default: hoje)' })
+  getKpis(
+    @Request() req: { user: { companyId: string } },
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.kpiService.getKpis(req.user.companyId, { from, to });
   }
 
   @Get('reports/dre')
