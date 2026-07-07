@@ -19,6 +19,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
+import { PermissionService } from '../iam/permission.service';
 import { SessionService } from '../iam/session.service';
 
 @ApiTags('auth')
@@ -29,6 +30,7 @@ export class AuthController {
     private readonly sessionService: SessionService,
     private readonly mfaService: MfaService,
     private readonly passwordPolicy: PasswordPolicyService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   @Public()
@@ -60,6 +62,37 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
   async logout(@Body('refreshToken') refreshToken: string) {
     await this.authService.logout(refreshToken);
+  }
+
+  // ─── Minhas permissões (#351) ──────────────────────────────────────────────
+
+  /**
+   * Permissões EFETIVAS do usuário logado — consumido pelo frontend
+   * (usePermission()/<Can>) para esconder o que o usuário não pode fazer.
+   *
+   * Rota autenticada normal, SEM @Roles: todo usuário pode (e deve) ver as
+   * próprias permissões. userId, companyId e role vêm SEMPRE do JWT — a rota
+   * NÃO aceita alvo por query/body (é "meu contexto de sessão").
+   *
+   * Fallback legado: usuário sem nada no RBAC v2 recebe as permissões do
+   * perfil-espelho do seu enum `User.role` (ver
+   * PermissionService.getMyEffectivePermissions) — nunca fica sem nada.
+   *
+   * Regra de ouro: isto é UX, não segurança. O enforcement real continua no
+   * backend (PermissionGuard/@RequirePermission).
+   */
+  @Get('me/permissions')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Permissões efetivas do usuário logado (RBAC v2 + fallback do enum legado) — usado pelo frontend',
+  })
+  async myPermissions(@CurrentUser() user: any) {
+    return this.permissionService.getMyEffectivePermissions(
+      user.id,
+      user.companyId,
+      user.role,
+    );
   }
 
   // ─── Password policy (#345) ────────────────────────────────────────────────

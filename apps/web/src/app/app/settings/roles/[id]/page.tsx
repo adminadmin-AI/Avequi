@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Copy, Save, ShieldAlert } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
+import { usePermission } from '@/hooks/use-permission';
 import {
   apiErrorMessage,
   useCreateIamRole,
@@ -12,6 +12,7 @@ import {
   useRolePermissions,
   useSetRolePermissions,
 } from '@/hooks/use-iam';
+import { Can } from '@/components/can';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -20,29 +21,32 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { PermissionTree } from './permission-tree';
 
-const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
-
 /**
  * Detalhe do perfil: árvore de permissões agrupada por módulo (#352).
  * Perfis system são somente leitura (com atalho "Duplicar" para criar um
  * personalizado a partir dele); perfis custom salvam via PUT (set completo).
+ *
+ * Gating por PERMISSÃO (RBAC v2, #351): iam.roles.view abre a tela;
+ * iam.roles.manage libera salvar/duplicar (árvore vira somente leitura sem
+ * ela). O backend revalida tudo (@RequirePermission) — aqui é só UX.
  */
 export default function RolePermissionsPage() {
   const params = useParams<{ id: string }>();
   const roleId = params?.id;
   const router = useRouter();
   const toast = useToast();
-  const currentUser = useAuthStore((s) => s.user);
-  const canManage = !!currentUser && ALLOWED_ROLES.includes(currentUser.role);
+  const { can, isLoading: loadingMyPerms } = usePermission();
+  const canView = can('iam.roles.view');
+  const canManage = can('iam.roles.manage');
 
-  const { data: roles = [] } = useIamRoles(canManage);
+  const { data: roles = [] } = useIamRoles(canView);
   const role = roles.find((r) => r.id === roleId);
 
   const { data: rolePerms, isLoading: loadingPerms } = useRolePermissions(
-    canManage ? roleId : undefined,
+    canView ? roleId : undefined,
   );
   const { data: catalog = [], isLoading: loadingCatalog } =
-    usePermissionsCatalog(canManage);
+    usePermissionsCatalog(canView);
 
   const setRolePermissions = useSetRolePermissions();
   const createRole = useCreateIamRole();
@@ -64,7 +68,7 @@ export default function RolePermissionsPage() {
   );
 
   const isSystem = rolePerms?.isSystem ?? role?.isSystem ?? false;
-  const loading = loadingPerms || loadingCatalog;
+  const loading = loadingMyPerms || loadingPerms || loadingCatalog;
 
   function handleChange(next: Set<string>) {
     setSelected(next);
@@ -103,13 +107,18 @@ export default function RolePermissionsPage() {
     );
   }
 
-  if (!canManage) {
+  // Fail-closed com UX: só declara "Acesso restrito" DEPOIS que as
+  // permissões carregaram (antes disso, o esqueleto do bloco principal cobre).
+  if (!loadingMyPerms && !canView) {
     return (
       <div>
         <PageHeader title="Perfil" backHref="/app/settings/roles" />
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface py-16 text-center">
           <ShieldAlert className="text-content-muted" size={40} />
           <p className="text-sm font-medium text-content-secondary">Acesso restrito</p>
+          <p className="text-xs text-content-muted">
+            Você não tem a permissão necessária (iam.roles.view).
+          </p>
         </div>
       </div>
     );
@@ -143,21 +152,23 @@ export default function RolePermissionsPage() {
           </div>
         }
         actions={
-          isSystem ? (
-            <Button onClick={handleDuplicate} loading={createRole.isPending}>
-              <Copy size={16} />
-              Duplicar como personalizado
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSave}
-              disabled={!dirty}
-              loading={setRolePermissions.isPending}
-            >
-              <Save size={16} />
-              Salvar permissões
-            </Button>
-          )
+          <Can permission="iam.roles.manage">
+            {isSystem ? (
+              <Button onClick={handleDuplicate} loading={createRole.isPending}>
+                <Copy size={16} />
+                Duplicar como personalizado
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSave}
+                disabled={!dirty}
+                loading={setRolePermissions.isPending}
+              >
+                <Save size={16} />
+                Salvar permissões
+              </Button>
+            )}
+          </Can>
         }
       />
 
@@ -187,7 +198,7 @@ export default function RolePermissionsPage() {
           catalog={catalog}
           selected={selected}
           inherited={inherited}
-          readOnly={isSystem}
+          readOnly={isSystem || !canManage}
           onChange={handleChange}
         />
       )}

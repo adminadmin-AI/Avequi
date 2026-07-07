@@ -702,6 +702,18 @@ export interface AssignIamRoleInput {
   expiresAt?: string;
 }
 
+/** GET /auth/me/permissions (#351) — permissões efetivas do usuário logado. */
+export interface MyEffectivePermissions {
+  /** Codes dos perfis DIRETAMENTE atribuídos (no fallback, o perfil-espelho). */
+  roles: string[];
+  /** Codes de permissão efetivos (herança + exceções já aplicadas). */
+  permissions: string[];
+  /** true = derivado do enum `User.role` legado (usuário ainda não migrado). */
+  legacyFallback: boolean;
+  /** Timestamp ISO da resolução no servidor. */
+  resolvedAt: string;
+}
+
 export interface GrantIamPermissionInput {
   permissionCode: string;
   granted?: boolean;
