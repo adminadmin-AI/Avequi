@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CollectionAttemptChannel, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
@@ -16,7 +17,10 @@ import { TriggerCollectionDto } from './dto/trigger-collection.dto';
 export class FinanceService {
   private readonly logger = new Logger(FinanceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly advanceService: SupplierAdvanceService,
+  ) {}
 
   // ─── S09.02: Gerar CR de venda confirmada ────────────────────────────────
 
@@ -106,6 +110,20 @@ export class FinanceService {
     });
 
     this.logger.log(`PAYABLE criado: ${entry.id} — GR ${params.goodsReceiptId} — R$ ${params.amount}`);
+
+    // #393: abate adiantamentos abertos do fornecedor automaticamente
+    try {
+      const po = await this.prisma.purchaseOrder.findUnique({
+        where: { id: params.purchaseOrderId },
+        select: { supplierId: true },
+      });
+      if (po?.supplierId) {
+        await this.advanceService.applyToPayable(params.companyId, po.supplierId, entry.id);
+      }
+    } catch (err) {
+      // adiantamento é conveniência — falha não pode quebrar a criação do payable
+      this.logger.error(`Falha ao aplicar adiantamento no payable ${entry.id}: ${(err as Error).message}`);
+    }
   }
 
   // ─── Lançamento manual (avulso) ────────────────────────────────────────────

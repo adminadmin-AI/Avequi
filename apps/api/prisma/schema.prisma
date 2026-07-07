@@ -141,6 +141,7 @@ model Company {
   @@map("gdr_companies")
   collectionRules CollectionRule[] // régua de cobrança (#384)
   provisionRules ProvisionRule[] // PDD (#389)
+  supplierAdvances SupplierAdvance[] // adiantamentos (#393)
 }
 
 enum CompanyType {
@@ -498,6 +499,7 @@ model Supplier {
 
   @@unique([companyId, cnpj])
   @@map("gdr_suppliers")
+  advances SupplierAdvance[] // adiantamentos (#393)
 }
 
 // ─── Cliente ──────────────────────────────────────────────────────────────────
@@ -1325,6 +1327,26 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// Adiantamento a fornecedor (#393): pago antecipado, abatido do payable quando a NF chega
+model SupplierAdvance {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id])
+  amount        Decimal   @db.Decimal(14, 2)
+  appliedAmount Decimal   @default(0) @map("applied_amount") @db.Decimal(14, 2)
+  status        String    @default("OPEN") // OPEN | PARTIALLY_APPLIED | APPLIED | CANCELLED
+  paidAt        DateTime? @map("paid_at")
+  purchaseOrderId String? @map("purchase_order_id") // vínculo opcional com a PO
+  note          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([companyId, supplierId])
+  @@map("gdr_supplier_advances")
 }
 
 /// PDD — Provisão para Devedores Duvidosos (#389): % de provisão por faixa de atraso

@@ -15,6 +15,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
 import { FinanceKpiService } from './finance-kpi.service';
 import { ProvisionService } from './provision.service';
+import { SupplierAdvanceService } from './supplier-advance.service';
+import { CreateSupplierAdvanceDto } from './dto/supplier-advance.dto';
 import { UpdateProvisionRuleDto, WriteOffDto } from './dto/provision.dto';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -40,6 +42,7 @@ export class FinanceController {
     private readonly financeService: FinanceService,
     private readonly kpiService: FinanceKpiService,
     private readonly provisionService: ProvisionService,
+    private readonly advanceService: SupplierAdvanceService,
   ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
@@ -133,6 +136,31 @@ export class FinanceController {
     @Request() req: { user: { id?: string; companyId: string } },
   ) {
     return this.provisionService.writeOff(id, req.user.companyId, dto.reason, req.user.id);
+  }
+
+  // ─── Adiantamentos a fornecedor (#393) ────────────────────────────────────
+
+  @Get('supplier-advances')
+  @ApiOperation({ summary: 'Adiantamentos + saldo aberto por fornecedor (#393)' })
+  listAdvances(@Request() req: { user: { companyId: string } }) {
+    return this.advanceService.report(req.user.companyId);
+  }
+
+  @Post('supplier-advances')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Criar adiantamento a fornecedor (#393)' })
+  createAdvance(
+    @Body() dto: CreateSupplierAdvanceDto,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.advanceService.create(req.user.companyId, dto, req.user.id);
+  }
+
+  @Post('supplier-advances/:id/cancel')
+  @Roles(...FINANCE_ENTRY_WRITE_ROLES)
+  @ApiOperation({ summary: 'Cancelar adiantamento não aplicado (#393)' })
+  cancelAdvance(@Param('id') id: string, @Request() req: { user: { id?: string; companyId: string } }) {
+    return this.advanceService.cancel(id, req.user.companyId, req.user.id);
   }
 
   @Get('reports/dre')
