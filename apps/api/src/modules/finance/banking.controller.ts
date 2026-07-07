@@ -42,6 +42,36 @@ export class BankingController {
     return this.financeService.getBankingOverview(req.user.companyId);
   }
 
+  @Get('cash-flow/weekly')
+  @ApiOperation({ summary: 'Fluxo de caixa 13 semanas rolantes (#383)' })
+  @ApiQuery({ name: 'weeks', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowWeekly(
+    @Request() req: { user: { companyId: string } },
+    @Query('weeks') weeks?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowWeekly(req.user.companyId, {
+      weeks: weeks ? parseInt(weeks, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
+  @Get('cash-flow/monthly')
+  @ApiOperation({ summary: 'Fluxo de caixa 12 meses rolantes (#383)' })
+  @ApiQuery({ name: 'months', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowMonthly(
+    @Request() req: { user: { companyId: string } },
+    @Query('months') months?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowMonthly(req.user.companyId, {
+      months: months ? parseInt(months, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
   @Get('reconciliation/unmatched')
   @ApiOperation({ summary: 'Conciliação: lançamentos sem correspondência (placeholder)' })
   getUnmatchedReconciliation() {

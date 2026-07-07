@@ -686,6 +686,83 @@ export class FinanceService {
     };
   }
 
+  /**
+   * #383 — Fluxo de caixa 13 semanas rolantes (padrão de tesouraria industrial).
+   * Agrega a projeção diária em semanas civis (segunda a domingo).
+   */
+  async getCashFlowWeekly(companyId: string, filters: { weeks?: number; bankAccountId?: string } = {}) {
+    const weeks = filters.weeks ?? 13;
+    const daily = await this.getCashFlowProjection(companyId, {
+      days: weeks * 7 + 6, // margem p/ completar a última semana civil
+      bankAccountId: filters.bankAccountId,
+    });
+
+    const buckets = new Map<string, { weekStart: string; weekEnd: string; inflow: number; outflow: number; projectedBalance: number }>();
+    for (const d of daily.projection) {
+      const date = new Date(`${d.date}T12:00:00Z`);
+      const dow = (date.getUTCDay() + 6) % 7; // 0 = segunda
+      const start = new Date(date.getTime() - dow * 86_400_000);
+      const key = start.toISOString().slice(0, 10);
+      const end = new Date(start.getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
+      const b = buckets.get(key) ?? { weekStart: key, weekEnd: end, inflow: 0, outflow: 0, projectedBalance: 0 };
+      b.inflow += d.receivable;
+      b.outflow += d.payable;
+      b.projectedBalance = d.projectedBalance; // saldo do último dia da semana
+      buckets.set(key, b);
+    }
+
+    const weeksArr = [...buckets.values()].slice(0, weeks).map((b) => ({
+      ...b,
+      inflow: +b.inflow.toFixed(2),
+      outflow: +b.outflow.toFixed(2),
+      netFlow: +(b.inflow - b.outflow).toFixed(2),
+      projectedBalance: +b.projectedBalance.toFixed(2),
+      alert: b.projectedBalance < 0,
+    }));
+
+    return {
+      currentBalance: daily.currentBalance,
+      weeks: weeksArr.length,
+      firstAlertWeek: weeksArr.find((w) => w.alert)?.weekStart ?? null,
+      projection: weeksArr,
+    };
+  }
+
+  /** #383 — Fluxo de caixa 12 meses rolantes (agrega a projeção diária por mês) */
+  async getCashFlowMonthly(companyId: string, filters: { months?: number; bankAccountId?: string } = {}) {
+    const months = filters.months ?? 12;
+    const daily = await this.getCashFlowProjection(companyId, {
+      days: months * 31,
+      bankAccountId: filters.bankAccountId,
+    });
+
+    const buckets = new Map<string, { month: string; inflow: number; outflow: number; projectedBalance: number }>();
+    for (const d of daily.projection) {
+      const key = d.date.slice(0, 7); // YYYY-MM
+      const b = buckets.get(key) ?? { month: key, inflow: 0, outflow: 0, projectedBalance: 0 };
+      b.inflow += d.receivable;
+      b.outflow += d.payable;
+      b.projectedBalance = d.projectedBalance;
+      buckets.set(key, b);
+    }
+
+    const monthsArr = [...buckets.values()].slice(0, months).map((b) => ({
+      ...b,
+      inflow: +b.inflow.toFixed(2),
+      outflow: +b.outflow.toFixed(2),
+      netFlow: +(b.inflow - b.outflow).toFixed(2),
+      projectedBalance: +b.projectedBalance.toFixed(2),
+      alert: b.projectedBalance < 0,
+    }));
+
+    return {
+      currentBalance: daily.currentBalance,
+      months: monthsArr.length,
+      firstAlertMonth: monthsArr.find((m) => m.alert)?.month ?? null,
+      projection: monthsArr,
+    };
+  }
+
   // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
 
   async getBankStatement(
