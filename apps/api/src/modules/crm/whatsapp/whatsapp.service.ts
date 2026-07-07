@@ -16,6 +16,7 @@ import {
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { webmOpusToOgg } from './audio.util';
 
 /** Janela de atendimento da Meta: 24h após a última mensagem do cliente */
 export const WA_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -204,6 +205,7 @@ export class WhatsappService {
     caption: string | undefined,
     senderId: string,
   ) {
+    file = await this.normalizeOutboundAudio(file);
     const kind = this.mediaKind(file.mimetype);
     this.assertMediaLimits(kind, file.size);
 
@@ -304,6 +306,34 @@ export class WhatsappService {
     ]);
     this.eventEmitter.emit('crm.whatsapp.message_sent', { leadId, companyId, messageId: message.id });
     return message;
+  }
+
+  /**
+   * F3.5-C6 (#556) — áudio gravado no Chrome vem como audio/webm, que a Meta
+   * recusa. Remux p/ ogg (mesmo codec opus, só troca o container); os demais
+   * formatos de gravação (mp4/aac do Safari, ogg do Firefox) passam direto.
+   */
+  private async normalizeOutboundAudio(file: {
+    buffer: Buffer;
+    mimetype: string;
+    originalname: string;
+    size: number;
+  }) {
+    if (!file.mimetype.toLowerCase().startsWith('audio/webm')) return file;
+    try {
+      const ogg = await webmOpusToOgg(file.buffer);
+      return {
+        buffer: ogg,
+        mimetype: 'audio/ogg',
+        originalname: file.originalname.replace(/\.webm$/i, '') + '.ogg',
+        size: ogg.length,
+      };
+    } catch (err) {
+      this.logger.error(`Conversão webm→ogg falhou: ${(err as Error).message}`);
+      throw new BadRequestException(
+        'Não foi possível converter o áudio — tente anexar um arquivo mp3/m4a',
+      );
+    }
   }
 
   /** image | audio | document a partir do mime; vídeo entra como document p/ simplificar */

@@ -28,6 +28,7 @@ import {
   renderQuickReply,
   windowRemaining,
 } from './inbox-types';
+import { AudioRecorder } from './audio-recorder';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
@@ -53,6 +54,7 @@ export default function InboxPage() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [pickerIndex, setPickerIndex] = useState(0);
   const [pickerDismissed, setPickerDismissed] = useState(false);
+  const [recordingAudio, setRecordingAudio] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const knownLeads = useRef<Set<string>>(new Set());
 
@@ -378,42 +380,53 @@ export default function InboxPage() {
                     activeIndex={pickerIndex}
                     onPick={pickQuickReply}
                   />
-                  <label
-                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
-                    title="Anexar foto/PDF"
-                  >
-                    {sendMedia.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Paperclip className="h-4 w-4" />
-                    )}
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*,application/pdf,audio/*"
-                      disabled={sendMedia.isPending}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) sendMedia.mutate(f);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                  <textarea
-                    className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
-                    placeholder='Escreva livremente... ("/" abre respostas rápidas, Enter envia)'
-                    rows={1}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={handleComposerKeyDown}
+                  {!recordingAudio && (
+                    <label
+                      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
+                      title="Anexar foto/PDF"
+                    >
+                      {sendMedia.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Paperclip className="h-4 w-4" />
+                      )}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*,application/pdf,audio/*"
+                        disabled={sendMedia.isPending}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) sendMedia.mutate(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                  <AudioRecorder
+                    onSend={(f) => sendMedia.mutate(f)}
+                    sending={sendMedia.isPending}
+                    onRecordingChange={setRecordingAudio}
                   />
-                  <Button onClick={handleSend} disabled={!draft.trim() || send.isPending} aria-label="Enviar">
-                    {send.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {!recordingAudio && (
+                    <>
+                      <textarea
+                        className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
+                        placeholder='Escreva livremente... ("/" abre respostas rápidas, Enter envia)'
+                        rows={1}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={handleComposerKeyDown}
+                      />
+                      <Button onClick={handleSend} disabled={!draft.trim() || send.isPending} aria-label="Enviar">
+                        {send.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <TemplateSender leadId={selected.leadId} />
