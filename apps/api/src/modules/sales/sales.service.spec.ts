@@ -30,6 +30,7 @@ const mockPrisma = {
   },
   financialEntry: {
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
     aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
@@ -89,6 +90,7 @@ describe('SalesService', () => {
 
     service = module.get<SalesService>(SalesService);
     jest.clearAllMocks();
+    mockPrisma.financialEntry.findMany.mockResolvedValue([]); // #586 — devolução varre 1:N
     mockTaxCalc.findBestRule.mockResolvedValue({ id: 'rule-1' });
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
   });
@@ -426,7 +428,6 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
       });
-      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
       const returnedOrder = { ...baseOrder, status: SalesOrderStatus.RETURNED, items: [], customer: null, warehouse: {} };
       mockPrisma.salesOrder.update.mockResolvedValue(returnedOrder);
@@ -448,12 +449,10 @@ describe('SalesService', () => {
       });
       mockPrisma.stockBalance.update.mockResolvedValue({});
       mockPrisma.stockMovement.create.mockResolvedValue({});
-      mockPrisma.financialEntry.findFirst.mockResolvedValue({
-        id: 'fe-1',
-        status: 'OPEN',
-        salesOrderId: 'so-1',
-      });
-      mockPrisma.financialEntry.update.mockResolvedValue({});
+      mockPrisma.financialEntry.findMany.mockResolvedValue([
+        { id: 'fe-1', status: 'OPEN', salesOrderId: 'so-1' },
+      ]);
+      mockPrisma.financialEntry.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
       mockPrisma.salesOrder.update.mockResolvedValue({
         ...baseOrder,
@@ -466,8 +465,8 @@ describe('SalesService', () => {
 
       await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
 
-      expect(mockPrisma.financialEntry.update).toHaveBeenCalledWith({
-        where: { id: 'fe-1' },
+      expect(mockPrisma.financialEntry.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['fe-1'] } },
         data: { status: 'CANCELLED' },
       });
     });
@@ -479,11 +478,9 @@ describe('SalesService', () => {
       });
       mockPrisma.stockBalance.update.mockResolvedValue({});
       mockPrisma.stockMovement.create.mockResolvedValue({});
-      mockPrisma.financialEntry.findFirst.mockResolvedValue({
-        id: 'fe-1',
-        status: 'PAID',
-        salesOrderId: 'so-1',
-      });
+      mockPrisma.financialEntry.findMany.mockResolvedValue([
+        { id: 'fe-1', status: 'PAID', salesOrderId: 'so-1' },
+      ]);
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue(null);
       mockPrisma.salesOrder.update.mockResolvedValue({
         ...baseOrder,
@@ -497,7 +494,7 @@ describe('SalesService', () => {
       await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
 
       // CR PAID não é cancelada — apenas logado
-      expect(mockPrisma.financialEntry.update).not.toHaveBeenCalled();
+      expect(mockPrisma.financialEntry.updateMany).not.toHaveBeenCalled();
     });
 
     it('deve cancelar NF-e autorizada dentro do prazo de 24h (#178)', async () => {

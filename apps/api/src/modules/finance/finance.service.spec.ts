@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 const mockPrisma = {
   debtInstallment: { findMany: jest.fn().mockResolvedValue([]) },
+  salesOrder: { findFirst: jest.fn() }, // #586 — plano de pagamento da venda
   financialEntry: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -76,7 +77,8 @@ describe('FinanceService', () => {
 
   describe('createReceivableForSale', () => {
     it('deve criar RECEIVABLE para venda sem CR anterior', async () => {
-      mockPrisma.financialEntry.findUnique.mockResolvedValue(null);
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({ id: 'so-1', payments: [] }); // sem plano → legado (#586)
       mockPrisma.financialEntry.create.mockResolvedValue(baseEntry);
 
       await service.createReceivableForSale({
@@ -98,7 +100,7 @@ describe('FinanceService', () => {
     });
 
     it('deve ignorar criação quando CR já existe (idempotência)', async () => {
-      mockPrisma.financialEntry.findUnique.mockResolvedValue(baseEntry);
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(baseEntry);
 
       await service.createReceivableForSale({
         companyId: 'co-1',

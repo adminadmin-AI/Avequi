@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -81,6 +81,8 @@ export class ProvisionService {
         type: FinancialEntryType.RECEIVABLE,
         status: { in: OPEN_STATUSES },
         dueDate: { lt: hoje },
+        // #586: PDD é risco de CLIENTE — atraso de adquirente é conciliação (#588)
+        debtorType: DebtorType.CUSTOMER,
       },
       select: {
         id: true,

@@ -530,6 +530,11 @@ export enum PaymentAuthStatus {
   DENIED = 'DENIED',
 }
 
+export enum DebtorType {
+  CUSTOMER = 'CUSTOMER',
+  ACQUIRER = 'ACQUIRER',
+}
+
 export enum ScheduledPaymentStatus {
   PENDING = 'PENDING',
   DONE = 'DONE',

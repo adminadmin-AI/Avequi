@@ -200,6 +200,8 @@ export class CustomerService {
         type: 'RECEIVABLE' as any,
         status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
         salesOrder: { customerId: id },
+        // #586: cartão autorizado é dívida da ADQUIRENTE — não consome limite
+        debtorType: 'CUSTOMER' as any,
       },
       _sum: { amount: true },
     });

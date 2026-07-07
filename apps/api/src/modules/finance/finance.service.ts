@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CollectionAttemptChannel, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
+import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, PaymentMethod, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
@@ -24,6 +24,15 @@ export class FinanceService {
 
   // ─── S09.02: Gerar CR de venda confirmada ────────────────────────────────
 
+  /**
+   * #586 — Gera os títulos da venda a partir do PLANO DE PAGAMENTO (#584):
+   * - à vista (PIX/dinheiro/TED) → 1 CR contra o CLIENTE, D+0;
+   * - boleto/cheque N× → N parcelas contra o CLIENTE, vencendo a cada 30 dias;
+   * - cartão crédito N× → N CRs contra a ADQUIRENTE, valor LÍQUIDO (bruto − MDR),
+   *   liquidando em D+settlement, +30 dias por parcela; MDR vira despesa PAGA;
+   * - cartão débito → 1 CR líquido contra a ADQUIRENTE em D+settlement.
+   * Sem plano → comportamento legado (1 CR cliente, 30 dias).
+   */
   async createReceivableForSale(params: {
     companyId: string;
     salesOrderId: string;
@@ -31,40 +40,189 @@ export class FinanceService {
     dueDate?: Date;
     fiscalDocumentId?: string;
   }): Promise<void> {
-    // Idempotência: uma venda → no máximo um CR
-    const existing = await this.prisma.financialEntry.findUnique({
-      where: { salesOrderId: params.salesOrderId },
+    // Idempotência: se a venda já tem qualquer CR, não regenera (1:N desde #586)
+    const existing = await this.prisma.financialEntry.findFirst({
+      where: { salesOrderId: params.salesOrderId, type: FinancialEntryType.RECEIVABLE },
     });
     if (existing) {
       this.logger.warn(`CR já existe para OV ${params.salesOrderId}`);
       return;
     }
 
-    const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: params.salesOrderId, companyId: params.companyId },
+      include: { payments: true },
+    });
+    const plan = order?.payments ?? [];
 
-    const entry = await this.prisma.financialEntry.create({
-      data: {
-        companyId: params.companyId,
-        type: FinancialEntryType.RECEIVABLE,
-        status: FinancialEntryStatus.OPEN,
-        amount: params.amount,
-        dueDate,
-        description: `Conta a receber referente à venda #${params.salesOrderId}`,
-        salesOrderId: params.salesOrderId,
-        fiscalDocumentId: params.fiscalDocumentId ?? null,
-      },
+    // ── Legado: venda sem plano de pagamento → 1 CR cliente em 30 dias ──────
+    if (plan.length === 0) {
+      const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
+      const entry = await this.prisma.financialEntry.create({
+        data: {
+          companyId: params.companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.OPEN,
+          amount: params.amount,
+          dueDate,
+          description: `Conta a receber referente à venda #${params.salesOrderId}`,
+          salesOrderId: params.salesOrderId,
+          fiscalDocumentId: params.fiscalDocumentId ?? null,
+        },
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: params.companyId,
+          entity: 'FinancialEntry',
+          action: 'CREATE_RECEIVABLE',
+          payload: { id: entry.id, salesOrderId: params.salesOrderId, amount: params.amount },
+        },
+      });
+      this.logger.log(`RECEIVABLE criado: ${entry.id} — OV ${params.salesOrderId} — R$ ${params.amount}`);
+      return;
+    }
+
+    // ── Plano de pagamento → N títulos ──────────────────────────────────────
+    const invoiceDate = new Date();
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    const CARD: PaymentMethod[] = [
+      PaymentMethod.CARTAO,
+      PaymentMethod.CARTAO_CREDITO,
+      PaymentMethod.CARTAO_DEBITO,
+    ];
+    const INSTALLMENT_METHODS: PaymentMethod[] = [PaymentMethod.BOLETO, PaymentMethod.CHEQUE];
+
+    const receivables: any[] = [];
+    const mdrExpenses: any[] = [];
+
+    for (const p of plan) {
+      const n = p.installments ?? 1;
+      const gross = Number(p.amount);
+
+      if (CARD.includes(p.method)) {
+        // Devedor = ADQUIRENTE (não o cliente!), valor líquido, liquidação real
+        const mdr = Number(p.mdrAmount ?? 0);
+        const net = round2(gross - mdr);
+        const settlement = p.settlementDays ?? 30;
+        const base = Math.floor((net / n) * 100) / 100;
+        const lastAmount = round2(net - base * (n - 1));
+        for (let k = 1; k <= n; k++) {
+          receivables.push({
+            companyId: params.companyId,
+            type: FinancialEntryType.RECEIVABLE,
+            status: FinancialEntryStatus.OPEN,
+            amount: k === n ? lastAmount : base,
+            dueDate: this.addDays(invoiceDate, settlement + 30 * (k - 1)),
+            description: `Venda #${params.salesOrderId} — cartão ${k}/${n} (líquido adquirente)`,
+            salesOrderId: params.salesOrderId,
+            debtorType: DebtorType.ACQUIRER,
+            acquirerId: p.acquirerId,
+            salesPaymentId: p.id,
+            installmentNumber: k,
+          });
+        }
+        if (mdr > 0) {
+          // MDR já retida pela adquirente na liquidação — despesa financeira PAGA
+          mdrExpenses.push({
+            companyId: params.companyId,
+            type: FinancialEntryType.PAYABLE,
+            status: FinancialEntryStatus.PAID,
+            amount: mdr,
+            dueDate: this.addDays(invoiceDate, settlement),
+            paidAt: invoiceDate,
+            paymentNote: 'MDR retida pela adquirente na liquidação (CR já é líquido)',
+            description: `Venda #${params.salesOrderId} — taxa MDR cartão (${p.mdrRate}%)`,
+            salesOrderId: params.salesOrderId,
+            debtorType: DebtorType.ACQUIRER,
+            acquirerId: p.acquirerId,
+            salesPaymentId: p.id,
+          });
+        }
+      } else if (INSTALLMENT_METHODS.includes(p.method)) {
+        // Cliente paga em N parcelas — vencimento a cada 30 dias
+        const base = Math.floor((gross / n) * 100) / 100;
+        const lastAmount = round2(gross - base * (n - 1));
+        for (let k = 1; k <= n; k++) {
+          receivables.push({
+            companyId: params.companyId,
+            type: FinancialEntryType.RECEIVABLE,
+            status: FinancialEntryStatus.OPEN,
+            amount: k === n ? lastAmount : base,
+            dueDate: this.addDays(invoiceDate, 30 * k),
+            description: `Venda #${params.salesOrderId} — ${p.method} ${k}/${n}`,
+            salesOrderId: params.salesOrderId,
+            debtorType: DebtorType.CUSTOMER,
+            salesPaymentId: p.id,
+            installmentNumber: k,
+          });
+        }
+      } else {
+        // À vista (PIX/dinheiro/TED) — cliente, D+0
+        receivables.push({
+          companyId: params.companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.OPEN,
+          amount: gross,
+          dueDate: invoiceDate,
+          description: `Venda #${params.salesOrderId} — ${p.method} à vista`,
+          salesOrderId: params.salesOrderId,
+          debtorType: DebtorType.CUSTOMER,
+          salesPaymentId: p.id,
+          installmentNumber: 1,
+        });
+      }
+    }
+
+    // NF-e vinculada ao primeiro título (fiscalDocumentId segue @unique)
+    if (params.fiscalDocumentId && receivables.length > 0) {
+      receivables[0].fiscalDocumentId = params.fiscalDocumentId;
+    }
+    // Despesa MDR na categoria própria (cria on-demand)
+    if (mdrExpenses.length > 0) {
+      const categoryId = await this.ensureMdrCategory(params.companyId);
+      for (const e of mdrExpenses) e.categoryId = categoryId;
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const data of [...receivables, ...mdrExpenses]) {
+        const e = await tx.financialEntry.create({ data });
+        ids.push(e.id);
+      }
+      return ids;
     });
 
     await this.prisma.auditLog.create({
       data: {
         companyId: params.companyId,
         entity: 'FinancialEntry',
-        action: 'CREATE_RECEIVABLE',
-        payload: { id: entry.id, salesOrderId: params.salesOrderId, amount: params.amount },
+        action: 'CREATE_RECEIVABLES_PLAN',
+        payload: {
+          salesOrderId: params.salesOrderId,
+          receivables: receivables.length,
+          mdrExpenses: mdrExpenses.length,
+          entryIds: created,
+        },
       },
     });
 
-    this.logger.log(`RECEIVABLE criado: ${entry.id} — OV ${params.salesOrderId} — R$ ${params.amount}`);
+    this.logger.log(
+      `Plano de pagamento OV ${params.salesOrderId}: ${receivables.length} CR + ${mdrExpenses.length} despesa(s) MDR`,
+    );
+  }
+
+  /** Categoria de despesa das taxas de cartão (#586) — cria on-demand */
+  private async ensureMdrCategory(companyId: string): Promise<string> {
+    const NAME = 'Taxas de Cartão (MDR)';
+    const found = await this.prisma.financialCategory.findFirst({
+      where: { companyId, name: NAME },
+      select: { id: true },
+    });
+    if (found) return found.id;
+    const created = await this.prisma.financialCategory.create({
+      data: { companyId, name: NAME, type: 'EXPENSE' as any },
+    });
+    return created.id;
   }
 
   // ─── S09.03: Gerar CP de recebimento de compra ───────────────────────────

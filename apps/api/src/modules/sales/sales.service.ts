@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FinancialEntryStatus, PaymentMethod, SalesOrderStatus } from '@prisma/client';
+import { DebtorType, FinancialEntryStatus, PaymentMethod, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { StockService } from '../stock/stock.service';
@@ -413,6 +413,8 @@ export class SalesService {
         type: 'RECEIVABLE' as any,
         status: { in: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] as any },
         salesOrder: { customerId },
+        // #586: cartão autorizado é dívida da ADQUIRENTE — não consome limite do cliente
+        debtorType: DebtorType.CUSTOMER,
       },
       _sum: { amount: true },
     });
@@ -638,25 +640,32 @@ export class SalesService {
         );
       }
 
-      // 2. Cancelar CR (conta a receber) vinculada (#178)
-      const financialEntry = await tx.financialEntry.findFirst({
+      // 2. Cancelar CRs (contas a receber) vinculadas (#178) — 1:N desde #586
+      const entries = await tx.financialEntry.findMany({
         where: { salesOrderId: id },
       });
 
       let crCancelled = false;
-      if (financialEntry) {
-        if (financialEntry.status === FinancialEntryStatus.PAID) {
-          this.logger.warn(
-            `CR ${financialEntry.id} da OV ${id} já foi PAGA — necessário gerar crédito manualmente`,
-          );
-        } else if (financialEntry.status !== FinancialEntryStatus.CANCELLED) {
-          await tx.financialEntry.update({
-            where: { id: financialEntry.id },
-            data: { status: FinancialEntryStatus.CANCELLED },
-          });
-          crCancelled = true;
-          this.logger.log(`CR ${financialEntry.id} → CANCELLED (devolução OV ${id})`);
-        }
+      const paid = entries.filter((e) => e.status === FinancialEntryStatus.PAID);
+      if (paid.length > 0) {
+        this.logger.warn(
+          `${paid.length} título(s) da OV ${id} já PAGOS — necessário gerar crédito/estorno manualmente`,
+        );
+      }
+      const cancellable = entries.filter(
+        (e) =>
+          e.status !== FinancialEntryStatus.PAID &&
+          e.status !== FinancialEntryStatus.CANCELLED,
+      );
+      if (cancellable.length > 0) {
+        await tx.financialEntry.updateMany({
+          where: { id: { in: cancellable.map((e) => e.id) } },
+          data: { status: FinancialEntryStatus.CANCELLED },
+        });
+        crCancelled = true;
+        this.logger.log(
+          `${cancellable.length} título(s) → CANCELLED (devolução OV ${id})`,
+        );
       }
 
       // 3. Atualizar status da venda
