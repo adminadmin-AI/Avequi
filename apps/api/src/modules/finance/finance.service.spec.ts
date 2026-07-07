@@ -593,3 +593,73 @@ describe('FinanceService', () => {
     });
   });
 });
+
+describe('FinanceService — fluxo de caixa 13 semanas / 12 meses (#383)', () => {
+  let service: FinanceService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        FinanceService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
+    service = module.get(FinanceService);
+  });
+
+  function dailyStub(days: number) {
+    // 2026-07-06 é uma segunda-feira — semanas civis alinhadas
+    const projection = [] as any[];
+    let balance = 1000;
+    for (let i = 0; i < days; i++) {
+      const date = new Date(Date.UTC(2026, 6, 6) + 0);
+      date.setUTCDate(date.getUTCDate() + i);
+      balance += 10 - 5;
+      projection.push({
+        date: date.toISOString().slice(0, 10),
+        receivable: 10,
+        payable: 5,
+        netFlow: 5,
+        projectedBalance: balance,
+        alert: false,
+      });
+    }
+    return { currentBalance: 1000, days, alertDaysCount: 0, firstAlertDate: null, projection };
+  }
+
+  it('agrega semanas civis (seg-dom): 13 semanas com inflow/outflow somados', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(dailyStub(13 * 7 + 7) as any);
+    const result = await service.getCashFlowWeekly('co-1');
+    expect(result.weeks).toBe(13);
+    const w1 = result.projection[0];
+    expect(w1.weekStart).toBe('2026-07-06'); // segunda
+    expect(w1.weekEnd).toBe('2026-07-12'); // domingo
+    expect(w1.inflow).toBe(70); // 7 dias × 10
+    expect(w1.outflow).toBe(35);
+    expect(w1.netFlow).toBe(35);
+    // saldo da semana = saldo do último dia dela
+    expect(w1.projectedBalance).toBe(1000 + 7 * 5);
+  });
+
+  it('agrega por mês: 12 meses com saldo do último dia do mês', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(dailyStub(370) as any);
+    const result = await service.getCashFlowMonthly('co-1');
+    expect(result.months).toBe(12);
+    expect(result.projection[0].month).toBe('2026-07');
+    // julho: dias 06-31 = 26 dias × 10
+    expect(result.projection[0].inflow).toBe(260);
+    expect(result.projection[1].month).toBe('2026-08');
+    expect(result.projection[1].inflow).toBe(310); // 31 dias
+  });
+
+  it('marca alerta quando o saldo projetado da semana fica negativo', async () => {
+    const stub = dailyStub(21);
+    stub.projection.forEach((d: any, i: number) => {
+      if (i >= 7) d.projectedBalance = -100;
+    });
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue(stub as any);
+    const result = await service.getCashFlowWeekly('co-1', { weeks: 3 });
+    expect(result.projection[1].alert).toBe(true);
+    expect(result.firstAlertWeek).toBe(result.projection[1].weekStart);
+  });
+});
