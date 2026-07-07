@@ -763,6 +763,75 @@ export class FinanceService {
     };
   }
 
+  /**
+   * #390 — Projeção de caixa com cenários (base / otimista / estresse).
+   * Deriva da projeção diária: receitas × revenueMultiplier × (1 − inadimplência
+   * efetiva), despesas × expenseMultiplier. Inadimplência base estimada do aging
+   * atual (vencido aberto / recebível total vencido) e escalada por cenário.
+   */
+  async getCashFlowScenarios(companyId: string, filters: { days?: number; bankAccountId?: string } = {}) {
+    const daily = await this.getCashFlowProjection(companyId, filters);
+
+    // inadimplência histórica: % dos recebíveis vencidos que segue em aberto
+    const hoje = new Date();
+    const [vencidoAberto, recebidoRecente] = await Promise.all([
+      this.prisma.financialEntry.aggregate({
+        where: {
+          companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: { in: [FinancialEntryStatus.OVERDUE, FinancialEntryStatus.OPEN, FinancialEntryStatus.PARTIALLY_PAID] },
+          dueDate: { lt: hoje },
+        },
+        _sum: { amount: true, paidAmount: true },
+      }),
+      this.prisma.financialEntry.aggregate({
+        where: {
+          companyId,
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.PAID,
+          paidAt: { gte: new Date(hoje.getTime() - 90 * 86_400_000) },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+    const aberto = Number(vencidoAberto._sum.amount ?? 0) - Number(vencidoAberto._sum.paidAmount ?? 0);
+    const recebido = Number(recebidoRecente._sum.amount ?? 0);
+    const baseDefaultRate = aberto + recebido > 0 ? aberto / (aberto + recebido) : 0;
+
+    const scenarios = [
+      { name: 'base', revenueMultiplier: 1.0, expenseMultiplier: 1.0, defaultRateMultiplier: 1.0, description: 'Projeção sem ajustes' },
+      { name: 'otimista', revenueMultiplier: 1.15, expenseMultiplier: 0.95, defaultRateMultiplier: 0.7, description: '+15% receitas, −5% despesas, −30% inadimplência' },
+      { name: 'estresse', revenueMultiplier: 0.8, expenseMultiplier: 1.1, defaultRateMultiplier: 1.5, description: '−20% receitas, +10% despesas, +50% inadimplência' },
+    ];
+
+    const results = scenarios.map((sc) => {
+      const rate = Math.min(1, baseDefaultRate * sc.defaultRateMultiplier);
+      let balance = daily.currentBalance;
+      let firstAlertDate: string | null = null;
+      const projection = daily.projection.map((d) => {
+        const inflow = round2fin(d.receivable * sc.revenueMultiplier * (1 - rate));
+        const outflow = round2fin(d.payable * sc.expenseMultiplier);
+        balance = round2fin(balance + inflow - outflow);
+        if (balance < 0 && !firstAlertDate) firstAlertDate = d.date;
+        return { date: d.date, inflow, outflow, netFlow: round2fin(inflow - outflow), projectedBalance: balance, alert: balance < 0 };
+      });
+      return {
+        ...sc,
+        effectiveDefaultRate: round2fin(rate * 100), // %
+        finalBalance: balance,
+        firstAlertDate,
+        projection,
+      };
+    });
+
+    return {
+      currentBalance: daily.currentBalance,
+      days: daily.days,
+      baseDefaultRate: round2fin(baseDefaultRate * 100),
+      scenarios: results,
+    };
+  }
+
   // ─── Extrato bancário e saldo consolidado ─────────────────────────────────
 
   async getBankStatement(
@@ -1297,4 +1366,8 @@ export class FinanceService {
     result.setDate(result.getDate() + days);
     return result;
   }
+}
+
+function round2fin(v: number): number {
+  return Math.round(v * 100) / 100;
 }
