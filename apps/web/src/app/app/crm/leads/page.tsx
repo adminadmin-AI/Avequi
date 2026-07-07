@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Download, Loader2, Users2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Loader2, ShieldOff, Users2, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +59,7 @@ export default function LeadListPage() {
   const [bulkStage, setBulkStage] = useState('');
   const [bulkSeller, setBulkSeller] = useState('');
   const [lostReason, setLostReason] = useState('');
+  const [confirmLgpd, setConfirmLgpd] = useState(false);
 
   const params = useMemo(
     () => ({
@@ -106,10 +107,12 @@ export default function LeadListPage() {
   }
 
   function toggleAll() {
+    setConfirmLgpd(false); // seleção mudou → refaz a confirmação da LGPD
     setSelected((s) => (s.size === items.length ? new Set() : new Set(items.map((l) => l.id))));
   }
 
   function toggle(id: string) {
+    setConfirmLgpd(false);
     setSelected((s) => {
       const next = new Set(s);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -137,6 +140,27 @@ export default function LeadListPage() {
       ).data,
     onSuccess: afterBulk,
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha na reatribuição'),
+  });
+
+  // LGPD (#558): anonimização a pedido do titular — irreversível, 2 passos
+  const anonymize = useMutation({
+    mutationFn: async () => {
+      let ok = 0;
+      let failed = 0;
+      for (const id of selected) {
+        try {
+          await apiClient.post(`/crm/leads/${id}/anonymize`);
+          ok++;
+        } catch {
+          failed++;
+        }
+      }
+      return { ok, failed };
+    },
+    onSuccess: (res) => {
+      setConfirmLgpd(false);
+      afterBulk(res);
+    },
   });
 
   const changeStage = useMutation({
@@ -280,6 +304,25 @@ export default function LeadListPage() {
             {changeStage.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
             Aplicar
           </Button>
+          <Button
+            size="sm"
+            variant={confirmLgpd ? 'danger' : 'ghost'}
+            title="LGPD: apaga nome/telefone/conversa; preserva métricas agregadas. Irreversível."
+            disabled={anonymize.isPending}
+            onClick={() => (confirmLgpd ? anonymize.mutate() : setConfirmLgpd(true))}
+          >
+            {anonymize.isPending ? (
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ShieldOff className="mr-1 h-3.5 w-3.5" />
+            )}
+            {confirmLgpd ? `Confirmar anonimização (${selected.size})` : 'Anonimizar LGPD'}
+          </Button>
+          {confirmLgpd && (
+            <Button size="sm" variant="ghost" onClick={() => setConfirmLgpd(false)}>
+              Cancelar
+            </Button>
+          )}
           <button className="ml-auto p-1" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
             <X className="h-4 w-4" />
           </button>

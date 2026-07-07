@@ -16,6 +16,7 @@ interface Settings {
   autoFollowupStageId: string | null;
   autoFollowupHours: number;
   autoFollowupTemplate: string | null;
+  leadRetentionDays: number;
   waPhoneNumberId: string | null;
 }
 interface Seller {
@@ -86,6 +87,15 @@ export default function CrmSettingsPage() {
             className="w-full rounded-md border bg-background px-2 py-2 text-sm"
             value={form.waPhoneNumberId ?? ''}
             onChange={(e) => setForm({ ...form, waPhoneNumberId: e.target.value })}
+          />
+        </Field>
+        <Field label="LGPD: anonimizar perdidos após (dias, 0 = desligado)">
+          <input
+            type="number"
+            min={0}
+            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            value={form.leadRetentionDays ?? 0}
+            onChange={(e) => setForm({ ...form, leadRetentionDays: parseInt(e.target.value, 10) || 0 })}
           />
         </Field>
       </section>

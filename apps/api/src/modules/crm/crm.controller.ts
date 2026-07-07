@@ -21,6 +21,7 @@ import { CrmSettingsService } from './crm-settings.service';
 import { QuickReplyService } from './quick-reply.service';
 import { ReminderService } from './reminder.service';
 import { LeadListService, LeadListFilters } from './lead-list.service';
+import { LeadLgpdService } from './lead-lgpd.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -91,6 +92,11 @@ class UpdateSettingsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() autoFollowupStageId?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() autoFollowupHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() autoFollowupTemplate?: string;
+  @ApiPropertyOptional({ description: 'LGPD: anonimizar perdidos após N dias (0 = desligado)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  leadRetentionDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() waPhoneNumberId?: string;
 }
 
@@ -188,7 +194,19 @@ export class CrmController {
     private readonly quickReplies: QuickReplyService,
     private readonly reminders: ReminderService,
     private readonly leadList: LeadListService,
+    private readonly leadLgpd: LeadLgpdService,
   ) {}
+
+  // ── LGPD (F3.5-C8 #558) ─────────────────────────────────────────────────────
+
+  @Post('leads/:id/anonymize')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({
+    summary: 'Anonimizar lead (LGPD, direito do titular) — IRREVERSÍVEL, preserva métricas',
+  })
+  anonymize(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.leadLgpd.anonymizeLead(user.companyId, id, user.id);
+  }
 
   // ── Lista de leads (F3.5-C7 #557) ───────────────────────────────────────────
 
