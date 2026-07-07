@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -9,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
-import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,7 +22,8 @@ export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
+  // STORE cria cliente na venda de balcão (decisão Rafael 04/07/2026)
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
   @ApiOperation({ summary: 'Criar cliente' })
   create(@Body() dto: CreateCustomerDto, @CurrentUser() user: any) {
     return this.customerService.create(dto, user);
@@ -41,6 +43,12 @@ export class CustomerController {
     return this.customerService.findAll(user.companyId, { search, type, isActive });
   }
 
+  @Get(':id/credit')
+  @ApiOperation({ summary: 'Situação de crédito: limite, em aberto e disponível (#475)' })
+  creditStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.customerService.creditStatus(id, user.companyId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar cliente por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
@@ -56,5 +64,33 @@ export class CustomerController {
     @CurrentUser() user: any,
   ) {
     return this.customerService.update(id, dto, user);
+  }
+
+  // ─── Endereços de entrega (#474) ────────────────────────────────────────────
+
+  @Post(':id/addresses')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Adicionar endereço de entrega ao cliente' })
+  addAddress(@Param('id') id: string, @Body() dto: CustomerAddressDto, @CurrentUser() user: any) {
+    return this.customerService.addAddress(id, dto, user.companyId);
+  }
+
+  @Patch(':id/addresses/:addressId')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
+  @ApiOperation({ summary: 'Atualizar endereço de entrega' })
+  updateAddress(
+    @Param('id') id: string,
+    @Param('addressId') addressId: string,
+    @Body() dto: Partial<CustomerAddressDto>,
+    @CurrentUser() user: any,
+  ) {
+    return this.customerService.updateAddress(id, addressId, dto, user.companyId);
+  }
+
+  @Delete(':id/addresses/:addressId')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @ApiOperation({ summary: 'Remover endereço de entrega' })
+  removeAddress(@Param('id') id: string, @Param('addressId') addressId: string, @CurrentUser() user: any) {
+    return this.customerService.removeAddress(id, addressId, user.companyId);
   }
 }

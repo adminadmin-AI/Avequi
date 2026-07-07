@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -109,4 +110,20 @@ export class CreateTaxRuleDto {
   @IsInt()
   @Min(0)
   priority?: number;
+
+  @ApiPropertyOptional({
+    example: '2027-01-01T00:00:00-03:00',
+    description: 'Início da vigência (#500) — null = desde sempre',
+  })
+  @IsOptional()
+  @IsDateString()
+  validFrom?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-12-31T23:59:59-03:00',
+    description: 'Fim da vigência (#500) — null = sem fim',
+  })
+  @IsOptional()
+  @IsDateString()
+  validTo?: string;
 }

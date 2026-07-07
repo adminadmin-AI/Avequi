@@ -162,7 +162,6 @@ export default function VendasPage() {
       return;
     }
     createMutation.mutate({
-      companyId,
       warehouseId,
       customerId: customerId || undefined,
       notes: notes || undefined,

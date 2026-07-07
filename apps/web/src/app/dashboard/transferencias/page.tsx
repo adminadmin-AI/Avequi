@@ -116,7 +116,6 @@ export default function TransferenciasPage() {
 
   function handleSubmit() {
     createMut.mutate({
-      companyId,
       fromWarehouseId: form.fromWarehouseId,
       toWarehouseId: form.toWarehouseId,
       notes: form.notes || undefined,

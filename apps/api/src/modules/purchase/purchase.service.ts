@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PurchaseOrderStatus, PurchaseRequestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -21,14 +22,25 @@ export class PurchaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * SoD (#160/#350): mesma semântica do ApprovalService — a trava de
+   * segregação de funções só vale com SOD_ENFORCE=true. Por padrão (false),
+   * a regra vigente da empresa permite que quem criou a PO também aprove.
+   */
+  private get sodEnforce(): boolean {
+    const value = this.config.get('SOD_ENFORCE');
+    return value === true || value === 'true';
+  }
 
   // ─── Pedido de Compra ────────────────────────────────────────────────────
 
-  async createPO(dto: CreatePurchaseOrderDto, userId?: string) {
+  async createPO(dto: CreatePurchaseOrderDto, companyId: string, userId?: string) {
     const po = await this.prisma.purchaseOrder.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         supplierId: dto.supplierId,
         expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : undefined,
         notes: dto.notes,
@@ -49,7 +61,7 @@ export class PurchaseService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        companyId: dto.companyId,
+        companyId,
         entity: 'PurchaseOrder',
         action: 'CREATE',
         payload: { purchaseOrderId: po.id, supplierId: dto.supplierId, itemCount: dto.items.length },
@@ -144,7 +156,9 @@ export class PurchaseService {
         `Pedido não pode ser aprovado pois está com status ${po.status}`,
       );
     }
-    if (po.createdById === userId) {
+    // Só vale com SOD_ENFORCE=true (decisão Rafael 05/07: por padrão a mesma
+    // pessoa pode criar e aprovar — coerente com o ApprovalService)
+    if (this.sodEnforce && po.createdById === userId) {
       throw new ForbiddenException(
         'O criador do pedido de compra não pode ser o aprovador (segregação de funções)',
       );
@@ -473,10 +487,10 @@ export class PurchaseService {
 
   // ─── S05.07: PurchaseRequest CRUD ────────────────────────────────────────
 
-  async createRequest(dto: CreatePurchaseRequestDto, userId?: string) {
+  async createRequest(dto: CreatePurchaseRequestDto, companyId: string, userId?: string) {
     return this.prisma.purchaseRequest.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         productId: dto.productId,
         quantity: dto.quantity,
         neededBy: dto.neededBy ? new Date(dto.neededBy) : undefined,

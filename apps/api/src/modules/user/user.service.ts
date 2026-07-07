@@ -24,7 +24,7 @@ export class UserService {
     private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, companyId: string) {
     // #345: senha definida pelo admin também passa pela política de
     // complexidade (inclusive não conter o nome/e-mail do NOVO usuário).
     this.passwordPolicy.validateComplexity(dto.password, {
@@ -35,9 +35,17 @@ export class UserService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const { password: _pw, ...rest } = dto;
     const user = await this.prisma.user.create({
-      // #345: passwordChangedAt marca a criação; mustChangePassword=true
-      // (opcional no DTO) força a troca no primeiro login.
-      data: { ...rest, passwordHash, passwordChangedAt: new Date() },
+      // companyId SEMPRE vem do JWT (nunca do body — #450). #345:
+      // passwordChangedAt marca a criação; mustChangePassword=true por PADRÃO
+      // (senha definida por admin é temporária — decisão Rafael #468), salvo se
+      // o admin passar explicitamente `false`.
+      data: {
+        ...rest,
+        companyId,
+        passwordHash,
+        passwordChangedAt: new Date(),
+        mustChangePassword: dto.mustChangePassword ?? true,
+      },
       select: SELECT_SAFE,
     });
 
@@ -72,7 +80,9 @@ export class UserService {
 
   async update(id: string, dto: UpdateUserDto, companyId: string) {
     const existing = await this.findOne(id, companyId);
-    const { password, ...rest } = dto;
+    // Defesa em profundidade: descarta password (hash separado) e qualquer
+    // companyId injetado no payload — usuário nunca muda de empresa via update (#450)
+    const { password, companyId: _ignored, ...rest } = dto as any;
     const data: any = { ...rest };
     let previousHash: string | null = null;
     if (password) {
@@ -93,6 +103,12 @@ export class UserService {
 
       data.passwordHash = await bcrypt.hash(password, 10);
       data.passwordChangedAt = new Date();
+      // #468 (decisão Rafael): reset de senha por admin força a troca no
+      // próximo login por PADRÃO — salvo se o admin passar mustChangePassword
+      // explicitamente (ex.: false para não forçar).
+      if (data.mustChangePassword === undefined) {
+        data.mustChangePassword = true;
+      }
     }
     const updated = await this.prisma.user.update({
       where: { id },

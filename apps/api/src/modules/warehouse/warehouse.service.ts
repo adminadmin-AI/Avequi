@@ -11,20 +11,25 @@ import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 export class WarehouseService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateWarehouseDto, user?: any) {
+  async create(dto: CreateWarehouseDto, user: { id?: string; companyId: string }) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    const companyId = user.companyId;
+
     const existing = await this.prisma.warehouse.findUnique({
-      where: { companyId_code: { companyId: dto.companyId, code: dto.code } },
+      where: { companyId_code: { companyId, code: dto.code } },
     });
     if (existing) {
       throw new ConflictException(`Código de depósito '${dto.code}' já existe para esta empresa`);
     }
 
-    const warehouse = await this.prisma.warehouse.create({ data: dto });
+    const warehouse = await this.prisma.warehouse.create({
+      data: { ...dto, companyId },
+    });
 
     await this.prisma.auditLog.create({
       data: {
         userId: user?.id,
-        companyId: dto.companyId,
+        companyId,
         entity: 'Warehouse',
         action: 'CREATE',
         payload: { ...dto },
@@ -49,13 +54,19 @@ export class WarehouseService {
     return warehouse;
   }
 
-  async update(id: string, dto: UpdateWarehouseDto, user?: any) {
-    const existing = await this.prisma.warehouse.findFirst({ where: { id } });
+  async update(id: string, dto: UpdateWarehouseDto, user: { id?: string; companyId: string }) {
+    // Busca escopada pela empresa do usuário — impede editar depósito de outro tenant
+    const existing = await this.prisma.warehouse.findFirst({
+      where: { id, companyId: user.companyId },
+    });
     if (!existing) throw new NotFoundException(`Depósito ${id} não encontrado`);
+
+    // Defesa em profundidade: descarta qualquer companyId injetado no payload
+    const { companyId: _ignored, ...data } = dto as any;
 
     const warehouse = await this.prisma.warehouse.update({
       where: { id },
-      data: dto,
+      data,
     });
 
     await this.prisma.auditLog.create({

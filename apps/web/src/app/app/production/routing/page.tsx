@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
@@ -41,7 +40,6 @@ export default function RoutingPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
-  const companyId = useAuthStore((s) => s.user?.companyId ?? '');
 
   const { data: products = [] } = useList<Product>('/products');
 
@@ -90,7 +88,6 @@ export default function RoutingPage() {
   function submitStep() {
     if (!stepForm.name.trim()) return toast.error('Informe a operação');
     const payload = {
-      companyId,
       productId,
       stepOrder: Number(stepForm.stepOrder) || 0,
       name: stepForm.name,

@@ -342,7 +342,7 @@ describe('SessionService', () => {
       });
     });
 
-    it('validateSessionForRefresh: inatividade > 8h expira a sessão e nega', async () => {
+    it('validateSessionForRefresh: inatividade > 60min expira a sessão e nega', async () => {
       mockPrisma.userSession.findUnique.mockResolvedValue({
         id: 'sess-1',
         lastActivityAt: new Date(Date.now() - SESSION_IDLE_TIMEOUT_MS - 60000),

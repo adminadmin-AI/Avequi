@@ -61,8 +61,15 @@ export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 export const LOCKOUT_LADDER_MINUTES = [30, 60, 120, 240, 1440];
 /** Máximo de sessões simultâneas por usuário (issue #342: default 5). */
 export const MAX_CONCURRENT_SESSIONS = 5;
-/** Sessão expira por inatividade após 8h (issue #342). */
-export const SESSION_IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
+/**
+ * Sessão expira por inatividade após 60 min (decisão Rafael, #465 — ERP com
+ * financeiro/fiscal/faturamento/permissões sensíveis não deve ter janela longa;
+ * o access JWT curto de 15 min complementa). Este é o timeout PADRÃO do ERP;
+ * um timeout menor por área sensível (financeiro, fiscal, banco, admin de
+ * usuários/permissões) pode ser aplicado numa fase futura sobrepondo este valor
+ * no ponto de validação — a estrutura de validação por sessão já suporta isso.
+ */
+export const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
 /** Debounce do heartbeat de lastActivityAt (5 min). */
 export const ACTIVITY_DEBOUNCE_MS = 5 * 60 * 1000;
 
@@ -447,7 +454,7 @@ export class SessionService {
    * Validação de sessão no refresh (fluxo 5.2 da arquitetura):
    * - refresh sem sessão (emitido antes da M4) → aceito (transição);
    * - sessão revogada → nega;
-   * - inatividade > 8h → revoga com EXPIRED e nega.
+   * - inatividade > 60 min → revoga com EXPIRED e nega.
    * Erro de banco → fail-open (aceita sem sessão), porque o refresh token em
    * si JÁ foi validado contra o banco pelo AuthService.
    */

@@ -13,7 +13,11 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SalesService } from './sales.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { ConferOrderDto } from './dto/confer-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
+
+// DIRECTOR opera venda no dia a dia; STORE vende no balcão (decisões Rafael 04/07/2026)
+const SALES_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE'];
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -22,9 +26,10 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Post()
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    return this.salesService.createOrder({ ...dto, companyId: user.companyId }, user.id);
+    return this.salesService.createOrder(dto, user.companyId, user.id);
   }
 
   @Get()
@@ -50,24 +55,35 @@ export class SalesController {
   }
 
   @Patch(':id/reserve')
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Reservar estoque para a venda (DRAFT → RESERVED)' })
   reserve(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.reserveOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/confirm')
+  @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.confirmOrder(id, user.companyId, user?.id);
+    return this.salesService.confirmOrder(id, user.companyId, user?.id, user?.role);
+  }
+
+  @Post(':id/conference')
+  @Roles(...SALES_WRITE_ROLES)
+  @ApiOperation({ summary: 'Conferir a carga separada (AWAITING_CONFERENCE → READY_TO_INVOICE) (#491)' })
+  confer(@Param('id') id: string, @Body() dto: ConferOrderDto, @CurrentUser() user: any) {
+    return this.salesService.conferOrder(id, user.companyId, dto, user?.id);
   }
 
   @Patch(':id/invoice')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL', 'STORE')
   @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (READY_TO_INVOICE → INVOICED)' })
   invoice(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.invoiceOrder(id, user.companyId, user?.id);
   }
 
   @Patch(':id/return')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Devolver venda faturada: estorna estoque (INVOICED → RETURNED)' })
   return(
     @Param('id') id: string,
@@ -78,6 +94,7 @@ export class SalesController {
   }
 
   @Patch(':id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   @ApiOperation({ summary: 'Cancelar venda (até CONFIRMED). Faturadas usam /return.' })
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.cancelOrder(id, user.companyId, user?.id);

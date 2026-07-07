@@ -526,7 +526,7 @@ Este documento foi desenhado para ser a **fonte de verdade** em cada sessão de 
 | Repositório | https://github.com/adminadmin-AI/Avequi |
 | Issues & backlog | https://github.com/adminadmin-AI/Avequi |
 | Project board | https://github.com/users/adminadmin-AI/projects/7 |
-| Vercel (deploy/preview) | https://avequi.vercel.app |
+| Vercel (deploy/preview) | https://avequi-web-psi.vercel.app |
 | Supabase | https://supabase.com/dashboard/project/avliarleakraczikvwwz |
 | Brandbook | https://avequi-brandbook.vercel.app/ |
 | Brandbook (ref. rápida) | [`docs/BRANDBOOK.md`](BRANDBOOK.md) |

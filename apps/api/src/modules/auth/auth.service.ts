@@ -318,7 +318,7 @@ export class AuthService {
       throw new UnauthorizedException('Usuário desativado');
     }
 
-    // #342: sessão vinculada ainda ativa? (revogada/inativa 8h+ → 401).
+    // #342: sessão vinculada ainda ativa? (revogada/inativa 60min+ → 401).
     // Refresh sem sessão (emitido antes da M4) continua aceito.
     const sessionCheck = await this.sessionService.validateSessionForRefresh(stored.id);
     if (!sessionCheck.active) {

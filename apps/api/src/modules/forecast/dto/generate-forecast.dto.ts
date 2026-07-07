@@ -2,9 +2,6 @@ import { IsString, IsInt, IsOptional, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GenerateForecastDto {
-  @IsString()
-  companyId: string;
-
   // Período alvo: YYYY-MM (default: próximo mês)
   @IsOptional()
   @IsString()

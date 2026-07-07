@@ -1,6 +1,5 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -11,12 +10,14 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompanyModule } from './modules/company/company.module';
 import { UserModule } from './modules/user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './modules/product/product.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
+import { CarrierModule } from './modules/carrier/carrier.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { BomModule } from './modules/bom/bom.module';
 import { RoutingModule } from './modules/routing/routing.module';
@@ -87,6 +88,9 @@ import { IamModule } from './modules/iam/iam.module';
             'string.pattern.base':
               'ENCRYPTION_KEY deve ter exatamente 64 caracteres hexadecimais (32 bytes)',
           }),
+        // SoD (#160/#350): trava de segregação de funções nas aprovações.
+        // DESLIGADA por padrão — regra vigente permite criar e aprovar.
+        SOD_ENFORCE: Joi.boolean().default(false),
       }),
       validationOptions: {
         abortEarly: false,
@@ -122,6 +126,7 @@ import { IamModule } from './modules/iam/iam.module';
     UserModule,
     ProductModule,
     SupplierModule,
+    CarrierModule,
     CustomerModule,
     BomModule,
     RoutingModule,
@@ -179,13 +184,17 @@ import { IamModule } from './modules/iam/iam.module';
       useClass: ThrottlerGuard,
     },
     {
+      // Roda DEPOIS dos guards (req.user já populado pelo JwtAuthGuard) e
+      // ANTES do AuditInterceptor. Substitui o antigo TenantMiddleware, que
+      // era código morto: middleware roda antes dos guards, então req.user
+      // era sempre undefined e o SET LOCAL nunca era executado.
+      provide: APP_INTERCEPTOR,
+      useClass: TenantContextInterceptor,
+    },
+    {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}

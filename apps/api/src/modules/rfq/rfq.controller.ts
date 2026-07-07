@@ -30,6 +30,7 @@ export class RfqController {
   }
 
   @Post(':id/quotes')
+  @Roles('SUPER_ADMIN', 'MANAGER', 'WAREHOUSE')
   @ApiOperation({ summary: 'Enviar cotação de fornecedor' })
   submitQuote(@Param('id') rfqId: string, @Body() dto: any) {
     return this.rfqService.submitQuote(rfqId, dto);

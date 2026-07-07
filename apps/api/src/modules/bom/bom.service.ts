@@ -6,11 +6,14 @@ import { CreateBomDto } from './dto/create-bom.dto';
 export class BomService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateBomDto, user?: any) {
+  async create(dto: CreateBomDto, user: { id?: string; companyId: string }) {
+    // companyId SEMPRE vem do JWT do usuário autenticado (nunca do body)
+    const companyId = user.companyId;
+
     // 1. Verify all componentIds exist in DB and belong to same companyId
     const componentIds = dto.items.map((i) => i.componentId);
     const components = await this.prisma.product.findMany({
-      where: { id: { in: componentIds }, companyId: dto.companyId },
+      where: { id: { in: componentIds }, companyId },
     });
 
     if (components.length !== componentIds.length) {
@@ -32,7 +35,7 @@ export class BomService {
     // 3. Create BomVersion with isActive: false
     const bomVersion = await this.prisma.bomVersion.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         productId: dto.productId,
         version: nextVersion,
         isActive: false,
@@ -56,7 +59,7 @@ export class BomService {
     await this.prisma.auditLog.create({
       data: {
         userId: user?.id,
-        companyId: dto.companyId,
+        companyId,
         entity: 'BomVersion',
         action: 'CREATE',
         payload: { bomVersionId: bomVersion.id, version: nextVersion, productId: dto.productId },

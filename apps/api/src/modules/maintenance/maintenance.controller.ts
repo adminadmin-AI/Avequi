@@ -7,17 +7,17 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { EquipmentStatus, MaintenanceOrderStatus, MaintenanceType } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CompleteMaintenanceOrderDto } from './dto/complete-maintenance-order.dto';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { CreateMaintenanceOrderDto } from './dto/create-maintenance-order.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { MaintenanceService } from './maintenance.service';
 
-@UseGuards(JwtAuthGuard)
+const MAINTENANCE_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION'];
+
 @Controller('maintenance')
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
@@ -35,6 +35,7 @@ export class MaintenanceController {
   }
 
   @Post('equipment')
+  @Roles(...MAINTENANCE_WRITE_ROLES)
   createEquipment(
     @Request() req: { user: { companyId: string; id: string } },
     @Body() dto: CreateEquipmentDto,
@@ -60,6 +61,7 @@ export class MaintenanceController {
   }
 
   @Patch('equipment/:id')
+  @Roles(...MAINTENANCE_WRITE_ROLES)
   updateEquipment(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -69,6 +71,7 @@ export class MaintenanceController {
   }
 
   @Patch('equipment/:id/deactivate')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   deactivateEquipment(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -93,6 +96,7 @@ export class MaintenanceController {
   }
 
   @Post('orders')
+  @Roles(...MAINTENANCE_WRITE_ROLES)
   createOrder(
     @Request() req: { user: { companyId: string; id: string } },
     @Body() dto: CreateMaintenanceOrderDto,
@@ -113,6 +117,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/start')
+  @Roles(...MAINTENANCE_WRITE_ROLES)
   startOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -121,6 +126,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/complete')
+  @Roles(...MAINTENANCE_WRITE_ROLES)
   completeOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id: string } },
@@ -135,6 +141,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/cancel')
+  @Roles('SUPER_ADMIN', 'MANAGER')
   cancelOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

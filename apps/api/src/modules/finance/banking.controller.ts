@@ -9,18 +9,21 @@ import {
   Post,
   Query,
   Request,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ScheduledPaymentStatus } from '@prisma/client';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
 import { ConfigureBankAccountDto } from './dto/configure-bank-account.dto';
 import { CreateScheduledPaymentDto } from './dto/create-scheduled-payment.dto';
 
+// Leitura restrita: dados bancários são sensíveis
+const BANKING_READ_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL'];
+const BANKING_WRITE_ROLES = ['SUPER_ADMIN', 'FINANCIAL'];
+
 @ApiTags('Banking')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@Roles(...BANKING_READ_ROLES)
 @Controller('banking')
 export class BankingController {
   constructor(private readonly financeService: FinanceService) {}
@@ -64,6 +67,7 @@ export class BankingController {
   }
 
   @Patch('accounts/:id/configure')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Configurar provider, PIX, saldo mínimo' })
   configureAccount(
     @Param('id') id: string,
@@ -76,6 +80,7 @@ export class BankingController {
   // ─── Scheduled Payments ──────────────────────────────────────────────────
 
   @Post('schedule')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Agendar pagamento' })
   createSchedule(
     @Body() dto: CreateScheduledPaymentDto,
@@ -95,6 +100,7 @@ export class BankingController {
   }
 
   @Delete('schedule/:id')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancelar agendamento (apenas PENDING)' })
   cancelSchedule(
     @Param('id') id: string,
@@ -112,12 +118,14 @@ export class BankingController {
   }
 
   @Post('boletos')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar boleto (stub — integração não configurada)' })
   createBoleto() {
     throw new NotImplementedException('Boleto/PIX integration not configured. Configure a bank provider first.');
   }
 
   @Delete('boletos/:id')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancelar boleto (stub — integração não configurada)' })
   deleteBoleto() {
     throw new NotImplementedException('Boleto/PIX integration not configured. Configure a bank provider first.');
@@ -132,12 +140,14 @@ export class BankingController {
   }
 
   @Post('pix/charges')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Criar cobrança PIX (stub — integração não configurada)' })
   createPixCharge() {
     throw new NotImplementedException('Boleto/PIX integration not configured. Configure a bank provider first.');
   }
 
   @Patch('pix/charges/:id/cancel')
+  @Roles(...BANKING_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancelar cobrança PIX (stub — integração não configurada)' })
   cancelPixCharge() {
     throw new NotImplementedException('Boleto/PIX integration not configured. Configure a bank provider first.');

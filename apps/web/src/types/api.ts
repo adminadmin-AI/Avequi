@@ -52,6 +52,7 @@ export type SalesOrderStatus =
   | 'RESERVED'
   | 'CONFIRMED'
   | 'AWAITING_PICKING'
+  | 'AWAITING_CONFERENCE'
   | 'READY_TO_INVOICE'
   | 'INVOICED'
   | 'RETURNED'
@@ -94,6 +95,9 @@ export interface FiscalDocument extends BaseEntity {
   series?: number | null;
   protocolNumber?: string | null;
   authorizedAt?: string | null;
+  xml?: string | null;
+  danfeUrl?: string | null; // caminho do DANFE na Focus (#482)
+  xmlUrl?: string | null;
   rejectionCode?: string | null;
   rejectionReason?: string | null;
   cancelledAt?: string | null;
@@ -303,6 +307,13 @@ export interface Product extends BaseEntity {
   type: ProductType;
   unit: UnitOfMeasure;
   ncm?: string | null;
+  origem?: string | null; // 0-8 — orig da NF-e (#480)
+  ean?: string | null; // GTIN (#484)
+  cest?: string | null;
+  pesoLiquido?: string | null; // kg (#484)
+  pesoBruto?: string | null;
+  unidadeTributavel?: string | null;
+  fatorConversaoTributavel?: string | null;
   costPrice?: string | null;
   salePrice?: string | null;
   avgCost?: string | null;
@@ -313,14 +324,58 @@ export interface Product extends BaseEntity {
 export interface Supplier extends BaseEntity {
   companyId: string;
   name: string;
+  razaoSocial?: string | null;
   cnpj?: string | null;
+  ie?: string | null;
+  taxRegime?: TaxRegime | null; // crédito IBS/CBS 2027 (#478)
   email?: string | null;
+  fiscalEmail?: string | null;
   phone?: string | null;
+  phone2?: string | null;
+  contactName?: string | null;
+  address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  defaultPaymentTerms?: string | null;
+  bankName?: string | null;
+  bankAgency?: string | null;
+  bankAccount?: string | null;
+  pixKey?: string | null;
   leadTimeDays: number;
   isActive: boolean;
 }
 
+export type IcmsIndicator = 'CONTRIBUINTE' | 'ISENTO' | 'NAO_CONTRIBUINTE';
+
+export interface CustomerAddress {
+  id: string;
+  label: string;
+  address: string;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city: string;
+  state: string;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  isDefault: boolean;
+}
+
 export interface Customer extends BaseEntity {
+  razaoSocial?: string | null;
+  fiscalEmail?: string | null;
+  phone2?: string | null;
+  contactName?: string | null;
+  ie?: string | null;
+  indIeDest?: IcmsIndicator | null;
+  isRuralProducer?: boolean;
+  isSimplesNacional?: boolean;
+  addresses?: CustomerAddress[];
   companyId: string;
   type: CustomerType;
   name: string;
@@ -328,8 +383,29 @@ export interface Customer extends BaseEntity {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
   city?: string | null;
   state?: string | null;
+  zipCode?: string | null;
+  ibgeCode?: string | null;
+  isActive: boolean;
+}
+
+/** Transportadora — grupo transp da NF-e (#481) */
+export interface Carrier extends BaseEntity {
+  companyId: string;
+  name: string;
+  razaoSocial?: string | null;
+  document?: string | null;
+  ie?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  vehiclePlate?: string | null;
+  vehiclePlateState?: string | null;
+  rntc?: string | null;
   isActive: boolean;
 }
 
@@ -376,7 +452,9 @@ export interface Quotation extends BaseEntity {
 export interface SaleItem {
   id: string;
   productId: string;
-  product?: Pick<Product, 'id' | 'sku' | 'name'> | null;
+  product?: (Pick<Product, 'id' | 'sku' | 'name'> & { tracksSerial?: boolean }) | null;
+  serialNumberId?: string | null; // chassi amarrado na separação (#490)
+  serialNumber?: { id: string; serial: string; chassi?: string | null } | null;
   quantity: string;
   unitPrice: string;
   unit: UnitOfMeasure;
@@ -522,22 +600,14 @@ export interface CostCenter extends BaseEntity {
 }
 
 // ─── Inputs (create/update) ───────────────────────────────────────────────────
-export type CreateProductInput = Omit<
-  Product,
-  keyof BaseEntity | 'companyId'
-> & { companyId: string };
+// companyId NÃO é mais enviado no body: a API deriva a empresa do JWT.
+export type CreateProductInput = Omit<Product, keyof BaseEntity | 'companyId'>;
 
-export type CreateSupplierInput = Omit<Supplier, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateSupplierInput = Omit<Supplier, keyof BaseEntity | 'companyId'>;
 
-export type CreateCustomerInput = Omit<Customer, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateCustomerInput = Omit<Customer, keyof BaseEntity | 'companyId'>;
 
-export type CreateWarehouseInput = Omit<Warehouse, keyof BaseEntity | 'companyId'> & {
-  companyId: string;
-};
+export type CreateWarehouseInput = Omit<Warehouse, keyof BaseEntity | 'companyId'>;
 
 // ─── Erro padrão da API ───────────────────────────────────────────────────────
 export interface ApiError {

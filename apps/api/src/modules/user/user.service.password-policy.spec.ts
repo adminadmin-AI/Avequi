@@ -111,6 +111,26 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         }),
       );
     });
+
+    it('#468: sem a flag, admin-create já força a troca (mustChangePassword=true por padrão)', async () => {
+      await service.create(dto); // dto NÃO traz mustChangePassword
+
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ mustChangePassword: true }),
+        }),
+      );
+    });
+
+    it('#468: admin pode desativar explicitamente com mustChangePassword=false', async () => {
+      await service.create({ ...dto, mustChangePassword: false });
+
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ mustChangePassword: false }),
+        }),
+      );
+    });
   });
 
   describe('update (reset de senha pelo admin)', () => {
@@ -160,6 +180,16 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         { password: 'NovaSenha#2026x', mustChangePassword: true } as any,
         'company-1',
       );
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ mustChangePassword: true }),
+        }),
+      );
+    });
+
+    it('#468: reset por admin SEM a flag já força a troca (mustChangePassword=true por padrão)', async () => {
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1');
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({

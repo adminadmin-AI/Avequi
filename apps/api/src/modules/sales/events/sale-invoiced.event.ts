@@ -18,5 +18,7 @@ export class SaleInvoicedEvent {
     public readonly customerState?: string | null,
     /** UF da empresa emitente */
     public readonly companyState?: string | null,
+    /** Algum item é veículo (codigoMarcaModelo/tracksSerial) — exige NF-e mod 55 com veicProd */
+    public readonly hasVehicle?: boolean,
   ) {}
 }

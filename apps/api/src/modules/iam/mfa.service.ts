@@ -35,6 +35,14 @@ import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from './totp.util';
  * Role.requireMfa=true + usuário sem MFA → o login responde
  * `mfaSetupRequired: true` mas NÃO bloqueia. O enforcement DURO (bloquear
  * após grace period, como a issue #344 sugere) é decisão pendente do Rafael.
+ *
+ * ── FORA DO ESCOPO deste PR — RESET DE MFA POR ADMIN (fase futura) ────────
+ * NÃO existe reset de MFA por administrador neste PR. Hoje o usuário se
+ * recupera sozinho com um backup code. Quando alguém perder o celular E os
+ * backup codes, será necessário um reset administrativo. Requisito (decisão
+ * Rafael, #467): restrito a SUPER_ADMIN/conta principal e AUDITÁVEL
+ * (SecurityEvent). Fica para uma fase futura, junto da tela de administração
+ * de usuários (#352). Rastreado em issue própria.
  */
 @Injectable()
 export class MfaService {

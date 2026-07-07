@@ -20,7 +20,6 @@ const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
-  const companyId = currentUser?.companyId ?? '';
   const canManage = !!currentUser && ALLOWED_ROLES.includes(currentUser.role);
 
   const toast = useToast();
@@ -29,7 +28,7 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useList<User>(RESOURCE, undefined, {
     enabled: canManage,
   });
-  const create = useCreate<User, UserFormValues & { companyId: string }>(RESOURCE);
+  const create = useCreate<User, UserFormValues>(RESOURCE);
   const update = useUpdate<User>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,7 +58,7 @@ export default function UsersPage() {
       );
     } else {
       create.mutate(
-        { ...values, companyId },
+        values,
         {
           onSuccess: () => {
             toast.success('Usuário criado');
