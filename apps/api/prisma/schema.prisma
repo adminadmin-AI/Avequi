@@ -140,6 +140,7 @@ model Company {
 
   @@map("gdr_companies")
   collectionRules CollectionRule[] // régua de cobrança (#384)
+  provisionRules ProvisionRule[] // PDD (#389)
 }
 
 enum CompanyType {
@@ -1170,6 +1171,7 @@ enum FinancialEntryStatus {
   PARTIALLY_PAID
   PAID
   CANCELLED
+  WRITTEN_OFF // baixa por perda (PDD #389) — distinto de cancelamento
 }
 
 enum PaymentMethod {
@@ -1323,6 +1325,22 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// PDD — Provisão para Devedores Duvidosos (#389): % de provisão por faixa de atraso
+model ProvisionRule {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  daysFrom   Int
+  daysTo     Int      // 99999 = sem teto (última faixa)
+  percentage Decimal  @db.Decimal(5, 2) // 1.00 = 1%
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, daysFrom])
+  @@map("gdr_provision_rules")
 }
 
 /// Régua de cobrança (#384) — escalonamento automático por faixa de atraso.

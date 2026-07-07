@@ -14,6 +14,8 @@ import { FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FinanceService } from './finance.service';
 import { FinanceKpiService } from './finance-kpi.service';
+import { ProvisionService } from './provision.service';
+import { UpdateProvisionRuleDto, WriteOffDto } from './dto/provision.dto';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateInstallmentsDto } from './dto/create-installments.dto';
@@ -37,6 +39,7 @@ export class FinanceController {
   constructor(
     private readonly financeService: FinanceService,
     private readonly kpiService: FinanceKpiService,
+    private readonly provisionService: ProvisionService,
   ) {}
 
   // ─── Lançamentos financeiros ──────────────────────────────────────────────
@@ -89,6 +92,47 @@ export class FinanceController {
     @Query('to') to?: string,
   ) {
     return this.kpiService.getMarginBySku(req.user.companyId, { from, to });
+  }
+
+  @Get('pdd')
+  @ApiOperation({ summary: 'PDD — provisão para devedores duvidosos por faixa de atraso (#389)' })
+  getPdd(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.getPdd(req.user.companyId);
+  }
+
+  @Get('provision-rules')
+  @ApiOperation({ summary: 'Faixas de provisão do PDD (#389)' })
+  listProvisionRules(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.findRules(req.user.companyId);
+  }
+
+  @Post('provision-rules/seed-defaults')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @ApiOperation({ summary: 'Criar as 6 faixas padrão do PDD (idempotente) (#389)' })
+  seedProvisionDefaults(@Request() req: { user: { companyId: string } }) {
+    return this.provisionService.seedDefaults(req.user.companyId);
+  }
+
+  @Patch('provision-rules/:id')
+  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @ApiOperation({ summary: 'Ajustar uma faixa de provisão (#389)' })
+  updateProvisionRule(
+    @Param('id') id: string,
+    @Body() dto: UpdateProvisionRuleDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.provisionService.updateRule(id, req.user.companyId, dto);
+  }
+
+  @Post('entries/:id/write-off')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @ApiOperation({ summary: 'Write-off — baixa por perda com justificativa auditada (#389)' })
+  writeOff(
+    @Param('id') id: string,
+    @Body() dto: WriteOffDto,
+    @Request() req: { user: { id?: string; companyId: string } },
+  ) {
+    return this.provisionService.writeOff(id, req.user.companyId, dto.reason, req.user.id);
   }
 
   @Get('reports/dre')

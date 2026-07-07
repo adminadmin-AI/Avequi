@@ -208,8 +208,10 @@ export enum FinancialEntryType {
 export enum FinancialEntryStatus {
   OPEN = 'OPEN',
   OVERDUE = 'OVERDUE',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
   PAID = 'PAID',
   CANCELLED = 'CANCELLED',
+  WRITTEN_OFF = 'WRITTEN_OFF',
 }
 
 export enum TransferStatus {
