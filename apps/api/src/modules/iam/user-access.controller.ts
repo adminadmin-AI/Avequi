@@ -2,15 +2,17 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { UserAccessService } from './user-access.service';
 import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
 
 /**
  * Atribuições de perfil e exceções individuais por usuário — issue #352
- * (IAM F7.2). Mesmo padrão de dupla proteção do RolesAdminController:
- * @Roles (enum legado) + @RequirePermission (RBAC v2, iam.roles.view /
- * iam.roles.assign). Alvo sempre da MESMA empresa do JWT (anti-IDOR).
+ * (IAM F7.2). Autorização por RBAC v2 (@RequirePermission), gate ÚNICO — SEM
+ * @Roles(enum) (decisão Rafael #352): o enum legado bloquearia ADMIN_EMPRESA e
+ * AUDITOR (perfis só-v2). Acesso efetivo pela matriz aprovada:
+ *   - iam.roles.view   → ADMIN_GLOBAL, ADMIN_EMPRESA, DIRETOR, AUDITOR
+ *   - iam.roles.assign → ADMIN_GLOBAL, ADMIN_EMPRESA (atribui perfis e exceções
+ *     individuais; DIRETOR NÃO atribui). Alvo sempre da MESMA empresa do JWT.
  */
 @ApiTags('iam')
 @ApiBearerAuth()
@@ -21,19 +23,17 @@ export class UserAccessController {
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
 
   @Get('roles')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.view')
-  @ApiOperation({ summary: 'Perfis atribuídos ao usuário — SUPER_ADMIN/DIRECTOR' })
+  @ApiOperation({ summary: 'Perfis atribuídos ao usuário' })
   async listUserRoles(@CurrentUser() user: any, @Param('userId') userId: string) {
     return this.userAccessService.listUserRoles(user.companyId, userId);
   }
 
   @Post('roles')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.assign')
   @ApiOperation({
     summary:
-      'Atribuir perfil ao usuário (escopo filial e expiração opcionais) — SUPER_ADMIN/DIRECTOR',
+      'Atribuir perfil ao usuário (escopo filial e expiração opcionais)',
   })
   async assignRole(
     @CurrentUser() user: any,
@@ -48,11 +48,10 @@ export class UserAccessController {
   }
 
   @Delete('roles/:roleId')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.assign')
   @ApiOperation({
     summary:
-      'Remover perfil do usuário (anti-auto-lockout: 400 se remover o próprio acesso à gestão) — SUPER_ADMIN/DIRECTOR',
+      'Remover perfil do usuário (anti-auto-lockout: 400 se remover o próprio acesso à gestão)',
   })
   async removeRole(
     @CurrentUser() user: any,
@@ -69,21 +68,19 @@ export class UserAccessController {
   // ─── Exceções individuais ──────────────────────────────────────────────────
 
   @Get('permissions')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.view')
   @ApiOperation({
-    summary: 'Exceções individuais (grants/denies) do usuário — SUPER_ADMIN/DIRECTOR',
+    summary: 'Exceções individuais (grants/denies) do usuário',
   })
   async listUserPermissions(@CurrentUser() user: any, @Param('userId') userId: string) {
     return this.userAccessService.listUserPermissions(user.companyId, userId);
   }
 
   @Post('permissions')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.assign')
   @ApiOperation({
     summary:
-      'Conceder grant/deny individual com expiração e justificativa (denies não trancam SUPER_ADMIN fora da gestão) — SUPER_ADMIN/DIRECTOR',
+      'Conceder grant/deny individual com expiração e justificativa (denies não trancam SUPER_ADMIN fora da gestão)',
   })
   async grantPermission(
     @CurrentUser() user: any,
@@ -98,10 +95,9 @@ export class UserAccessController {
   }
 
   @Delete('permissions/:userPermissionId')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
   @RequirePermission('iam.roles.assign')
   @ApiOperation({
-    summary: 'Remover exceção individual do usuário — SUPER_ADMIN/DIRECTOR',
+    summary: 'Remover exceção individual do usuário',
   })
   async removePermission(
     @CurrentUser() user: any,
