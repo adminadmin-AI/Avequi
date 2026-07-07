@@ -663,3 +663,52 @@ describe('FinanceService — fluxo de caixa 13 semanas / 12 meses (#383)', () =>
     expect(result.firstAlertWeek).toBe(result.projection[1].weekStart);
   });
 });
+
+describe('FinanceService — cenários de caixa (#390)', () => {
+  let service: FinanceService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        FinanceService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
+    service = module.get(FinanceService);
+    jest.clearAllMocks();
+    // inadimplência: 20k vencido aberto, 80k recebido → 20%
+    (mockPrisma.financialEntry as any).aggregate = jest.fn()
+      .mockResolvedValueOnce({ _sum: { amount: 20000, paidAmount: 0 } })
+      .mockResolvedValueOnce({ _sum: { amount: 80000 } });
+  });
+
+  it('estresse reduz entradas (rev×0.8 e inadimplência ×1.5) e aumenta saídas ×1.1', async () => {
+    jest.spyOn(service, 'getCashFlowProjection').mockResolvedValue({
+      currentBalance: 1000,
+      days: 2,
+      alertDaysCount: 0,
+      firstAlertDate: null,
+      projection: [
+        { date: '2026-07-08', receivable: 1000, payable: 500, netFlow: 500, projectedBalance: 1500, alert: false },
+        { date: '2026-07-09', receivable: 0, payable: 2000, netFlow: -2000, projectedBalance: -500, alert: true },
+      ],
+    } as any);
+
+    const result = await service.getCashFlowScenarios('co-1');
+    expect(result.baseDefaultRate).toBe(20);
+    expect(result.scenarios.map((s: any) => s.name)).toEqual(['base', 'otimista', 'estresse']);
+
+    const base = result.scenarios[0];
+    // base: inflow 1000 × (1−0.2) = 800; outflow 500 → dia1 saldo 1300
+    expect(base.projection[0].inflow).toBe(800);
+    expect(base.projection[0].projectedBalance).toBe(1300);
+
+    const stress = result.scenarios[2];
+    // estresse: rate 30%; inflow 1000×0.8×0.7 = 560; outflow 550 → 1010; dia2 outflow 2200 → −1190
+    expect(stress.effectiveDefaultRate).toBe(30);
+    expect(stress.projection[0].inflow).toBe(560);
+    expect(stress.projection[0].outflow).toBe(550);
+    expect(stress.finalBalance).toBe(1000 + 560 - 550 - 2200);
+    expect(stress.firstAlertDate).toBe('2026-07-09');
+  });
+});

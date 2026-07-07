@@ -77,6 +77,21 @@ export class BankingController {
     });
   }
 
+  @Get('cash-flow/scenarios')
+  @ApiOperation({ summary: 'Projeção de caixa em 3 cenários: base, otimista, estresse (#390)' })
+  @ApiQuery({ name: 'days', required: false })
+  @ApiQuery({ name: 'bankAccountId', required: false })
+  cashFlowScenarios(
+    @Request() req: { user: { companyId: string } },
+    @Query('days') days?: string,
+    @Query('bankAccountId') bankAccountId?: string,
+  ) {
+    return this.financeService.getCashFlowScenarios(req.user.companyId, {
+      days: days ? parseInt(days, 10) : undefined,
+      bankAccountId,
+    });
+  }
+
   // ─── Conciliação bancária (#385) ──────────────────────────────────────────
 
   @Post('reconciliation/import')
