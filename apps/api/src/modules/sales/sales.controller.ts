@@ -15,6 +15,7 @@ import { SalesService } from './sales.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { UpdateDiscountPolicyDto } from './dto/discount-policy.dto';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { SetSalesPaymentsDto } from './dto/sales-payment.dto';
 import { ConferOrderDto } from './dto/confer-order.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
@@ -82,6 +83,17 @@ export class SalesController {
   @ApiOperation({ summary: 'Buscar venda por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.findOne(id, user.companyId);
+  }
+
+  @Patch(':id/payments')
+  @Roles(...SALES_WRITE_ROLES)
+  @ApiOperation({ summary: 'Definir/alterar o plano de pagamento antes do faturamento (#584)' })
+  setPayments(
+    @Param('id') id: string,
+    @Body() dto: SetSalesPaymentsDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.salesService.setPayments(id, user.companyId, dto.payments, user?.id);
   }
 
   @Patch(':id/reserve')

@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
+import { SalesPaymentInputDto } from './sales-payment.dto';
 
 export class CreateSaleItemDto {
   @ApiProperty() @IsString() @IsNotEmpty() productId: string;
@@ -75,4 +76,14 @@ export class CreateSalesOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSaleItemDto)
   items: CreateSaleItemDto[];
+
+  @ApiPropertyOptional({
+    type: [SalesPaymentInputDto],
+    description: 'Plano de pagamento — 1+ formas; soma deve fechar itens + frete (#584)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SalesPaymentInputDto)
+  payments?: SalesPaymentInputDto[];
 }

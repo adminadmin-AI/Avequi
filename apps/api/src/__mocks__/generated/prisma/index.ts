@@ -518,6 +518,21 @@ export enum PaymentMethod {
   DINHEIRO = 'DINHEIRO',
   CARTAO = 'CARTAO',
   CHEQUE = 'CHEQUE',
+  CARTAO_CREDITO = 'CARTAO_CREDITO',
+  CARTAO_DEBITO = 'CARTAO_DEBITO',
+}
+
+// Meios de pagamento (#584/#585)
+export enum PaymentModality {
+  DEBITO = 'DEBITO',
+  CREDITO_AVISTA = 'CREDITO_AVISTA',
+  CREDITO_PARCELADO = 'CREDITO_PARCELADO',
+}
+
+export enum PaymentAuthStatus {
+  PENDING = 'PENDING',
+  AUTHORIZED = 'AUTHORIZED',
+  DENIED = 'DENIED',
 }
 
 export enum ScheduledPaymentStatus {
