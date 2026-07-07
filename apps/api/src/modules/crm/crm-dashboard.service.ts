@@ -18,13 +18,20 @@ export class CrmDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(range: DashboardRange) {
-    const [funnel, bySource, bySeller, lostReasons] = await Promise.all([
+    const [funnel, bySource, bySeller, lostReasons, slaEscalations] = await Promise.all([
       this.funnel(range),
       this.bySource(range),
       this.bySeller(range),
       this.lostReasons(range),
+      // #569 — leads realocados por SLA estourado no período (visão do gerente)
+      this.prisma.lead.count({
+        where: {
+          companyId: range.companyId,
+          slaEscalatedAt: { gte: range.from, lte: range.to },
+        },
+      }),
     ]);
-    return { range: { from: range.from, to: range.to }, funnel, bySource, bySeller, lostReasons };
+    return { range: { from: range.from, to: range.to }, funnel, bySource, bySeller, lostReasons, slaEscalations };
   }
 
   /** Funil de conversão: leads criados → responderam → proposta+ → fechados */

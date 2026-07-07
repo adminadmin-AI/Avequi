@@ -40,14 +40,18 @@ describe('CrmDashboardService', () => {
 
   describe('funnel', () => {
     it('calcula taxas de conversão entre etapas', async () => {
-      // total, responded, reachedProposal, won, lost
+      // 1º count é o slaEscalations (#569, dispara antes dos awaits do funil);
+      // depois: total, responded, reachedProposal, won, lost
       prisma.lead.count
+        .mockResolvedValueOnce(3)
         .mockResolvedValueOnce(100)
         .mockResolvedValueOnce(80)
         .mockResolvedValueOnce(30)
         .mockResolvedValueOnce(12)
         .mockResolvedValueOnce(20);
-      const { funnel } = await service.overview(range);
+      const overview = await service.overview(range);
+      const { funnel } = overview;
+      expect(overview.slaEscalations).toBe(3);
       expect(funnel.total).toBe(100);
       expect(funnel.respondedRate).toBe(80);
       expect(funnel.proposalRate).toBe(30);

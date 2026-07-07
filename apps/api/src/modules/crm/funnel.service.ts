@@ -252,6 +252,8 @@ export class FunnelService {
           phone: true,
           source: true,
           createdAt: true,
+          slaWarnedAt: true,
+          slaEscalatedAt: true, // #569 — coluna "escalonado" no painel
           assignedTo: { select: { id: true, name: true } },
         },
       }),
