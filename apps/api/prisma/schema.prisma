@@ -142,6 +142,7 @@ model Company {
   collectionRules CollectionRule[] // régua de cobrança (#384)
   provisionRules ProvisionRule[] // PDD (#389)
   supplierAdvances SupplierAdvance[] // adiantamentos (#393)
+  debts Debt[] // dívidas/financiamentos (#392)
 }
 
 enum CompanyType {
@@ -1327,6 +1328,47 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// Gestão de dívida (#392): FINAME, leasing, capital de giro — cronograma de amortização
+model Debt {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  type              String   // FINAME | LEASING | CAPITAL_GIRO | CHEQUE_ESPECIAL | OUTROS
+  bank              String
+  description       String?
+  principal         Decimal  @db.Decimal(14, 2) // valor original
+  interestRate      Decimal  @map("interest_rate") @db.Decimal(7, 4) // % a.m.
+  amortizationType  String   @default("PRICE") @map("amortization_type") // PRICE | SAC
+  installmentsCount Int      @map("installments_count")
+  contractedAt      DateTime @map("contracted_at")
+  firstDueDate      DateTime @map("first_due_date")
+  status            String   @default("ACTIVE") // ACTIVE | SETTLED | CANCELLED
+  installments      DebtInstallment[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_debts")
+}
+
+model DebtInstallment {
+  id           String    @id @default(cuid())
+  debtId       String
+  debt         Debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  number       Int
+  dueDate      DateTime  @map("due_date")
+  amount       Decimal   @db.Decimal(14, 2) // parcela (juros + amortização)
+  interest     Decimal   @db.Decimal(14, 2)
+  amortization Decimal   @db.Decimal(14, 2)
+  balance      Decimal   @db.Decimal(14, 2) // saldo devedor após a parcela
+  status       String    @default("PENDING") // PENDING | PAID
+  paidAt       DateTime? @map("paid_at")
+
+  @@unique([debtId, number])
+  @@index([dueDate, status])
+  @@map("gdr_debt_installments")
 }
 
 /// Adiantamento a fornecedor (#393): pago antecipado, abatido do payable quando a NF chega
