@@ -44,7 +44,8 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
@@ -56,6 +57,7 @@
     "@types/node": "^20.17.10",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@types/web-push": "^3.6.4",
     "jest": "^30.3.0",
     "prisma": "^5.22.0",
     "ts-jest": "^29.2.5",

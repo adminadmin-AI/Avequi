@@ -306,6 +306,7 @@ model User {
   crmAvailable              Boolean                @default(true) @map("crm_available")
   quickReplies              QuickReply[] // F3.5-C3 (#553) — respostas rápidas pessoais
   leadReminders             LeadReminder[] // F3.5-C5 (#555) — lembretes de follow-up
+  pushSubscriptions         PushSubscription[] // CRM V2.1 (#568) — web push por dispositivo
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
   createdAt                 DateTime               @default(now())
@@ -3580,6 +3581,9 @@ model WhatsappConversation {
   waContactId           String            @map("wa_contact_id")
   windowExpiresAt       DateTime?         @map("window_expires_at")
   lastCustomerMessageAt DateTime?         @map("last_customer_message_at")
+  /// CRM V2.1 (#568) — último push de "cliente sem resposta" desta conversa.
+  /// Anti-spam: 1 push por janela de não-resposta (>= 1ª msg não respondida = já avisado)
+  pushNudgedAt          DateTime?         @map("push_nudged_at")
   lastMessageAt         DateTime?         @map("last_message_at")
   unreadCount           Int               @default(0) @map("unread_count")
   messages              WhatsappMessage[]
@@ -3683,6 +3687,23 @@ model LeadReminder {
   @@index([companyId, userId, doneAt, dueAt])
   @@index([doneAt, notifiedAt, dueAt]) // varredura do cron
   @@map("gdr_lead_reminders")
+}
+
+/// CRM V2.1 (#568) — assinatura Web Push de um dispositivo do usuário (speed-to-lead
+/// no celular do vendedor). Opt-in por dispositivo: sem linhas = sem push; opt-out =
+/// deletar a assinatura. endpoint é a URL única do push service do navegador.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("gdr_push_subscriptions")
 }
 
 /// F4 SDR IA (#521): estado do atendimento automático do lead.

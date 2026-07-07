@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type Anthropic from '@anthropic-ai/sdk';
 import { LeadActivityType, Prisma, SdrLeadStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -121,6 +122,7 @@ export class SdrToolsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crm: CrmService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /** Executa uma tool call e loga na timeline (auditoria do painel #524) */
@@ -369,6 +371,14 @@ export class SdrToolsService {
         },
       }),
     ]);
+
+    // web push "lead quente" no celular do vendedor (#568)
+    this.eventEmitter.emit('crm.sdr.handoff', {
+      leadId,
+      companyId,
+      toUserId: seller?.id ?? null,
+      motivo,
+    });
 
     return {
       result: JSON.stringify({

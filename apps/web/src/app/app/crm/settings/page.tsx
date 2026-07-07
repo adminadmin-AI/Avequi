@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { PushSettings } from './push-settings';
 
 interface Settings {
   slaFirstResponseMin: number;
@@ -75,6 +76,8 @@ export default function CrmSettingsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Configuração do CRM" description="SLA, rodízio, WhatsApp e follow-up" />
+
+      <PushSettings />
 
       <section className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
         <Field label="SLA de 1ª resposta (min)">

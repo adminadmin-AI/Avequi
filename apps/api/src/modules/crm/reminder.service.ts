@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron } from '@nestjs/schedule';
 import { AlertSeverity, AlertType, LeadActivityType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,7 +21,10 @@ export interface ReminderActor {
 export class ReminderService {
   private readonly logger = new Logger(ReminderService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // ── Notas ───────────────────────────────────────────────────────────────────
 
@@ -128,6 +132,15 @@ export class ReminderService {
         await this.prisma.leadReminder.update({
           where: { id: r.id },
           data: { notifiedAt: new Date() },
+        });
+        // web push no celular do dono do lembrete (#568)
+        this.eventEmitter.emit('crm.reminder.due', {
+          reminderId: r.id,
+          companyId: r.companyId,
+          userId: r.userId,
+          leadId: r.leadId,
+          text: r.text,
+          leadLabel,
         });
       } catch (err) {
         this.logger.warn(`Alerta do lembrete ${r.id} falhou: ${(err as Error).message}`);

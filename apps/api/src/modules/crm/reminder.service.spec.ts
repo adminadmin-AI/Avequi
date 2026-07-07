@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReminderService, ReminderActor } from './reminder.service';
@@ -13,6 +14,7 @@ const FUTURE = new Date(Date.now() + 24 * 3600_000).toISOString();
 describe('ReminderService (F3.5-C5 #555)', () => {
   let service: ReminderService;
   let prisma: any;
+  let eventEmitter: { emit: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -34,8 +36,13 @@ describe('ReminderService (F3.5-C5 #555)', () => {
         create: jest.fn(),
       },
     };
+    eventEmitter = { emit: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ReminderService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ReminderService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: EventEmitter2, useValue: eventEmitter },
+      ],
     }).compile();
     service = module.get(ReminderService);
   });
