@@ -52,6 +52,8 @@ const schema = z
     defaultPaymentTerms: z.string().optional(),
     defaultCarrierId: z.string().optional(),
     internalNotes: z.string().optional(),
+    creditScore: z.string().optional(),
+    creditNotes: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const doc = unmask(data.document ?? '');
@@ -364,6 +366,21 @@ export function CustomerForm({
                 </option>
               ))}
             </Select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Score de crédito (análise interna)">
+            <Select {...register('creditScore')}>
+              <option value="">—</option>
+              {['A', 'B', 'C', 'D', 'E'].map((sc) => (
+                <option key={sc} value={sc}>
+                  {sc}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Observações do analista de crédito">
+            <Input {...register('creditNotes')} placeholder="Ex.: garantias, histórico" />
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm">

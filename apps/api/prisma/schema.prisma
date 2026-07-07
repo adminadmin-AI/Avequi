@@ -319,6 +319,7 @@ model User {
   updatedAt                 DateTime               @updatedAt
 
   @@map("gdr_users")
+  creditApprovals Customer[] @relation("CustomerCreditApprover") // aprovador de limite (#388)
 }
 
 enum UserRole {
@@ -549,6 +550,13 @@ model Customer {
   defaultCarrierId    String?           @map("default_carrier_id")
   defaultCarrier      Carrier?          @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
   internalNotes       String?           @map("internal_notes") // nunca vai para documentos fiscais
+  // Política de crédito (#388) — complementa o #475
+  creditScore         String?           @map("credit_score") @db.VarChar(1) // A-E (classificação interna)
+  creditApprovedById  String?           @map("credit_approved_by_id")
+  creditApprovedBy    User?             @relation("CustomerCreditApprover", fields: [creditApprovedById], references: [id])
+  creditApprovedAt    DateTime?         @map("credit_approved_at")
+  creditNotes         String?           @map("credit_notes") // observações do analista
+  lastCreditReview    DateTime?         @map("last_credit_review")
   isActive            Boolean           @default(true)
   leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
   addresses           CustomerAddress[]

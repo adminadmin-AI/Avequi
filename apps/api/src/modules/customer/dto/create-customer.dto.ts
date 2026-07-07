@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsNumber, Min } from 'class-validator';
+import {
+  IsIn, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerType, IcmsIndicator } from '@prisma/client';
 
@@ -144,6 +145,17 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   internalNotes?: string;
+
+  // ── Política de crédito (#388) ──
+  @ApiPropertyOptional({ enum: ['A', 'B', 'C', 'D', 'E'], description: 'Score de crédito interno' })
+  @IsOptional()
+  @IsIn(['A', 'B', 'C', 'D', 'E'])
+  creditScore?: string;
+
+  @ApiPropertyOptional({ description: 'Observações do analista de crédito' })
+  @IsOptional()
+  @IsString()
+  creditNotes?: string;
 }
 
 export class CustomerAddressDto {
