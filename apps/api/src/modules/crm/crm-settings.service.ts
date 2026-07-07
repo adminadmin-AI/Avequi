@@ -4,6 +4,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 /** Parâmetros de CRM guardados em SystemParameter (por company) */
 const PARAM_KEYS = {
   slaFirstResponseMin: 'CRM_SLA_FIRST_RESPONSE_MIN',
+  // Escalonamento de SLA (#569)
+  slaEscalationEnabled: 'CRM_SLA_ESCALATION_ENABLED',
+  slaEscalationFactor: 'CRM_SLA_ESCALATION_FACTOR',
   coolingHours: 'CRM_COOLING_HOURS',
   reopenLostDays: 'CRM_REOPEN_LOST_DAYS',
   autoFollowupEnabled: 'CRM_AUTO_FOLLOWUP_ENABLED',
@@ -20,6 +23,8 @@ const PARAM_KEYS = {
 
 const DEFAULTS = {
   slaFirstResponseMin: 15,
+  slaEscalationEnabled: false, // #569 — default off: ligar por loja sem deploy
+  slaEscalationFactor: 2, // nível 2 (realoca) em SLA x2
   coolingHours: 24,
   reopenLostDays: 90,
   autoFollowupEnabled: false,
@@ -35,6 +40,9 @@ const DEFAULTS = {
 
 export interface CrmSettings {
   slaFirstResponseMin: number;
+  /** Escalonamento de SLA (#569): avisa no x1, realoca no x{factor} */
+  slaEscalationEnabled: boolean;
+  slaEscalationFactor: number;
   coolingHours: number;
   reopenLostDays: number;
   autoFollowupEnabled: boolean;
@@ -77,6 +85,8 @@ export class CrmSettingsService {
     };
     return {
       slaFirstResponseMin: num(PARAM_KEYS.slaFirstResponseMin, DEFAULTS.slaFirstResponseMin),
+      slaEscalationEnabled: byKey.get(PARAM_KEYS.slaEscalationEnabled) === 'true',
+      slaEscalationFactor: num(PARAM_KEYS.slaEscalationFactor, DEFAULTS.slaEscalationFactor),
       coolingHours: num(PARAM_KEYS.coolingHours, DEFAULTS.coolingHours),
       reopenLostDays: num(PARAM_KEYS.reopenLostDays, DEFAULTS.reopenLostDays),
       autoFollowupEnabled: byKey.get(PARAM_KEYS.autoFollowupEnabled) === 'true',
@@ -110,6 +120,14 @@ export class CrmSettingsService {
 
     if (input.slaFirstResponseMin != null)
       setParam(PARAM_KEYS.slaFirstResponseMin, String(input.slaFirstResponseMin));
+    if (input.slaEscalationEnabled != null)
+      setParam(PARAM_KEYS.slaEscalationEnabled, String(input.slaEscalationEnabled));
+    if (input.slaEscalationFactor != null) {
+      if (input.slaEscalationFactor < 2) {
+        throw new BadRequestException('Multiplicador do escalonamento deve ser no mínimo 2');
+      }
+      setParam(PARAM_KEYS.slaEscalationFactor, String(input.slaEscalationFactor));
+    }
     if (input.coolingHours != null) setParam(PARAM_KEYS.coolingHours, String(input.coolingHours));
     if (input.reopenLostDays != null)
       setParam(PARAM_KEYS.reopenLostDays, String(input.reopenLostDays));

@@ -1792,6 +1792,8 @@ enum AlertType {
   BIN_REGISTER_FAILED // pré-cadastro BIN rejeitado/erro (#527)
   CRM_REMINDER_DUE // lembrete de follow-up do CRM venceu (#555)
   CRM_SDR_HANDOFF // SDR IA transferiu lead quente p/ vendedor (#522)
+  CRM_SLA_WARNING // lead sem resposta estourou o SLA — aviso ao vendedor (#569)
+  CRM_SLA_ESCALATION // lead estourou SLA x2 — realocado no rodízio, aviso ao gerente (#569)
 }
 
 enum AlertSeverity {
@@ -3531,6 +3533,9 @@ model Lead {
   lostReason        String?               @map("lost_reason") // obrigatório (via código) ao mover p/ stage LOST
   /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
   firstRespondedAt  DateTime?             @map("first_responded_at")
+  /// Escalonamento de SLA (#569) — cada nível dispara 1x só
+  slaWarnedAt       DateTime?             @map("sla_warned_at") // nível 1: push+alert pro vendedor
+  slaEscalatedAt    DateTime?             @map("sla_escalated_at") // nível 2: realocado no rodízio
   lastInteractionAt DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
   /// LGPD (#558): anonimizado a pedido do titular ou por retenção — nome/telefone/
   /// email/conversa apagados; source/stage/OV preservados p/ métricas agregadas

@@ -202,13 +202,16 @@ export class LeadIntakeService {
    * Round-robin: entre vendedores ativos/disponíveis da loja, escolhe quem tem
    * MENOS leads atribuídos hoje; empate → atribuição mais antiga → id.
    */
-  private async pickNextSeller(companyId: string): Promise<string | null> {
+  /** Próximo vendedor do rodízio. PÚBLICO p/ o escalonamento de SLA (#569)
+   *  reusar o mesmo critério, excluindo quem deixou o lead estourar. */
+  async pickNextSeller(companyId: string, excludeUserId?: string): Promise<string | null> {
     const sellers = await this.prisma.user.findMany({
       where: {
         companyId,
         isActive: true,
         crmAvailable: true,
         role: { in: SELLER_ROLES },
+        ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
       },
       select: { id: true },
       orderBy: { id: 'asc' },

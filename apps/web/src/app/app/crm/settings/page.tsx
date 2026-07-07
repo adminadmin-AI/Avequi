@@ -11,6 +11,8 @@ import { PushSettings } from './push-settings';
 
 interface Settings {
   slaFirstResponseMin: number;
+  slaEscalationEnabled: boolean;
+  slaEscalationFactor: number;
   coolingHours: number;
   reopenLostDays: number;
   autoFollowupEnabled: boolean;
@@ -105,6 +107,37 @@ export default function CrmSettingsPage() {
             onChange={(e) => setForm({ ...form, leadRetentionDays: parseInt(e.target.value, 10) || 0 })}
           />
         </Field>
+      </section>
+
+      {/* #569 — escalonamento automático: avisa no SLA x1, realoca no x{factor} */}
+      <section className="space-y-3 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">🚨 Escalonamento de SLA</h2>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!form.slaEscalationEnabled}
+              onChange={(e) => setForm({ ...form, slaEscalationEnabled: e.target.checked })}
+            />
+            Ligado
+          </label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Realocar no rodízio após (× o SLA)">
+            <input
+              type="number"
+              min={2}
+              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              value={form.slaEscalationFactor ?? 2}
+              onChange={(e) => setForm({ ...form, slaEscalationFactor: parseInt(e.target.value, 10) || 2 })}
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Estourou o SLA → vendedor recebe push + alerta (1x). Continuou sem resposta até{' '}
+          {form.slaEscalationFactor ?? 2}× o SLA → o lead troca de vendedor pelo rodízio e o
+          gerente é avisado. Não vale para leads com a IA atendendo nem para a triagem da matriz.
+        </p>
       </section>
 
       <section className="space-y-3 rounded-lg border p-4">

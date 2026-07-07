@@ -19,6 +19,8 @@ interface SlaPanel {
     phone: string | null;
     source: string;
     waitingMinutes: number;
+    slaWarnedAt: string | null;
+    slaEscalatedAt: string | null;
     assignedTo: { id: string; name: string } | null;
   }>;
   cooling: Array<{
@@ -106,6 +108,12 @@ export default function SlaPage() {
                         {SOURCE_LABEL[l.source] ?? l.source}
                       </Badge>
                       {l.assignedTo?.name ?? 'sem vendedor'}
+                      {/* #569 — régua de escalonamento já agiu neste lead */}
+                      {l.slaEscalatedAt ? (
+                        <Badge variant="danger" className="text-[10px]">escalonado</Badge>
+                      ) : l.slaWarnedAt ? (
+                        <Badge variant="warning" className="text-[10px]">avisado</Badge>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">

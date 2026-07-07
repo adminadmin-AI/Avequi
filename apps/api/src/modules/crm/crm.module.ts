@@ -20,6 +20,7 @@ import { SdrAgentService } from './sdr/sdr-agent.service';
 import { SdrDashboardService } from './sdr/sdr-dashboard.service';
 import { SdrToolsService } from './sdr/sdr-tools';
 import { FollowupScheduler } from './followup.scheduler';
+import { SlaEscalationScheduler } from './sla-escalation.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
@@ -58,6 +59,7 @@ import { SiteLeadController } from './connectors/site.controller';
     SdrDashboardService,
     SdrToolsService,
     FollowupScheduler,
+    SlaEscalationScheduler,
     CrmListener,
     CrmPushListener,
     WhatsappService,
