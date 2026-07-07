@@ -117,6 +117,29 @@ describe('Catálogo de perfis system (#339)', () => {
     expect(temAuditLog('SOMENTE_LEITURA')).toBe(false);
   });
 
+  it('iam.roles.* segue a matriz da decisão Rafael #352 (view p/ diretoria+auditor; manage/assign só admins)', () => {
+    const has = (role: string, code: string) =>
+      findSystemRole(role)!.permissions.includes(code);
+    // ADMIN_GLOBAL e ADMIN_EMPRESA: gerenciam e atribuem (view + manage + assign)
+    for (const role of ['ADMIN_GLOBAL', 'ADMIN_EMPRESA']) {
+      expect(has(role, 'iam.roles.view')).toBe(true);
+      expect(has(role, 'iam.roles.manage')).toBe(true);
+      expect(has(role, 'iam.roles.assign')).toBe(true);
+    }
+    // DIRETOR: só VISUALIZA — não gerencia perfis nem atribui acessos/exceções
+    expect(has('DIRETOR', 'iam.roles.view')).toBe(true);
+    expect(has('DIRETOR', 'iam.roles.manage')).toBe(false);
+    expect(has('DIRETOR', 'iam.roles.assign')).toBe(false);
+    // AUDITOR: só visualiza
+    expect(has('AUDITOR', 'iam.roles.view')).toBe(true);
+    expect(has('AUDITOR', 'iam.roles.manage')).toBe(false);
+    expect(has('AUDITOR', 'iam.roles.assign')).toBe(false);
+    // SOMENTE_LEITURA/READER: fora da área de perfis e permissões
+    for (const code of ['iam.roles.view', 'iam.roles.manage', 'iam.roles.assign']) {
+      expect(has('SOMENTE_LEITURA', code)).toBe(false);
+    }
+  });
+
   it('SOMENTE_LEITURA só tem leitura e NÃO vê módulos sensíveis', () => {
     const leitura = findSystemRole('SOMENTE_LEITURA')!;
     const mutacoes = leitura.permissions.filter((p) => !p.endsWith('.view'));

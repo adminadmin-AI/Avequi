@@ -122,10 +122,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'DIRETOR',
     name: 'Diretor',
     description:
-      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR. NÃO vê a trilha de auditoria (iam.audit-logs): logs podem conter dados sensíveis de segurança/operação — restritos a ADMIN_GLOBAL, ADMIN_EMPRESA e AUDITOR (decisão Rafael, #341).',
+      'Enxerga tudo (leitura geral), aprova (compras, alçadas, BOM, comissões, orçamentos) e exporta. Não opera o dia-a-dia. Equivale ao enum DIRECTOR. VÊ perfis e permissões em modo leitura (iam.roles.view), mas NÃO gerencia nem atribui acessos (sem iam.roles.manage / iam.roles.assign) e NÃO vê a trilha de auditoria (iam.audit-logs.view). Gestão de perfis e exceções por usuário ficam com ADMIN_GLOBAL/ADMIN_EMPRESA; a trilha de auditoria, com esses + AUDITOR (decisão Rafael, #341/#352).',
     permissions: dedupe([
-      // Trilha de auditoria (iam.*) fica FORA da diretoria — ver descrição.
-      ...actionCodes('view').filter((code) => !code.startsWith('iam.')),
+      // Diretoria vê perfis/permissões (iam.roles.view entra por actionCodes),
+      // mas a trilha de auditoria (iam.audit-logs.*) fica FORA — ver descrição.
+      ...actionCodes('view').filter(
+        (code) => !code.startsWith('iam.audit-logs.'),
+      ),
       'products.catalog.update',
       'production.bom.activate',
       'purchases.orders.approve',
@@ -146,11 +149,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.reports.create',
       'analytics.export.execute',
       'suppliers.portal-tokens.view',
-      // #352: DIRETOR administra acessos (a rota também exige o enum
-      // SUPER_ADMIN/DIRECTOR via @Roles). iam.roles.view já entra pelo
-      // actionCodes('view') acima.
-      'iam.roles.manage',
-      'iam.roles.assign',
+      // #352 (decisão Rafael): DIRETOR NÃO administra acessos — sem
+      // iam.roles.manage e sem iam.roles.assign. Gestão de perfis e exceções
+      // individuais por usuário ficam restritas a ADMIN_GLOBAL/ADMIN_EMPRESA.
+      // O iam.roles.view (leitura) entra pelo actionCodes('view') acima.
     ]),
   },
 
