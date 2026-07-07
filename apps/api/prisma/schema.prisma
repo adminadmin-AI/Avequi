@@ -143,6 +143,7 @@ model Company {
   provisionRules ProvisionRule[] // PDD (#389)
   supplierAdvances SupplierAdvance[] // adiantamentos (#393)
   debts Debt[] // dívidas/financiamentos (#392)
+  discountPolicies DiscountPolicy[] // alçadas de desconto (#391)
 }
 
 enum CompanyType {
@@ -1328,6 +1329,21 @@ enum CollectionAttemptChannel {
   WHATSAPP
   PHONE
   OTHER
+}
+
+/// Alçadas de desconto (#391): teto de desconto por papel — acima disso, bloqueia
+model DiscountPolicy {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  role           String   // papel do usuário (UserRole)
+  maxDiscountPct Decimal  @map("max_discount_pct") @db.Decimal(5, 2) // teto %
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, role])
+  @@map("gdr_discount_policies")
 }
 
 /// Gestão de dívida (#392): FINAME, leasing, capital de giro — cronograma de amortização
