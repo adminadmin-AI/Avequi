@@ -48,6 +48,7 @@ import {
   KanbanSquare,
   Settings2,
   Timer,
+  Tags,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -180,6 +181,7 @@ export const NAV: NavSection[] = [
       { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet, roles: FINANCE_ROLES },
       { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard, roles: FINANCE_ROLES },
       { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart, roles: FINANCE_ROLES },
+      { href: '/app/finance/pricing', label: 'Formação de Preço', icon: Tags, roles: FINANCE_ROLES },
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, roles: FINANCE_ROLES },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, roles: FINANCE_ROLES },
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, roles: FINANCE_ROLES },
