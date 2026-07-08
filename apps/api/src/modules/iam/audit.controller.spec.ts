@@ -30,19 +30,17 @@ describe('AuditController — GET /iam/audit-logs (#343)', () => {
     controller = module.get(AuditController);
   });
 
-  it('é restrito a SUPER_ADMIN via @Roles (metadata lida pelo RolesGuard global)', () => {
+  it('NÃO usa mais @Roles — gate único RBAC v2 (#341 parte 2)', () => {
     const reflector = new Reflector();
-    const roles = reflector.get<string[]>(ROLES_KEY, controller.list);
-    expect(roles).toEqual(['SUPER_ADMIN']);
+    // O @Roles('SUPER_ADMIN') foi removido: era redundante E bloqueava
+    // ADMIN_EMPRESA/AUDITOR, que TÊM iam.audit-logs.view pela matriz aprovada.
+    expect(reflector.get<string[]>(ROLES_KEY, controller.list)).toBeUndefined();
   });
 
-  it('exige iam.audit-logs.view via @RequirePermission (metadata lida pelo PermissionGuard global) — #341', () => {
+  it('exige iam.audit-logs.view via @RequirePermission (gate efetivo) — #341', () => {
     const reflector = new Reflector();
     const required = reflector.get<string[]>(REQUIRE_PERMISSION_KEY, controller.list);
     expect(required).toEqual(['iam.audit-logs.view']);
-    // Convivência: os DOIS decorators presentes (RolesGuard corta primeiro,
-    // PermissionGuard refina) e o code exigido existe no catálogo.
-    expect(reflector.get<string[]>(ROLES_KEY, controller.list)).toEqual(['SUPER_ADMIN']);
     expect(allPermissionCodes()).toContain('iam.audit-logs.view');
   });
 

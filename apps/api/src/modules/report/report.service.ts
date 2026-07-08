@@ -482,7 +482,10 @@ export class ReportService {
 
   // ─── S22.10: Status de job ────────────────────────────────────────────────
 
-  async getJobStatus(jobId: string): Promise<{
+  async getJobStatus(
+    jobId: string,
+    companyId: string,
+  ): Promise<{
     jobId: string;
     status: string;
     progress?: number;
@@ -490,7 +493,11 @@ export class ReportService {
     error?: string;
   }> {
     const job: Job | null = await this.reportQueue.getJob(jobId);
-    if (!job) throw new NotFoundException(`Job ${jobId} não encontrado`);
+    // anti-IDOR (#341 parte 2): job de OUTRA empresa é tratado como inexistente
+    // (404), sem vazar existência. O companyId foi gravado no enqueue.
+    if (!job || (job.data as ReportJobData)?.companyId !== companyId) {
+      throw new NotFoundException(`Job ${jobId} não encontrado`);
+    }
 
     const state = await job.getState();
     const result = job.returnvalue as { filePath?: string; error?: string } | null;
@@ -510,9 +517,16 @@ export class ReportService {
 
   // ─── S22.11: Download de relatório pesado ────────────────────────────────
 
-  async downloadReport(jobId: string): Promise<StreamableFile> {
+  async downloadReport(
+    jobId: string,
+    companyId: string,
+  ): Promise<StreamableFile> {
     const job: Job | null = await this.reportQueue.getJob(jobId);
-    if (!job) throw new NotFoundException(`Job ${jobId} não encontrado`);
+    // anti-IDOR (#341 parte 2): job de OUTRA empresa é tratado como inexistente
+    // (404), impedindo download cruzado entre empresas por jobId.
+    if (!job || (job.data as ReportJobData)?.companyId !== companyId) {
+      throw new NotFoundException(`Job ${jobId} não encontrado`);
+    }
 
     const state = await job.getState();
     if (state !== 'completed') {

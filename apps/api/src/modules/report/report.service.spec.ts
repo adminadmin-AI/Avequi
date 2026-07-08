@@ -22,6 +22,9 @@ const mockPrisma = {
 
 const mockJob = {
   id: '1',
+  // #341 parte 2 (anti-IDOR): o companyId gravado no enqueue é o que o
+  // getJobStatus/downloadReport valida contra o companyId do JWT.
+  data: { companyId: COMPANY, jobName: 'stock-abc' },
   progress: jest.fn().mockReturnValue(100),
   getState: jest.fn().mockResolvedValue('completed'),
   returnvalue: null as unknown,
@@ -232,34 +235,53 @@ describe('ReportService', () => {
   describe('getJobStatus', () => {
     it('retorna status completed com downloadUrl', async () => {
       mockJob.returnvalue = { filePath: '/tmp/gdr-report-test.xlsx' };
-      const result = await service.getJobStatus('1');
+      const result = await service.getJobStatus('1', COMPANY);
       expect(result.status).toBe('completed');
       expect(result.downloadUrl).toContain('/api/reports/1/download');
     });
 
     it('lança NotFoundException quando job não existe', async () => {
       mockQueue.getJob.mockResolvedValueOnce(null);
-      await expect(service.getJobStatus('999')).rejects.toThrow(NotFoundException);
+      await expect(service.getJobStatus('999', COMPANY)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('retorna status pending sem downloadUrl', async () => {
       mockJob.getState.mockResolvedValueOnce('waiting');
       mockJob.returnvalue = null;
-      const result = await service.getJobStatus('1');
+      const result = await service.getJobStatus('1', COMPANY);
       expect(result.status).toBe('waiting');
       expect(result.downloadUrl).toBeUndefined();
+    });
+
+    it('anti-IDOR: job de OUTRA empresa → 404 (não vaza status)', async () => {
+      // mockJob.data.companyId = COMPANY; o usuário é de outra empresa
+      await expect(service.getJobStatus('1', 'outra-empresa')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('downloadReport', () => {
     it('lança NotFoundException quando job não existe', async () => {
       mockQueue.getJob.mockResolvedValueOnce(null);
-      await expect(service.downloadReport('999')).rejects.toThrow(NotFoundException);
+      await expect(service.downloadReport('999', COMPANY)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('lança NotFoundException quando job não está completed', async () => {
       mockJob.getState.mockResolvedValueOnce('active');
-      await expect(service.downloadReport('1')).rejects.toThrow(NotFoundException);
+      await expect(service.downloadReport('1', COMPANY)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('anti-IDOR: download de job de OUTRA empresa → 404 (sem acesso cruzado)', async () => {
+      await expect(
+        service.downloadReport('1', 'outra-empresa'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
