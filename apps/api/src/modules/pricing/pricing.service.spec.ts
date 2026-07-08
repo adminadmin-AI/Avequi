@@ -28,7 +28,7 @@ const baseProduct = {
   sku: 'REB01',
   name: 'Reboque Basculante',
   ncm: '87164000',
-  productType: 'FINISHED_GOOD',
+  type: 'FINISHED_GOOD',
   avgCost: '1000',
   costPrice: '900',
   salePrice: '1800',
