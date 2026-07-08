@@ -13,7 +13,6 @@ import { TransferController } from '../../modules/transfer/transfer.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
 import { ProductionController } from '../../modules/production/production.controller';
 import { BomController } from '../../modules/bom/bom.controller';
-import { CustomerController } from '../../modules/customer/customer.controller';
 
 /**
  * Testes da matriz RBAC (docs/RBAC.md).
@@ -286,14 +285,9 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     });
   });
 
-  describe('Customer (/customers)', () => {
-    it('STORE cria cliente para venda de balcão (decisão Rafael 04/07), mas não edita', () => {
-      expectAllowed(CustomerController, 'create', 'STORE');
-      expectAllowed(CustomerController, 'create', 'COMMERCIAL');
-      expectDenied(CustomerController, 'create', 'READER');
-      expectDenied(CustomerController, 'update', 'STORE');
-    });
-  });
+  // Customer (/customers) migrou para o RBAC v2 no #341 parte 2 (PR B) —
+  // a matriz agora é travada em pr341b.access.spec.ts (PermissionGuard real),
+  // preservando a regra de balcão: LOJA cria cliente mas não edita.
 
   describe('Production (/production)', () => {
     it('PRODUCTION opera OPs; cancelamento só SUPER_ADMIN/MANAGER', () => {

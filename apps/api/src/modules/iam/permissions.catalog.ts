@@ -95,9 +95,17 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
 
   // ── customers ── (customer.controller.ts)
   ...r('customers', 'registry', 'Clientes', [
-    ['view', 'ver', 'GET /customers, GET /customers/:id'],
+    ['view', 'ver', 'GET /customers, GET /customers/:id, GET /customers/:id/credit'],
     ['create', 'criar', 'POST /customers'],
     ['update', 'editar', 'PATCH /customers/:id'],
+  ]),
+  // Endereço de entrega tem regra própria (decisão Rafael, #620): a loja/balcão
+  // ADICIONA endereço na venda, mas não edita nem remove — por isso a família
+  // é separada de customers.registry.update em vez de reutilizá-lo.
+  ...r('customers', 'addresses', 'Endereços de entrega do cliente', [
+    ['create', 'adicionar', 'POST /customers/:id/addresses'],
+    ['update', 'editar', 'PATCH /customers/:id/addresses/:addressId'],
+    ['delete', 'remover', 'DELETE /customers/:id/addresses/:addressId'],
   ]),
 
   // ── suppliers ── (supplier.controller.ts + supplier-portal.controller.ts, rotas de token)

@@ -110,6 +110,13 @@ export enum CompanyType {
   FILIAL = 'FILIAL',
 }
 
+// Regime tributário (#478) — usado pelos DTOs de company/supplier
+export enum TaxRegime {
+  SIMPLES_NACIONAL = 'SIMPLES_NACIONAL',
+  LUCRO_PRESUMIDO = 'LUCRO_PRESUMIDO',
+  LUCRO_REAL = 'LUCRO_REAL',
+}
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   DIRECTOR = 'DIRECTOR',
