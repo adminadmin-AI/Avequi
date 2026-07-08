@@ -4001,3 +4001,33 @@ model SdrUsage {
   @@index([leadId])
   @@map("gdr_sdr_usage")
 }
+
+// ─── #365 Entrega pós-NF-e (fluxo físico após faturamento) ────────────────────
+enum DeliveryStatus {
+  AWAITING_BIN // faturada, aguardando registro BIN
+  AWAITING_PICKUP // BIN ok, pronta para retirada/transporte
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+}
+
+model Delivery {
+  id               String         @id @default(cuid())
+  companyId        String
+  salesOrderId     String         @unique // uma entrega por venda
+  fiscalDocumentId String?
+  status           DeliveryStatus @default(AWAITING_BIN)
+  scheduledDate    DateTime?
+  deliveredAt      DateTime?
+  transporterName  String?
+  transporterCnpj  String?
+  vehiclePlate     String?
+  receivedBy       String?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@map("gdr_deliveries")
+}
