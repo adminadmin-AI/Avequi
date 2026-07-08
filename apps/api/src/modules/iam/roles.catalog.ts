@@ -138,6 +138,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'production.bom.activate',
       'purchases.orders.approve',
       'purchases.orders.cancel',
+      // #622 (decisão Rafael): resolver divergência de 3-way match é APROVAÇÃO
+      // de exceção, não operação diária de compra — diretor mantém.
+      'purchases.matching.resolve',
       'purchases.rfq.award',
       'purchases.requests.convert',
       'sales.quotations.approve',
@@ -226,6 +229,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'finance.entries.view',
       'finance.reports.view',
       'fiscal.documents.view',
+      // #622 (decisão Rafael): gerente amplo ENXERGA qualidade e manutenção,
+      // mas NÃO opera — mutações ficam com QUALIDADE/G.INDUSTRIAL/ASSISTENCIA.
+      'quality.inspections.view',
+      'quality.ncr.view',
+      'quality.reports.view',
+      'maintenance.equipment.view',
+      'maintenance.orders.view',
       // Aprovações operacionais
       'approvals.requests.view',
       'approvals.requests.approve',

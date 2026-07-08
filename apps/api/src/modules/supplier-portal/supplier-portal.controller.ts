@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SupplierTokenGuard } from './guards/supplier-token.guard';
 import { SupplierPortalService } from './supplier-portal.service';
 import { CreateSupplierTokenDto } from './dto/create-supplier-token.dto';
@@ -21,8 +21,11 @@ export class SupplierPortalController {
   constructor(private readonly service: SupplierPortalService) {}
 
   // ── Admin endpoints (JWT protected) ──────────────────────────────────────────
+  // #341 parte 2 (PR D): gate único RBAC v2 (@Roles legado removido). As rotas
+  // /me/* abaixo usam SupplierTokenGuard (fornecedor externo, sem user JWT) e
+  // ficam FORA do RBAC v2 por decisão do Rafael — o token é a trava delas.
   @UseGuards(JwtAuthGuard)
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('suppliers.portal-tokens.create')
   @Post('tokens')
   createToken(
     @Request() req: { user: { companyId: string } },
@@ -32,7 +35,7 @@ export class SupplierPortalController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('suppliers.portal-tokens.view')
   @Get('tokens')
   listTokens(
     @Request() req: { user: { companyId: string } },
@@ -42,7 +45,7 @@ export class SupplierPortalController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('suppliers.portal-tokens.revoke')
   @Patch('tokens/:id/revoke')
   revokeToken(
     @Request() req: { user: { companyId: string } },

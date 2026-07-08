@@ -9,20 +9,26 @@ import {
   Request,
 } from '@nestjs/common';
 import { ProductionOrderStatus } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { CreateProductionLogDto } from './dto/create-log.dto';
 import { ProductionService } from './production.service';
 
-const PRODUCTION_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION'];
-
+/**
+ * #341 parte 2 (PR D): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #622).
+ *
+ * Ciclo da OP no desenho v2 (decisão Rafael): PCP cria/planeja (create),
+ * supervisor/gerência libera e conclui (release/complete/cancel), operador
+ * inicia e aponta (start/execute), qualidade aprova/reprova inspeção.
+ */
 @Controller('production')
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
 
   // POST /production
   @Post()
-  @Roles(...PRODUCTION_WRITE_ROLES)
+  @RequirePermission('production.orders.create')
   create(
     @Body() dto: CreateProductionOrderDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -32,6 +38,7 @@ export class ProductionController {
 
   // GET /production/metrics/scrap — métricas de refugo (#184)
   @Get('metrics/scrap')
+  @RequirePermission('production.orders.view')
   getScrapMetrics(
     @Request() req: { user: { companyId: string } },
     @Query('from') from?: string,
@@ -43,6 +50,7 @@ export class ProductionController {
 
   // GET /production?status=DRAFT
   @Get()
+  @RequirePermission('production.orders.view')
   findAll(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: ProductionOrderStatus,
@@ -52,6 +60,7 @@ export class ProductionController {
 
   // GET /production/:id
   @Get(':id')
+  @RequirePermission('production.orders.view')
   findOne(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -61,7 +70,7 @@ export class ProductionController {
 
   // PATCH /production/:id/release
   @Patch(':id/release')
-  @Roles(...PRODUCTION_WRITE_ROLES)
+  @RequirePermission('production.orders.release')
   release(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -71,7 +80,7 @@ export class ProductionController {
 
   // PATCH /production/:id/start
   @Patch(':id/start')
-  @Roles(...PRODUCTION_WRITE_ROLES)
+  @RequirePermission('production.orders.start')
   start(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -81,7 +90,7 @@ export class ProductionController {
 
   // PATCH /production/:id/complete
   @Patch(':id/complete')
-  @Roles(...PRODUCTION_WRITE_ROLES)
+  @RequirePermission('production.orders.complete')
   complete(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -92,7 +101,7 @@ export class ProductionController {
 
   // PATCH /production/:id/cancel
   @Patch(':id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('production.orders.cancel')
   cancel(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -102,7 +111,7 @@ export class ProductionController {
 
   // POST /production/:id/logs — registrar apontamento
   @Post(':id/logs')
-  @Roles(...PRODUCTION_WRITE_ROLES)
+  @RequirePermission('production.orders.execute')
   addLog(
     @Param('id') id: string,
     @Body() dto: CreateProductionLogDto,
@@ -113,6 +122,7 @@ export class ProductionController {
 
   // GET /production/:id/logs — listar apontamentos
   @Get(':id/logs')
+  @RequirePermission('production.orders.view')
   getLogs(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -122,6 +132,7 @@ export class ProductionController {
 
   // GET /production/:id/progress — resumo de progresso
   @Get(':id/progress')
+  @RequirePermission('production.orders.view')
   getProgress(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -131,6 +142,7 @@ export class ProductionController {
 
   // GET /production/:id/cost — custo real da OP (disponível após DONE)
   @Get(':id/cost')
+  @RequirePermission('production.orders.view')
   getCost(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -140,7 +152,7 @@ export class ProductionController {
 
   // PATCH /production/:id/approve-inspection — aprovar inspeção final (#185)
   @Patch(':id/approve-inspection')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
+  @RequirePermission('production.orders.approve')
   approveInspection(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -150,7 +162,7 @@ export class ProductionController {
 
   // PATCH /production/:id/reject-inspection — rejeitar inspeção final (#185)
   @Patch(':id/reject-inspection')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
+  @RequirePermission('production.orders.reject')
   rejectInspection(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
