@@ -88,6 +88,7 @@ model Company {
   quotations            Quotation[]
   inboundNfes           InboundNfe[]
   workCenters           WorkCenter[]
+  investmentProjects    InvestmentProject[]
   budgetPlans           BudgetPlan[]
   batches               Batch[]
   // Finance
@@ -2894,6 +2895,49 @@ model Budget {
   @@unique([companyId, year, month, costCenterId, categoryId])
   @@index([companyId, year])
   @@map("gdr_budgets")
+}
+
+// #399 Análise de investimentos (FP&A) — VPL, TIR, payback
+enum InvestmentStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+model InvestmentProject {
+  id              String               @id @default(cuid())
+  companyId       String
+  company         Company              @relation(fields: [companyId], references: [id])
+  name            String
+  description     String?
+  // Taxa de desconto por período (WACC), coerente com a granularidade dos fluxos
+  discountRatePct Decimal              @default(0) @db.Decimal(9, 4)
+  status          InvestmentStatus     @default(DRAFT)
+  approvedById    String? // alçada DIRECTOR (scalar, sem relação)
+  approvedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  cashflows InvestmentCashflow[]
+
+  @@index([companyId])
+  @@map("gdr_investment_projects")
+}
+
+model InvestmentCashflow {
+  id        String            @id @default(cuid())
+  companyId String
+  projectId String
+  project   InvestmentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  period    Int // 0 = momento inicial (aporte), 1..N = períodos seguintes
+  amount    Decimal           @db.Decimal(14, 2) // sinal: negativo = saída, positivo = entrada
+  label     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([projectId, period])
+  @@index([companyId])
+  @@map("gdr_investment_cashflows")
 }
 
 // #398 Budget dirigido por drivers (FP&A). Diferente do Budget (valor fixo por
