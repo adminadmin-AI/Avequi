@@ -319,8 +319,9 @@ describe('TransferService', () => {
         }),
       );
       // move os 2 chassis para IN_TRANSIT no destino, vinculados à transferência
+      // (guardado por status IN_STOCK — proteção contra lost-update concorrente)
       expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['s1', 's2'] } },
+        where: { id: { in: ['s1', 's2'] }, status: SerialStatus.IN_STOCK },
         data: {
           warehouseId: 'wh-store',
           status: SerialStatus.IN_TRANSIT,
@@ -349,7 +350,9 @@ describe('TransferService', () => {
         }),
       );
       expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: { in: ['s9', 's8'] } } }),
+        expect.objectContaining({
+          where: { id: { in: ['s9', 's8'] }, status: SerialStatus.IN_STOCK },
+        }),
       );
     });
 
@@ -360,6 +363,16 @@ describe('TransferService', () => {
 
       await expect(service.dispatch('tr-1', 'co-1', 'u-1')).rejects.toThrow(BadRequestException);
       expect(mockPrisma.serialNumber.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('dispatch: reverte se um chassi some entre o findMany e o updateMany (guarda de concorrência)', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+      mockPrisma.serialNumber.findMany.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+      // outra transação levou 1 dos 2 chassis: updateMany (guardado por IN_STOCK) só moveu 1
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.dispatch('tr-1', 'co-1', 'u-1')).rejects.toThrow(BadRequestException);
     });
 
     it('dispatch override: rejeita se nº de chassis informados difere da quantidade', async () => {

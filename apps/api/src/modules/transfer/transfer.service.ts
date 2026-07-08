@@ -216,14 +216,23 @@ export class TransferService {
             serialIds = picked.map((sn) => sn.id);
           }
 
-          await tx.serialNumber.updateMany({
-            where: { id: { in: serialIds } },
+          // Guarda de concorrência: só move quem ainda está IN_STOCK. Se outra
+          // transação levou o chassi (venda/despacho) entre o findMany e aqui,
+          // a contagem não bate e a transação inteira reverte — evita lost-update
+          // (dois despachos reivindicando o mesmo chassi).
+          const moved = await tx.serialNumber.updateMany({
+            where: { id: { in: serialIds }, status: SerialStatus.IN_STOCK },
             data: {
               warehouseId: transfer.toWarehouseId,
               status: SerialStatus.IN_TRANSIT,
               storeTransferId: id,
             },
           });
+          if (moved.count !== qty) {
+            throw new BadRequestException(
+              `Chassi(s) de ${item.product.name} deixaram de estar disponíveis durante o despacho — tente novamente`,
+            );
+          }
         }
       }
 
