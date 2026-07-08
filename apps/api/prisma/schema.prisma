@@ -4001,3 +4001,61 @@ model SdrUsage {
   @@index([leadId])
   @@map("gdr_sdr_usage")
 }
+
+// ─── #364 Documentos regulatórios do veículo (CAT/CCT/Projeto Técnico) ────────
+// Pré-requisito para emplacamento no DETRAN; entregues ao cliente ou via revenda.
+enum VehicleDocumentType {
+  CAT // Certificado de Adequação à Legislação de Trânsito
+  CCT // Certificado de Capacidade Técnica
+  TECHNICAL_PROJECT // Projeto Técnico do reboque
+}
+
+enum VehicleDocumentStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum DocumentDeliveredTo {
+  RESELLER
+  END_CUSTOMER
+}
+
+model VehicleDocument {
+  id             String                @id @default(cuid())
+  companyId      String
+  productId      String // modelo de reboque
+  type           VehicleDocumentType
+  documentNumber String
+  issuedAt       DateTime
+  expiresAt      DateTime?
+  fileUrl        String? // link para PDF/arquivo
+  status         VehicleDocumentStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  deliveries VehicleDocumentDelivery[]
+
+  @@index([companyId])
+  @@index([productId])
+  @@map("gdr_vehicle_documents")
+}
+
+model VehicleDocumentDelivery {
+  id                String              @id @default(cuid())
+  companyId         String
+  vehicleDocumentId String
+  vehicleDocument   VehicleDocument     @relation(fields: [vehicleDocumentId], references: [id], onDelete: Cascade)
+  salesOrderId      String
+  serialNumberId    String? // chassi específico entregue
+  deliveredTo       DocumentDeliveredTo
+  deliveredAt       DateTime?
+  deliveredBy       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([companyId])
+  @@index([salesOrderId])
+  @@index([vehicleDocumentId])
+  @@map("gdr_vehicle_document_deliveries")
+}
