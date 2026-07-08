@@ -34,10 +34,17 @@ endpoint reporta `gitSha: "unknown"` — a `version` continua correta.
 
 ## Checklist de release
 
-1. **Decidir o bump** (MAJOR/MINOR/PATCH) conforme a tabela acima.
-2. **Atualizar a versão** nos 4 `package.json` (mesmo número).
-3. **Atualizar o `CHANGELOG.md`**: mover os itens de `[Unreleased]` para a nova
-   seção `## [X.Y.Z] - AAAA-MM-DD`.
+1. **Rascunhar o CHANGELOG** a partir dos PRs mergeados desde a última tag:
+   ```bash
+   npm run changelog:draft            # revisa o rascunho
+   npm run changelog:draft -- --write # popula [Unreleased]
+   ```
+   Depois **revise/edite** o `[Unreleased]` (agrupe, remova ruído — é rascunho).
+2. **Decidir o bump** (MAJOR/MINOR/PATCH) conforme a tabela acima.
+3. **Bump da versão** (edita os 4 `package.json` + data o `[Unreleased]` no CHANGELOG):
+   ```bash
+   npm run release:minor   # ou release:patch / release:major (aceita -- --dry-run)
+   ```
 4. **Commit + PR** (`chore/release-X.Y.Z`), revisar e mergear na `main`.
 5. **Tag + Release:**
    ```bash
