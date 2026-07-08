@@ -166,6 +166,13 @@ export class TransferService {
       });
     });
 
+    // ⚠️ GAP #597/#595: a transferência move apenas o saldo por quantidade
+    // (StockBalance). Produtos rastreáveis (tracksSerial, ex.: reboque) NÃO têm
+    // o SerialNumber.warehouseId movido para o destino — então o chassi continua
+    // apontando para a fábrica e a venda no BALCÃO da filial (#595) não o
+    // encontra. Mover os serials na transferência precisa de desenho (quais
+    // chassis por unidade, status em trânsito) — tratar junto do #595.
+
     // Evento para emissão da NF-e de transferência (fora da transação)
     const eventItems = transfer.items.map((item) => ({
       productId: item.productId,
