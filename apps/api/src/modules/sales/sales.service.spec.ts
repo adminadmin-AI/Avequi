@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
+import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
 import { SALE_CONFIRMED_EVENT } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT } from './events/sale-invoiced.event';
 
@@ -85,6 +86,7 @@ describe('SalesService', () => {
         { provide: TaxCalculationService, useValue: mockTaxCalc },
         { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn().mockResolvedValue(undefined) } },
         { provide: AcquirerService, useValue: { resolveFee: jest.fn().mockResolvedValue(null) } },
+        { provide: PaymentAuthorizationService, useValue: { authorizeCardPayments: jest.fn(), voidCardPayments: jest.fn() } },
       ],
     }).compile();
 
