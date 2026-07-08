@@ -70,7 +70,10 @@ describe('Catálogo de permissões (#338)', () => {
     // 232 = 229 + 3 da #347 (iam.org.view / iam.org.manage / iam.org.assign)
     // 235 = 232 + 3 da #620 (customers.addresses.create/update/delete —
     //       endereços de entrega com regra própria, decisão Rafael no PR B)
-    expect(PERMISSIONS_CATALOG.length).toBe(235);
+    // 240 = 235 + 5 da #621 (sales.orders.set-payments/authorize-cards/confer
+    //       + sales.discount-policies.view/configure — rotas #584/#596/#491/#391
+    //       que nasceram depois do catálogo, decisão Rafael no PR C)
+    expect(PERMISSIONS_CATALOG.length).toBe(240);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

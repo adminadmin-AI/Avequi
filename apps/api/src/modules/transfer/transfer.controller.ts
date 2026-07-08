@@ -7,18 +7,21 @@ import {
   Post,
   Request,
 } from '@nestjs/common';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { TransferService } from './transfer.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 
-const TRANSFER_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE'];
-
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #621).
+ * Equivalência plena com o legado: ALMOXARIFE/LOJA operam, cancelar é gerência.
+ */
 @Controller('transfers')
 export class TransferController {
   constructor(private readonly transferService: TransferService) {}
 
   @Post()
-  @Roles(...TRANSFER_WRITE_ROLES)
+  @RequirePermission('stock.transfers.create')
   create(
     @Body() dto: CreateTransferDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -27,11 +30,13 @@ export class TransferController {
   }
 
   @Get()
+  @RequirePermission('stock.transfers.view')
   findAll(@Request() req: { user: { companyId: string } }) {
     return this.transferService.findAll(req.user.companyId);
   }
 
   @Get(':id')
+  @RequirePermission('stock.transfers.view')
   findOne(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -40,7 +45,7 @@ export class TransferController {
   }
 
   @Patch(':id/dispatch')
-  @Roles(...TRANSFER_WRITE_ROLES)
+  @RequirePermission('stock.transfers.dispatch')
   dispatch(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -49,7 +54,7 @@ export class TransferController {
   }
 
   @Patch(':id/receive')
-  @Roles(...TRANSFER_WRITE_ROLES)
+  @RequirePermission('stock.transfers.receive')
   receive(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -58,7 +63,7 @@ export class TransferController {
   }
 
   @Patch(':id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.transfers.cancel')
   cancel(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },

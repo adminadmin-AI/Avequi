@@ -64,6 +64,8 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     !code.startsWith('finance.') &&
     !code.startsWith('lgpd.') &&
     code !== 'sales.commissions.view' &&
+    // #621: alçadas de desconto são config comercial — no legado READER não via
+    code !== 'sales.discount-policies.view' &&
     code !== 'settings.users.view' &&
     code !== 'approvals.requests.view' &&
     code !== 'dashboard.finance.view' &&
@@ -199,6 +201,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.reserve',
       'sales.orders.confirm',
       'sales.orders.invoice',
+      // #621: fluxo de venda completo (pagamentos/TEF/conferência) + alçadas
+      // de desconto (o MANAGER legado tinha tudo isso).
+      'sales.orders.set-payments',
+      'sales.orders.authorize-cards',
+      'sales.orders.confer',
+      ...resourceCodes('sales', 'discount-policies'),
       ...resourceCodes('sales', 'quotations'),
       ...resourceCodes('sales', 'demand'),
       ...resourceCodes('sales', 'forecast'),
@@ -375,12 +383,23 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.create',
       'sales.orders.reserve',
       'sales.orders.confirm',
+      // #621: vendedor conduz a venda até o faturamento (plano de pagamento,
+      // TEF e conferência de carga — o COMMERCIAL legado fazia os três) e VÊ
+      // as alçadas de desconto (sem configurar).
+      'sales.orders.set-payments',
+      'sales.orders.authorize-cards',
+      'sales.orders.confer',
+      'sales.discount-policies.view',
       'sales.quotations.view',
       'sales.quotations.create',
       'sales.quotations.update',
       'sales.quotations.send',
       'sales.quotations.convert',
-      ...resourceCodes('sales', 'demand'),
+      // #621 (decisão Rafael): configurar horizonte de MRP é planejamento/
+      // gestão — fora do vendedor (o legado já restringia a SA/MANAGER).
+      ...resourceCodes('sales', 'demand').filter(
+        (c) => c !== 'sales.demand.configure',
+      ),
       ...resourceCodes('sales', 'forecast'),
       'sales.commissions.view',
       // #620: vendedor mantém clientes (inclui adicionar/editar endereço de
@@ -414,6 +433,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'products.catalog.view',
       'stock.balances.view',
       'stock.movements.view',
+      // #621 (decisão Rafael): PCP opera o chão de fábrica de verdade — o enum
+      // PRODUCTION legado movimentava estoque, criava/vinculava séries e
+      // criava/consumia lotes; sem estes grants a produção trava no dia
+      // seguinte à migração dos controllers de estoque.
+      'stock.movements.create',
+      'stock.serials.create',
+      'stock.serials.update',
+      'stock.serials.link',
+      'stock.batches.create',
+      'stock.batches.consume',
       ...actionCodes('view', ['purchases']),
       'sales.demand.view',
       'sales.forecast.view',
@@ -435,6 +464,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'production.work-centers.view',
       'products.catalog.view',
       'stock.balances.view',
+      // #621 (decisão Rafael): apontamento do chão de fábrica — consome lote e
+      // vincula série à OP/venda. SEM criar/editar série (fica no PCP; só com
+      // dependência operacional comprovada e reportada).
+      'stock.batches.consume',
+      'stock.serials.link',
     ]),
   },
   {
@@ -509,6 +543,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // (conferência de NF/faturamento), mas NÃO vê preço comercial
       // (products.pricing.* fica fora — mais sensível).
       'products.catalog.view',
+      // #621: financeiro VÊ alçadas de desconto (o FINANCIAL legado via),
+      // sem configurar.
+      'sales.discount-policies.view',
       ...moduleCodes('vehicle-tracking'),
     ]),
   },
@@ -628,6 +665,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.create',
       'sales.orders.reserve',
       'sales.orders.confirm',
+      // #621: balcão conduz a própria venda até o gate do faturamento — plano
+      // de pagamento, TEF e conferência (o STORE legado fazia os três). FATURAR
+      // segue exclusivo do LOJA_FATURAMENTO (split #463, reconfirmado no PR C).
+      'sales.orders.set-payments',
+      'sales.orders.authorize-cards',
+      'sales.orders.confer',
       'customers.registry.view',
       'customers.registry.create',
       // #620: balcão ADICIONA endereço de entrega na venda (regra própria da

@@ -9,19 +9,24 @@ import {
   Request,
 } from '@nestjs/common';
 import { SerialStatus } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateSerialDto } from './dto/create-serial.dto';
 import { UpdateSerialDto } from './dto/update-serial.dto';
 import { SerialService } from './serial.service';
 
-const SERIAL_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION', 'WAREHOUSE'];
-
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #621).
+ * OPERADOR_PCP cria/edita/vincula série; OPERADOR_PRODUCAO só vincula
+ * (apontamento); sucatear segue com QUALIDADE/gerência.
+ */
 @Controller('serial')
 export class SerialController {
   constructor(private readonly serialService: SerialService) {}
 
   // GET /serial/batch/:batchId/affected — recall reverso (#186)
   @Get('batch/:batchId/affected')
+  @RequirePermission('stock.serials.view')
   getAffectedSerials(
     @Param('batchId') batchId: string,
     @Request() req: { user: { companyId: string } },
@@ -31,6 +36,7 @@ export class SerialController {
 
   // GET /serial?status=&productId=&warehouseId=&search=
   @Get()
+  @RequirePermission('stock.serials.view')
   list(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: SerialStatus,
@@ -48,7 +54,7 @@ export class SerialController {
 
   // POST /serial
   @Post()
-  @Roles(...SERIAL_WRITE_ROLES)
+  @RequirePermission('stock.serials.create')
   create(
     @Request() req: { user: { companyId: string; id?: string } },
     @Body() dto: CreateSerialDto,
@@ -58,12 +64,14 @@ export class SerialController {
 
   // GET /serial/stats
   @Get('stats')
+  @RequirePermission('stock.serials.view')
   getStats(@Request() req: { user: { companyId: string } }) {
     return this.serialService.getStats(req.user.companyId);
   }
 
   // GET /serial/by-serial/:serial
   @Get('by-serial/:serial')
+  @RequirePermission('stock.serials.view')
   getBySerial(
     @Param('serial') serial: string,
     @Request() req: { user: { companyId: string } },
@@ -73,6 +81,7 @@ export class SerialController {
 
   // GET /serial/:id
   @Get(':id')
+  @RequirePermission('stock.serials.view')
   getById(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -82,7 +91,7 @@ export class SerialController {
 
   // PATCH /serial/:id
   @Patch(':id')
-  @Roles(...SERIAL_WRITE_ROLES)
+  @RequirePermission('stock.serials.update')
   update(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -93,7 +102,7 @@ export class SerialController {
 
   // PATCH /serial/:id/link-production
   @Patch(':id/link-production')
-  @Roles(...SERIAL_WRITE_ROLES)
+  @RequirePermission('stock.serials.link')
   linkToProduction(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -108,7 +117,7 @@ export class SerialController {
 
   // PATCH /serial/:id/link-sale
   @Patch(':id/link-sale')
-  @Roles(...SERIAL_WRITE_ROLES)
+  @RequirePermission('stock.serials.link')
   linkToSale(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -123,7 +132,7 @@ export class SerialController {
 
   // PATCH /serial/:id/scrap
   @Patch(':id/scrap')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
+  @RequirePermission('stock.serials.scrap')
   scrap(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -134,6 +143,7 @@ export class SerialController {
 
   // GET /serial/:id/components — listar componentes de um chassi (#186)
   @Get(':id/components')
+  @RequirePermission('stock.serials.view')
   getComponents(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -143,6 +153,7 @@ export class SerialController {
 
   // GET /serial/:id/tree — árvore completa componente → lote → fornecedor (#186)
   @Get(':id/tree')
+  @RequirePermission('stock.serials.view')
   getComponentTree(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

@@ -129,6 +129,16 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['invoice', 'faturar (emite NF-e)', 'PATCH /sales/:id/invoice'],
     ['return', 'registrar devolução', 'PATCH /sales/:id/return'],
     ['cancel', 'cancelar', 'PATCH /sales/:id/cancel'],
+    // #621 (PR C): rotas do fluxo de venda criadas depois do catálogo original
+    ['set-payments', 'definir plano de pagamento', 'PATCH /sales/:id/payments (#584)'],
+    ['authorize-cards', 'autorizar cartões no TEF/gateway', 'POST /sales/:id/authorize (#596)'],
+    ['confer', 'conferir carga separada', 'POST /sales/:id/conference (#491)'],
+  ]),
+  // Alçadas de desconto (#391) — configurar é gestão comercial, não diretoria
+  // (decisão Rafael #621: DIRETOR vê, não configura).
+  ...r('sales', 'discount-policies', 'Alçadas de desconto', [
+    ['view', 'ver', 'GET /sales/discount-policies'],
+    ['configure', 'configurar', 'POST /sales/discount-policies/seed-defaults, PATCH /sales/discount-policies/:id'],
   ]),
   ...r('sales', 'quotations', 'Orçamentos', [
     ['view', 'ver', 'GET /quotations, GET /quotations/stats, GET /quotations/:id'],

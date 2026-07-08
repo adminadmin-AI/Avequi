@@ -4,12 +4,9 @@ import { RolesGuard } from './roles.guard';
 import { FinanceController } from '../../modules/finance/finance.controller';
 import { BankingController } from '../../modules/finance/banking.controller';
 import { FiscalController } from '../../modules/fiscal/fiscal.controller';
-import { StockController } from '../../modules/stock/stock.controller';
 import { PurchaseController } from '../../modules/purchase/purchase.controller';
-import { SalesController } from '../../modules/sales/sales.controller';
 import { UserController } from '../../modules/user/user.controller';
 import { QualityController } from '../../modules/quality/quality.controller';
-import { TransferController } from '../../modules/transfer/transfer.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
 import { ProductionController } from '../../modules/production/production.controller';
 import { BomController } from '../../modules/bom/bom.controller';
@@ -128,29 +125,8 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     });
   });
 
-  // ─── Stock ─────────────────────────────────────────────────────────────────
-
-  describe('Stock (/stock)', () => {
-    it('qualquer autenticado consulta saldos', () => {
-      expectAllowed(StockController, 'getBalances', 'READER');
-    });
-
-    it('READER e COMMERCIAL não movimentam estoque', () => {
-      expectDenied(StockController, 'move', 'READER');
-      expectDenied(StockController, 'move', 'COMMERCIAL');
-    });
-
-    it('WAREHOUSE, PRODUCTION, MANAGER, DIRECTOR e SUPER_ADMIN movimentam estoque', () => {
-      for (const role of ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION']) {
-        expectAllowed(StockController, 'move', role);
-      }
-    });
-
-    it('estorno só SUPER_ADMIN e MANAGER', () => {
-      expectAllowed(StockController, 'reverse', 'MANAGER');
-      expectDenied(StockController, 'reverse', 'WAREHOUSE');
-    });
-  });
+  // Stock (/stock) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
+  // travada em pr341c.access.spec.ts (PermissionGuard real).
 
   // ─── Purchase ──────────────────────────────────────────────────────────────
 
@@ -177,49 +153,10 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     });
   });
 
-  // ─── Sales ─────────────────────────────────────────────────────────────────
-
-  describe('Sales (/sales)', () => {
-    it('qualquer autenticado lista vendas', () => {
-      expectAllowed(SalesController, 'findAll', 'READER');
-    });
-
-    it('COMMERCIAL cria e confirma venda; READER e WAREHOUSE não', () => {
-      expectAllowed(SalesController, 'create', 'COMMERCIAL');
-      expectAllowed(SalesController, 'confirm', 'COMMERCIAL');
-      expectDenied(SalesController, 'create', 'READER');
-      expectDenied(SalesController, 'create', 'WAREHOUSE');
-    });
-
-    it('DIRECTOR opera venda: cria, confirma e fatura (decisão Rafael 04/07)', () => {
-      expectAllowed(SalesController, 'create', 'DIRECTOR');
-      expectAllowed(SalesController, 'reserve', 'DIRECTOR');
-      expectAllowed(SalesController, 'confirm', 'DIRECTOR');
-      expectAllowed(SalesController, 'invoice', 'DIRECTOR');
-    });
-
-    it('faturamento (NF-e): COMMERCIAL não fatura (decisão Rafael mantida)', () => {
-      expectAllowed(SalesController, 'invoice', 'FINANCIAL');
-      expectAllowed(SalesController, 'invoice', 'MANAGER');
-      expectDenied(SalesController, 'invoice', 'COMMERCIAL');
-      expectDenied(SalesController, 'invoice', 'READER');
-    });
-
-    it('STORE vende e fatura no balcão (decisão Rafael 04/07); sem devolução/cancelamento', () => {
-      expectAllowed(SalesController, 'create', 'STORE');
-      expectAllowed(SalesController, 'reserve', 'STORE');
-      expectAllowed(SalesController, 'confirm', 'STORE');
-      expectAllowed(SalesController, 'invoice', 'STORE');
-      expectDenied(SalesController, 'return', 'STORE');
-      expectDenied(SalesController, 'cancel', 'STORE');
-    });
-
-    it('devolução e cancelamento só SUPER_ADMIN/MANAGER', () => {
-      expectAllowed(SalesController, 'return', 'MANAGER');
-      expectDenied(SalesController, 'return', 'COMMERCIAL');
-      expectDenied(SalesController, 'cancel', 'COMMERCIAL');
-    });
-  });
+  // Sales (/sales) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
+  // travada em pr341c.access.spec.ts. Decisões v2 SUPERSEDEM as de 04/07:
+  // DIRETOR não opera venda; STORE fatura só via LOJA_FATURAMENTO (#463);
+  // G.GERAL segue sem devolução/cancelamento (#463).
 
   // ─── User ──────────────────────────────────────────────────────────────────
 
@@ -249,18 +186,8 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     });
   });
 
-  describe('Transfer (/transfers)', () => {
-    it('STORE e WAREHOUSE criam/recebem transferência; READER não', () => {
-      expectAllowed(TransferController, 'create', 'STORE');
-      expectAllowed(TransferController, 'receive', 'WAREHOUSE');
-      expectDenied(TransferController, 'create', 'READER');
-    });
-
-    it('cancelamento de transferência só SUPER_ADMIN/MANAGER', () => {
-      expectAllowed(TransferController, 'cancel', 'MANAGER');
-      expectDenied(TransferController, 'cancel', 'STORE');
-    });
-  });
+  // Transfer (/transfers) migrou para o RBAC v2 no #341 parte 2 (PR C) —
+  // matriz travada em pr341c.access.spec.ts (equivalência plena com o legado).
 
   describe('WMS (/wms)', () => {
     it('WAREHOUSE faz putaway; reconciliação só SUPER_ADMIN/MANAGER', () => {

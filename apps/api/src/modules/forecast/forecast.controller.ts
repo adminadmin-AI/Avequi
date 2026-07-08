@@ -8,11 +8,15 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { ForecastService } from './forecast.service';
 import { GenerateForecastDto } from './dto/generate-forecast.dto';
 import { AdjustForecastDto } from './dto/adjust-forecast.dto';
 
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #621).
+ */
 @Controller('forecast')
 export class ForecastController {
   constructor(private readonly forecastService: ForecastService) {}
@@ -20,7 +24,7 @@ export class ForecastController {
   // POST /forecast/generate
   // Body: { targetPeriod?, windowMonths?, productId? } — companyId vem do JWT
   @Post('generate')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
+  @RequirePermission('sales.forecast.generate')
   generate(
     @Body() dto: GenerateForecastDto,
     @Request() req: { user: { companyId: string; id: string } },
@@ -30,6 +34,7 @@ export class ForecastController {
 
   // GET /forecast/backtest?companyId=&testMonths=3&windowMonths=3&productId=
   @Get('backtest')
+  @RequirePermission('sales.forecast.view')
   backtest(
     @Request() req: { user: { companyId: string } },
     @Query('testMonths') testMonths?: string,
@@ -45,6 +50,7 @@ export class ForecastController {
 
   // GET /forecast/history/:productId?months=24
   @Get('history/:productId')
+  @RequirePermission('sales.forecast.view')
   history(
     @Param('productId') productId: string,
     @Request() req: { user: { companyId: string } },
@@ -59,6 +65,7 @@ export class ForecastController {
 
   // GET /forecast?period=YYYY-MM
   @Get()
+  @RequirePermission('sales.forecast.view')
   list(
     @Request() req: { user: { companyId: string } },
     @Query('period') period?: string,
@@ -74,7 +81,7 @@ export class ForecastController {
 
   // PATCH /forecast/:id/adjust
   @Patch(':id/adjust')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'COMMERCIAL')
+  @RequirePermission('sales.forecast.adjust')
   adjust(
     @Param('id') id: string,
     @Body() dto: AdjustForecastDto,

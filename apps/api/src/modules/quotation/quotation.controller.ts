@@ -10,20 +10,26 @@ import {
   Request,
 } from '@nestjs/common';
 import { QuotationStatus } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { RejectQuotationDto } from './dto/reject-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationService } from './quotation.service';
 
-const QUOTATION_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'COMMERCIAL'];
-
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #621).
+ *
+ * Decisão de produto: VENDEDOR cria/edita/envia/converte orçamento, mas
+ * aprovar/rejeitar/expirar é do COORDENADOR_COMERCIAL para cima (catálogo v2).
+ */
 @Controller('quotations')
 export class QuotationController {
   constructor(private readonly quotationService: QuotationService) {}
 
   // GET /quotations
   @Get()
+  @RequirePermission('sales.quotations.view')
   list(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -37,7 +43,7 @@ export class QuotationController {
 
   // POST /quotations
   @Post()
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.create')
   create(
     @Request() req: { user: { companyId: string; id?: string } },
     @Body() dto: CreateQuotationDto,
@@ -47,12 +53,14 @@ export class QuotationController {
 
   // GET /quotations/stats
   @Get('stats')
+  @RequirePermission('sales.quotations.view')
   getStats(@Request() req: { user: { companyId: string } }) {
     return this.quotationService.getStats(req.user.companyId);
   }
 
   // GET /quotations/:id
   @Get(':id')
+  @RequirePermission('sales.quotations.view')
   getById(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -62,7 +70,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id
   @Patch(':id')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.update')
   update(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -73,7 +81,7 @@ export class QuotationController {
 
   // DELETE /quotations/:id
   @Delete(':id')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('sales.quotations.delete')
   delete(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -83,7 +91,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/send
   @Patch(':id/send')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.send')
   send(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -93,7 +101,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/approve
   @Patch(':id/approve')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.approve')
   approve(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -103,7 +111,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/reject
   @Patch(':id/reject')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.reject')
   reject(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -114,7 +122,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/convert
   @Patch(':id/convert')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.convert')
   convert(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id?: string } },
@@ -124,7 +132,7 @@ export class QuotationController {
 
   // PATCH /quotations/:id/expire
   @Patch(':id/expire')
-  @Roles(...QUOTATION_WRITE_ROLES)
+  @RequirePermission('sales.quotations.expire')
   expire(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

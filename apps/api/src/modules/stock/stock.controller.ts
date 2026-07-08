@@ -9,9 +9,14 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { StockService } from './stock.service';
 import { CreateMovementDto } from './dto/create-movement.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #621).
+ * OPERADOR_PCP recebeu stock.movements.create (o enum PRODUCTION movimentava).
+ */
 @ApiTags('stock')
 @ApiBearerAuth()
 @Controller('stock')
@@ -19,6 +24,7 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get('balances')
+  @RequirePermission('stock.balances.view')
   @ApiOperation({ summary: 'Consultar saldos de estoque' })
   @ApiQuery({ name: 'warehouseId', required: false })
   @ApiQuery({ name: 'productId', required: false })
@@ -31,6 +37,7 @@ export class StockController {
   }
 
   @Get('balances/:warehouseId/:productId')
+  @RequirePermission('stock.balances.view')
   @ApiOperation({ summary: 'Consultar saldo de produto em depósito' })
   getBalance(
     @Param('warehouseId') warehouseId: string,
@@ -41,14 +48,14 @@ export class StockController {
   }
 
   @Post('move')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'PRODUCTION')
+  @RequirePermission('stock.movements.create')
   @ApiOperation({ summary: 'Registrar movimentação de estoque' })
   move(@Body() dto: CreateMovementDto, @CurrentUser() user: any) {
     return this.stockService.move({ ...dto, companyId: user.companyId }, user.id);
   }
 
   @Post('reverse/:movementId')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.movements.reverse')
   @ApiOperation({ summary: 'Estornar movimentação de estoque' })
   reverse(
     @Param('movementId') movementId: string,
@@ -59,6 +66,7 @@ export class StockController {
   }
 
   @Get('movements')
+  @RequirePermission('stock.movements.view')
   @ApiOperation({ summary: 'Listar movimentações de estoque' })
   @ApiQuery({ name: 'warehouseId', required: false })
   @ApiQuery({ name: 'productId', required: false })
