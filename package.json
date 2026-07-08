@@ -15,7 +15,7 @@
     "db:seed": "npm run db:seed --workspace=apps/api",
     "db:studio": "npm run db:studio --workspace=apps/api",
     "stamp:build": "node scripts/stamp-build-info.js",
-    "deploy:api": "npm run stamp:build && railway up --ci"
+    "deploy:api": "npm run stamp:build && railway up --ci; git checkout -- apps/api/build-info.json"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

@@ -41,6 +41,3 @@ npm-debug.log*
 # Vercel local
 .vercel/
 .vercel
-
-# versionamento — stamp de build gerado no deploy (#versioning)
-apps/api/build-info.json
