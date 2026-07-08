@@ -136,6 +136,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Guard de rota por role: usa o mesmo mapa do menu (nav-config.ts). */}
           <RouteGuard>{children}</RouteGuard>
         </main>
+        {/* #versioning — versão do produto (injetada em build via next.config) */}
+        <footer className="border-t px-4 py-2 text-center text-xs opacity-60 sm:px-6">
+          Avequi ERP v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
+        </footer>
       </div>
     </div>
   );

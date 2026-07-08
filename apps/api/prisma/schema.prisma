@@ -89,6 +89,7 @@ model Company {
   inboundNfes           InboundNfe[]
   workCenters           WorkCenter[]
   investmentProjects    InvestmentProject[]
+  budgetPlans           BudgetPlan[]
   batches               Batch[]
   // Finance
   financialCategories   FinancialCategory[]
@@ -1594,6 +1595,7 @@ model StoreTransfer {
   receivedAt      DateTime?
   cancelledAt     DateTime?
   items           StoreTransferItem[]
+  serials         SerialNumber[]      @relation("TransferSerials")
   fiscalDocument  FiscalDocument?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -2149,6 +2151,7 @@ model NonConformance {
 enum SerialStatus {
   IN_PRODUCTION
   IN_STOCK
+  IN_TRANSIT // chassi despachado numa transferência entre depósitos — no destino, aguardando receive (#628)
   RESERVED_FOR_SALE // chassi escolhido na separação — vira SOLD no faturamento (#490)
   SOLD
   TRANSFERRED
@@ -2212,8 +2215,13 @@ model SerialNumber {
   atpveRecords     AtpveRecord[]
   renaveOperations RenaveOperation[]
 
+  // Transferência entre depósitos em curso — vincula o chassi à transferência p/ receive/cancel (#628)
+  storeTransferId String?        @map("store_transfer_id")
+  storeTransfer   StoreTransfer? @relation("TransferSerials", fields: [storeTransferId], references: [id])
+
   @@index([companyId, status])
   @@index([productId, status])
+  @@index([storeTransferId])
   @@map("gdr_serial_number")
 }
 
@@ -2850,6 +2858,11 @@ model CostCenter {
   children  CostCenter[] @relation("CostCenterHierarchy")
   legacyId  String?
 
+  // #396 Custeio por absorção — despesas indiretas (CIF) e horas produtivas do
+  // período; taxa CIF/hora = Σ(monthlyCif) ÷ Σ(monthlyProductiveHours) ativos
+  monthlyCif             Decimal @default(0) @db.Decimal(14, 2)
+  monthlyProductiveHours Decimal @default(0) @db.Decimal(12, 2)
+
   payableAllocations    PayableAllocation[]
   receivableAllocations ReceivableAllocation[]
   entrySplits           EntryCostCenterSplit[]
@@ -2925,6 +2938,48 @@ model InvestmentCashflow {
   @@unique([projectId, period])
   @@index([companyId])
   @@map("gdr_investment_cashflows")
+}
+
+// #398 Budget dirigido por drivers (FP&A). Diferente do Budget (valor fixo por
+// conta/mês): projeta o resultado a partir de premissas operacionais.
+// Receita = Σ driver(volume × avgPrice); CPV = Σ driver(volume × unitCost);
+// despesas variáveis = variableExpensePct % da receita; fixas =
+// fixedExpenseMonthly × 12; CAPEX separado do resultado operacional.
+model BudgetPlan {
+  id                  String   @id @default(cuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id])
+  year                Int
+  name                String
+  variableExpensePct  Decimal  @default(0) @db.Decimal(5, 2)
+  fixedExpenseMonthly Decimal  @default(0) @db.Decimal(14, 2)
+  capex               Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  drivers BudgetDriver[]
+
+  @@unique([companyId, year, name])
+  @@index([companyId])
+  @@map("gdr_budget_plans")
+}
+
+model BudgetDriver {
+  id           String     @id @default(cuid())
+  companyId    String
+  budgetPlanId String
+  budgetPlan   BudgetPlan @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  productId    String? // driver por produto (null = família/agregado via label)
+  label        String
+  volume       Decimal    @default(0) @db.Decimal(14, 2) // unidades no ano
+  avgPrice     Decimal    @default(0) @db.Decimal(14, 4)
+  unitCost     Decimal    @default(0) @db.Decimal(14, 4)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([budgetPlanId])
+  @@index([companyId])
+  @@map("gdr_budget_drivers")
 }
 
 // ─── Contas a Pagar ───────────────────────────────────────────────────────────

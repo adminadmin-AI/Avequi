@@ -1,6 +1,6 @@
 {
   "name": "gdr-erp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -13,7 +13,13 @@
     "test": "turbo run test",
     "db:migrate": "npm run db:migrate --workspace=apps/api",
     "db:seed": "npm run db:seed --workspace=apps/api",
-    "db:studio": "npm run db:studio --workspace=apps/api"
+    "db:studio": "npm run db:studio --workspace=apps/api",
+    "stamp:build": "node scripts/stamp-build-info.js",
+    "deploy:api": "npm run stamp:build && railway up --ci; git checkout -- apps/api/build-info.json",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "changelog:draft": "node scripts/changelog-draft.js"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

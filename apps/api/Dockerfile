@@ -28,6 +28,10 @@ WORKDIR /app
 COPY . .
 
 # Instala tudo do lockfile e gera o Prisma Client
+# #versioning — garante o stamp de build (gerado por `npm run deploy:api` antes do
+# railway up); fallback "unknown" quando ausente (dev / build sem stamp)
+RUN [ -f apps/api/build-info.json ] || printf '{"gitSha":"unknown","builtAt":"unknown"}' > apps/api/build-info.json
+
 RUN npm ci
 RUN npx prisma generate --schema apps/api/prisma/schema.prisma
 
@@ -48,6 +52,7 @@ COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=builder /app/apps/api/build-info.json ./apps/api/build-info.json
 
 WORKDIR /app/apps/api
 
