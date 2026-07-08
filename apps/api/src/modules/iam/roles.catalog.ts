@@ -383,7 +383,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...resourceCodes('sales', 'demand'),
       ...resourceCodes('sales', 'forecast'),
       'sales.commissions.view',
-      ...moduleCodes('customers'),
+      // #620: vendedor mantém clientes (inclui adicionar/editar endereço de
+      // entrega), mas REMOVER endereço é de gerência (espelha o legado, onde
+      // DELETE /customers/:id/addresses era só SA/DIRECTOR/MANAGER).
+      ...moduleCodes('customers').filter(
+        (c) => c !== 'customers.addresses.delete',
+      ),
       'products.catalog.view',
       'products.catalog.create',
       'products.pricing.view',
@@ -500,6 +505,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'purchases.inbound-nfe.import',
       'customers.registry.view',
       'suppliers.registry.view',
+      // #620 (decisão Rafael): financeiro consulta o cadastro de produto
+      // (conferência de NF/faturamento), mas NÃO vê preço comercial
+      // (products.pricing.* fica fora — mais sensível).
+      'products.catalog.view',
       ...moduleCodes('vehicle-tracking'),
     ]),
   },
@@ -621,7 +630,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.confirm',
       'customers.registry.view',
       'customers.registry.create',
+      // #620: balcão ADICIONA endereço de entrega na venda (regra própria da
+      // família customers.addresses — não edita nem remove).
+      'customers.addresses.create',
       'stock.balances.view',
+      // #620: a loja cria transferência entre filiais — sem ver a lista de
+      // depósitos a tela de transferência quebra (decisão Rafael).
+      'stock.warehouses.view',
       'stock.transfers.view',
       'stock.transfers.create',
       'stock.transfers.dispatch',
