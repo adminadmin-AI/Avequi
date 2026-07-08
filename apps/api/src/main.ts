@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { readBuildMeta } from './modules/version/version.util';
 
 async function bootstrap() {
   // rawBody: assinatura X-Hub-Signature-256 do webhook WhatsApp (#508) é HMAC do corpo bruto
@@ -31,7 +32,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('GDR ERP API')
     .setDescription('API do sistema ERP da GDR')
-    .setVersion('1.0')
+    .setVersion(readBuildMeta().version) // #versioning — lê do package.json
     .addBearerAuth()
     .build();
 

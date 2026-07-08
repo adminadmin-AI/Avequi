@@ -53,6 +53,7 @@ import { TaxModule } from './modules/tax/tax.module';
 import { VehicleTrackingModule } from './modules/vehicle-tracking/vehicle-tracking.module';
 import { PriceModule } from './modules/price/price.module';
 import { PricingModule } from './modules/pricing/pricing.module';
+import { VersionModule } from './modules/version/version.module';
 import { ApprovalModule } from './modules/approval/approval.module';
 import { CommissionModule } from './modules/commission/commission.module';
 import { RfqModule } from './modules/rfq/rfq.module';
@@ -166,6 +167,7 @@ import { IamModule } from './modules/iam/iam.module';
     VehicleTrackingModule,
     PriceModule,
     PricingModule,
+    VersionModule,
     ApprovalModule,
     CommissionModule,
     RfqModule,
