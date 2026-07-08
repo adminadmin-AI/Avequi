@@ -12,6 +12,7 @@ import { StockService } from '../stock/stock.service';
 import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
 import { isCardMethod } from '../acquirer/payment-classification';
+import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -29,7 +30,15 @@ export class SalesService {
     private readonly taxCalc: TaxCalculationService,
     private readonly discountPolicy: DiscountPolicyService,
     private readonly acquirerService: AcquirerService,
+    private readonly paymentAuth: PaymentAuthorizationService,
   ) {}
+
+  // ─── Autorização de cartão (#596) ─────────────────────────────────────────
+
+  /** Passa as formas de cartão da venda no TEF/gateway; gate do faturamento */
+  async authorizeCards(id: string, companyId: string) {
+    return this.paymentAuth.authorizeCardPayments(id, companyId);
+  }
 
   // ─── Plano de pagamento (#584) ────────────────────────────────────────────
 
@@ -498,7 +507,7 @@ export class SalesService {
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
-        include: { items: { include: { product: true, serialNumber: true } }, pickingOrder: true, customer: true, company: true },
+        include: { items: { include: { product: true, serialNumber: true } }, pickingOrder: true, customer: true, company: true, payments: true },
       });
 
       if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -514,6 +523,15 @@ export class SalesService {
       if (order.pickingOrder && order.pickingOrder.status !== 'DONE') {
         throw new BadRequestException(
           'Picking não concluído. Conclua todas as tarefas de picking antes de faturar.',
+        );
+      }
+
+      // #596: gate de pagamento — toda forma de cartão precisa estar AUTHORIZED
+      // (TEF/gateway) antes de emitir a NF-e. Sem isso, faturaria sem cobrar.
+      if (PaymentAuthorizationService.hasUnauthorizedCard(order.payments ?? [])) {
+        throw new BadRequestException(
+          'Pagamento com cartão não autorizado. Passe o cartão (POST /sales/:id/authorize) e ' +
+            'aguarde a autorização antes de faturar.',
         );
       }
 

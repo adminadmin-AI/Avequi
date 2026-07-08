@@ -38,7 +38,7 @@ function pay(overrides: Record<string, any> = {}) {
 }
 
 const DAY = 86_400_000;
-const daysFromNow = (d: Date) => Math.round((d.getTime() - Date.now()) / DAY);
+const daysFromNow = (d: Date) => Math.round((d.getTime() - Date.now()) / DAY) || 0; // normaliza -0
 
 describe('FinanceService — títulos por plano de pagamento (#586)', () => {
   let service: FinanceService;

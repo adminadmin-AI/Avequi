@@ -96,6 +96,13 @@ export class SalesController {
     return this.salesService.setPayments(id, user.companyId, dto.payments, user?.id);
   }
 
+  @Post(':id/authorize')
+  @Roles(...SALES_WRITE_ROLES)
+  @ApiOperation({ summary: 'Autorizar cartões da venda no TEF/gateway (gate do faturamento) (#596)' })
+  authorizeCards(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.salesService.authorizeCards(id, user.companyId);
+  }
+
   @Patch(':id/reserve')
   @Roles(...SALES_WRITE_ROLES)
   @ApiOperation({ summary: 'Reservar estoque para a venda (DRAFT → RESERVED)' })

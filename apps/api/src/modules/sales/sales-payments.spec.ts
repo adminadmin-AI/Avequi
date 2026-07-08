@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
+import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
 
 const tx = {
   salesPayment: { deleteMany: jest.fn() },
@@ -41,6 +42,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
         { provide: TaxCalculationService, useValue: {} },
         { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn() } },
         { provide: AcquirerService, useValue: mockAcquirer },
+        { provide: PaymentAuthorizationService, useValue: { authorizeCardPayments: jest.fn(), voidCardPayments: jest.fn() } },
       ],
     }).compile();
     service = module.get(SalesService);
