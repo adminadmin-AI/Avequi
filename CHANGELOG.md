@@ -6,6 +6,20 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-08
+
+### Added
+- #399 Análise de Investimentos — VPL, TIR, payback + alçada (#636)
+- #397 Forecast financeiro — demanda→R$ + despesas por tendência (#635)
+- #398 Budget dirigido por drivers — Volume × Preço × Mix (#634)
+- #396 Custeio por absorção — CIF/hora rateado + custo material+MOD+CIF (#632)
+- #395 Formação de Preço — calculadora custo + impostos + margem (#631)
+- #628 Mover chassi (SerialNumber) na transferência entre depósitos (#629)
+- feat(versioning): npm run changelog:draft — rascunho do CHANGELOG por PRs (#644)
+
+### Fixed
+- fix+feat(versioning): build-info no build context + npm run release:* (#643)
+
 ## [1.0.0] - 2026-07-08
 
 Primeira versão sob a política de versionamento. Marca o ERP como produto em
@@ -28,5 +42,6 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/adminadmin-AI/Avequi/releases/tag/v1.0.0
