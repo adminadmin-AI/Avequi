@@ -1594,6 +1594,7 @@ model StoreTransfer {
   receivedAt      DateTime?
   cancelledAt     DateTime?
   items           StoreTransferItem[]
+  serials         SerialNumber[]      @relation("TransferSerials")
   fiscalDocument  FiscalDocument?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -2149,6 +2150,7 @@ model NonConformance {
 enum SerialStatus {
   IN_PRODUCTION
   IN_STOCK
+  IN_TRANSIT // chassi despachado numa transferência entre depósitos — no destino, aguardando receive (#628)
   RESERVED_FOR_SALE // chassi escolhido na separação — vira SOLD no faturamento (#490)
   SOLD
   TRANSFERRED
@@ -2212,8 +2214,13 @@ model SerialNumber {
   atpveRecords     AtpveRecord[]
   renaveOperations RenaveOperation[]
 
+  // Transferência entre depósitos em curso — vincula o chassi à transferência p/ receive/cancel (#628)
+  storeTransferId String?        @map("store_transfer_id")
+  storeTransfer   StoreTransfer? @relation("TransferSerials", fields: [storeTransferId], references: [id])
+
   @@index([companyId, status])
   @@index([productId, status])
+  @@index([storeTransferId])
   @@map("gdr_serial_number")
 }
 
@@ -2849,6 +2856,11 @@ model CostCenter {
   parent    CostCenter?  @relation("CostCenterHierarchy", fields: [parentId], references: [id])
   children  CostCenter[] @relation("CostCenterHierarchy")
   legacyId  String?
+
+  // #396 Custeio por absorção — despesas indiretas (CIF) e horas produtivas do
+  // período; taxa CIF/hora = Σ(monthlyCif) ÷ Σ(monthlyProductiveHours) ativos
+  monthlyCif             Decimal @default(0) @db.Decimal(14, 2)
+  monthlyProductiveHours Decimal @default(0) @db.Decimal(12, 2)
 
   payableAllocations    PayableAllocation[]
   receivableAllocations ReceivableAllocation[]
