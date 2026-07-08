@@ -10,6 +10,7 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TransferService } from './transfer.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { DispatchTransferDto } from './dto/dispatch-transfer.dto';
 
 const TRANSFER_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE'];
 
@@ -44,8 +45,9 @@ export class TransferController {
   dispatch(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
+    @Body() dto?: DispatchTransferDto,
   ) {
-    return this.transferService.dispatch(id, req.user.companyId, req.user.sub);
+    return this.transferService.dispatch(id, req.user.companyId, req.user.sub, dto);
   }
 
   @Patch(':id/receive')
