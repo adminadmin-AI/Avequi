@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TransferStatus } from '@prisma/client';
+import { SerialStatus, TransferStatus } from '@prisma/client';
 import { TransferService } from './transfer.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TRANSFER_DISPATCHED_EVENT } from './events/transfer-dispatched.event';
@@ -21,6 +21,7 @@ const mockPrisma = {
     update: jest.fn(),
   },
   stockMovement: { create: jest.fn() },
+  serialNumber: { findMany: jest.fn(), updateMany: jest.fn() },
   auditLog: { create: jest.fn() },
   $transaction: jest.fn(),
 };
@@ -67,12 +68,15 @@ describe('TransferService', () => {
     service = module.get<TransferService>(TransferService);
     jest.clearAllMocks();
     mockPrisma.auditLog.create.mockResolvedValue({});
+    mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.serialNumber.findMany.mockResolvedValue([]);
 
     // Simular $transaction executando o callback diretamente
     mockPrisma.$transaction.mockImplementation((cb: any) =>
       cb({
         stockBalance: mockPrisma.stockBalance,
         stockMovement: mockPrisma.stockMovement,
+        serialNumber: mockPrisma.serialNumber,
         storeTransfer: mockPrisma.storeTransfer,
         auditLog: mockPrisma.auditLog,
       }),
@@ -257,6 +261,172 @@ describe('TransferService', () => {
         status: TransferStatus.CANCELLED,
       });
       await expect(service.cancel('tr-1', 'co-1', 'u-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── #628: movimentação de chassis (SerialNumber) na transferência ─────────
+
+  describe('movimentação de chassis (#628)', () => {
+    // Transferência de produto rastreável (reboque) — 2 unidades
+    const serialTransfer = {
+      ...baseTransfer,
+      items: [
+        {
+          id: 'ti-s',
+          productId: 'p-reb',
+          quantity: '2',
+          unit: 'UN',
+          product: {
+            id: 'p-reb',
+            sku: 'REB01',
+            name: 'Reboque Basculante',
+            ncm: '87164000',
+            unit: 'UN',
+            avgCost: '50000',
+            costPrice: '50000',
+            tracksSerial: true,
+          },
+        },
+      ],
+    };
+
+    const primeDispatchStock = () => {
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: '5', reserved: '0', inTransit: '0' });
+      mockPrisma.stockBalance.upsert.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.storeTransfer.update.mockResolvedValue({ ...serialTransfer, status: TransferStatus.DISPATCHED });
+    };
+
+    it('dispatch FIFO: pega N chassis IN_STOCK mais antigos na origem e move p/ IN_TRANSIT no destino', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+      mockPrisma.serialNumber.findMany.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.dispatch('tr-1', 'co-1', 'u-1');
+
+      // FIFO: IN_STOCK na origem, ordenado por createdAt asc, take = qty
+      expect(mockPrisma.serialNumber.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            companyId: 'co-1',
+            productId: 'p-reb',
+            warehouseId: 'wh-factory',
+            status: SerialStatus.IN_STOCK,
+          }),
+          take: 2,
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+      // move os 2 chassis para IN_TRANSIT no destino, vinculados à transferência
+      expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['s1', 's2'] } },
+        data: {
+          warehouseId: 'wh-store',
+          status: SerialStatus.IN_TRANSIT,
+          storeTransferId: 'tr-1',
+        },
+      });
+    });
+
+    it('dispatch override: usa exatamente os chassis informados (scan do operador)', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+      mockPrisma.serialNumber.findMany.mockResolvedValue([
+        { id: 's9', serial: 'CHS9', warehouseId: 'wh-factory', status: SerialStatus.IN_STOCK },
+        { id: 's8', serial: 'CHS8', warehouseId: 'wh-factory', status: SerialStatus.IN_STOCK },
+      ]);
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.dispatch('tr-1', 'co-1', 'u-1', {
+        serials: [{ productId: 'p-reb', serialIds: ['s9', 's8'] }],
+      });
+
+      // busca pelos ids informados (não FIFO)
+      expect(mockPrisma.serialNumber.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['s9', 's8'] }, companyId: 'co-1', productId: 'p-reb' },
+        }),
+      );
+      expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ['s9', 's8'] } } }),
+      );
+    });
+
+    it('dispatch: rejeita quando faltam chassis disponíveis (qtd × serial)', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+      mockPrisma.serialNumber.findMany.mockResolvedValue([{ id: 's1' }]); // só 1 p/ qty 2
+
+      await expect(service.dispatch('tr-1', 'co-1', 'u-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.serialNumber.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('dispatch override: rejeita se nº de chassis informados difere da quantidade', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+
+      await expect(
+        service.dispatch('tr-1', 'co-1', 'u-1', {
+          serials: [{ productId: 'p-reb', serialIds: ['s9'] }], // 1 p/ qty 2
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('dispatch override: rejeita chassi que não está na origem', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue(serialTransfer);
+      primeDispatchStock();
+      mockPrisma.serialNumber.findMany.mockResolvedValue([
+        { id: 's9', serial: 'CHS9', warehouseId: 'wh-outra', status: SerialStatus.IN_STOCK },
+        { id: 's8', serial: 'CHS8', warehouseId: 'wh-factory', status: SerialStatus.IN_STOCK },
+      ]);
+
+      await expect(
+        service.dispatch('tr-1', 'co-1', 'u-1', {
+          serials: [{ productId: 'p-reb', serialIds: ['s9', 's8'] }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.serialNumber.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('receive: consolida chassis IN_TRANSIT da transferência como IN_STOCK no destino', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue({
+        ...serialTransfer,
+        status: TransferStatus.DISPATCHED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.storeTransfer.update.mockResolvedValue({ ...serialTransfer, status: TransferStatus.RECEIVED });
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.receive('tr-1', 'co-1', 'u-1');
+
+      expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith({
+        where: { storeTransferId: 'tr-1', status: SerialStatus.IN_TRANSIT },
+        data: { status: SerialStatus.IN_STOCK, storeTransferId: null },
+      });
+    });
+
+    it('cancel DISPATCHED: devolve os chassis em trânsito p/ IN_STOCK na origem', async () => {
+      mockPrisma.storeTransfer.findFirst.mockResolvedValue({
+        ...serialTransfer,
+        status: TransferStatus.DISPATCHED,
+      });
+      mockPrisma.stockBalance.update.mockResolvedValue({});
+      mockPrisma.stockMovement.create.mockResolvedValue({});
+      mockPrisma.storeTransfer.update.mockResolvedValue({ ...serialTransfer, status: TransferStatus.CANCELLED });
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.cancel('tr-1', 'co-1', 'u-1');
+
+      expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith({
+        where: { storeTransferId: 'tr-1', status: SerialStatus.IN_TRANSIT },
+        data: {
+          warehouseId: 'wh-factory',
+          status: SerialStatus.IN_STOCK,
+          storeTransferId: null,
+        },
+      });
     });
   });
 });

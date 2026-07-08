@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TransferStatus } from '@prisma/client';
+import { SerialStatus, TransferStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { DispatchTransferDto } from './dto/dispatch-transfer.dto';
 import { TRANSFER_DISPATCHED_EVENT, TransferDispatchedEvent } from './events/transfer-dispatched.event';
 
 @Injectable()
@@ -56,7 +57,12 @@ export class TransferService {
 
   // ─── S10.02: Despachar — saída da fábrica, entrada em trânsito ───────────
 
-  async dispatch(id: string, companyId: string, userId?: string): Promise<void> {
+  async dispatch(
+    id: string,
+    companyId: string,
+    userId?: string,
+    dto?: DispatchTransferDto,
+  ): Promise<void> {
     const transfer = await this.prisma.storeTransfer.findFirst({
       where: { id, companyId },
       include: { items: { include: { product: true } } },
@@ -68,6 +74,11 @@ export class TransferService {
         `Transferência não pode ser despachada. Status atual: ${transfer.status}`,
       );
     }
+
+    // Override opcional de chassis por produto (#628): quando ausente, FIFO
+    const serialOverride = new Map<string, string[]>(
+      (dto?.serials ?? []).map((s) => [s.productId, s.serialIds]),
+    );
 
     // Verificar saldo disponível na origem para todos os itens
     for (const item of transfer.items) {
@@ -144,6 +155,76 @@ export class TransferService {
             userId,
           },
         });
+
+        // ─── #628: mover os chassis (SerialNumber) de produtos rastreáveis ────
+        // FIFO por padrão, ou lista explícita (override) informada no dispatch.
+        // O serial vai para IN_TRANSIT já no depósito de destino (espelha o
+        // inTransit do StockBalance) e fica vinculado à transferência.
+        if (item.product.tracksSerial) {
+          if (!Number.isInteger(qty) || qty <= 0) {
+            throw new BadRequestException(
+              `Item rastreável ${item.product.name} exige quantidade inteira e positiva (recebido: ${qty})`,
+            );
+          }
+
+          const override = serialOverride.get(item.productId);
+          let serialIds: string[];
+
+          if (override && override.length > 0) {
+            if (override.length !== qty) {
+              throw new BadRequestException(
+                `Chassis informados (${override.length}) diferem da quantidade (${qty}) para ${item.product.name}`,
+              );
+            }
+            const picked = await tx.serialNumber.findMany({
+              where: { id: { in: override }, companyId, productId: item.productId },
+            });
+            if (picked.length !== qty) {
+              throw new BadRequestException(
+                `Um ou mais chassis informados não foram encontrados para ${item.product.name}`,
+              );
+            }
+            for (const sn of picked) {
+              if (sn.warehouseId !== transfer.fromWarehouseId) {
+                throw new BadRequestException(
+                  `Chassi ${sn.serial} não está no depósito de origem da transferência`,
+                );
+              }
+              if (sn.status !== SerialStatus.IN_STOCK) {
+                throw new BadRequestException(
+                  `Chassi ${sn.serial} não está disponível (status atual: ${sn.status})`,
+                );
+              }
+            }
+            serialIds = picked.map((sn) => sn.id);
+          } else {
+            const picked = await tx.serialNumber.findMany({
+              where: {
+                companyId,
+                productId: item.productId,
+                warehouseId: transfer.fromWarehouseId,
+                status: SerialStatus.IN_STOCK,
+              },
+              take: qty,
+              orderBy: { createdAt: 'asc' }, // FIFO
+            });
+            if (picked.length < qty) {
+              throw new BadRequestException(
+                `Chassis insuficientes para ${item.product.name}: disponíveis=${picked.length}, necessários=${qty}`,
+              );
+            }
+            serialIds = picked.map((sn) => sn.id);
+          }
+
+          await tx.serialNumber.updateMany({
+            where: { id: { in: serialIds } },
+            data: {
+              warehouseId: transfer.toWarehouseId,
+              status: SerialStatus.IN_TRANSIT,
+              storeTransferId: id,
+            },
+          });
+        }
       }
 
       await tx.storeTransfer.update({
@@ -165,13 +246,6 @@ export class TransferService {
         },
       });
     });
-
-    // ⚠️ GAP #597/#595: a transferência move apenas o saldo por quantidade
-    // (StockBalance). Produtos rastreáveis (tracksSerial, ex.: reboque) NÃO têm
-    // o SerialNumber.warehouseId movido para o destino — então o chassi continua
-    // apontando para a fábrica e a venda no BALCÃO da filial (#595) não o
-    // encontra. Mover os serials na transferência precisa de desenho (quais
-    // chassis por unidade, status em trânsito) — tratar junto do #595.
 
     // Evento para emissão da NF-e de transferência (fora da transação)
     const eventItems = transfer.items.map((item) => ({
@@ -239,6 +313,13 @@ export class TransferService {
           },
         });
       }
+
+      // #628: chassis em trânsito desta transferência passam a IN_STOCK no
+      // destino (o warehouseId já foi setado no dispatch) e desvinculam-se.
+      await tx.serialNumber.updateMany({
+        where: { storeTransferId: id, status: SerialStatus.IN_TRANSIT },
+        data: { status: SerialStatus.IN_STOCK, storeTransferId: null },
+      });
 
       await tx.storeTransfer.update({
         where: { id },
@@ -322,6 +403,16 @@ export class TransferService {
             },
           });
         }
+
+        // #628: devolver os chassis em trânsito para IN_STOCK na origem.
+        await tx.serialNumber.updateMany({
+          where: { storeTransferId: id, status: SerialStatus.IN_TRANSIT },
+          data: {
+            warehouseId: transfer.fromWarehouseId,
+            status: SerialStatus.IN_STOCK,
+            storeTransferId: null,
+          },
+        });
       }
 
       await tx.storeTransfer.update({
