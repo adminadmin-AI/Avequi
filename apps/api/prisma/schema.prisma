@@ -2849,6 +2849,11 @@ model CostCenter {
   children  CostCenter[] @relation("CostCenterHierarchy")
   legacyId  String?
 
+  // #396 Custeio por absorção — despesas indiretas (CIF) e horas produtivas do
+  // período; taxa CIF/hora = Σ(monthlyCif) ÷ Σ(monthlyProductiveHours) ativos
+  monthlyCif             Decimal @default(0) @db.Decimal(14, 2)
+  monthlyProductiveHours Decimal @default(0) @db.Decimal(12, 2)
+
   payableAllocations    PayableAllocation[]
   receivableAllocations ReceivableAllocation[]
   entrySplits           EntryCostCenterSplit[]
