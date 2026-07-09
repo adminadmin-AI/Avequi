@@ -988,3 +988,57 @@ export interface BudgetVsRealized {
     volumeVariance: number | null;
   }>;
 }
+
+// ─── Análise de investimentos (#399) — VPL/TIR/payback ─────────────────────────
+export type InvestmentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED';
+export interface InvestmentCashflow {
+  id: string;
+  period: number; // 0 = aporte inicial
+  amount: string | number; // Decimal → string no JSON
+  label: string | null;
+}
+export interface InvestmentAnalysis {
+  discountRatePct: number;
+  npv: number;
+  irrPct: number | null;
+  paybackSimple: number | null; // períodos
+  paybackDiscounted: number | null;
+  series: Array<{
+    period: number;
+    flow: number;
+    cumulative: number;
+    discountedFlow: number;
+    discountedCumulative: number;
+  }>;
+}
+export interface InvestmentProject {
+  id: string;
+  name: string;
+  description: string | null;
+  discountRatePct: string | number;
+  status: InvestmentStatus;
+  approvedById: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cashflows: InvestmentCashflow[];
+  analysis: InvestmentAnalysis;
+}
+export interface InvestmentListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  discountRatePct: string | number;
+  status: InvestmentStatus;
+  approvedAt: string | null;
+  createdAt: string;
+}
+export interface InvestmentComparison {
+  id: string;
+  name: string;
+  status: InvestmentStatus;
+  npv: number;
+  irrPct: number | null;
+  paybackSimple: number | null;
+  paybackDiscounted: number | null;
+}
