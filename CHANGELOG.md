@@ -6,6 +6,22 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-09
+
+### Added
+- feat(crm): proposta em PDF da cotação direto no inbox (#572) (#673)
+- feat(crm): aviso de duplicidade de lead entre lojas (#574) (#671)
+- #341 parte 2 (PR E1): financeiro/banking/billing/FP&A no gate unico RBAC v2 + fix acquirer sem gate (Refs #341, Refs #623) (#670)
+- feat(web): tela de Venda Balcão (PDV) + endpoint de chassis escopado (#595) (#669)
+- feat(sales): venda balcão da filial (PDV) — sem separação, chassi no pedido (#595) (#668)
+- feat(skill): reforma-tributaria — parametrização fiscal IBS/CBS assistida (#665)
+- #341 parte 2 (PR D): compras/producao/qualidade no gate unico RBAC v2 + anti-IDOR RFQ (Refs #341, Refs #622) (#663)
+- #341 parte 2 (PR C): vendas/estoque no gate unico RBAC v2 (Refs #341, Refs #621) (#633)
+- feat(web): UI Expedição pós-NF-e (#496) (#661)
+
+### Changed
+- docs(spec): transferência de mercadoria entre filiais (NF-e saída+entrada) (#667)
+
 ## [1.2.0] - 2026-07-09
 
 ### Added
@@ -60,7 +76,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/adminadmin-AI/Avequi/releases/tag/v1.0.0
