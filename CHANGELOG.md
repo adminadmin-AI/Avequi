@@ -6,6 +6,24 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-09
+
+### Added
+- #365 Entrega pós-NF-e (Delivery) + criação/transição automáticas (#646)
+- #364 Documentos regulatórios do veículo (CAT/CCT/Projeto Técnico) (#645)
+- feat(web): UI Análise de Investimentos (#399) (#653)
+- feat(web): UI Budget por Drivers (#398) (#652)
+- feat(web): UI Forecast Financeiro (#397) (#651)
+- feat(web): UI Custeio por Absorção (#396) (#650)
+- feat(web): UI Formação de Preço (#395) (#649)
+
+### Changed
+- docs: README com banner de onboarding + pointer no CLAUDE.md (#658)
+- docs: guia de onboarding (docs/ONBOARDING.md) (#657)
+- ci: liga Turbo Remote Cache (Vercel) (#656)
+- ci: jobs paralelos (lint/build/test) + cache do turbo (#655)
+- chore(ci): ESLint nos dois apps + workflow CI (lint/build/test) (#654)
+
 ## [1.1.0] - 2026-07-08
 
 ### Added
@@ -42,6 +60,7 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/adminadmin-AI/Avequi/releases/tag/v1.0.0
