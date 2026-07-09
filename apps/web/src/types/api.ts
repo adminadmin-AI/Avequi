@@ -838,3 +838,43 @@ export interface ApiError {
   message: string | string[];
   error?: string;
 }
+
+// ─── Formação de Preço (#395) — espelha PricingSimulation do backend ───────────
+export interface PricingBreakdownItem {
+  componentId: string;
+  sku: string;
+  name: string;
+  quantity: number;
+  unitCost: number;
+  subtotal: number;
+}
+export interface PricingSimulation {
+  productId: string;
+  sku: string;
+  name: string;
+  productType: ProductType | null;
+  cost: {
+    base: number;
+    source: 'override' | 'avgCost' | 'costPrice';
+    materialFromBom: number | null;
+    conversion: number | null; // base − material (MOD + CIF implícito no avgCost)
+    breakdown: PricingBreakdownItem[] | null;
+  };
+  taxes: {
+    ruleId: string | null;
+    totalPct: number;
+    icmsPct: number;
+    ipiPct: number;
+    pisPct: number;
+    cofinsPct: number;
+    warning?: string;
+  };
+  marginPct: number;
+  suggestedPrice: number;
+  currentPrice: number | null;
+  comparison: {
+    delta: number | null; // sugerido − atual
+    deltaPct: number | null;
+    currentMarginPct: number | null; // margem líquida realizada no preço atual
+  };
+}
