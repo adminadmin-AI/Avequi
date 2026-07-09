@@ -24,6 +24,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { FiscalService } from './fiscal.service';
+import { ComplianceService } from './compliance.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
 import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
 import { VoidRangeFiscalDto } from './dto/void-range-fiscal.dto';
@@ -36,8 +37,21 @@ export class FiscalController {
 
   constructor(
     private readonly fiscalService: FiscalService,
+    private readonly complianceService: ComplianceService,
     private readonly config: ConfigService,
   ) {}
+
+  // #503 parte 2 — Compliance Center (rota estática ANTES de :id)
+  @Get('compliance')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  @ApiOperation({
+    summary:
+      'Compliance Center: score de conformidade + prontidão Reforma (cClassTrib/NCM) + ' +
+      'cobertura de regras vigentes + saúde de emissão 30d + pendências veiculares (#503)',
+  })
+  compliance(@CurrentUser() user: any) {
+    return this.complianceService.overview(user.companyId);
+  }
 
   /** S08.04 — Webhook da Focus NFe (autenticado por secret no header) */
   @Post('webhook')
