@@ -1,17 +1,26 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CommissionService } from './commission.service';
 
+/**
+ * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — removidos
+ * o @Roles de classe e os de rota (matriz validada pelo Rafael na issue #621).
+ *
+ * O recorte "COMMERCIAL só vê a própria comissão/regra" continua feito por
+ * enum DENTRO dos handlers — é escopo de DADOS (privacidade), não gate de
+ * rota; migra para o modelo v2 quando o enum for aposentado (mesmo interino
+ * documentado no escopo de company, PR B).
+ */
 @ApiTags('commissions')
 @ApiBearerAuth()
-@Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL', 'COMMERCIAL')
 @Controller('commissions')
 export class CommissionController {
   constructor(private readonly commissionService: CommissionService) {}
 
   @Get()
+  @RequirePermission('sales.commissions.view')
   @ApiOperation({ summary: 'Listar comissões (#191)' })
   @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'APPROVED', 'PAID'] })
@@ -36,7 +45,7 @@ export class CommissionController {
   }
 
   @Post('approve-batch')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('sales.commissions.approve')
   @ApiOperation({ summary: 'Aprovar comissões em lote → gera payables (#191)' })
   approveBatch(
     @Body() body: { commissionIds: string[] },
@@ -46,7 +55,7 @@ export class CommissionController {
   }
 
   @Post('rules')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
+  @RequirePermission('sales.commissions.configure')
   @ApiOperation({ summary: 'Criar regra de comissão (#191)' })
   createRule(@Body() body: any, @CurrentUser() user: any) {
     // companyId SEMPRE do JWT (padrão anti-IDOR do #450), nunca do body
@@ -54,6 +63,7 @@ export class CommissionController {
   }
 
   @Get('rules')
+  @RequirePermission('sales.commissions.view')
   @ApiOperation({ summary: 'Listar regras de comissão' })
   findRules(@CurrentUser() user: any) {
     // Mesma privacidade: COMMERCIAL só vê a própria regra (percentuais dos
