@@ -904,3 +904,22 @@ export interface ProductAbsorptionCost {
   totalWithCif: number; // + CIF rateado (absorção)
   cifImpactPct: number | null;
 }
+
+// ─── Forecast financeiro (#397) — espelha FinancialForecast do backend ─────────
+export interface QuarterForecast {
+  quarter: string; // ex.: "2026-Q3"
+  months: string[];
+  revenue: number; // demanda × preço médio
+  expenses: number; // tendência linear
+  result: number;
+  budgeted: number | null; // Budget (soma dos meses)
+  realized: { revenue: number; expenses: number; result: number; partial: boolean } | null;
+}
+export interface FinancialForecast {
+  quarters: QuarterForecast[];
+  assumptions: {
+    expenseTrend: { slope: number; intercept: number; monthsBase: number };
+    priceSource: string;
+    generatedAt: string;
+  };
+}
