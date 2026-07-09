@@ -54,6 +54,7 @@ import {
   Target,
   Coins,
   PackageCheck,
+  Store,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -122,6 +123,7 @@ export const NAV: NavSection[] = [
       { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
+      { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
       { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, roles: FINANCE_ROLES },
     ],
@@ -329,6 +331,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   fiscal: 'Fiscal',
   analytics: 'Analytics',
   new: 'Novo',
+  counter: 'Venda Balcão',
   edit: 'Editar',
   receive: 'Recebimento',
   'work-centers': 'Centros de Trabalho',
