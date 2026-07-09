@@ -1,12 +1,12 @@
 {
   "name": "@gdr-erp/api",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
@@ -49,6 +49,9 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^8.57.1",
     "@nestjs/testing": "^10.4.15",
     "@types/archiver": "^5.3.4",
     "@types/bcryptjs": "^2.4.6",

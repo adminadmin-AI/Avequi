@@ -1,11 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BinRegistrationStatus } from '@prisma/client';
 import { CreateBinRegistrationDto, UpdateBinRegistrationDto } from './dto/bin-registration.dto';
+import { BIN_REGISTERED_EVENT, BinRegisteredEvent } from './events/bin-registered.event';
 
 @Injectable()
 export class BinRegistrationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async create(companyId: string, dto: CreateBinRegistrationDto) {
     const sn = await this.prisma.serialNumber.findFirst({
@@ -58,7 +63,7 @@ export class BinRegistrationService {
       throw new BadRequestException('rejectionReason é obrigatório quando status=REJECTED');
     }
 
-    return this.prisma.binRegistration.update({
+    const updated = await this.prisma.binRegistration.update({
       where: { id },
       data: {
         ...(dto.binNumber !== undefined && { binNumber: dto.binNumber }),
@@ -69,6 +74,13 @@ export class BinRegistrationService {
         ...(dto.status === BinRegistrationStatus.REGISTERED && !reg.registeredAt && { registeredAt: new Date() }),
       },
     });
+
+    // #365: BIN recém-registrada → avança a entrega da venda (AWAITING_PICKUP)
+    if (dto.status === BinRegistrationStatus.REGISTERED && !reg.registeredAt) {
+      this.eventEmitter.emit(BIN_REGISTERED_EVENT, new BinRegisteredEvent(companyId, reg.serialNumberId));
+    }
+
+    return updated;
   }
 
   /**

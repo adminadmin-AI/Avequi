@@ -1,0 +1,26 @@
+name: Setup
+description: Node 20 + npm ci (com cache do npm) e, opcionalmente, prisma generate.
+
+inputs:
+  prisma:
+    description: 'Rodar `prisma generate` (necessário p/ build/test da API).'
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+
+    - name: Install (npm ci)
+      shell: bash
+      run: npm ci
+
+    # O build (tsc/nest build) precisa do Prisma Client gerado — não há postinstall.
+    - name: Prisma generate
+      if: inputs.prisma == 'true'
+      shell: bash
+      run: npm run db:generate --workspace=apps/api

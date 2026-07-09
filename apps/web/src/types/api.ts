@@ -838,3 +838,260 @@ export interface ApiError {
   message: string | string[];
   error?: string;
 }
+
+// ─── Formação de Preço (#395) — espelha PricingSimulation do backend ───────────
+export interface PricingBreakdownItem {
+  componentId: string;
+  sku: string;
+  name: string;
+  quantity: number;
+  unitCost: number;
+  subtotal: number;
+}
+export interface PricingSimulation {
+  productId: string;
+  sku: string;
+  name: string;
+  productType: ProductType | null;
+  cost: {
+    base: number;
+    source: 'override' | 'avgCost' | 'costPrice';
+    materialFromBom: number | null;
+    conversion: number | null; // base − material (MOD + CIF implícito no avgCost)
+    breakdown: PricingBreakdownItem[] | null;
+  };
+  taxes: {
+    ruleId: string | null;
+    totalPct: number;
+    icmsPct: number;
+    ipiPct: number;
+    pisPct: number;
+    cofinsPct: number;
+    warning?: string;
+  };
+  marginPct: number;
+  suggestedPrice: number;
+  currentPrice: number | null;
+  comparison: {
+    delta: number | null; // sugerido − atual
+    deltaPct: number | null;
+    currentMarginPct: number | null; // margem líquida realizada no preço atual
+  };
+}
+
+// ─── Custeio por absorção (#396) — espelha CifRate/ProductAbsorptionCost ───────
+export interface CifRate {
+  ratePerHour: number;
+  monthlyCif: number;
+  monthlyProductiveHours: number;
+  centers: number;
+}
+export interface CostLaborStep {
+  step: string;
+  workCenter: string | null;
+  hours: number;
+  costPerHour: number;
+  cost: number;
+}
+export interface ProductAbsorptionCost {
+  productId: string;
+  sku: string;
+  name: string;
+  material: { total: number; breakdown: PricingBreakdownItem[] };
+  labor: { total: number; hours: number; breakdown: CostLaborStep[] };
+  cif: { ratePerHour: number; hours: number; total: number };
+  totalWithoutCif: number; // material + MOD (custeio direto)
+  totalWithCif: number; // + CIF rateado (absorção)
+  cifImpactPct: number | null;
+}
+
+// ─── Forecast financeiro (#397) — espelha FinancialForecast do backend ─────────
+export interface QuarterForecast {
+  quarter: string; // ex.: "2026-Q3"
+  months: string[];
+  revenue: number; // demanda × preço médio
+  expenses: number; // tendência linear
+  result: number;
+  budgeted: number | null; // Budget (soma dos meses)
+  realized: { revenue: number; expenses: number; result: number; partial: boolean } | null;
+}
+export interface FinancialForecast {
+  quarters: QuarterForecast[];
+  assumptions: {
+    expenseTrend: { slope: number; intercept: number; monthsBase: number };
+    priceSource: string;
+    generatedAt: string;
+  };
+}
+
+// ─── Budget dirigido por drivers (#398) ────────────────────────────────────────
+export interface BudgetPlanRow {
+  id: string;
+  year: number;
+  name: string;
+  variableExpensePct: string | number; // Prisma Decimal → string no JSON
+  fixedExpenseMonthly: string | number;
+  capex: string | number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface BudgetProjectionDriver {
+  id?: string;
+  label: string;
+  productId: string | null;
+  volume: number;
+  avgPrice: number;
+  unitCost: number;
+  revenue: number;
+  cpv: number;
+  grossProfit: number;
+  mixPct: number;
+}
+export interface BudgetProjection {
+  planId: string;
+  year: number;
+  name: string;
+  drivers: BudgetProjectionDriver[];
+  revenue: number;
+  cpv: number;
+  grossProfit: number;
+  variableExpenses: number;
+  fixedExpenses: number;
+  operatingResult: number;
+  capex: number;
+  resultAfterCapex: number;
+  assumptions: { variableExpensePct: number; fixedExpenseMonthly: number; capex: number };
+}
+export interface BudgetSensitivity {
+  base: { revenue: number; operatingResult: number };
+  scenarios: Array<{
+    scenario: string;
+    revenue: number;
+    operatingResult: number;
+    revenueDelta: number;
+    operatingResultDelta: number;
+  }>;
+}
+export interface BudgetVsRealized {
+  year: number;
+  budgetedRevenue: number;
+  realizedRevenue: number;
+  revenueVariance: number;
+  drivers: Array<{
+    label: string;
+    productId: string | null;
+    budgetedRevenue: number;
+    realizedRevenue: number | null;
+    revenueVariance: number | null;
+    budgetedVolume: number;
+    realizedVolume: number | null;
+    volumeVariance: number | null;
+  }>;
+}
+
+// ─── Análise de investimentos (#399) — VPL/TIR/payback ─────────────────────────
+export type InvestmentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED';
+export interface InvestmentCashflow {
+  id: string;
+  period: number; // 0 = aporte inicial
+  amount: string | number; // Decimal → string no JSON
+  label: string | null;
+}
+export interface InvestmentAnalysis {
+  discountRatePct: number;
+  npv: number;
+  irrPct: number | null;
+  paybackSimple: number | null; // períodos
+  paybackDiscounted: number | null;
+  series: Array<{
+    period: number;
+    flow: number;
+    cumulative: number;
+    discountedFlow: number;
+    discountedCumulative: number;
+  }>;
+}
+export interface InvestmentProject {
+  id: string;
+  name: string;
+  description: string | null;
+  discountRatePct: string | number;
+  status: InvestmentStatus;
+  approvedById: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cashflows: InvestmentCashflow[];
+  analysis: InvestmentAnalysis;
+}
+export interface InvestmentListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  discountRatePct: string | number;
+  status: InvestmentStatus;
+  approvedAt: string | null;
+  createdAt: string;
+}
+export interface InvestmentComparison {
+  id: string;
+  name: string;
+  status: InvestmentStatus;
+  npv: number;
+  irrPct: number | null;
+  paybackSimple: number | null;
+  paybackDiscounted: number | null;
+}
+
+// ─── Expedição pós-NF-e (#496 · #364/#365) ─────────────────────────────────────
+export type DeliveryStatus = 'AWAITING_BIN' | 'AWAITING_PICKUP' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURNED';
+export interface Delivery {
+  id: string;
+  companyId: string;
+  salesOrderId: string;
+  fiscalDocumentId: string | null;
+  status: DeliveryStatus;
+  scheduledDate: string | null;
+  deliveredAt: string | null;
+  transporterName: string | null;
+  transporterCnpj: string | null;
+  vehiclePlate: string | null;
+  receivedBy: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VehicleDocumentType = 'CAT' | 'CCT' | 'TECHNICAL_PROJECT';
+export type VehicleDocumentStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export type DocumentDeliveredTo = 'RESELLER' | 'END_CUSTOMER';
+export interface VehicleDocumentDelivery {
+  id: string;
+  vehicleDocumentId: string;
+  salesOrderId: string;
+  serialNumberId: string | null;
+  deliveredTo: DocumentDeliveredTo;
+  deliveredAt: string | null;
+  deliveredBy: string | null;
+  createdAt: string;
+  vehicleDocument?: VehicleDocument;
+}
+export interface VehicleDocument {
+  id: string;
+  companyId: string;
+  productId: string;
+  type: VehicleDocumentType;
+  documentNumber: string;
+  issuedAt: string;
+  expiresAt: string | null;
+  fileUrl: string | null;
+  status: VehicleDocumentStatus;
+  createdAt: string;
+  updatedAt: string;
+  deliveries?: VehicleDocumentDelivery[];
+}
+export interface SaleMissingDoc {
+  id: string;
+  invoicedAt: string | null;
+  createdAt: string;
+}

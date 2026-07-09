@@ -20,6 +20,7 @@ const mockPrisma = {
   storeTransfer: { findFirst: jest.fn(), update: jest.fn() },
   stockBalance: { findUnique: jest.fn(), upsert: jest.fn(), update: jest.fn() },
   stockMovement: { create: jest.fn() },
+  serialNumber: { findMany: jest.fn(), updateMany: jest.fn() },
   financialEntry: { create: jest.fn(), createMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   auditLog: { create: jest.fn() },
   $transaction: jest.fn(),
@@ -57,10 +58,13 @@ describe('Transferência fábrica→filial — invariantes fiscais/financeiros (
     service = module.get(TransferService);
     jest.clearAllMocks();
     mockPrisma.auditLog.create.mockResolvedValue({});
+    mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.serialNumber.findMany.mockResolvedValue([]);
     mockPrisma.$transaction.mockImplementation((cb: any) =>
       cb({
         stockBalance: mockPrisma.stockBalance,
         stockMovement: mockPrisma.stockMovement,
+        serialNumber: mockPrisma.serialNumber,
         storeTransfer: mockPrisma.storeTransfer,
         auditLog: mockPrisma.auditLog,
       }),

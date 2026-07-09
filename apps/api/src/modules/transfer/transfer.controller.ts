@@ -10,6 +10,7 @@ import {
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { TransferService } from './transfer.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { DispatchTransferDto } from './dto/dispatch-transfer.dto';
 
 /**
  * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
@@ -49,8 +50,9 @@ export class TransferController {
   dispatch(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
+    @Body() dto?: DispatchTransferDto,
   ) {
-    return this.transferService.dispatch(id, req.user.companyId, req.user.sub);
+    return this.transferService.dispatch(id, req.user.companyId, req.user.sub, dto);
   }
 
   @Patch(':id/receive')
