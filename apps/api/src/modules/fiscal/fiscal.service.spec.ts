@@ -39,6 +39,9 @@ const mockPrisma = {
   company: {
     findUnique: jest.fn(),
   },
+  storeTransfer: {
+    findUnique: jest.fn(),
+  },
 };
 
 const mockClient = {
@@ -629,6 +632,97 @@ describe('FiscalService', () => {
           valorCofins: 9,
         }),
       });
+    });
+  });
+
+  // ─── emitForTransfer: operação derivada das UFs + destinatário real ──────
+
+  describe('emitForTransfer — derivação INTERNA/INTERESTADUAL', () => {
+    const emitterCompany = { cnpj: '46247069000115', name: 'GDR Reboques', razaoSocial: 'GDR Reboques Ltda', ie: '9095313067', crt: 3, street: 'Rua Antônio Singer', number: '4075', complement: null, neighborhood: 'Campo Largo da Roseira', city: 'SAO JOSE DOS PINHAIS', state: 'PR', zipCode: '83091-002', ibgeCode: '4125506', phone: '4132221234' };
+
+    const makeTransfer = (destCompany: Record<string, unknown> | null) => ({
+      id: 'tr-1',
+      companyId: 'co-1',
+      company: emitterCompany,
+      fromWarehouseId: 'wh-1',
+      fromWarehouse: { id: 'wh-1', name: 'Almoxarifado Fábrica' },
+      toWarehouseId: 'wh-2',
+      toWarehouse: { id: 'wh-2', name: 'Loja Guarapuava', company: destCompany },
+      items: [
+        {
+          quantity: '2',
+          unit: 'UN',
+          product: { sku: 'MOD-CAR-001', name: 'Reboque Carga', ncm: '87163900', type: 'FINISHED_GOOD', avgCost: '150', costPrice: '120', origem: 0 },
+        },
+      ],
+    });
+
+    const destGuarapuava = { cnpj: '46247069000204', name: 'GDR Guarapuava', razaoSocial: 'GDR Reboques Ltda', ie: null, street: 'Rua XV', number: '100', neighborhood: 'Centro', city: 'GUARAPUAVA', state: 'PR', zipCode: '85010-000', ibgeCode: '4109401' };
+
+    beforeEach(() => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.fiscalDocument.create.mockResolvedValue({ ...baseFiscalDoc, focusRef: 'GDR-TR-tr-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFe.mockResolvedValue({ status: 'processando_autorizacao' });
+    });
+
+    it('mesma UF → TRANSFERENCIA_INTERNA, CFOP 5152 e destinatário com CNPJ da filial', async () => {
+      mockPrisma.storeTransfer.findUnique.mockResolvedValue(makeTransfer(destGuarapuava));
+      mockTaxCalc.calculateTaxes.mockResolvedValueOnce({
+        cfop: '5152',
+        icms: { cst: '41', baseCalculo: 0, aliquota: 0, valor: 0 },
+        ipi: { cst: '53', baseCalculo: 0, aliquota: 0, valor: 0 },
+        pis: { cst: '08', baseCalculo: 0, aliquota: 0, valor: 0 },
+        cofins: { cst: '08', baseCalculo: 0, aliquota: 0, valor: 0 },
+        totalTributos: 0,
+      });
+
+      await service.emitForTransfer('tr-1');
+
+      expect(mockTaxCalc.calculateTaxes).toHaveBeenCalledWith(
+        expect.objectContaining({ operationType: 'TRANSFERENCIA_INTERNA', ufOrigem: 'PR', ufDestino: 'PR' }),
+      );
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.items[0].cfop).toBe('5152');
+      expect(payload.cnpj_destinatario).toBe('46247069000204');
+      expect(payload.uf_destinatario).toBe('PR');
+      expect(payload.nome_destinatario).toBe('GDR Reboques Ltda');
+    });
+
+    it('UFs distintas → TRANSFERENCIA_INTERESTADUAL e CFOP 6152', async () => {
+      mockPrisma.storeTransfer.findUnique.mockResolvedValue(
+        makeTransfer({ ...destGuarapuava, name: 'GDR Loja São Paulo', city: 'São Paulo', state: 'SP', ibgeCode: '3550308' }),
+      );
+      mockTaxCalc.calculateTaxes.mockResolvedValueOnce({
+        cfop: '6152',
+        icms: { cst: '41', baseCalculo: 0, aliquota: 0, valor: 0 },
+        ipi: { cst: '53', baseCalculo: 0, aliquota: 0, valor: 0 },
+        pis: { cst: '08', baseCalculo: 0, aliquota: 0, valor: 0 },
+        cofins: { cst: '08', baseCalculo: 0, aliquota: 0, valor: 0 },
+        totalTributos: 0,
+      });
+
+      await service.emitForTransfer('tr-1');
+
+      expect(mockTaxCalc.calculateTaxes).toHaveBeenCalledWith(
+        expect.objectContaining({ operationType: 'TRANSFERENCIA_INTERESTADUAL', ufOrigem: 'PR', ufDestino: 'SP' }),
+      );
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.items[0].cfop).toBe('6152');
+      expect(payload.uf_destinatario).toBe('SP');
+    });
+
+    it('depósito destino sem company carregada → assume UF do emitente (INTERNA)', async () => {
+      mockPrisma.storeTransfer.findUnique.mockResolvedValue(makeTransfer(null));
+
+      await service.emitForTransfer('tr-1');
+
+      expect(mockTaxCalc.calculateTaxes).toHaveBeenCalledWith(
+        expect.objectContaining({ operationType: 'TRANSFERENCIA_INTERNA', ufOrigem: 'PR', ufDestino: 'PR' }),
+      );
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.uf_destinatario).toBe('PR');
+      expect(payload.nome_destinatario).toBe('Loja Guarapuava');
     });
   });
 });

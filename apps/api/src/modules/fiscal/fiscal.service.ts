@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FiscalDocumentType, FiscalStatus, PaymentMethod } from '@prisma/client';
+import { FiscalDocumentType, FiscalStatus, PaymentMethod, TaxOperationType } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from './emissor.port';
@@ -442,7 +442,7 @@ export class FiscalService {
       include: {
         company: true,
         fromWarehouse: true,
-        toWarehouse: true,
+        toWarehouse: { include: { company: true } },
         items: { include: { product: true } },
       },
     });
@@ -478,7 +478,15 @@ export class FiscalService {
       },
     });
 
-    const transferOpType = 'TRANSFERENCIA_INTERNA' as any;
+    // Deriva a operação pelas UFs de origem (emitente) e destino (company do
+    // depósito destino) — mesma UF = interna, UFs distintas = interestadual.
+    const destCompany = transfer.toWarehouse.company;
+    const ufOrigem = transfer.company.state ?? 'SP';
+    const ufDestino = destCompany?.state ?? ufOrigem;
+    const transferOpType =
+      ufOrigem === ufDestino
+        ? TaxOperationType.TRANSFERENCIA_INTERNA
+        : TaxOperationType.TRANSFERENCIA_INTERESTADUAL;
 
     const items: FiscalItem[] = [];
     try {
@@ -490,8 +498,8 @@ export class FiscalService {
         operationType: transferOpType,
         ncm: i.product.ncm ?? undefined,
         productType: i.product.type,
-        ufOrigem: transfer.company.state ?? 'SP',
-        ufDestino: transfer.company.state ?? 'SP',
+        ufOrigem,
+        ufDestino,
         itemValue,
         origem: i.product.origem, // (#480)
       });
@@ -541,8 +549,16 @@ export class FiscalService {
         phone: transfer.company.phone ?? undefined,
       },
       recipient: {
-        name: transfer.toWarehouse.name,
-        state: 'SP',
+        name: destCompany?.razaoSocial ?? destCompany?.name ?? transfer.toWarehouse.name,
+        document: destCompany?.cnpj,
+        ie: destCompany?.ie ?? undefined,
+        address: destCompany?.street ?? undefined,
+        number: destCompany?.number ?? undefined,
+        neighborhood: destCompany?.neighborhood ?? undefined,
+        city: destCompany?.city ?? undefined,
+        state: ufDestino,
+        zipCode: destCompany?.zipCode ?? undefined,
+        ibgeCode: destCompany?.ibgeCode ?? undefined,
       },
       items,
       totalValue,
