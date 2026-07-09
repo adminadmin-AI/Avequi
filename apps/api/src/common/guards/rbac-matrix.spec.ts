@@ -1,8 +1,6 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
-import { FinanceController } from '../../modules/finance/finance.controller';
-import { BankingController } from '../../modules/finance/banking.controller';
 import { FiscalController } from '../../modules/fiscal/fiscal.controller';
 import { UserController } from '../../modules/user/user.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
@@ -48,50 +46,11 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     );
   }
 
-  // ─── Finance ────────────────────────────────────────────────────────────────
-
-  describe('Finance (/finance)', () => {
-    it('READER não lê lançamentos financeiros (leitura restrita)', () => {
-      expectDenied(FinanceController, 'findAll', 'READER');
-      expectDenied(FinanceController, 'findAll', 'WAREHOUSE');
-      expectDenied(FinanceController, 'findAll', 'COMMERCIAL');
-    });
-
-    it('FINANCIAL, MANAGER, DIRECTOR e SUPER_ADMIN leem lançamentos', () => {
-      for (const role of ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL']) {
-        expectAllowed(FinanceController, 'findAll', role);
-      }
-    });
-
-    it('SUPER_ADMIN, DIRECTOR e FINANCIAL registram pagamento (DIRECTOR operacional — decisão Rafael 04/07)', () => {
-      expectAllowed(FinanceController, 'pay', 'FINANCIAL');
-      expectAllowed(FinanceController, 'pay', 'SUPER_ADMIN');
-      expectAllowed(FinanceController, 'pay', 'DIRECTOR');
-      expectDenied(FinanceController, 'pay', 'MANAGER');
-      expectDenied(FinanceController, 'pay', 'READER');
-    });
-
-    it('lançamento manual: SA/DIR/FIN; conta bancária (config) segue só SA/FIN', () => {
-      expectAllowed(FinanceController, 'createManualEntry', 'FINANCIAL');
-      expectAllowed(FinanceController, 'createManualEntry', 'DIRECTOR');
-      expectDenied(FinanceController, 'createManualEntry', 'MANAGER');
-      expectAllowed(FinanceController, 'createBankAccount', 'FINANCIAL');
-      expectDenied(FinanceController, 'createBankAccount', 'DIRECTOR');
-      expectDenied(FinanceController, 'createBankAccount', 'COMMERCIAL');
-    });
-  });
-
-  describe('Banking (/banking)', () => {
-    it('READER não vê contas bancárias', () => {
-      expectDenied(BankingController, 'findAllAccounts', 'READER');
-    });
-
-    it('só SUPER_ADMIN e FINANCIAL agendam pagamento', () => {
-      expectAllowed(BankingController, 'createSchedule', 'FINANCIAL');
-      expectDenied(BankingController, 'createSchedule', 'MANAGER');
-      expectDenied(BankingController, 'createSchedule', 'DIRECTOR');
-    });
-  });
+  // ─── Finance/Banking ───────────────────────────────────────────────────────
+  // #341 parte 2 (PR E1): os blocos Finance e Banking migraram para o gate
+  // único RBAC v2 (@RequirePermission) — a matriz agora é exercitada pelo
+  // PermissionGuard real em modules/finance/pr341e1.access.spec.ts.
+  // Sobram aqui: Fiscal (bloco E2) e User/WMS (bloco G).
 
   // ─── Fiscal ────────────────────────────────────────────────────────────────
 

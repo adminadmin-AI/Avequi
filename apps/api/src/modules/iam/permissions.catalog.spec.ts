@@ -73,7 +73,13 @@ describe('Catálogo de permissões (#338)', () => {
     // 240 = 235 + 5 da #621 (sales.orders.set-payments/authorize-cards/confer
     //       + sales.discount-policies.view/configure — rotas #584/#596/#491/#391
     //       que nasceram depois do catálogo, decisão Rafael no PR C)
-    expect(PERMISSIONS_CATALOG.length).toBe(240);
+    // 260 = 240 + 20 da #623 (E1, decisões Rafael 09/07): finance.entries.write-off;
+    //       finance.provisions.{view,configure}; finance.advances.{view,create,cancel};
+    //       finance.debts.{view,create,pay}; finance.reconciliation.execute;
+    //       finance.billing.configure; finance.reports.export; fiscal.documents.export;
+    //       finance.acquirers.{view,manage}; finance.investments.{view,manage,approve};
+    //       finance.budget-plans.{view,manage}
+    expect(PERMISSIONS_CATALOG.length).toBe(260);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

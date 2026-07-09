@@ -340,6 +340,45 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['pay', 'baixar/pagar', 'PATCH /finance/:id/pay'],
     ['installment', 'parcelar', 'POST /finance/:id/installments'],
     ['cancel', 'cancelar', 'PATCH /finance/:id/cancel'],
+    // #623 (E1): baixa como perda some do contas a receber — restrita à gerência
+    ['write-off', 'baixar como perda (write-off)', 'POST /finance/entries/:id/write-off'],
+  ]),
+  // #623 (E1): regras de PDD mudam o resultado contábil — configurar é gerência
+  ...r('finance', 'provisions', 'Provisões (PDD)', [
+    ['view', 'ver regras e relatório', 'GET /finance/provision-rules, GET /finance/pdd'],
+    ['configure', 'configurar regras', 'POST /finance/provision-rules/seed-defaults, PATCH /finance/provision-rules/:id'],
+  ]),
+  // #623 (E1): adiantamento a fornecedor = dinheiro saindo antes da entrega
+  ...r('finance', 'advances', 'Adiantamentos a fornecedor', [
+    ['view', 'ver', 'GET /finance/supplier-advances'],
+    ['create', 'criar', 'POST /finance/supplier-advances'],
+    ['cancel', 'cancelar', 'POST /finance/supplier-advances/:id/cancel'],
+  ]),
+  // #623 (E1): dívidas/empréstimos e pagamento de parcelas
+  ...r('finance', 'debts', 'Dívidas e empréstimos', [
+    ['view', 'ver', 'GET /finance/debts, /finance/debts/dashboard, /finance/debts/:id'],
+    ['create', 'criar', 'POST /finance/debts'],
+    ['pay', 'pagar parcela', 'POST /finance/debts/:id/installments/:number/pay'],
+  ]),
+  // #623 (E1): quem concilia "fecha o caixa" — import OFX, match/unmatch
+  ...r('finance', 'reconciliation', 'Conciliação bancária', [
+    ['execute', 'conciliar extrato', 'POST /banking/reconciliation/{import,auto-match,:statementId/match,:statementId/unmatch}'],
+  ]),
+  // #623 (E1): taxas de cartão negociadas — leitura era ABERTA a qualquer autenticado
+  ...r('finance', 'acquirers', 'Adquirentes (taxas de cartão)', [
+    ['view', 'ver', 'GET /acquirers, /acquirers/:id, /acquirers/:id/fees/resolve'],
+    ['manage', 'gerir adquirentes e taxas', 'POST /acquirers, PATCH /acquirers/:id, POST /acquirers/:id/fees, PATCH /acquirers/fees/:feeId'],
+  ]),
+  // #623 (E1): projetos de investimento — approve é alçada (DIRETOR+admins)
+  ...r('finance', 'investments', 'Análise de investimentos', [
+    ['view', 'ver', 'GET /investments, /investments/compare, /investments/:id'],
+    ['manage', 'criar/editar projetos e fluxos', 'POST /investments, PATCH/DELETE /investments/:id, POST/DELETE /investments/:id/cashflows'],
+    ['approve', 'aprovar/rejeitar (alçada)', 'POST /investments/:id/approve, POST /investments/:id/reject'],
+  ]),
+  // #623 (E1): budget dirigido por drivers (Volume × Preço × Mix)
+  ...r('finance', 'budget-plans', 'Budget por drivers', [
+    ['view', 'ver', 'GET /budget-plans, /budget-plans/:id/{projection,sensitivity,vs-realized}'],
+    ['manage', 'criar/editar planos e drivers', 'POST/PATCH/DELETE /budget-plans*, POST/DELETE /budget-plans/:id/drivers*'],
   ]),
   ...r('finance', 'bank-accounts', 'Contas bancárias', [
     ['view', 'ver', 'GET /finance/bank-accounts, /finance/bank-accounts/consolidated, /finance/bank-accounts/:id/statement'],
@@ -360,7 +399,9 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['delete', 'excluir', 'DELETE /finance/cost-centers/:id'],
   ]),
   ...r('finance', 'reports', 'Relatórios financeiros', [
-    ['view', 'ver DRE e projeção de caixa', 'GET /finance/reports/dre, GET /finance/cash-flow/projection'],
+    ['view', 'ver DRE e projeção de caixa', 'GET /finance/reports/dre, /finance/cash-flow/projection, /finance/kpis, /finance/margin-by-sku, /banking/cash-flow/{weekly,monthly,scenarios}, /forecast/financial'],
+    // #623 (E1): management book = pacote executivo consolidado
+    ['export', 'exportar management book', 'GET /finance/management-book'],
   ]),
   ...r('finance', 'banking', 'Banking', [
     ['view', 'ver', 'GET /banking/accounts, /banking/overview, /banking/reconciliation/unmatched, /banking/accounts/:id, /banking/accounts/:id/balance'],
@@ -382,8 +423,10 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['cancel', 'cancelar', 'PATCH /banking/pix/charges/:id/cancel'],
   ]),
   ...r('finance', 'billing', 'Régua de cobrança', [
-    ['view', 'ver', 'GET /billing/collection/status, GET /billing/daily-report'],
-    ['execute', 'disparar cobrança', 'POST /billing/collection/trigger'],
+    ['view', 'ver', 'GET /billing/collection/status, /billing/daily-report, /billing/collection-rules'],
+    ['execute', 'disparar cobrança', 'POST /billing/collection/trigger, POST /billing/collection-rules/run'],
+    // #623 (E1): mudar a régua muda QUANDO/COMO o cliente é cobrado — gerência
+    ['configure', 'configurar régua', 'POST /billing/collection-rules/seed-defaults, PATCH /billing/collection-rules/:id'],
   ]),
   ...r('finance', 'budget', 'Orçamento empresarial', [
     ['view', 'ver', 'GET /finance/budget, GET /finance/budget/variance'],
@@ -394,6 +437,8 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   // ── fiscal ── (fiscal, manifest, tax controllers)
   ...r('fiscal', 'documents', 'Documentos fiscais', [
     ['view', 'ver', 'GET /fiscal, GET /fiscal/:id'],
+    // #623 (E1): ZIP com a massa fiscal completa (XMLs, #482) — restrito
+    ['export', 'exportar XMLs (ZIP)', 'GET /fiscal/export'],
   ]),
   ...r('fiscal', 'nfe', 'NF-e (eventos)', [
     ['cancel', 'cancelar NF-e', 'POST /fiscal/:id/cancel (prazo legal 24h)'],

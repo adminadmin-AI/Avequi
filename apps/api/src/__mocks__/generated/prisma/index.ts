@@ -548,6 +548,14 @@ export enum DebtorType {
   ACQUIRER = 'ACQUIRER',
 }
 
+// #623 (PR E1): canal da régua de cobrança (billing) — usado pelos DTOs
+export enum CollectionAttemptChannel {
+  EMAIL = 'EMAIL',
+  WHATSAPP = 'WHATSAPP',
+  PHONE = 'PHONE',
+  OTHER = 'OTHER',
+}
+
 export enum ScheduledPaymentStatus {
   PENDING = 'PENDING',
   DONE = 'DONE',

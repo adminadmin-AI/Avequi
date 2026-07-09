@@ -15,11 +15,15 @@ import { CreateAcquirerDto } from './dto/create-acquirer.dto';
 import { UpdateAcquirerDto } from './dto/update-acquirer.dto';
 import { CreateAcquirerFeeDto } from './dto/create-acquirer-fee.dto';
 import { UpdateAcquirerFeeDto } from './dto/update-acquirer-fee.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-const ACQUIRER_WRITE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL'] as const;
-
+/**
+ * #341 parte 2 (PR E1): gate único RBAC v2 — @Roles legado removido (matriz
+ * Rafael, issue #623). FIX: os GETs estavam SEM gate (qualquer autenticado via
+ * as taxas de cartão negociadas); agora finance.acquirers.view é restrita a
+ * FINANCEIRO/G.FINANCEIRO/AUDITOR/admins; manage é G.FINANCEIRO/admins.
+ */
 @ApiTags('acquirers')
 @ApiBearerAuth()
 @Controller('acquirers')
@@ -27,13 +31,14 @@ export class AcquirerController {
   constructor(private readonly acquirerService: AcquirerService) {}
 
   @Post()
-  @Roles(...ACQUIRER_WRITE_ROLES)
+  @RequirePermission('finance.acquirers.manage')
   @ApiOperation({ summary: 'Criar adquirente de cartão' })
   create(@Body() dto: CreateAcquirerDto, @CurrentUser() user: any) {
     return this.acquirerService.create(dto, user);
   }
 
   @Get()
+  @RequirePermission('finance.acquirers.view')
   @ApiOperation({ summary: 'Listar adquirentes (com taxas ativas)' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'isActive', required: false })
@@ -48,7 +53,7 @@ export class AcquirerController {
   // ── rotas estáticas ANTES de :id (regra do projeto) ──────────────────────
 
   @Patch('fees/:feeId')
-  @Roles(...ACQUIRER_WRITE_ROLES)
+  @RequirePermission('finance.acquirers.manage')
   @ApiOperation({ summary: 'Atualizar taxa MDR' })
   updateFee(
     @Param('feeId') feeId: string,
@@ -59,6 +64,7 @@ export class AcquirerController {
   }
 
   @Get(':id/fees/resolve')
+  @RequirePermission('finance.acquirers.view')
   @ApiOperation({ summary: 'Resolver taxa vigente (bandeira/modalidade/parcelas/data)' })
   @ApiQuery({ name: 'modality', enum: PaymentModality })
   @ApiQuery({ name: 'installments', required: false })
@@ -88,7 +94,7 @@ export class AcquirerController {
   }
 
   @Post(':id/fees')
-  @Roles(...ACQUIRER_WRITE_ROLES)
+  @RequirePermission('finance.acquirers.manage')
   @ApiOperation({ summary: 'Adicionar taxa MDR à adquirente' })
   addFee(
     @Param('id') id: string,
@@ -99,13 +105,14 @@ export class AcquirerController {
   }
 
   @Get(':id')
+  @RequirePermission('finance.acquirers.view')
   @ApiOperation({ summary: 'Buscar adquirente por ID (com taxas)' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.acquirerService.findOne(id, user.companyId);
   }
 
   @Patch(':id')
-  @Roles(...ACQUIRER_WRITE_ROLES)
+  @RequirePermission('finance.acquirers.manage')
   @ApiOperation({ summary: 'Atualizar adquirente' })
   update(@Param('id') id: string, @Body() dto: UpdateAcquirerDto, @CurrentUser() user: any) {
     return this.acquirerService.update(id, dto, user);
