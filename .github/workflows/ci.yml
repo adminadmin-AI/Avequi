@@ -11,31 +11,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: lint · build · test
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup
+      - name: Turbo cache
+        uses: actions/cache@v4
         with:
-          node-version: 20
-          cache: npm
+          path: .turbo
+          key: turbo-lint-${{ github.sha }}
+          restore-keys: turbo-lint-
+      - run: npm run lint
 
-      - name: Install (npm ci)
-        run: npm ci
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          prisma: 'true'
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-build-${{ github.sha }}
+          restore-keys: turbo-build-
+      - run: npm run build
 
-      # O build (tsc/nest build) precisa do Prisma Client gerado. Não há
-      # postinstall — geramos explicitamente (foi a causa de build quebrado antes).
-      - name: Prisma generate
-        run: npm run db:generate --workspace=apps/api
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm run test
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          prisma: 'true'
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-test-${{ github.sha }}
+          restore-keys: turbo-test-
+      - run: npm run test
