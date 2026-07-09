@@ -91,7 +91,22 @@ export class CrmService {
       },
     });
     if (!lead) throw new NotFoundException('Lead não encontrado');
-    return lead;
+
+    // #574: aviso de duplicidade cross-loja — a activity é criada no intake e
+    // sairia do take:50 com o tempo; busca dedicada mantém o badge estável.
+    const dup = await this.prisma.leadActivity.findFirst({
+      where: {
+        leadId,
+        properties: { path: ['kind'], equals: 'cross_store_duplicate' },
+      },
+      orderBy: { happensAt: 'desc' },
+      select: { properties: true },
+    });
+    const crossStoreStores = Array.isArray((dup?.properties as any)?.stores)
+      ? ((dup!.properties as any).stores as string[])
+      : [];
+
+    return { ...lead, crossStoreStores };
   }
 
   /** Estágios do funil da loja (select de troca rápida / kanban F2.1) */

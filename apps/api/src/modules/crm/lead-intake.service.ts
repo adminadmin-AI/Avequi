@@ -119,6 +119,14 @@ export class LeadIntakeService {
         phone: lead.phone,
         assignedToId: lead.assignedToId,
       });
+
+      // #574: mesmo telefone em negociação em OUTRA loja → avisa (não bloqueia;
+      // lojas são independentes, mas guerra de preço interna é sinal pro vendedor).
+      // Best-effort: falha aqui nunca derruba a captação.
+      await this.flagCrossStoreDuplicate(lead.id, targetCompanyId, phone).catch((e) =>
+        this.logger.warn(`cross-store dup check falhou p/ lead ${lead.id}: ${e?.message}`),
+      );
+
       return {
         lead: { id: lead.id, companyId: lead.companyId, assignedToId: lead.assignedToId },
         created: true,
@@ -302,6 +310,45 @@ export class LeadIntakeService {
     if (!Number.isFinite(windowDays) || windowDays <= 0) return false;
     const lostAt = lead.updatedAt?.getTime() ?? 0;
     return Date.now() - lostAt < windowDays * 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * #574 — o mesmo telefone com lead em aberto em OUTRA loja = cliente
+   * negociando em 2 filiais. Registra activity de aviso no lead NOVO.
+   * ⚠️ Tenancy: expõe SÓ o nome da(s) loja(s) — nunca dados do outro
+   * lead/vendedor/conversa.
+   */
+  private async flagCrossStoreDuplicate(
+    leadId: string,
+    companyId: string,
+    phone: string | null,
+  ) {
+    if (!phone) return;
+    const others = await this.prisma.lead.findMany({
+      where: {
+        phone,
+        companyId: { not: companyId },
+        anonymizedAt: null,
+        // "em negociação" = estágio aberto; sem estágio (triagem) também conta
+        OR: [{ stage: { type: 'OPEN' } }, { stageId: null }],
+      },
+      select: { company: { select: { name: true } } },
+      take: 5,
+    });
+    if (others.length === 0) return;
+
+    const stores = [...new Set(others.map((o) => o.company.name))];
+    await this.prisma.leadActivity.create({
+      data: {
+        leadId,
+        type: LeadActivityType.NOTE,
+        properties: {
+          kind: 'cross_store_duplicate',
+          stores,
+          preview: `⚠️ Cliente também em negociação: ${stores.join(', ')}`,
+        },
+      },
+    });
   }
 
   private findFirstOpenStage(companyId: string) {

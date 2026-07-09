@@ -36,8 +36,10 @@ describe('LeadIntakeService', () => {
         update: jest.fn(),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]), // #574 — dup cross-loja
         groupBy: jest.fn().mockResolvedValue([]),
       },
+      leadActivity: { create: jest.fn() }, // #574
       user: { findMany: jest.fn(), findFirst: jest.fn() },
       pipelineStage: { findFirst: jest.fn().mockResolvedValue({ id: 'stage-novo', type: 'OPEN' }) },
       company: { findFirst: jest.fn() },
@@ -134,6 +136,51 @@ describe('LeadIntakeService', () => {
       await expect(
         service.intake(COMPANY, { phone: '9999-8888', source: LeadSource.SITE }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // #574 — aviso de duplicidade de lead entre lojas
+  describe('intake — duplicidade cross-loja (#574)', () => {
+    beforeEach(() => {
+      prisma.user.findMany.mockResolvedValue([{ id: 'seller-1' }]);
+      prisma.lead.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'lead-new', ...data }),
+      );
+    });
+
+    it('telefone em negociação em OUTRA loja → activity com SÓ o nome da loja', async () => {
+      prisma.lead.findMany.mockResolvedValue([
+        { company: { name: 'GDR Cascavel' } },
+        { company: { name: 'GDR Cascavel' } }, // dedup de nomes
+      ]);
+
+      await service.intake(COMPANY, { phone: '45999998888', source: LeadSource.SITE });
+
+      const call = prisma.leadActivity.create.mock.calls[0][0];
+      expect(call.data.leadId).toBe('lead-new');
+      expect(call.data.properties.kind).toBe('cross_store_duplicate');
+      expect(call.data.properties.stores).toEqual(['GDR Cascavel']);
+      // tenancy: nada além do nome da loja vaza pro lead novo
+      expect(JSON.stringify(call.data.properties)).not.toMatch(/seller|vendedor|leadId|phone/i);
+      // busca exclui a própria loja e leads anonimizados/fechados
+      const where = prisma.lead.findMany.mock.calls[0][0].where;
+      expect(where.companyId).toEqual({ not: COMPANY });
+      expect(where.anonymizedAt).toBeNull();
+    });
+
+    it('sem lead em outra loja → nenhuma activity de aviso', async () => {
+      prisma.lead.findMany.mockResolvedValue([]);
+      await service.intake(COMPANY, { phone: '45999998888', source: LeadSource.SITE });
+      expect(prisma.leadActivity.create).not.toHaveBeenCalled();
+    });
+
+    it('falha no check de duplicidade NÃO derruba a captação (best-effort)', async () => {
+      prisma.lead.findMany.mockRejectedValue(new Error('db fora'));
+      const result = await service.intake(COMPANY, {
+        phone: '45999998888',
+        source: LeadSource.SITE,
+      });
+      expect(result.created).toBe(true);
     });
   });
 

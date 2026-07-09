@@ -18,20 +18,37 @@ export class CrmDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(range: DashboardRange) {
-    const [funnel, bySource, bySeller, lostReasons, slaEscalations] = await Promise.all([
-      this.funnel(range),
-      this.bySource(range),
-      this.bySeller(range),
-      this.lostReasons(range),
-      // #569 — leads realocados por SLA estourado no período (visão do gerente)
-      this.prisma.lead.count({
-        where: {
-          companyId: range.companyId,
-          slaEscalatedAt: { gte: range.from, lte: range.to },
-        },
-      }),
-    ]);
-    return { range: { from: range.from, to: range.to }, funnel, bySource, bySeller, lostReasons, slaEscalations };
+    const [funnel, bySource, bySeller, lostReasons, slaEscalations, crossStoreDuplicates] =
+      await Promise.all([
+        this.funnel(range),
+        this.bySource(range),
+        this.bySeller(range),
+        this.lostReasons(range),
+        // #569 — leads realocados por SLA estourado no período (visão do gerente)
+        this.prisma.lead.count({
+          where: {
+            companyId: range.companyId,
+            slaEscalatedAt: { gte: range.from, lte: range.to },
+          },
+        }),
+        // #574 — leads que chegaram já em negociação em outra loja (canibalização)
+        this.prisma.leadActivity.count({
+          where: {
+            lead: { companyId: range.companyId },
+            happensAt: { gte: range.from, lte: range.to },
+            properties: { path: ['kind'], equals: 'cross_store_duplicate' },
+          },
+        }),
+      ]);
+    return {
+      range: { from: range.from, to: range.to },
+      funnel,
+      bySource,
+      bySeller,
+      lostReasons,
+      slaEscalations,
+      crossStoreDuplicates,
+    };
   }
 
   /** Funil de conversão: leads criados → responderam → proposta+ → fechados */

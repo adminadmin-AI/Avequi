@@ -69,6 +69,8 @@ export interface LeadDetail {
   assignedTo: { id: string; name: string } | null;
   customer: { id: string; name: string } | null;
   activities: LeadActivity[];
+  /** #574 — nomes das lojas onde o mesmo telefone está em negociação */
+  crossStoreStores?: string[];
 }
 
 /** Lembrete de follow-up (F3.5-C5 #555) */
