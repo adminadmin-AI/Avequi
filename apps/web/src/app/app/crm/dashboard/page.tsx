@@ -38,6 +38,8 @@ interface Dashboard {
   lostReasons: Array<{ reason: string; count: number }>;
   /** #569 — leads realocados por SLA estourado no período */
   slaEscalations: number;
+  /** #574 — leads que chegaram já em negociação em outra loja */
+  crossStoreDuplicates: number;
 }
 
 const PERIODS = [
@@ -109,12 +111,13 @@ export default function CrmDashboardPage() {
           {/* Funil de conversão */}
           <section className="rounded-lg border p-4">
             <h2 className="mb-3 text-sm font-medium">Funil de conversão</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
               <Stat label="Leads" value={f!.total} />
               <Stat label="Responderam" value={f!.responded} pct={f!.respondedRate} />
               <Stat label="Chegaram a proposta" value={f!.reachedProposal} pct={f!.proposalRate} />
               <Stat label="Fechados" value={f!.won} pct={f!.winRate} highlight />
               <Stat label="Realocados por SLA" value={data.slaEscalations} />
+              <Stat label="Duplicados entre lojas" value={data.crossStoreDuplicates} />
             </div>
           </section>
 

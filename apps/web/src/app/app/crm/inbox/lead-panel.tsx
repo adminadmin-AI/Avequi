@@ -103,6 +103,13 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       </div>
 
       <div className="space-y-3 p-3 text-sm">
+        {/* #574 — cliente negociando em outra loja: avisa ANTES de dar preço */}
+        {(lead.crossStoreStores?.length ?? 0) > 0 && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs">
+            ⚠️ Cliente também em negociação na loja{' '}
+            <b>{lead.crossStoreStores!.join(', ')}</b> — alinhe o preço antes de propor.
+          </div>
+        )}
         {(lead.sdrStatus === 'ACTIVE' || lead.sdrStatus === 'QUALIFIED') && (
           <div className="flex items-center justify-between rounded-md border border-sky-500/40 bg-sky-500/5 p-2">
             <span className="text-xs">🤖 IA atendendo esta conversa</span>

@@ -31,6 +31,7 @@ describe('CrmDashboardService', () => {
         findMany: jest.fn().mockResolvedValue([]),
         groupBy: jest.fn().mockResolvedValue([]),
       },
+      leadActivity: { count: jest.fn().mockResolvedValue(0) }, // #574
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [CrmDashboardService, { provide: PrismaService, useValue: prisma }],
