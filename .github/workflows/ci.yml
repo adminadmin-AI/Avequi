@@ -10,6 +10,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Turbo Remote Cache (Vercel). Quando o secret TURBO_TOKEN e a var TURBO_TEAM
+# existem, o turbo compartilha o cache entre CI e máquinas locais. Se faltarem,
+# o turbo cai no cache local (actions/cache) sem quebrar nada.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   lint:
     name: lint
