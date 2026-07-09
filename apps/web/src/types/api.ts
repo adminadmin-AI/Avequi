@@ -923,3 +923,68 @@ export interface FinancialForecast {
     generatedAt: string;
   };
 }
+
+// ─── Budget dirigido por drivers (#398) ────────────────────────────────────────
+export interface BudgetPlanRow {
+  id: string;
+  year: number;
+  name: string;
+  variableExpensePct: string | number; // Prisma Decimal → string no JSON
+  fixedExpenseMonthly: string | number;
+  capex: string | number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface BudgetProjectionDriver {
+  id?: string;
+  label: string;
+  productId: string | null;
+  volume: number;
+  avgPrice: number;
+  unitCost: number;
+  revenue: number;
+  cpv: number;
+  grossProfit: number;
+  mixPct: number;
+}
+export interface BudgetProjection {
+  planId: string;
+  year: number;
+  name: string;
+  drivers: BudgetProjectionDriver[];
+  revenue: number;
+  cpv: number;
+  grossProfit: number;
+  variableExpenses: number;
+  fixedExpenses: number;
+  operatingResult: number;
+  capex: number;
+  resultAfterCapex: number;
+  assumptions: { variableExpensePct: number; fixedExpenseMonthly: number; capex: number };
+}
+export interface BudgetSensitivity {
+  base: { revenue: number; operatingResult: number };
+  scenarios: Array<{
+    scenario: string;
+    revenue: number;
+    operatingResult: number;
+    revenueDelta: number;
+    operatingResultDelta: number;
+  }>;
+}
+export interface BudgetVsRealized {
+  year: number;
+  budgetedRevenue: number;
+  realizedRevenue: number;
+  revenueVariance: number;
+  drivers: Array<{
+    label: string;
+    productId: string | null;
+    budgetedRevenue: number;
+    realizedRevenue: number | null;
+    revenueVariance: number | null;
+    budgetedVolume: number;
+    realizedVolume: number | null;
+    volumeVariance: number | null;
+  }>;
+}

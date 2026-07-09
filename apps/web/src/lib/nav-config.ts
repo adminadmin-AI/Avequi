@@ -51,6 +51,7 @@ import {
   Tags,
   Layers,
   TrendingUp,
+  Target,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -186,6 +187,7 @@ export const NAV: NavSection[] = [
       { href: '/app/finance/pricing', label: 'Formação de Preço', icon: Tags, roles: FINANCE_ROLES },
       { href: '/app/finance/costing', label: 'Custeio por Absorção', icon: Layers, roles: FINANCE_ROLES },
       { href: '/app/finance/forecast', label: 'Forecast Financeiro', icon: TrendingUp, roles: FINANCE_ROLES },
+      { href: '/app/finance/budget-plans', label: 'Budget por Drivers', icon: Target, roles: FINANCE_ROLES },
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, roles: FINANCE_ROLES },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, roles: FINANCE_ROLES },
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, roles: FINANCE_ROLES },
