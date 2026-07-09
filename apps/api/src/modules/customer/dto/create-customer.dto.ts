@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsIn, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerType, IcmsIndicator } from '@prisma/client';
@@ -27,6 +28,11 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional({ description: 'Data de nascimento (PF) — pós-venda/CRM (#476)' })
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
 
   @ApiPropertyOptional({ description: 'E-mail para envio de NF-e/boleto (fallback: email)' })
   @IsOptional()

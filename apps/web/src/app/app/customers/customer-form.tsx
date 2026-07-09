@@ -44,6 +44,7 @@ const schema = z
     isSimplesNacional: z.boolean().optional(),
     fiscalEmail: z.string().email('E-mail inválido').optional().or(z.literal('')),
     contactName: z.string().optional(),
+    birthDate: z.string().optional(), // PF — pós-venda/CRM (#476)
     // Crédito e cobrança (#475)
     creditLimit: z.string().optional(),
     billingBlocked: z.boolean().optional(),
@@ -215,6 +216,12 @@ export function CustomerForm({
       <Field label={isPF ? 'Nome completo' : 'Nome fantasia'} required error={errors.name?.message}>
         <Input {...register('name')} error={!!errors.name} placeholder="Nome do cliente" />
       </Field>
+
+      {isPF && (
+        <Field label="Data de nascimento" error={(errors as any).birthDate?.message}>
+          <Input {...register('birthDate')} type="date" />
+        </Field>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="E-mail" error={errors.email?.message}>

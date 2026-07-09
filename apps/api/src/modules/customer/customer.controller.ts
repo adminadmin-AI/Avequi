@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,8 +8,13 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -43,13 +49,88 @@ export class CustomerController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'type', required: false })
   @ApiQuery({ name: 'isActive', required: false })
+  @ApiQuery({ name: 'tagId', required: false, description: 'Filtra por tag de segmentação (#476)' })
   findAll(
     @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('type') type?: string,
     @Query('isActive') isActive?: string,
+    @Query('tagId') tagId?: string,
   ) {
-    return this.customerService.findAll(user.companyId, { search, type, isActive });
+    return this.customerService.findAll(user.companyId, { search, type, isActive, tagId });
+  }
+
+  // ─── #476: tags de segmentação (rotas estáticas ANTES de :id) ───────────────
+
+  @Get('tags')
+  @RequirePermission('customers.registry.view')
+  @ApiOperation({ summary: 'Tags de segmentação com contagem de clientes (#476)' })
+  listTags(@CurrentUser() user: any) {
+    return this.customerService.listTags(user.companyId);
+  }
+
+  @Post('tags')
+  @RequirePermission('customers.registry.update')
+  @ApiOperation({ summary: 'Criar tag de segmentação (revenda, produtor rural…) (#476)' })
+  createTag(@Body() dto: { name: string; color?: string }, @CurrentUser() user: any) {
+    return this.customerService.createTag(user.companyId, dto);
+  }
+
+  @Delete('tags/:tagId')
+  @RequirePermission('customers.registry.update')
+  @ApiOperation({ summary: 'Remover tag (desvincula de todos os clientes) (#476)' })
+  deleteTag(@Param('tagId') tagId: string, @CurrentUser() user: any) {
+    return this.customerService.deleteTag(user.companyId, tagId);
+  }
+
+  @Patch(':id/tags')
+  @RequirePermission('customers.registry.update')
+  @ApiOperation({ summary: 'Definir as tags do cliente (substitui o conjunto) (#476)' })
+  setTags(@Param('id') id: string, @Body() dto: { tagIds: string[] }, @CurrentUser() user: any) {
+    return this.customerService.setCustomerTags(user.companyId, id, dto.tagIds ?? []);
+  }
+
+  // ─── #476: anexos — docs de emplacamento (CNH, comprovante) ────────────────
+
+  @Get('attachments/:attachmentId')
+  @RequirePermission('customers.registry.view')
+  @ApiOperation({ summary: 'Download do anexo do cliente (#476)' })
+  async downloadAttachment(
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const att = await this.customerService.getAttachment(user.companyId, attachmentId);
+    res.set({
+      'Content-Type': att.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(att.filename)}"`,
+      'Content-Length': String(att.size),
+    });
+    res.end(Buffer.from(att.data));
+  }
+
+  @Delete('attachments/:attachmentId')
+  @RequirePermission('customers.registry.update')
+  @ApiOperation({ summary: 'Remover anexo do cliente (#476)' })
+  deleteAttachment(@Param('attachmentId') attachmentId: string, @CurrentUser() user: any) {
+    return this.customerService.deleteAttachment(user.companyId, attachmentId);
+  }
+
+  @Get(':id/attachments')
+  @RequirePermission('customers.registry.view')
+  @ApiOperation({ summary: 'Anexos do cliente — só metadados (#476)' })
+  listAttachments(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.customerService.listAttachments(user.companyId, id);
+  }
+
+  @Post(':id/attachments')
+  @RequirePermission('customers.registry.update')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Anexar documento ao cliente (CNH, comprovante — máx 10MB) (#476)' })
+  uploadAttachment(@Param('id') id: string, @UploadedFile() file: any, @CurrentUser() user: any) {
+    if (!file) throw new BadRequestException('Arquivo obrigatório');
+    return this.customerService.addAttachment(user.companyId, id, file, user?.id);
   }
 
   @Get(':id/credit')

@@ -63,9 +63,14 @@ export class CustomerService {
 
   async findAll(
     companyId: string,
-    query: { search?: string; type?: string; isActive?: string },
+    query: { search?: string; type?: string; isActive?: string; tagId?: string },
   ) {
     const where: any = { companyId };
+
+    // #476: segmentação — só clientes com a tag
+    if (query.tagId) {
+      where.tagLinks = { some: { tagId: query.tagId } };
+    }
 
     if (query.type) {
       where.type = query.type;
@@ -84,8 +89,125 @@ export class CustomerService {
 
     return this.prisma.customer.findMany({
       where,
+      include: { tagLinks: { include: { tag: true } } }, // #476 — chips na listagem
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // ─── #476: tags de segmentação ─────────────────────────────────────────────
+
+  /** Tags da company com contagem de clientes (contadores do dashboard) */
+  listTags(companyId: string) {
+    return this.prisma.customerTag.findMany({
+      where: { companyId },
+      include: { _count: { select: { links: true } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createTag(companyId: string, dto: { name: string; color?: string }) {
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException('Nome da tag é obrigatório');
+    try {
+      return await this.prisma.customerTag.create({
+        data: { companyId, name, color: dto.color ?? null },
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') throw new BadRequestException(`Tag "${name}" já existe`);
+      throw e;
+    }
+  }
+
+  async deleteTag(companyId: string, tagId: string) {
+    const tag = await this.prisma.customerTag.findFirst({ where: { id: tagId, companyId } });
+    if (!tag) throw new NotFoundException('Tag não encontrada');
+    // links caem por cascade
+    await this.prisma.customerTag.delete({ where: { id: tagId } });
+    return { deleted: true };
+  }
+
+  /** Substitui o conjunto de tags do cliente (idempotente) */
+  async setCustomerTags(companyId: string, customerId: string, tagIds: string[]) {
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, companyId } });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+
+    // tenancy: só tags da mesma company entram
+    const valid = await this.prisma.customerTag.findMany({
+      where: { id: { in: tagIds }, companyId },
+      select: { id: true },
+    });
+    const validIds = valid.map((t) => t.id);
+
+    await this.prisma.$transaction([
+      this.prisma.customerTagLink.deleteMany({ where: { customerId } }),
+      this.prisma.customerTagLink.createMany({
+        data: validIds.map((tagId) => ({ customerId, tagId })),
+        skipDuplicates: true,
+      }),
+    ]);
+    return this.prisma.customerTagLink.findMany({
+      where: { customerId },
+      include: { tag: true },
+    });
+  }
+
+  // ─── #476: anexos (docs de emplacamento — CNH, comprovante etc.) ───────────
+
+  private static readonly MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
+
+  /** Lista SÓ metadados — o binário sai no download */
+  async listAttachments(companyId: string, customerId: string) {
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, companyId } });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+    return this.prisma.customerAttachment.findMany({
+      where: { customerId },
+      select: { id: true, filename: true, mimeType: true, size: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async addAttachment(
+    companyId: string,
+    customerId: string,
+    file: { buffer: Buffer; mimetype: string; originalname: string; size: number },
+    uploadedById?: string,
+  ) {
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, companyId } });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+    if (file.size > CustomerService.MAX_ATTACHMENT_BYTES) {
+      throw new BadRequestException('Anexo excede o limite de 10MB');
+    }
+    const created = await this.prisma.customerAttachment.create({
+      data: {
+        companyId,
+        customerId,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        data: file.buffer,
+        uploadedById: uploadedById ?? null,
+      },
+      select: { id: true, filename: true, mimeType: true, size: true, createdAt: true },
+    });
+    return created;
+  }
+
+  async getAttachment(companyId: string, attachmentId: string) {
+    const att = await this.prisma.customerAttachment.findFirst({
+      where: { id: attachmentId, companyId },
+    });
+    if (!att) throw new NotFoundException('Anexo não encontrado');
+    return att;
+  }
+
+  async deleteAttachment(companyId: string, attachmentId: string) {
+    const att = await this.prisma.customerAttachment.findFirst({
+      where: { id: attachmentId, companyId },
+      select: { id: true },
+    });
+    if (!att) throw new NotFoundException('Anexo não encontrado');
+    await this.prisma.customerAttachment.delete({ where: { id: attachmentId } });
+    return { deleted: true };
   }
 
   async findOne(id: string, companyId: string) {
