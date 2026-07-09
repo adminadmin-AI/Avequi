@@ -135,12 +135,20 @@ export class SalesService {
         ? [...paymentsData].sort((a, b) => b.amount - a.amount)[0].method
         : undefined);
 
+    // #595: venda balcão — o chassi é escaneado no ato e amarrado ao item.
+    // Valida antes de gravar (produto/depósito/disponibilidade do serial).
+    const channel = dto.channel ?? 'FACTORY';
+    if (channel === 'COUNTER') {
+      await this.validateCounterSerials(companyId, dto.warehouseId, dto.items);
+    }
+
     const order = await this.prisma.salesOrder.create({
       data: {
         companyId,
         warehouseId: dto.warehouseId,
         customerId: dto.customerId,
         notes: dto.notes,
+        channel,
         paymentMethod: legacyMethod,
         ...(paymentsData ? { payments: { create: paymentsData } } : {}),
         deliveryAddressId: dto.deliveryAddressId,
@@ -158,6 +166,8 @@ export class SalesService {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             unit: (item.unit as any) ?? 'UN',
+            // #595: no balcão o chassi já vem no item; na fábrica é a separação que amarra
+            serialNumberId: channel === 'COUNTER' ? item.serialNumberId ?? null : null,
           })),
         },
       },
@@ -175,6 +185,169 @@ export class SalesService {
     });
 
     return order;
+  }
+
+  // ─── #595: venda balcão (COUNTER) ────────────────────────────────────────
+
+  /**
+   * #595 — valida os chassis escaneados na venda balcão: cada item rastreável
+   * precisa de um SerialNumber IN_STOCK, do mesmo produto, no depósito da venda,
+   * ainda não amarrado a outra OV. Rastreável no balcão vende 1 unidade/linha
+   * (um chassi por SaleItem, igual ao modelo da conferência #491).
+   */
+  private async validateCounterSerials(
+    companyId: string,
+    warehouseId: string,
+    items: Array<{ productId: string; quantity: number; serialNumberId?: string }>,
+  ) {
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds }, companyId },
+      select: { id: true, name: true, tracksSerial: true },
+    });
+    const byId = new Map(products.map((p) => [p.id, p]));
+
+    const seen = new Set<string>();
+    for (const item of items) {
+      const product = byId.get(item.productId);
+      if (!product?.tracksSerial) continue; // item sem chassi segue como venda normal
+
+      if (!item.serialNumberId) {
+        throw new BadRequestException(
+          `Venda balcão: escaneie o chassi de "${product.name}" antes de fechar.`,
+        );
+      }
+      if (Number(item.quantity) !== 1) {
+        throw new BadRequestException(
+          `Venda balcão: "${product.name}" é rastreável por chassi — ` +
+            'venda 1 unidade por linha (um chassi por item).',
+        );
+      }
+      if (seen.has(item.serialNumberId)) {
+        throw new BadRequestException(`Chassi ${item.serialNumberId} repetido na mesma venda.`);
+      }
+      seen.add(item.serialNumberId);
+
+      const serial = await this.prisma.serialNumber.findFirst({
+        where: { id: item.serialNumberId, companyId },
+        select: {
+          id: true, serial: true, productId: true,
+          warehouseId: true, status: true, salesOrderId: true,
+        },
+      });
+      if (!serial) {
+        throw new BadRequestException(`Chassi ${item.serialNumberId} não encontrado.`);
+      }
+      if (serial.productId !== item.productId) {
+        throw new BadRequestException(`Chassi ${serial.serial} não pertence ao produto "${product.name}".`);
+      }
+      if (serial.warehouseId !== warehouseId) {
+        throw new BadRequestException(`Chassi ${serial.serial} não está no depósito da venda.`);
+      }
+      if (serial.status !== 'IN_STOCK') {
+        throw new BadRequestException(`Chassi ${serial.serial} não está disponível (status ${serial.status}).`);
+      }
+      if (serial.salesOrderId) {
+        throw new BadRequestException(`Chassi ${serial.serial} já está vinculado a outra venda.`);
+      }
+    }
+  }
+
+  /**
+   * #595 — fecha a venda balcão: DRAFT → READY_TO_INVOICE direto, sem
+   * separação/conferência. Reserva o estoque e amarra o(s) chassi(s)
+   * (IN_STOCK → RESERVED_FOR_SALE). A partir daqui segue o fluxo normal:
+   * autorizar cartão (#596) → faturar (#492 exige o chassi, já vinculado).
+   */
+  async checkoutCounterSale(id: string, companyId: string, userId?: string, userRole?: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, companyId },
+      include: { items: { include: { product: true } }, customer: true },
+    });
+    if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
+    if ((order as any).channel !== 'COUNTER') {
+      throw new BadRequestException(
+        'Fechamento de balcão só se aplica a vendas do canal COUNTER. ' +
+          'Use o fluxo de separação (reservar → confirmar) para vendas de fábrica.',
+      );
+    }
+    if (order.status !== SalesOrderStatus.DRAFT) {
+      throw new BadRequestException(
+        `Venda balcão não pode ser fechada. Status atual: ${order.status}. ` +
+          'Apenas vendas em rascunho (DRAFT) podem ser fechadas no balcão.',
+      );
+    }
+    if (order.items.length === 0) {
+      throw new BadRequestException('Venda sem itens não pode ser fechada');
+    }
+
+    // #475/#591: cliente com faturamento bloqueado não fecha. DIRECTOR sobrepõe.
+    const cust = order.customer as any;
+    if (cust?.billingBlocked && userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN') {
+      throw new BadRequestException(
+        `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
+          'Somente DIRECTOR pode fechar a venda mesmo assim.',
+      );
+    }
+
+    const closed = await this.prisma.$transaction(async (tx) => {
+      for (const item of order.items as any[]) {
+        const qty = Number(item.quantity);
+
+        // Reserva a quantidade no saldo (mesmo modelo do reserveOrder da fábrica)
+        const balance = await tx.stockBalance.findUnique({
+          where: { warehouseId_productId: { warehouseId: order.warehouseId, productId: item.productId } },
+        });
+        const available = Number(balance?.available ?? 0);
+        if (available < qty) {
+          throw new BadRequestException(
+            `Estoque insuficiente para "${item.product?.name ?? item.productId}". ` +
+              `Disponível: ${available}, solicitado: ${qty}`,
+          );
+        }
+        await this.stockService.reserveBalance(order.warehouseId, item.productId, qty, companyId, tx);
+
+        // Amarra o chassi com guarda de concorrência: só flipa se ainda IN_STOCK
+        // e livre — fecha a corrida de dois vendedores no mesmo reboque.
+        if (item.product?.tracksSerial && item.serialNumberId) {
+          const moved = await tx.serialNumber.updateMany({
+            where: { id: item.serialNumberId, companyId, status: 'IN_STOCK' as any, salesOrderId: null },
+            data: { status: 'RESERVED_FOR_SALE' as any, salesOrderId: id },
+          });
+          if (moved.count !== 1) {
+            throw new BadRequestException(
+              `Chassi de "${item.product?.name}" não está mais disponível — outra venda o reservou. Escaneie outro.`,
+            );
+          }
+        }
+      }
+
+      return tx.salesOrder.update({
+        where: { id },
+        data: { status: SalesOrderStatus.READY_TO_INVOICE },
+        include: { items: { include: { product: true } }, customer: true, warehouse: true, payments: true },
+      });
+    });
+
+    // #475: alerta (não bloqueia) se cliente estoura limite — cartão autorizado
+    // não consome limite (título nasce contra a adquirente), então só alerta
+    // quando NÃO há cartão cobrindo a venda.
+    const hasCard = (closed.payments ?? []).some((p: any) => isCardMethod(p.method));
+    const creditAlert = hasCard
+      ? null
+      : await this.buildCreditAlert(companyId, order.customerId, order.items as any[]);
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        companyId,
+        entity: 'SalesOrder',
+        action: 'COUNTER_CHECKOUT',
+        payload: { salesOrderId: id, items: order.items.length },
+      },
+    });
+
+    return { ...closed, ...(creditAlert && { creditAlert }) };
   }
 
   // ─── S07.02b: Redefinir plano de pagamento antes do faturamento (#584) ────

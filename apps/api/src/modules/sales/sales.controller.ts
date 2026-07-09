@@ -126,6 +126,16 @@ export class SalesController {
     return this.salesService.confirmOrder(id, user.companyId, user?.id, user?.role);
   }
 
+  @Post(':id/counter-checkout')
+  @RequirePermission('sales.orders.reserve')
+  @ApiOperation({
+    summary:
+      'Fechar venda balcão: reserva estoque + chassi e pula separação (DRAFT → READY_TO_INVOICE) (#595)',
+  })
+  counterCheckout(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.salesService.checkoutCounterSale(id, user.companyId, user?.id, user?.role);
+  }
+
   @Post(':id/conference')
   @RequirePermission('sales.orders.confer')
   @ApiOperation({ summary: 'Conferir a carga separada (AWAITING_CONFERENCE → READY_TO_INVOICE) (#491)' })

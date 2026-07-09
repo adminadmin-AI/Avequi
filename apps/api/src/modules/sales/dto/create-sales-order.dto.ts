@@ -23,12 +23,31 @@ export class CreateSaleItemDto {
   @ApiProperty() @IsNumber() @IsPositive() quantity: number;
   @ApiProperty() @IsNumber() @IsPositive() unitPrice: number;
   @ApiPropertyOptional() @IsString() @IsOptional() unit?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Chassi (SerialNumber) escaneado no ato — venda balcão (#595). ' +
+      'Só no canal COUNTER; reserva o serial IN_STOCK→RESERVED_FOR_SALE no checkout.',
+  })
+  @IsOptional()
+  @IsString()
+  serialNumberId?: string;
 }
 
 export class CreateSalesOrderDto {
   @ApiProperty() @IsString() @IsNotEmpty() warehouseId: string;
   @ApiPropertyOptional() @IsString() @IsOptional() customerId?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Canal da venda: FACTORY (fábrica, com separação/conferência — padrão) ou ' +
+      'COUNTER (balcão da filial, chassi no pedido, fatura direta — #595)',
+    enum: ['FACTORY', 'COUNTER'],
+  })
+  @IsOptional()
+  @IsIn(['FACTORY', 'COUNTER'])
+  channel?: string;
 
   @ApiPropertyOptional({ enum: PaymentMethod, description: 'Forma de pagamento — vira o detPag da NF-e (#479)' })
   @IsOptional()
