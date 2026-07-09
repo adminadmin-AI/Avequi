@@ -278,6 +278,20 @@ export class SalesService {
   }
 
   /**
+   * #584/#585 — adquirentes selecionáveis no plano de pagamento: SÓ id+nome.
+   * As TAXAS negociadas são restritas a FINANCEIRO (decisão Rafael, #623 E1) —
+   * o vendedor escolhe a maquininha sem enxergar MDR; o resolver congela a
+   * taxa no backend.
+   */
+  listAcquirerOptions(companyId: string) {
+    return this.prisma.acquirer.findMany({
+      where: { companyId, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
    * #595 — fecha a venda balcão: DRAFT → READY_TO_INVOICE direto, sem
    * separação/conferência. Reserva o estoque e amarra o(s) chassi(s)
    * (IN_STOCK → RESERVED_FOR_SALE). A partir daqui segue o fluxo normal:
@@ -1078,8 +1092,10 @@ export class SalesService {
       include: {
         customer: true,
         warehouse: true,
-        items: { include: { product: true } },
+        items: { include: { product: true, serialNumber: { select: { id: true, serial: true, chassi: true } } } },
         createdBy: { select: { id: true, name: true } },
+        // #584: plano de pagamento no detalhe (formas, MDR congelada, autorização TEF)
+        payments: { include: { acquirer: { select: { id: true, name: true } } } },
       },
     });
 

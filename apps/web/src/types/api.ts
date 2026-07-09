@@ -461,6 +461,24 @@ export interface SaleItem {
   unit: UnitOfMeasure;
 }
 
+/** #584 — forma de pagamento do plano da venda (detPag é lista) */
+export interface SalesPayment {
+  id: string;
+  method: string;
+  amount: string;
+  installments: number;
+  acquirerId?: string | null;
+  acquirer?: { id: string; name: string } | null;
+  brand?: string | null;
+  mdrRate?: string | null;
+  mdrAmount?: string | null;
+  settlementDays?: number | null;
+  authStatus: 'PENDING' | 'AUTHORIZED' | 'DENIED';
+  authCode?: string | null;
+  nsu?: string | null;
+  authorizedAt?: string | null;
+}
+
 export interface SalesOrder extends BaseEntity {
   companyId: string;
   customerId?: string | null;
@@ -469,10 +487,12 @@ export interface SalesOrder extends BaseEntity {
   warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
   status: SalesOrderStatus;
   channel?: string; // FACTORY | COUNTER — venda balcão (#595)
+  paymentMethod?: string | null; // forma legada (detPag) — retrocompat #479
   notes?: string | null;
   confirmedAt?: string | null;
   invoicedAt?: string | null;
   items?: SaleItem[];
+  payments?: SalesPayment[]; // plano de pagamento (#584)
   createdBy?: { id: string; name: string } | null;
 }
 

@@ -27,6 +27,13 @@ import {
   availableSalesActions,
   type SalesAction,
 } from '../sales-status';
+import {
+  PaymentPlanEditor,
+  PAYMENT_METHOD_LABEL,
+  isCardMethod,
+  validatePlan,
+  type DraftPayment,
+} from '../payment-plan-editor';
 
 const RESOURCE = '/sales';
 
@@ -85,6 +92,41 @@ export default function SalesDetailPage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnJustif, setReturnJustif] = useState('');
+
+  // #584 — edição do plano de pagamento antes do faturamento
+  const [payOpen, setPayOpen] = useState(false);
+  const [draftPayments, setDraftPayments] = useState<DraftPayment[]>([]);
+
+  const savePayments = useMutation({
+    mutationFn: () =>
+      apiClient.patch(`${RESOURCE}/${id}/payments`, {
+        payments: draftPayments.map((p) => ({
+          method: p.method,
+          amount: p.amount,
+          installments: p.installments,
+          acquirerId: p.acquirerId || undefined,
+          brand: p.brand || undefined,
+        })),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [RESOURCE] });
+      setPayOpen(false);
+      toast.success('Plano de pagamento atualizado');
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Erro ao salvar o plano de pagamento'),
+  });
+
+  // #596 — gate TEF: cartão precisa autorizar antes de faturar
+  const authorizeCards = useMutation({
+    mutationFn: async () => (await apiClient.post(`${RESOURCE}/${id}/authorize`)).data,
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: [RESOURCE] });
+      if (res?.denied > 0) toast.error(res.message || 'Cartão negado');
+      else toast.success('Cartão autorizado');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erro ao autorizar o cartão'),
+  });
 
   const transition = useMutation({
     mutationFn: ({ endpoint, body }: { endpoint: string; body?: any }) =>
@@ -314,6 +356,111 @@ export default function SalesDetailPage() {
         </CardContent>
       </Card>
 
+      {/* #584 — Plano de pagamento */}
+      <Card className="mb-5">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">Pagamento</CardTitle>
+          <div className="flex gap-2">
+            {(order.payments ?? []).some(
+              (p) => isCardMethod(p.method) && p.authStatus !== 'AUTHORIZED',
+            ) &&
+              order.status !== 'INVOICED' &&
+              order.status !== 'CANCELLED' &&
+              order.status !== 'RETURNED' && (
+                <Button size="sm" onClick={() => authorizeCards.mutate()} loading={authorizeCards.isPending}>
+                  Autorizar cartão (TEF)
+                </Button>
+              )}
+            {['DRAFT', 'RESERVED', 'CONFIRMED', 'AWAITING_PICKING', 'AWAITING_CONFERENCE', 'READY_TO_INVOICE'].includes(
+              order.status,
+            ) && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDraftPayments(
+                    (order.payments ?? []).map((p) => ({
+                      method: p.method,
+                      amount: Number(p.amount),
+                      installments: p.installments,
+                      acquirerId: p.acquirerId ?? undefined,
+                      brand: p.brand ?? undefined,
+                    })),
+                  );
+                  setPayOpen(true);
+                }}
+              >
+                {(order.payments ?? []).length > 0 ? 'Editar plano' : 'Montar plano'}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {(order.payments ?? []).length === 0 ? (
+            <p className="py-2 text-sm text-content-muted">
+              Sem plano de pagamento — a NF-e sai com a forma legada ({order.paymentMethod ?? 'Outros'}) e o
+              título nasce no padrão 30 dias.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">
+                    <th className="py-2 text-left font-medium">Forma</th>
+                    <th className="py-2 text-right font-medium">Valor</th>
+                    <th className="py-2 text-right font-medium">Parcelas</th>
+                    <th className="py-2 text-left font-medium">Adquirente / Bandeira</th>
+                    <th className="py-2 text-right font-medium">MDR</th>
+                    <th className="py-2 text-right font-medium">Liquidação</th>
+                    <th className="py-2 text-left font-medium">TEF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(order.payments ?? []).map((p) => (
+                    <tr key={p.id} className="border-b border-line last:border-0">
+                      <td className="py-2">{PAYMENT_METHOD_LABEL[p.method] ?? p.method}</td>
+                      <td className="py-2 text-right font-medium tabular-nums">{formatBRL(Number(p.amount))}</td>
+                      <td className="py-2 text-right tabular-nums">{p.installments}x</td>
+                      <td className="py-2 text-content-secondary">
+                        {p.acquirer?.name ?? '—'}
+                        {p.brand ? ` · ${p.brand}` : ''}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-content-secondary">
+                        {p.mdrRate ? `${Number(p.mdrRate)}% (${formatBRL(Number(p.mdrAmount ?? 0))})` : '—'}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-content-secondary">
+                        {p.settlementDays != null ? `D+${p.settlementDays}` : '—'}
+                      </td>
+                      <td className="py-2">
+                        {isCardMethod(p.method) ? (
+                          <Badge
+                            variant={
+                              p.authStatus === 'AUTHORIZED'
+                                ? 'success'
+                                : p.authStatus === 'DENIED'
+                                  ? 'danger'
+                                  : 'warning'
+                            }
+                          >
+                            {p.authStatus === 'AUTHORIZED'
+                              ? `Autorizado${p.nsu ? ` · NSU ${p.nsu}` : ''}`
+                              : p.authStatus === 'DENIED'
+                                ? 'Negado'
+                                : 'Aguardando'}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-content-muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Rodapé */}
       <Card>
         <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
@@ -402,6 +549,33 @@ export default function SalesDetailPage() {
               Se preenchida, deve ter ao menos 15 caracteres.
             </p>
           </div>
+        </form>
+      </FormDialog>
+
+      {/* #584 — dialog do plano de pagamento */}
+      <FormDialog
+        open={payOpen}
+        onOpenChange={setPayOpen}
+        title="Plano de pagamento"
+        description={`A soma das formas deve fechar o total da venda (${formatBRL(total)}). Cartão congela MDR e prazo da adquirente no salvamento.`}
+        formId="payments-form"
+        submitLabel="Salvar plano"
+        loading={savePayments.isPending}
+      >
+        <form
+          id="payments-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const error = validatePlan(draftPayments, total);
+            if (error) {
+              toast.error(error);
+              return;
+            }
+            savePayments.mutate();
+          }}
+          className="py-1"
+        >
+          <PaymentPlanEditor payments={draftPayments} onChange={setDraftPayments} total={total} />
         </form>
       </FormDialog>
     </div>
