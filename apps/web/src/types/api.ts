@@ -1042,3 +1042,56 @@ export interface InvestmentComparison {
   paybackSimple: number | null;
   paybackDiscounted: number | null;
 }
+
+// ─── Expedição pós-NF-e (#496 · #364/#365) ─────────────────────────────────────
+export type DeliveryStatus = 'AWAITING_BIN' | 'AWAITING_PICKUP' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURNED';
+export interface Delivery {
+  id: string;
+  companyId: string;
+  salesOrderId: string;
+  fiscalDocumentId: string | null;
+  status: DeliveryStatus;
+  scheduledDate: string | null;
+  deliveredAt: string | null;
+  transporterName: string | null;
+  transporterCnpj: string | null;
+  vehiclePlate: string | null;
+  receivedBy: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VehicleDocumentType = 'CAT' | 'CCT' | 'TECHNICAL_PROJECT';
+export type VehicleDocumentStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export type DocumentDeliveredTo = 'RESELLER' | 'END_CUSTOMER';
+export interface VehicleDocumentDelivery {
+  id: string;
+  vehicleDocumentId: string;
+  salesOrderId: string;
+  serialNumberId: string | null;
+  deliveredTo: DocumentDeliveredTo;
+  deliveredAt: string | null;
+  deliveredBy: string | null;
+  createdAt: string;
+  vehicleDocument?: VehicleDocument;
+}
+export interface VehicleDocument {
+  id: string;
+  companyId: string;
+  productId: string;
+  type: VehicleDocumentType;
+  documentNumber: string;
+  issuedAt: string;
+  expiresAt: string | null;
+  fileUrl: string | null;
+  status: VehicleDocumentStatus;
+  createdAt: string;
+  updatedAt: string;
+  deliveries?: VehicleDocumentDelivery[];
+}
+export interface SaleMissingDoc {
+  id: string;
+  invoicedAt: string | null;
+  createdAt: string;
+}
