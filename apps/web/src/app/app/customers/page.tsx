@@ -16,6 +16,10 @@ import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CUSTOMER_TYPE_LABELS } from '@/lib/enums';
 import { CustomerForm, type CustomerFormValues } from './customer-form';
 import { CustomerAddresses } from './customer-addresses';
+import { CustomerExtras } from './customer-extras';
+import { Select } from '@/components/ui/select';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 
 const RESOURCE = '/customers';
 
@@ -23,7 +27,15 @@ export default function CustomersPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const { data: customers = [], isLoading } = useList<Customer>(RESOURCE);
+  const [tagFilter, setTagFilter] = useState('');
+  const { data: customers = [], isLoading } = useList<Customer>(RESOURCE, {
+    tagId: tagFilter || undefined,
+  });
+  // #476: tags com contagem — filtro + contadores de segmentação
+  const { data: tags = [] } = useQuery<Array<{ id: string; name: string; _count?: { links: number } }>>({
+    queryKey: ['/customers/tags'],
+    queryFn: async () => (await apiClient.get('/customers/tags')).data,
+  });
   const create = useCreate<Customer, Record<string, unknown>>(RESOURCE);
   const update = useUpdate<Customer>(RESOURCE);
 
@@ -46,6 +58,7 @@ export default function CustomersPage() {
       zipCode: values.zipCode ? unmask(values.zipCode) : undefined,
       // strings vazias estouram @IsEmail/@IsEnum no backend — enviar undefined
       email: values.email || undefined,
+      birthDate: (values as any).birthDate ? new Date((values as any).birthDate).toISOString() : undefined,
       fiscalEmail: values.fiscalEmail || undefined,
       indIeDest: values.indIeDest || undefined,
       // #475: crédito e padrões comerciais
@@ -130,6 +143,21 @@ export default function CustomersPage() {
       cell: (c) => (c.document ? <span className="font-mono text-xs">{formatCpfCnpj(c.document)}</span> : '—'),
     },
     {
+      key: 'tags',
+      header: 'Tags',
+      cell: (c) => {
+        const links = (c as any).tagLinks as Array<{ tag: { id: string; name: string } }> | undefined;
+        if (!links?.length) return <span className="text-xs text-content-muted">—</span>;
+        return (
+          <span className="flex flex-wrap gap-1">
+            {links.map((l) => (
+              <Badge key={l.tag.id} variant="neutral">{l.tag.name}</Badge>
+            ))}
+          </span>
+        );
+      },
+    },
+    {
       key: 'city',
       header: 'Cidade/UF',
       cell: (c) => (c.city ? `${c.city}${c.state ? '/' + c.state : ''}` : '—'),
@@ -191,6 +219,24 @@ export default function CustomersPage() {
         }
       />
 
+      {tags.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <Select
+            aria-label="Filtrar por tag"
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className="w-64"
+          >
+            <option value="">Todas as tags</option>
+            {tags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t._count?.links ?? 0})
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       <DataTable
         data={customers}
         columns={columns}
@@ -242,6 +288,7 @@ export default function CustomersPage() {
                   isSimplesNacional: editing.isSimplesNacional ?? false,
                   fiscalEmail: editing.fiscalEmail ?? '',
                   contactName: editing.contactName ?? '',
+                  birthDate: (editing as any).birthDate ? String((editing as any).birthDate).slice(0, 10) : '',
                   creditLimit: (editing as any).creditLimit != null ? String((editing as any).creditLimit) : '',
                   billingBlocked: (editing as any).billingBlocked ?? false,
                   billingBlockReason: (editing as any).billingBlockReason ?? '',
@@ -257,7 +304,10 @@ export default function CustomersPage() {
           onSubmit={handleSubmit}
         />
         {editing ? (
-          <CustomerAddresses customerId={editing.id} />
+          <>
+            <CustomerAddresses customerId={editing.id} />
+            <CustomerExtras customerId={editing.id} />
+          </>
         ) : (
           <p className="mt-4 border-t border-border pt-4 text-sm text-content-muted">
             Salve o cliente para cadastrar endereços de entrega (grupo entrega da NF-e).

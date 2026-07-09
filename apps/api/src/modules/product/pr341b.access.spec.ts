@@ -104,6 +104,15 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     addAddress: 'customers.addresses.create',
     updateAddress: 'customers.addresses.update',
     removeAddress: 'customers.addresses.delete',
+    // #476 — tags e anexos reusam a família registry (view lê, update mantém)
+    listTags: 'customers.registry.view',
+    createTag: 'customers.registry.update',
+    deleteTag: 'customers.registry.update',
+    setTags: 'customers.registry.update',
+    listAttachments: 'customers.registry.view',
+    downloadAttachment: 'customers.registry.view',
+    uploadAttachment: 'customers.registry.update',
+    deleteAttachment: 'customers.registry.update',
   }],
   [SupplierController, 'suppliers', {
     create: 'suppliers.registry.create',

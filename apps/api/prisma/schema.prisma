@@ -566,6 +566,9 @@ model Customer {
   creditNotes         String?           @map("credit_notes") // observações do analista
   lastCreditReview    DateTime?         @map("last_credit_review")
   isActive            Boolean           @default(true)
+  birthDate           DateTime?         @map("birth_date") // PF — pós-venda/CRM (#476)
+  tagLinks            CustomerTagLink[] // segmentação (#476)
+  attachments         CustomerAttachment[] // docs de emplacamento (CNH etc.) (#476)
   leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
   addresses           CustomerAddress[]
   salesOrders         SalesOrder[]
@@ -577,6 +580,49 @@ model Customer {
 
   @@unique([companyId, document])
   @@map("gdr_customers")
+}
+
+/// #476 — tag de segmentação de cliente (revenda, produtor rural, recorrente…)
+/// companyId por FK escalar (convenção: sem back-relation em models grandes)
+model CustomerTag {
+  id        String            @id @default(cuid())
+  companyId String            @map("company_id")
+  name      String
+  color     String?           @db.VarChar(7) // #RRGGBB
+  links     CustomerTagLink[]
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@unique([companyId, name])
+  @@map("gdr_customer_tags")
+}
+
+model CustomerTagLink {
+  customerId String      @map("customer_id")
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tagId      String      @map("tag_id")
+  tag        CustomerTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+  @@map("gdr_customer_tag_links")
+}
+
+/// #476 — anexo do cliente (CNH, comprovante de endereço — docs que o fluxo
+/// ATPV-e/BIN pede ao despachante). Conteúdo no banco (Bytes, cap 10MB na API);
+/// migrar p/ Supabase Storage é trocar o adapter quando as keys chegarem.
+model CustomerAttachment {
+  id           String   @id @default(cuid())
+  companyId    String   @map("company_id")
+  customerId   String   @map("customer_id")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  filename     String
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  size         Int
+  data         Bytes
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([customerId])
+  @@map("gdr_customer_attachments")
 }
 
 /// Endereços de entrega do cliente (1:N) — grupo <entrega> da NF-e (#474)
