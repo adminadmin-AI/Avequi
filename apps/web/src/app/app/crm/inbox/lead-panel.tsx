@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Loader2, ShoppingCart, UserRound, X } from 'lucide-react';
+import { FileText, Loader2, ShoppingCart, UserRound, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
   const queryClient = useQueryClient();
   const [lostReason, setLostReason] = useState('');
   const [pendingLostStage, setPendingLostStage] = useState<StageRef | null>(null);
+  const [showProposals, setShowProposals] = useState(false); // #572
 
   const convert = useMutation({
     mutationFn: () => apiClient.post(`/crm/leads/${leadId}/convert`),
@@ -60,6 +61,28 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       toast.success('Você assumiu a conversa — IA silenciada');
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no takeover'),
+  });
+
+  // #572 — proposta em PDF: cotações do cliente vinculado + envio no chat
+  const { data: proposalOptions, isLoading: loadingProposals } = useQuery<{
+    customerLinked: boolean;
+    quotations: Array<{ id: string; status: string; total: number; createdAt: string; validUntil: string | null }>;
+  }>({
+    queryKey: ['crm-lead-proposals', leadId],
+    queryFn: async () => (await apiClient.get(`/crm/leads/${leadId}/proposal-options`)).data,
+    enabled: showProposals,
+  });
+
+  const sendProposal = useMutation({
+    mutationFn: (quotationId: string) =>
+      apiClient.post(`/crm/leads/${leadId}/send-proposal`, { quotationId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-messages', leadId] });
+      setShowProposals(false);
+      toast.success('Proposta enviada no WhatsApp do cliente');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao enviar proposta'),
   });
 
   const changeStage = useMutation({
@@ -191,6 +214,54 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           <p className="text-center text-[11px] text-muted-foreground">
             Cliente: {lead.customer.name}
           </p>
+        )}
+
+        {/* #572 — proposta em PDF da cotação direto no chat */}
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => {
+            if (!lead.customer) {
+              toast.info('Converta o lead em cliente primeiro — a proposta sai de uma cotação do cliente');
+              return;
+            }
+            setShowProposals((v) => !v);
+          }}
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          Enviar proposta
+        </Button>
+        {showProposals && (
+          <div className="space-y-2 rounded-md border p-2">
+            {loadingProposals ? (
+              <p className="py-2 text-center text-xs text-muted-foreground">Carregando cotações…</p>
+            ) : (proposalOptions?.quotations.length ?? 0) === 0 ? (
+              <p className="py-2 text-center text-xs text-muted-foreground">
+                Nenhuma cotação deste cliente — crie uma em Comercial → Cotações.
+              </p>
+            ) : (
+              proposalOptions!.quotations.map((qt) => (
+                <div key={qt.id} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      #{qt.id.slice(-8).toUpperCase()} —{' '}
+                      {qt.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {qt.status} · {new Date(qt.createdAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                  <Button
+                    size="xs"
+                    disabled={sendProposal.isPending}
+                    onClick={() => sendProposal.mutate(qt.id)}
+                  >
+                    {sendProposal.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Enviar PDF'}
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
         )}
 
         <LeadNotesReminders leadId={leadId} />

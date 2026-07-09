@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
+import { QuotationModule } from '../quotation/quotation.module';
 import { CrmController } from './crm.controller';
 import { CrmPushListener } from './crm-push.listener';
 import { CrmService } from './crm.service';
@@ -22,6 +23,7 @@ import { SdrToolsService } from './sdr/sdr-tools';
 import { FollowupScheduler } from './followup.scheduler';
 import { SlaEscalationScheduler } from './sla-escalation.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
+import { LeadProposalService } from './lead-proposal.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
 import { WhatsappService } from './whatsapp/whatsapp.service';
@@ -39,12 +41,14 @@ import { SiteLeadController } from './connectors/site.controller';
   imports: [
     PrismaModule,
     NotificationModule,
+    QuotationModule, // #572 — PDF da proposta
     HttpModule.register({ timeout: 15000 }),
     BullModule.registerQueue({ name: WHATSAPP_QUEUE }, { name: CRM_LEADS_QUEUE }),
   ],
   controllers: [CrmController, WhatsappController, SiteLeadController, MetaLeadsController, ConnectorsController],
   providers: [
     LeadIntakeService,
+    LeadProposalService,
     CrmService,
     FunnelService,
     LeadConversionService,
