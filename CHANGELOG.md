@@ -6,6 +6,17 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-09
+
+### Added
+- feat(fiscal): grupo card no detPag da NF-e — tpIntegra=1 (#587) (#680)
+- feat(customers): tags de segmentação, anexos e birthDate (#476) (#679)
+- feat(web): UI do plano de pagamento na OV + tela de adquirentes/taxas (#584 #585) (#678)
+- feat(fiscal): Compliance Center — conformidade em tempo real (#503 parte 2) (#677)
+
+### Fixed
+- fix(fiscal): emitForTransfer deriva INTERNA/INTERESTADUAL das UFs e usa destinatário real (#676)
+
 ## [1.3.0] - 2026-07-09
 
 ### Added
@@ -76,7 +87,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.0.0...v1.1.0
