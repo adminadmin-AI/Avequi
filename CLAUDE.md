@@ -2,6 +2,8 @@
 
 ERP industrial desenvolvido para substituir o Omie na GDR Reboques. Fabricante de reboques, com 14 setores produtivos, 3 filiais e dados reais já migrados (2.528 lançamentos financeiros do Omie).
 
+> 👥 **Novo no projeto?** Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — acessos, setup local, fluxo de PR/CI e convenções. **A `main` é protegida** (branch → PR → CI verde → merge; sem push direto).
+
 ## Stack
 
 | Camada | Tecnologia |
