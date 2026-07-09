@@ -24,6 +24,7 @@ import { LeadListService, LeadListFilters } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
 import { SdrDashboardService } from './sdr/sdr-dashboard.service';
+import { LeadProposalService } from './lead-proposal.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -151,6 +152,12 @@ class AddNoteDto {
   text: string;
 }
 
+class SendProposalDto {
+  @ApiProperty({ description: 'Cotação do cliente vinculado ao lead — vira PDF no WhatsApp (#572)' })
+  @IsString()
+  quotationId: string;
+}
+
 class BulkReassignDto {
   @ApiProperty({ type: [String] })
   @IsArray()
@@ -216,6 +223,7 @@ export class CrmController {
     private readonly leadLgpd: LeadLgpdService,
     private readonly sdr: SdrAgentService,
     private readonly sdrDashboard: SdrDashboardService,
+    private readonly proposals: LeadProposalService,
   ) {}
 
   // ── SDR IA (F4 #521/#524) ───────────────────────────────────────────────────
@@ -323,6 +331,21 @@ export class CrmController {
       sortBy: q.sortBy as LeadListFilters['sortBy'],
       sortDir: q.sortDir as LeadListFilters['sortDir'],
     };
+  }
+
+  // ── Proposta em PDF no inbox (V2.5 #572) ────────────────────────────────────
+
+  @Get('leads/:id/proposal-options')
+  @ApiOperation({ summary: 'Cotações do cliente do lead — opções do "Enviar proposta" (#572)' })
+  proposalOptions(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.proposals.listQuotationsForLead(user.companyId, id);
+  }
+
+  @Post('leads/:id/send-proposal')
+  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @ApiOperation({ summary: 'Gerar PDF da cotação e enviar como documento no WhatsApp do lead (#572)' })
+  sendProposal(@Param('id') id: string, @Body() dto: SendProposalDto, @CurrentUser() user: any) {
+    return this.proposals.sendProposal(user.companyId, id, dto.quotationId, user.id);
   }
 
   // ── Notas e lembretes (F3.5-C5 #555) ────────────────────────────────────────

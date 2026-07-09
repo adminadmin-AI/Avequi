@@ -107,6 +107,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   }],
   [QuotationController, 'quotations', {
     list: 'sales.quotations.view',
+    pdf: 'sales.quotations.view', // #572 proposta em PDF
     getStats: 'sales.quotations.view',
     getById: 'sales.quotations.view',
     create: 'sales.quotations.create',

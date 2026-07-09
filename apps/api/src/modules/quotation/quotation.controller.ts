@@ -8,13 +8,16 @@ import {
   Post,
   Query,
   Request,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { QuotationStatus } from '@prisma/client';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { RejectQuotationDto } from './dto/reject-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationService } from './quotation.service';
+import { QuotationPdfService } from './quotation-pdf.service';
 
 /**
  * #341 parte 2 (PR C): gate único RBAC v2 via @RequirePermission — o @Roles
@@ -25,7 +28,27 @@ import { QuotationService } from './quotation.service';
  */
 @Controller('quotations')
 export class QuotationController {
-  constructor(private readonly quotationService: QuotationService) {}
+  constructor(
+    private readonly quotationService: QuotationService,
+    private readonly quotationPdfService: QuotationPdfService,
+  ) {}
+
+  // GET /quotations/:id/pdf — proposta comercial em PDF (#572)
+  @Get(':id/pdf')
+  @RequirePermission('sales.quotations.view')
+  async pdf(
+    @Param('id') id: string,
+    @Request() req: { user: { companyId: string } },
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.quotationPdfService.generate(id, req.user.companyId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
+  }
 
   // GET /quotations
   @Get()
