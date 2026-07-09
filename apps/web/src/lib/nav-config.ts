@@ -180,6 +180,7 @@ export const NAV: NavSection[] = [
     items: [
       { href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText },
       { href: '/app/fiscal/rules', label: 'Regras Fiscais', icon: Scale },
+      { href: '/app/fiscal/compliance', label: 'Conformidade', icon: ShieldCheck, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER','FINANCIAL'] },
     ],
   },
   {
@@ -332,6 +333,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   analytics: 'Analytics',
   new: 'Novo',
   counter: 'Venda Balcão',
+  compliance: 'Conformidade',
   edit: 'Editar',
   receive: 'Recebimento',
   'work-centers': 'Centros de Trabalho',
