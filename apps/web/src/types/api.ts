@@ -878,3 +878,29 @@ export interface PricingSimulation {
     currentMarginPct: number | null; // margem líquida realizada no preço atual
   };
 }
+
+// ─── Custeio por absorção (#396) — espelha CifRate/ProductAbsorptionCost ───────
+export interface CifRate {
+  ratePerHour: number;
+  monthlyCif: number;
+  monthlyProductiveHours: number;
+  centers: number;
+}
+export interface CostLaborStep {
+  step: string;
+  workCenter: string | null;
+  hours: number;
+  costPerHour: number;
+  cost: number;
+}
+export interface ProductAbsorptionCost {
+  productId: string;
+  sku: string;
+  name: string;
+  material: { total: number; breakdown: PricingBreakdownItem[] };
+  labor: { total: number; hours: number; breakdown: CostLaborStep[] };
+  cif: { ratePerHour: number; hours: number; total: number };
+  totalWithoutCif: number; // material + MOD (custeio direto)
+  totalWithCif: number; // + CIF rateado (absorção)
+  cifImpactPct: number | null;
+}
