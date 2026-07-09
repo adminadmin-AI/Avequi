@@ -45,6 +45,10 @@ const mockPrisma = {
     findMany: jest.fn(),
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
+  // #584: select da maquininha no plano de pagamento
+  acquirer: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   // #595: validação de chassi na venda balcão
   product: {
     findMany: jest.fn().mockResolvedValue([]),
@@ -171,6 +175,17 @@ describe('SalesService', () => {
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 }); // ninguém flipou
       await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
+    });
+  });
+
+  describe('listAcquirerOptions (#584)', () => {
+    it('retorna SÓ id+nome de adquirentes ativas da company (taxas ficam fora)', async () => {
+      mockPrisma.acquirer.findMany.mockResolvedValue([{ id: 'a1', name: 'Cielo' }]);
+      const res = await service.listAcquirerOptions('co-1');
+      expect(res).toEqual([{ id: 'a1', name: 'Cielo' }]);
+      const arg = mockPrisma.acquirer.findMany.mock.calls[0][0];
+      expect(arg.where).toEqual({ companyId: 'co-1', isActive: true });
+      expect(arg.select).toEqual({ id: true, name: true }); // nunca fees/MDR
     });
   });
 

@@ -16,6 +16,12 @@ import { Select } from '@/components/ui/select';
 import { FormSection } from '@/components/ui/form-section';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL } from '@/lib/format';
+import {
+  PaymentPlanEditor,
+  isCardMethod as isCard,
+  validatePlan,
+  type DraftPayment,
+} from '../payment-plan-editor';
 
 /**
  * Venda balcão da filial (PDV) — Fluxo B do épico de pagamentos (#595).
@@ -33,40 +39,12 @@ interface DraftItem {
   serialNumberId?: string;
 }
 
-interface DraftPayment {
-  method: string;
-  amount: number;
-  installments: number;
-  acquirerId?: string;
-  brand?: string;
-}
-
 interface CounterSerial {
   id: string;
   serial: string;
   chassi?: string | null;
   descricaoCor?: string | null;
 }
-
-interface Acquirer {
-  id: string;
-  name: string;
-  isActive?: boolean;
-}
-
-const PAYMENT_METHODS: Array<{ value: string; label: string; card?: boolean }> = [
-  { value: 'DINHEIRO', label: 'Dinheiro' },
-  { value: 'PIX', label: 'PIX' },
-  { value: 'CARTAO_CREDITO', label: 'Cartão de crédito', card: true },
-  { value: 'CARTAO_DEBITO', label: 'Cartão de débito', card: true },
-  { value: 'BOLETO', label: 'Boleto' },
-  { value: 'TED', label: 'TED' },
-  { value: 'CHEQUE', label: 'Cheque' },
-];
-
-const CARD_BRANDS = ['VISA', 'MASTERCARD', 'ELO', 'AMEX', 'HIPERCARD'];
-
-const isCard = (method: string) => method === 'CARTAO_CREDITO' || method === 'CARTAO_DEBITO';
 
 type Phase = 'building' | 'closed' | 'authorized';
 
@@ -78,7 +56,6 @@ export default function CounterSalePage() {
   const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const { data: products = [] } = useList<Product>('/products');
-  const { data: acquirers = [] } = useList<Acquirer>('/acquirers', { isActive: true });
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
@@ -97,8 +74,6 @@ export default function CounterSalePage() {
   const [newQty, setNewQty] = useState('1');
 
   const total = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
-  const paymentsSum = payments.reduce((s, p) => s + (p.amount || 0), 0);
-  const remaining = Math.round((total - paymentsSum) * 100) / 100;
   const hasCard = payments.some((p) => isCard(p.method));
   const locked = phase !== 'building';
 
@@ -132,34 +107,6 @@ export default function CounterSalePage() {
   }
   function removeItem(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  // ─── Pagamento ───────────────────────────────────────────────────────────
-
-  function addPayment() {
-    setPayments((prev) => [
-      ...prev,
-      { method: 'PIX', amount: remaining > 0 ? remaining : 0, installments: 1 },
-    ]);
-  }
-  function updatePayment(idx: number, patch: Partial<DraftPayment>) {
-    setPayments((prev) =>
-      prev.map((p, i) => {
-        if (i !== idx) return p;
-        const next = { ...p, ...patch };
-        // débito e não-cartão são sempre 1x; trocar de método limpa campos de cartão
-        if (patch.method !== undefined && !isCard(patch.method)) {
-          next.acquirerId = undefined;
-          next.brand = undefined;
-          next.installments = 1;
-        }
-        if (next.method === 'CARTAO_DEBITO') next.installments = 1;
-        return next;
-      }),
-    );
-  }
-  function removePayment(idx: number) {
-    setPayments((prev) => prev.filter((_, i) => i !== idx));
   }
 
   // ─── Fechamento (create + counter-checkout) ─────────────────────────────
@@ -224,21 +171,9 @@ export default function CounterSalePage() {
       );
       return;
     }
-    if (payments.length === 0) {
-      toast.error('Monte o plano de pagamento');
-      return;
-    }
-    if (Math.abs(remaining) > 0.005) {
-      toast.error(
-        remaining > 0
-          ? `Faltam ${formatBRL(remaining)} no plano de pagamento`
-          : `Plano de pagamento excede o total em ${formatBRL(-remaining)}`,
-      );
-      return;
-    }
-    const cardWithoutAcquirer = payments.find((p) => isCard(p.method) && !p.acquirerId);
-    if (cardWithoutAcquirer) {
-      toast.error('Pagamento com cartão exige a adquirente (maquininha)');
+    const planError = validatePlan(payments, total);
+    if (planError) {
+      toast.error(planError);
       return;
     }
     close.mutate();
@@ -498,135 +433,14 @@ export default function CounterSalePage() {
         </CardContent>
       </Card>
 
-      {/* Pagamento */}
+      {/* Pagamento — editor compartilhado (#584) */}
       <Card className="mb-5">
         <CardContent className="py-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-content-secondary">
-              <CreditCard size={16} />
-              Plano de pagamento
-            </h3>
-            {!locked && (
-              <Button type="button" variant="secondary" size="sm" onClick={addPayment}>
-                <Plus size={14} />
-                Adicionar forma
-              </Button>
-            )}
-          </div>
-
-          {payments.length === 0 ? (
-            <p className="py-4 text-center text-sm text-content-muted">
-              Nenhuma forma adicionada — a soma deve fechar {formatBRL(total)}.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {payments.map((p, idx) => (
-                <div key={idx} className="flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
-                  <div className="w-44">
-                    <Label>Forma</Label>
-                    <Select
-                      aria-label="Forma de pagamento"
-                      value={p.method}
-                      onChange={(e) => updatePayment(idx, { method: e.target.value })}
-                      disabled={locked}
-                    >
-                      {PAYMENT_METHODS.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div className="w-32">
-                    <Label>Valor (R$)</Label>
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={p.amount || ''}
-                      onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) })}
-                      disabled={locked}
-                    />
-                  </div>
-                  {p.method === 'CARTAO_CREDITO' && (
-                    <div className="w-24">
-                      <Label>Parcelas</Label>
-                      <Select
-                        aria-label="Parcelas"
-                        value={String(p.installments)}
-                        onChange={(e) => updatePayment(idx, { installments: Number(e.target.value) })}
-                        disabled={locked}
-                      >
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                          <option key={n} value={n}>
-                            {n}x
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  )}
-                  {isCard(p.method) && (
-                    <>
-                      <div className="w-48">
-                        <Label required>Adquirente</Label>
-                        <Select
-                          aria-label="Adquirente"
-                          value={p.acquirerId ?? ''}
-                          onChange={(e) => updatePayment(idx, { acquirerId: e.target.value || undefined })}
-                          disabled={locked}
-                        >
-                          <option value="">— Maquininha —</option>
-                          {acquirers.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                      <div className="w-36">
-                        <Label>Bandeira</Label>
-                        <Select
-                          aria-label="Bandeira"
-                          value={p.brand ?? ''}
-                          onChange={(e) => updatePayment(idx, { brand: e.target.value || undefined })}
-                          disabled={locked}
-                        >
-                          <option value="">— Qualquer —</option>
-                          {CARD_BRANDS.map((b) => (
-                            <option key={b} value={b}>
-                              {b}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                    </>
-                  )}
-                  {!locked && (
-                    <button
-                      onClick={() => removePayment(idx)}
-                      title="Remover forma"
-                      className="mb-2 rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              <div className="flex justify-end gap-6 border-t border-line pt-3 text-sm">
-                <span className="text-content-secondary">
-                  Plano: <strong className="tabular-nums">{formatBRL(paymentsSum)}</strong>
-                </span>
-                <span className={remaining !== 0 ? 'font-medium text-danger' : 'text-content-secondary'}>
-                  {remaining > 0
-                    ? `Faltam ${formatBRL(remaining)}`
-                    : remaining < 0
-                      ? `Excede em ${formatBRL(-remaining)}`
-                      : 'Plano fechado ✓'}
-                </span>
-              </div>
-            </div>
-          )}
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-content-secondary">
+            <CreditCard size={16} />
+            Plano de pagamento
+          </h3>
+          <PaymentPlanEditor payments={payments} onChange={setPayments} total={total} disabled={locked} />
         </CardContent>
       </Card>
 

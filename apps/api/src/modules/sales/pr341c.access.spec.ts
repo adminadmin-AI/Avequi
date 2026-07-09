@@ -99,6 +99,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     return: 'sales.orders.return',
     cancel: 'sales.orders.cancel',
     setPayments: 'sales.orders.set-payments',
+    acquirerOptions: 'sales.orders.set-payments', // #584 select da maquininha sem expor taxas (decisão E1)
     authorizeCards: 'sales.orders.authorize-cards',
     confer: 'sales.orders.confer',
     listDiscountPolicies: 'sales.discount-policies.view',

@@ -87,6 +87,16 @@ export class SalesController {
     return this.discountPolicyService.update(id, user.companyId, dto);
   }
 
+  @Get('acquirer-options')
+  @RequirePermission('sales.orders.set-payments')
+  @ApiOperation({
+    summary:
+      'Adquirentes (id+nome) p/ o select do plano de pagamento — taxas ficam restritas a FINANCEIRO (#584)',
+  })
+  acquirerOptions(@CurrentUser() user: any) {
+    return this.salesService.listAcquirerOptions(user.companyId);
+  }
+
   @Get('counter-serials')
   @RequirePermission('sales.orders.reserve')
   @ApiOperation({

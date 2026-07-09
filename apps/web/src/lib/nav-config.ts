@@ -54,6 +54,7 @@ import {
   Target,
   Coins,
   PackageCheck,
+  Percent,
   Store,
   type LucideIcon,
 } from 'lucide-react';
@@ -196,6 +197,7 @@ export const NAV: NavSection[] = [
       { href: '/app/finance/budget-plans', label: 'Budget por Drivers', icon: Target, roles: FINANCE_ROLES },
       { href: '/app/finance/investments', label: 'Análise de Investimentos', icon: Coins, roles: FINANCE_ROLES },
       { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, roles: FINANCE_ROLES },
+      { href: '/app/finance/acquirers', label: 'Adquirentes & Taxas', icon: Percent, roles: FINANCE_ROLES },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, roles: FINANCE_ROLES },
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, roles: FINANCE_ROLES },
       { href: '/app/finance/collection', label: 'Monitor de Cobrança', icon: Activity, roles: FINANCE_ROLES },
@@ -334,6 +336,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   new: 'Novo',
   counter: 'Venda Balcão',
   compliance: 'Conformidade',
+  acquirers: 'Adquirentes & Taxas',
   edit: 'Editar',
   receive: 'Recebimento',
   'work-centers': 'Centros de Trabalho',
