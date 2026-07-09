@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BinRegistrationService } from './bin-registration.service';
@@ -48,6 +49,7 @@ describe('VehicleTracking', () => {
         BinRegistrationService,
         AtpveService,
         { provide: PrismaService, useValue: prisma },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } }, // #365
       ],
     }).compile();
     binService = module.get(BinRegistrationService);

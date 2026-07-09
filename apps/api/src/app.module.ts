@@ -52,6 +52,7 @@ import { BatchModule } from './modules/batch/batch.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { VehicleTrackingModule } from './modules/vehicle-tracking/vehicle-tracking.module';
 import { PriceModule } from './modules/price/price.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
 import { VehicleDocumentModule } from './modules/vehicle-document/vehicle-document.module';
 import { InvestmentModule } from './modules/investment/investment.module';
 import { FinancialForecastModule } from './modules/financial-forecast/financial-forecast.module';
@@ -171,6 +172,7 @@ import { IamModule } from './modules/iam/iam.module';
     TaxModule,
     VehicleTrackingModule,
     PriceModule,
+    DeliveryModule,
     VehicleDocumentModule,
     InvestmentModule,
     FinancialForecastModule,
