@@ -9,7 +9,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { InspectionStatus, InspectionType, NcrStatus } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { CreateNcrDto } from './dto/create-ncr.dto';
 import { UpdateNcrDto } from './dto/update-ncr.dto';
@@ -19,8 +19,12 @@ interface AuthRequest {
   user: { companyId: string; sub: string };
 }
 
-const QUALITY_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'QUALITY'];
-
+/**
+ * #341 parte 2 (PR D): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #622).
+ * Mutações de qualidade ficam com QUALIDADE/G.INDUSTRIAL; GERENTE_GERAL
+ * recebeu somente leitura (decisão Rafael no PR D).
+ */
 @Controller('quality')
 export class QualityController {
   constructor(private readonly qualityService: QualityService) {}
@@ -28,7 +32,7 @@ export class QualityController {
   // ─── Inspections ───────────────────────────────────────────────────────────
 
   @Post('inspections')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.inspections.create')
   createInspection(
     @Request() req: AuthRequest,
     @Body() dto: CreateInspectionDto,
@@ -41,6 +45,7 @@ export class QualityController {
   }
 
   @Get('inspections')
+  @RequirePermission('quality.inspections.view')
   listInspections(
     @Request() req: AuthRequest,
     @Query('status') status?: string,
@@ -57,12 +62,13 @@ export class QualityController {
   }
 
   @Get('inspections/:id')
+  @RequirePermission('quality.inspections.view')
   getInspection(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.getInspection(id, req.user.companyId);
   }
 
   @Patch('inspections/:id/start')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.inspections.start')
   startInspection(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.startInspection(
       id,
@@ -72,7 +78,7 @@ export class QualityController {
   }
 
   @Patch('inspections/:id/pass')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.inspections.approve')
   passInspection(
     @Param('id') id: string,
     @Request() req: AuthRequest,
@@ -82,7 +88,7 @@ export class QualityController {
   }
 
   @Patch('inspections/:id/fail')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.inspections.reject')
   failInspection(
     @Param('id') id: string,
     @Request() req: AuthRequest,
@@ -97,7 +103,7 @@ export class QualityController {
   }
 
   @Patch('inspections/:id/hold')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.inspections.hold')
   holdInspection(
     @Param('id') id: string,
     @Request() req: AuthRequest,
@@ -109,12 +115,13 @@ export class QualityController {
   // ─── NCRs ──────────────────────────────────────────────────────────────────
 
   @Post('ncr')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.ncr.create')
   createNcr(@Request() req: AuthRequest, @Body() dto: CreateNcrDto) {
     return this.qualityService.createNcr(req.user.companyId, dto, req.user.sub);
   }
 
   @Get('ncr')
+  @RequirePermission('quality.ncr.view')
   listNcrs(
     @Request() req: AuthRequest,
     @Query('status') status?: string,
@@ -129,12 +136,13 @@ export class QualityController {
   }
 
   @Get('ncr/:id')
+  @RequirePermission('quality.ncr.view')
   getNcr(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.getNcr(id, req.user.companyId);
   }
 
   @Patch('ncr/:id')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.ncr.update')
   updateNcr(
     @Param('id') id: string,
     @Request() req: AuthRequest,
@@ -144,25 +152,25 @@ export class QualityController {
   }
 
   @Patch('ncr/:id/analyze')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.ncr.analyze')
   analyzeNcr(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.analyzeNcr(id, req.user.companyId);
   }
 
   @Patch('ncr/:id/corrective-action')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.ncr.corrective-action')
   correctiveActionNcr(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.correctiveActionNcr(id, req.user.companyId);
   }
 
   @Patch('ncr/:id/close')
-  @Roles(...QUALITY_WRITE_ROLES)
+  @RequirePermission('quality.ncr.close')
   closeNcr(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.closeNcr(id, req.user.companyId, req.user.sub);
   }
 
   @Patch('ncr/:id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'QUALITY')
+  @RequirePermission('quality.ncr.cancel')
   cancelNcr(@Param('id') id: string, @Request() req: AuthRequest) {
     return this.qualityService.cancelNcr(id, req.user.companyId);
   }
@@ -170,6 +178,7 @@ export class QualityController {
   // ─── Stats ─────────────────────────────────────────────────────────────────
 
   @Get('stats')
+  @RequirePermission('quality.reports.view')
   getStats(@Request() req: AuthRequest) {
     return this.qualityService.getQualityStats(req.user.companyId);
   }

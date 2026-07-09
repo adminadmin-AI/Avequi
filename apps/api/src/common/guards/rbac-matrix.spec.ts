@@ -4,12 +4,8 @@ import { RolesGuard } from './roles.guard';
 import { FinanceController } from '../../modules/finance/finance.controller';
 import { BankingController } from '../../modules/finance/banking.controller';
 import { FiscalController } from '../../modules/fiscal/fiscal.controller';
-import { PurchaseController } from '../../modules/purchase/purchase.controller';
 import { UserController } from '../../modules/user/user.controller';
-import { QualityController } from '../../modules/quality/quality.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
-import { ProductionController } from '../../modules/production/production.controller';
-import { BomController } from '../../modules/bom/bom.controller';
 
 /**
  * Testes da matriz RBAC (docs/RBAC.md).
@@ -128,30 +124,9 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
   // Stock (/stock) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
   // travada em pr341c.access.spec.ts (PermissionGuard real).
 
-  // ─── Purchase ──────────────────────────────────────────────────────────────
-
-  describe('Purchase (/purchase)', () => {
-    it('READER não cria pedido de compra', () => {
-      expectDenied(PurchaseController, 'createPO', 'READER');
-      expectDenied(PurchaseController, 'createPO', 'COMMERCIAL');
-    });
-
-    it('WAREHOUSE cria PO, mas não aprova', () => {
-      expectAllowed(PurchaseController, 'createPO', 'WAREHOUSE');
-      expectDenied(PurchaseController, 'approvePO', 'WAREHOUSE');
-    });
-
-    it('DIRECTOR e MANAGER aprovam PO', () => {
-      expectAllowed(PurchaseController, 'approvePO', 'DIRECTOR');
-      expectAllowed(PurchaseController, 'approvePO', 'MANAGER');
-    });
-
-    it('cancelar solicitação de compra: WAREHOUSE/STORE sim, READER não', () => {
-      expectAllowed(PurchaseController, 'cancelRequest', 'WAREHOUSE');
-      expectAllowed(PurchaseController, 'cancelRequest', 'STORE');
-      expectDenied(PurchaseController, 'cancelRequest', 'READER');
-    });
-  });
+  // Purchase (/purchase) migrou para o RBAC v2 no #341 parte 2 (PR D) —
+  // matriz travada em pr341d.access.spec.ts. SoD v2: COMPRADOR cria e não
+  // aprova; ALMOXARIFE solicita/recebe (não cria PO); gerência/diretoria aprova.
 
   // Sales (/sales) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
   // travada em pr341c.access.spec.ts. Decisões v2 SUPERSEDEM as de 04/07:
@@ -178,13 +153,8 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
 
   // ─── Outros módulos críticos ───────────────────────────────────────────────
 
-  describe('Quality (/quality)', () => {
-    it('QUALITY aprova/reprova inspeção; PRODUCTION não', () => {
-      expectAllowed(QualityController, 'passInspection', 'QUALITY');
-      expectDenied(QualityController, 'passInspection', 'PRODUCTION');
-      expectDenied(QualityController, 'failInspection', 'READER');
-    });
-  });
+  // Quality (/quality) migrou para o RBAC v2 no #341 parte 2 (PR D) —
+  // matriz travada em pr341d.access.spec.ts (QUALIDADE opera; G.GERAL só lê).
 
   // Transfer (/transfers) migrou para o RBAC v2 no #341 parte 2 (PR C) —
   // matriz travada em pr341c.access.spec.ts (equivalência plena com o legado).
@@ -198,30 +168,15 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
     });
   });
 
-  describe('BOM (/bom)', () => {
-    it('DIRECTOR cria BOM (operacional — decisão Rafael 04/07); READER não', () => {
-      expectAllowed(BomController, 'create', 'DIRECTOR');
-      expectAllowed(BomController, 'create', 'PRODUCTION');
-      expectDenied(BomController, 'create', 'READER');
-      expectDenied(BomController, 'create', 'COMMERCIAL');
-    });
-
-    it('ativar versão de BOM (aprovação): SA/DIR/MGR', () => {
-      expectAllowed(BomController, 'activate', 'DIRECTOR');
-      expectDenied(BomController, 'activate', 'PRODUCTION');
-    });
-  });
+  // BOM (/bom) migrou para o RBAC v2 no #341 parte 2 (PR D) — matriz em
+  // pr341d.access.spec.ts. Decisão v2 SUPERSEDE 04/07: DIRETOR ativa (aprova)
+  // mas não cria BOM.
 
   // Customer (/customers) migrou para o RBAC v2 no #341 parte 2 (PR B) —
   // a matriz agora é travada em pr341b.access.spec.ts (PermissionGuard real),
   // preservando a regra de balcão: LOJA cria cliente mas não edita.
 
-  describe('Production (/production)', () => {
-    it('PRODUCTION opera OPs; cancelamento só SUPER_ADMIN/MANAGER', () => {
-      expectAllowed(ProductionController, 'create', 'PRODUCTION');
-      expectDenied(ProductionController, 'create', 'READER');
-      expectDenied(ProductionController, 'cancel', 'PRODUCTION');
-      expectAllowed(ProductionController, 'cancel', 'MANAGER');
-    });
-  });
+  // Production (/production) migrou para o RBAC v2 no #341 parte 2 (PR D) —
+  // matriz em pr341d.access.spec.ts. Desenho v2: PCP cria, supervisor libera/
+  // conclui/cancela, operador inicia/aponta, qualidade aprova inspeção.
 });

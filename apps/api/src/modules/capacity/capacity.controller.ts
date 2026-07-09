@@ -9,12 +9,16 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CapacityService } from './capacity.service';
 import { CreateWorkCenterDto } from './dto/create-work-center.dto';
 import { UpdateWorkCenterDto } from './dto/update-work-center.dto';
 import { QueryCapacityDto } from './dto/query-capacity.dto';
 
+/**
+ * #341 parte 2 (PR D): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #622).
+ */
 @Controller('capacity')
 export class CapacityController {
   constructor(private readonly capacityService: CapacityService) {}
@@ -22,6 +26,7 @@ export class CapacityController {
   // ─── Work Centers ─────────────────────────────────────────────────────────
 
   @Get('work-centers')
+  @RequirePermission('production.work-centers.view')
   listWorkCenters(
     @Request() req: { user: { companyId: string } },
     @Query('includeInactive') includeInactive?: string,
@@ -33,7 +38,7 @@ export class CapacityController {
   }
 
   @Post('work-centers')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
+  @RequirePermission('production.work-centers.create')
   createWorkCenter(
     @Request() req: { user: { companyId: string } },
     @Body() dto: CreateWorkCenterDto,
@@ -42,11 +47,13 @@ export class CapacityController {
   }
 
   @Get('work-centers/stats')
+  @RequirePermission('production.work-centers.view')
   getWorkCenterStats(@Request() req: { user: { companyId: string } }) {
     return this.capacityService.getWorkCenterStats(req.user.companyId);
   }
 
   @Get('work-centers/:id')
+  @RequirePermission('production.work-centers.view')
   getWorkCenter(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -55,7 +62,7 @@ export class CapacityController {
   }
 
   @Patch('work-centers/:id')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'PRODUCTION')
+  @RequirePermission('production.work-centers.update')
   updateWorkCenter(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -65,7 +72,7 @@ export class CapacityController {
   }
 
   @Delete('work-centers/:id')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('production.work-centers.delete')
   deleteWorkCenter(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -76,6 +83,7 @@ export class CapacityController {
   // ─── Capacity Planning ────────────────────────────────────────────────────
 
   @Get('plan')
+  @RequirePermission('production.work-centers.view')
   getCapacityPlan(
     @Request() req: { user: { companyId: string } },
     @Query() dto: QueryCapacityDto,
@@ -84,6 +92,7 @@ export class CapacityController {
   }
 
   @Get('load-by-product')
+  @RequirePermission('production.work-centers.view')
   getLoadByProduct(
     @Request() req: { user: { companyId: string } },
     @Query('startDate') startDate: string,

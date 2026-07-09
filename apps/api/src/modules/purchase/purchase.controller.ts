@@ -15,9 +15,17 @@ import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+/**
+ * #341 parte 2 (PR D): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #622).
+ *
+ * SoD de compras no desenho v2: COMPRADOR cria/edita mas NÃO aprova
+ * (purchases.orders.approve fica com gerência/diretoria/admins); o SoD
+ * runtime criador≠aprovador (#454) segue atrás da flag SOD_ENFORCE (OFF).
+ */
 @ApiTags('purchase')
 @ApiBearerAuth()
 @Controller('purchase')
@@ -30,14 +38,14 @@ export class PurchaseController {
   // ─── Pedidos de Compra ────────────────────────────────────────────────────
 
   @Post('orders')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
+  @RequirePermission('purchases.orders.create')
   @ApiOperation({ summary: 'Criar pedido de compra em rascunho' })
   createPO(@Body() dto: CreatePurchaseOrderDto, @CurrentUser() user: any) {
     return this.purchaseService.createPO(dto, user.companyId, user.id);
   }
 
   @Patch('orders/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
+  @RequirePermission('purchases.orders.update')
   @ApiOperation({ summary: 'Editar pedido de compra em rascunho' })
   updatePO(
     @Param('id') id: string,
@@ -48,26 +56,28 @@ export class PurchaseController {
   }
 
   @Get('orders')
+  @RequirePermission('purchases.orders.view')
   @ApiOperation({ summary: 'Listar pedidos de compra' })
   findAll(@CurrentUser() user: any) {
     return this.purchaseService.findAll(user.companyId);
   }
 
   @Get('orders/:id')
+  @RequirePermission('purchases.orders.view')
   @ApiOperation({ summary: 'Buscar pedido de compra por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.findOne(id, user.companyId);
   }
 
   @Post('orders/:id/approve')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('purchases.orders.approve')
   @ApiOperation({ summary: 'Aprovar pedido de compra' })
   approvePO(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.approvePO(id, user.companyId, user?.id, user?.role);
   }
 
   @Post('orders/:id/cancel')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('purchases.orders.cancel')
   @ApiOperation({ summary: 'Cancelar pedido de compra' })
   cancelPO(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.cancelPO(id, user.companyId, user?.id);
@@ -76,13 +86,14 @@ export class PurchaseController {
   // ─── Recebimento ─────────────────────────────────────────────────────────
 
   @Post('receipts')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE')
+  @RequirePermission('purchases.receiving.create')
   @ApiOperation({ summary: 'Registrar recebimento de mercadoria (GR)' })
   createReceipt(@Body() dto: CreateGoodsReceiptDto, @CurrentUser() user: any) {
     return this.purchaseService.createReceipt(dto, user.id, user.companyId);
   }
 
   @Get('receipts')
+  @RequirePermission('purchases.receiving.view')
   @ApiOperation({ summary: 'Listar recebimentos' })
   @ApiQuery({ name: 'purchaseOrderId', required: false })
   findReceipts(
@@ -93,6 +104,7 @@ export class PurchaseController {
   }
 
   @Get('orders/:id/receiving-status')
+  @RequirePermission('purchases.orders.view')
   @ApiOperation({ summary: 'Status de recebimento parcial da PO (#190)' })
   getReceivingStatus(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.getReceivingStatus(id, user.companyId);
@@ -101,20 +113,21 @@ export class PurchaseController {
   // ─── 3-Way Match ─────────────────────────────────────────────────────────
 
   @Get('orders/:id/match-status')
+  @RequirePermission('purchases.matching.view')
   @ApiOperation({ summary: '3-Way Match: status PO × GR × NF-e' })
   matchStatus(@Param('id') id: string, @CurrentUser() user: any) {
     return this.matchService.getMatchStatus(id, user.companyId);
   }
 
   @Post('orders/:id/match')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  @RequirePermission('purchases.matching.execute')
   @ApiOperation({ summary: '3-Way Match: salvar resultado do match' })
   saveMatch(@Param('id') id: string, @CurrentUser() user: any) {
     return this.matchService.saveMatch(id, user.companyId);
   }
 
   @Post('matches/:id/resolve')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('purchases.matching.resolve')
   @ApiOperation({ summary: '3-Way Match: aprovar exceção de divergência' })
   resolveMatch(@Param('id') id: string, @CurrentUser() user: any) {
     return this.matchService.resolveMatch(id, user.companyId, user?.id);
@@ -123,13 +136,14 @@ export class PurchaseController {
   // ─── Solicitações de Compra (S05.07) ─────────────────────────────────────
 
   @Post('requests')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'WAREHOUSE', 'STORE')
+  @RequirePermission('purchases.requests.create')
   @ApiOperation({ summary: 'Criar solicitação de compra' })
   createRequest(@Body() dto: CreatePurchaseRequestDto, @CurrentUser() user: any) {
     return this.purchaseService.createRequest(dto, user.companyId, user.id);
   }
 
   @Get('requests')
+  @RequirePermission('purchases.requests.view')
   @ApiOperation({ summary: 'Listar solicitações de compra' })
   @ApiQuery({ name: 'status', required: false, enum: PurchaseRequestStatus })
   findRequests(
@@ -140,14 +154,14 @@ export class PurchaseController {
   }
 
   @Post('requests/:id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'STORE')
+  @RequirePermission('purchases.requests.cancel')
   @ApiOperation({ summary: 'Cancelar solicitação de compra' })
   cancelRequest(@Param('id') id: string, @CurrentUser() user: any) {
     return this.purchaseService.cancelRequest(id, user.companyId);
   }
 
   @Post('requests/:id/convert')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('purchases.requests.convert')
   @ApiOperation({ summary: 'Converter solicitação em pedido de compra' })
   convertRequest(
     @Param('id') id: string,
@@ -160,6 +174,7 @@ export class PurchaseController {
   // ─── Histórico de Preços (S06.05) ─────────────────────────────────────────
 
   @Get('supplier-prices')
+  @RequirePermission('purchases.supplier-prices.view')
   @ApiOperation({ summary: 'Histórico de preços por fornecedor/produto' })
   @ApiQuery({ name: 'supplierId', required: false })
   @ApiQuery({ name: 'productId', required: false })

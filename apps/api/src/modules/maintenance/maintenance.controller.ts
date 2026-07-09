@@ -9,15 +9,19 @@ import {
   Request,
 } from '@nestjs/common';
 import { EquipmentStatus, MaintenanceOrderStatus, MaintenanceType } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CompleteMaintenanceOrderDto } from './dto/complete-maintenance-order.dto';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { CreateMaintenanceOrderDto } from './dto/create-maintenance-order.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { MaintenanceService } from './maintenance.service';
 
-const MAINTENANCE_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PRODUCTION'];
-
+/**
+ * #341 parte 2 (PR D): gate único RBAC v2 via @RequirePermission — o @Roles
+ * legado foi removido (matriz validada pelo Rafael na issue #622).
+ * Donos das mutações: ASSISTENCIA_TECNICA/G.INDUSTRIAL; GERENTE_GERAL
+ * recebeu somente leitura (decisão Rafael no PR D).
+ */
 @Controller('maintenance')
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
@@ -25,6 +29,7 @@ export class MaintenanceController {
   // ─── Equipment ─────────────────────────────────────────────────────────────
 
   @Get('equipment')
+  @RequirePermission('maintenance.equipment.view')
   listEquipment(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -35,7 +40,7 @@ export class MaintenanceController {
   }
 
   @Post('equipment')
-  @Roles(...MAINTENANCE_WRITE_ROLES)
+  @RequirePermission('maintenance.equipment.create')
   createEquipment(
     @Request() req: { user: { companyId: string; id: string } },
     @Body() dto: CreateEquipmentDto,
@@ -48,11 +53,13 @@ export class MaintenanceController {
   }
 
   @Get('equipment/stats')
+  @RequirePermission('maintenance.equipment.view')
   getMaintenanceStats(@Request() req: { user: { companyId: string } }) {
     return this.maintenanceService.getMaintenanceStats(req.user.companyId);
   }
 
   @Get('equipment/:id')
+  @RequirePermission('maintenance.equipment.view')
   getEquipment(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -61,7 +68,7 @@ export class MaintenanceController {
   }
 
   @Patch('equipment/:id')
-  @Roles(...MAINTENANCE_WRITE_ROLES)
+  @RequirePermission('maintenance.equipment.update')
   updateEquipment(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -71,7 +78,7 @@ export class MaintenanceController {
   }
 
   @Patch('equipment/:id/deactivate')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('maintenance.equipment.deactivate')
   deactivateEquipment(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -82,6 +89,7 @@ export class MaintenanceController {
   // ─── Orders ────────────────────────────────────────────────────────────────
 
   @Get('orders')
+  @RequirePermission('maintenance.orders.view')
   listOrders(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -96,7 +104,7 @@ export class MaintenanceController {
   }
 
   @Post('orders')
-  @Roles(...MAINTENANCE_WRITE_ROLES)
+  @RequirePermission('maintenance.orders.create')
   createOrder(
     @Request() req: { user: { companyId: string; id: string } },
     @Body() dto: CreateMaintenanceOrderDto,
@@ -109,6 +117,7 @@ export class MaintenanceController {
   }
 
   @Get('orders/:id')
+  @RequirePermission('maintenance.orders.view')
   getOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -117,7 +126,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/start')
-  @Roles(...MAINTENANCE_WRITE_ROLES)
+  @RequirePermission('maintenance.orders.start')
   startOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -126,7 +135,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/complete')
-  @Roles(...MAINTENANCE_WRITE_ROLES)
+  @RequirePermission('maintenance.orders.complete')
   completeOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id: string } },
@@ -141,7 +150,7 @@ export class MaintenanceController {
   }
 
   @Patch('orders/:id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('maintenance.orders.cancel')
   cancelOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

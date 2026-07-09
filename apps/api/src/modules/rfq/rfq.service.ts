@@ -7,16 +7,17 @@ export class RfqService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  // FIX anti-IDOR #622: companyId vem SEMPRE do JWT (parâmetro), nunca do body
+  // (padrão #450 — o dto antigo aceitava companyId do cliente).
   async create(dto: {
-    companyId: string;
     title: string;
     deadline?: string;
     notes?: string;
     items: { productId: string; quantity: number; specs?: string }[];
-  }, userId?: string) {
+  }, companyId: string, userId?: string) {
     return this.prisma.requestForQuotation.create({
       data: {
-        companyId: dto.companyId,
+        companyId,
         title: dto.title,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
         notes: dto.notes,
@@ -63,7 +64,11 @@ export class RfqService {
   }
 
   // Submit quote from supplier
-  async submitQuote(rfqId: string, dto: {
+  // FIX anti-IDOR #622: RFQ escopada por companyId do JWT e supplier validado
+  // na MESMA empresa — fora do escopo responde 404 (anti-enumeração, mesma
+  // mensagem de inexistente). Antes, qualquer autenticado registrava cotação
+  // em RFQ de outro tenant com qualquer supplierId.
+  async submitQuote(rfqId: string, companyId: string, dto: {
     supplierId: string;
     deliveryDays?: number;
     paymentTerms?: string;
@@ -71,9 +76,17 @@ export class RfqService {
     items: { rfqItemId: string; unitPrice: number; quantity: number }[];
   }) {
     const rfq = await this.prisma.requestForQuotation.findFirst({
-      where: { id: rfqId },
+      where: { id: rfqId, companyId },
     });
     if (!rfq) throw new NotFoundException(`RFQ ${rfqId} não encontrada`);
+
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: dto.supplierId, companyId },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new NotFoundException(`Fornecedor ${dto.supplierId} não encontrado`);
+    }
 
     const totalAmount = dto.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
