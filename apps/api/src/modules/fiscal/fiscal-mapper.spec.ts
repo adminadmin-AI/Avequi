@@ -1,4 +1,4 @@
-import { buildNFCePayload, buildNFePayload, buildTransferNFePayload, calcTotalValue, FiscalPayloadInput } from './fiscal-mapper';
+import { buildNFCePayload, buildNFePayload, buildTransferNFePayload, calcTotalValue, cardBrandCode, mapPaymentsFlat, FiscalPayloadInput } from './fiscal-mapper';
 
 const baseInput: FiscalPayloadInput = {
   ref: 'GDR-SO-001',
@@ -11,6 +11,74 @@ const baseInput: FiscalPayloadInput = {
 };
 
 describe('fiscal-mapper', () => {
+  // ─── #587: detPag lista + grupo card (tpIntegra=1) ─────────────────────────
+  describe('mapPaymentsFlat (#587)', () => {
+    it('cartão de crédito autorizado → grupo card completo (nomes flat oficiais)', () => {
+      const forms = mapPaymentsFlat({
+        ...baseInput,
+        payments: [
+          {
+            tPag: '03',
+            amount: 250,
+            card: { cnpjCredenciadora: '01027058000191', tBand: '01', cAut: '484740' },
+          },
+        ],
+      }) as any[];
+      expect(forms).toHaveLength(1);
+      expect(forms[0]).toEqual({
+        forma_pagamento: '03',
+        valor_pagamento: 250,
+        tipo_integracao: '1',
+        cnpj_credenciadora: '01027058000191',
+        bandeira_operadora: '01',
+        numero_autorizacao: '484740',
+      });
+    });
+
+    it('multi-forma: PIX + débito somam o total; só o cartão leva grupo card', () => {
+      const forms = mapPaymentsFlat({
+        ...baseInput,
+        payments: [
+          { tPag: '17', amount: 100 },
+          { tPag: '04', amount: 150, card: { tBand: '06', cAut: 'NSU123' } },
+        ],
+      }) as any[];
+      expect(forms).toHaveLength(2);
+      expect(forms[0]).toEqual({ forma_pagamento: '17', valor_pagamento: 100 });
+      expect(forms[1].tipo_integracao).toBe('1');
+      expect(forms[1].bandeira_operadora).toBe('06');
+      expect(forms[1].cnpj_credenciadora).toBeUndefined(); // sem CNPJ → campo omitido
+    });
+
+    it('sem plano → forma única legada (retrocompat #479), frete somado', () => {
+      const forms = mapPaymentsFlat({ ...baseInput, paymentMethod: '17', freight: { modality: '3', value: 50 } as any }) as any[];
+      expect(forms).toEqual([{ forma_pagamento: '17', valor_pagamento: 300 }]);
+    });
+
+    it("forma '90' (devolução) exige valor 0", () => {
+      const forms = mapPaymentsFlat({ ...baseInput, paymentMethod: '90' }) as any[];
+      expect(forms[0].valor_pagamento).toBe(0);
+    });
+
+    it('buildNFePayload usa o plano quando presente', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        payments: [{ tPag: '03', amount: 250, card: { tBand: '02', cAut: 'A1' } }],
+      }) as any;
+      expect(payload.formas_pagamento).toHaveLength(1);
+      expect(payload.formas_pagamento[0].tipo_integracao).toBe('1');
+    });
+
+    it('cardBrandCode mapeia bandeiras e cai em 99 pro desconhecido', () => {
+      expect(cardBrandCode('VISA')).toBe('01');
+      expect(cardBrandCode('mastercard')).toBe('02');
+      expect(cardBrandCode('ELO')).toBe('06');
+      expect(cardBrandCode('HIPERCARD')).toBe('07');
+      expect(cardBrandCode('BANDEIRA_NOVA')).toBe('99');
+      expect(cardBrandCode(null)).toBe('99');
+    });
+  });
+
   describe('calcTotalValue', () => {
     it('soma corretamente quantity × unitPrice de todos os itens', () => {
       expect(calcTotalValue(baseInput.items)).toBe(250);

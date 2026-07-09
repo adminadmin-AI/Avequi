@@ -193,6 +193,38 @@ export interface FiscalFreight {
   }>;
 }
 
+/**
+ * #587 — uma forma do detPag (lista). Cartão TEF integrado (tpIntegra=1)
+ * exige o grupo card: CNPJ da credenciadora + bandeira + autorização, que
+ * vêm do gate TEF (#596) gravados no SalesPayment.
+ */
+export interface FiscalPaymentForm {
+  tPag: string; // código tabela 4.3.4.1 ('01' dinheiro, '03' crédito, '04' débito, '17' PIX…)
+  amount: number;
+  card?: {
+    cnpjCredenciadora?: string; // CNPJ da adquirente (Acquirer.cnpj)
+    tBand: string; // código da bandeira ('01' Visa … '99' outros)
+    cAut: string; // autorização do TEF (authCode; fallback NSU)
+  };
+}
+
+/** Bandeira (SalesPayment.brand) → tBand da NF-e (tabela cartões) */
+export const CARD_BRAND_CODES: Record<string, string> = {
+  VISA: '01',
+  MASTERCARD: '02',
+  AMEX: '03',
+  'AMERICAN EXPRESS': '03',
+  SOROCRED: '04',
+  DINERS: '05',
+  ELO: '06',
+  HIPERCARD: '07',
+  AURA: '08',
+  CABAL: '09',
+};
+
+export const cardBrandCode = (brand?: string | null): string =>
+  (brand && CARD_BRAND_CODES[brand.toUpperCase()]) || '99';
+
 export interface FiscalPayloadInput {
   ref: string; // referência única gerada pelo GDR (ex: "GDR-SO-<id>")
   emitter: FiscalEmitter;
@@ -200,10 +232,43 @@ export interface FiscalPayloadInput {
   items: FiscalItem[];
   totalValue: number;
   paymentMethod?: string; // '01' dinheiro, '03' cartão crédito, '04' cartão débito, '99' outros
+  payments?: FiscalPaymentForm[]; // #587 — plano multi-forma; quando presente, vence o paymentMethod
   consumidorFinal?: boolean; // true = indicador_consumidor_final: 1 na NF-e
   infCpl?: string; // informações complementares (#370)
   delivery?: FiscalDeliveryAddress; // grupo <entrega> quando ≠ endereço fiscal (#474)
   freight?: FiscalFreight; // grupo transp — ausente = modalidade 9 (#481)
+}
+
+/**
+ * #587 — formas_pagamento da Focus (detPag como LISTA). Nomes flat oficiais
+ * do dicionário (FormaPagamentoXML): tipo_integracao (tpIntegra),
+ * cnpj_credenciadora, bandeira_operadora (tBand), numero_autorizacao (cAut).
+ * Lição do projeto: campo flat com nome errado a Focus IGNORA em silêncio —
+ * validado em homologação (XML autorizado com grupo card conferido).
+ */
+export function mapPaymentsFlat(input: FiscalPayloadInput): Array<Record<string, unknown>> {
+  const totalWithFreight = Number((input.totalValue + (input.freight?.value ?? 0)).toFixed(2));
+
+  if (input.payments?.length) {
+    return input.payments.map((p) => ({
+      forma_pagamento: p.tPag,
+      valor_pagamento: Number(p.amount.toFixed(2)),
+      ...(p.card && {
+        tipo_integracao: '1', // TEF/gateway INTEGRADO — decisão do épico (#583)
+        ...(p.card.cnpjCredenciadora && { cnpj_credenciadora: p.card.cnpjCredenciadora }),
+        bandeira_operadora: p.card.tBand,
+        numero_autorizacao: p.card.cAut,
+      }),
+    }));
+  }
+
+  // legado: forma única (retrocompat #479); '90' (sem pagamento) exige valor 0
+  return [
+    {
+      forma_pagamento: input.paymentMethod ?? '99',
+      valor_pagamento: input.paymentMethod === '90' ? 0 : totalWithFreight,
+    },
+  ];
 }
 
 /**
@@ -488,13 +553,9 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
       ...(doc.length === 11 ? { cpf_destinatario: doc } : { cnpj_destinatario: doc }),
     }),
     items: input.items.map((item, idx) => mapItemToPayload(item, idx, '5101')),
-    formas_pagamento: [
-      {
-        forma_pagamento: input.paymentMethod ?? '99',
-        // nome oficial Focus é valor_pagamento — `valor` era ignorado e o vPag saía 0
-        valor_pagamento: input.totalValue,
-      },
-    ],
+    // #587: detPag como lista (multi-forma + grupo card); nome oficial Focus
+    // é valor_pagamento — `valor` era ignorado e o vPag saía 0
+    formas_pagamento: mapPaymentsFlat(input),
   };
 }
 
@@ -521,16 +582,8 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     // forma 90 (sem pagamento) — obrigatória em devolução/entrada (rejeição SEFAZ 871) — exige valor 0.
     // vFrete compõe o vNF — o detPag precisa somar o frete ou a SEFAZ rejeita
     // pagamento ≠ total da nota (#481)
-    formas_pagamento: [
-      {
-        forma_pagamento: input.paymentMethod ?? '99',
-        // nome oficial Focus é valor_pagamento — `valor` era ignorado e o vPag saía 0
-        valor_pagamento:
-          input.paymentMethod === '90'
-            ? 0
-            : Number((input.totalValue + (input.freight?.value ?? 0)).toFixed(2)),
-      },
-    ],
+    // #587: detPag como lista (multi-forma + grupo card tpIntegra=1)
+    formas_pagamento: mapPaymentsFlat(input),
   };
 }
 

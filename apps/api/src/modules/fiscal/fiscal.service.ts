@@ -14,6 +14,7 @@ import {
   FiscalItem,
   FiscalPayloadInput,
   FiscalVehicleData,
+  cardBrandCode,
 } from './fiscal-mapper';
 
 const CANCEL_DEADLINE_HOURS = 24;
@@ -53,6 +54,8 @@ export class FiscalService {
         deliveryAddress: true,
         carrier: true,
         items: { include: { product: true, serialNumber: true } },
+        // #587: plano de pagamento → detPag lista + grupo card (CNPJ credenciadora)
+        payments: { include: { acquirer: { select: { cnpj: true } } } },
       },
     });
 
@@ -258,10 +261,32 @@ export class FiscalService {
 
     const infCpl = infCplParts.length > 0 ? infCplParts.join('. ') : undefined;
 
+    // #587: plano multi-forma → detPag lista; cartão TEF (tpIntegra=1) leva o
+    // grupo card com CNPJ da credenciadora + bandeira + autorização do gate #596
+    const paymentForms = (order.payments ?? []).map((p) => {
+      const isCard = p.method === 'CARTAO_CREDITO' || p.method === 'CARTAO_DEBITO' || p.method === 'CARTAO';
+      const cAut = p.authCode ?? p.nsu ?? undefined;
+      return {
+        tPag: NFE_PAYMENT_CODES[p.method] ?? '99',
+        amount: Number(p.amount),
+        // sem autorização não há grupo card válido (cAut é obrigatório no tpIntegra=1)
+        ...(isCard && cAut
+          ? {
+              card: {
+                cnpjCredenciadora: (p as any).acquirer?.cnpj ?? undefined,
+                tBand: cardBrandCode(p.brand),
+                cAut,
+              },
+            }
+          : {}),
+      };
+    });
+
     const input: FiscalPayloadInput = {
       ref,
       // detPag com a forma real da venda (#479); sem forma cadastrada → 99 (outros)
       paymentMethod: order.paymentMethod ? NFE_PAYMENT_CODES[order.paymentMethod] : undefined,
+      ...(paymentForms.length > 0 && { payments: paymentForms }),
       emitter: {
         cnpj: order.company.cnpj,
         name: order.company.razaoSocial ?? order.company.name,
