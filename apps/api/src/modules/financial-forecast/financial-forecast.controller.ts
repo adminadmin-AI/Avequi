@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { FinancialForecastService } from './financial-forecast.service';
 
 @ApiTags('forecast')
@@ -10,7 +10,8 @@ export class FinancialForecastController {
   constructor(private readonly service: FinancialForecastService) {}
 
   @Get('financial')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  // #341 parte 2 (PR E1): reusa finance.reports.view (matriz Rafael, #623)
+  @RequirePermission('finance.reports.view')
   @ApiOperation({
     summary: 'Forecast financeiro trimestral rolante — receita (demanda×preço) e despesa (tendência), vs orçado e realizado (#397)',
   })

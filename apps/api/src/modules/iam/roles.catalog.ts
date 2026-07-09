@@ -131,8 +131,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: dedupe([
       // Diretoria vê perfis/permissões (iam.roles.view entra por actionCodes),
       // mas a trilha de auditoria (iam.audit-logs.*) fica FORA — ver descrição.
+      // #623 (E1, decisão Rafael): taxas de cartão negociadas (acquirers) são
+      // restritas a FINANCEIRO/G.FINANCEIRO/AUDITOR/admins — diretor fora.
       ...actionCodes('view').filter(
-        (code) => !code.startsWith('iam.audit-logs.'),
+        (code) =>
+          !code.startsWith('iam.audit-logs.') &&
+          code !== 'finance.acquirers.view',
       ),
       'products.catalog.update',
       'production.bom.activate',
@@ -147,6 +151,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.commissions.approve',
       'sales.commissions.configure',
       'approvals.requests.approve',
+      // #623 (E1, decisão Rafael): aprovar investimento é alçada da diretoria
+      // (quem gerencia o projeto NÃO aprova); management book é leitura
+      // executiva — diretor vê/exporta sem operar o financeiro.
+      'finance.investments.approve',
+      'finance.reports.export',
       'fiscal.tax-rules.create',
       'fiscal.tax-rules.update',
       'fiscal.tax-rules.delete',
@@ -228,6 +237,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Financeiro e fiscal: SOMENTE leitura (sem operar/configurar)
       'finance.entries.view',
       'finance.reports.view',
+      // #623 (E1, decisão Rafael): gerente amplo ENXERGA planos de investimento
+      // e budget por drivers (leitura gerencial); SEM management book e SEM
+      // qualquer escrita financeira.
+      'finance.investments.view',
+      'finance.budget-plans.view',
       'fiscal.documents.view',
       // #622 (decisão Rafael): gerente amplo ENXERGA qualidade e manutenção,
       // mas NÃO opera — mutações ficam com QUALIDADE/G.INDUSTRIAL/ASSISTENCIA.
@@ -251,7 +265,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: dedupe([
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
-      ...moduleCodes('finance', 'fiscal'),
+      // #623 (E1, decisão Rafael): dono do módulo financeiro — write-off,
+      // provisões, régua, adquirentes, conciliação, exports. EXCETO aprovar
+      // investimento: alçada é só DIRETOR+admins (quem gerencia não aprova).
+      ...moduleCodes('finance', 'fiscal').filter(
+        (c) => c !== 'finance.investments.approve',
+      ),
       'products.catalog.view',
       'products.pricing.view',
       ...actionCodes('view', ['sales', 'purchases']),
@@ -525,7 +544,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: dedupe([
       'dashboard.finance.view',
       'dashboard.executive.view',
-      ...resourceCodes('finance', 'entries'),
+      // #623 (E1, decisão Rafael): FINANCEIRO opera o dia a dia mas NÃO faz
+      // write-off (baixa como perda é do Gerente Financeiro) nem configura.
+      ...resourceCodes('finance', 'entries').filter(
+        (c) => c !== 'finance.entries.write-off',
+      ),
       'finance.bank-accounts.view',
       ...resourceCodes('finance', 'categories').filter((c) => c !== 'finance.categories.delete'),
       ...resourceCodes('finance', 'cost-centers').filter((c) => c !== 'finance.cost-centers.delete'),
@@ -534,8 +557,26 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...resourceCodes('finance', 'payment-schedules'),
       ...resourceCodes('finance', 'boletos'),
       ...resourceCodes('finance', 'pix'),
-      ...resourceCodes('finance', 'billing'),
+      // #623 (E1): dispara a cobrança (view/execute), mas a RÉGUA é config de
+      // gerência (billing.configure fica fora).
+      ...resourceCodes('finance', 'billing').filter(
+        (c) => c !== 'finance.billing.configure',
+      ),
       'finance.budget.view',
+      // #623 (E1, decisões Rafael): operação diária do financeiro —
+      // provisões só leitura (configurar é gerência); adiantamentos sem
+      // cancelar (cancelamento é gerência); dívidas completas (view/create/
+      // pay); conciliação bancária; taxas de adquirente só leitura;
+      // investimentos e budget-plans só leitura (manage é gerência; approve
+      // é diretoria).
+      'finance.provisions.view',
+      'finance.advances.view',
+      'finance.advances.create',
+      ...resourceCodes('finance', 'debts'),
+      'finance.reconciliation.execute',
+      'finance.acquirers.view',
+      'finance.investments.view',
+      'finance.budget-plans.view',
       'fiscal.documents.view',
       'fiscal.manifestation.view',
       'sales.orders.view',
@@ -643,6 +684,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: dedupe([
       ...actionCodes('view'),
       'analytics.export.execute',
+      // #623 (E1, decisão Rafael): auditor exporta os pacotes de auditoria —
+      // management book e massa fiscal (XMLs) — sem nenhuma mutação.
+      'finance.reports.export',
+      'fiscal.documents.export',
     ]),
   },
   {

@@ -92,8 +92,15 @@ describe('Catálogo de perfis system (#339)', () => {
 
   it('AUDITOR só tem leitura + export (nenhuma mutação)', () => {
     const auditor = findSystemRole('AUDITOR')!;
+    // Exports são LEITURA empacotada (relatório/arquivo), não mutação —
+    // #623 (E1) somou management book e ZIP de XMLs fiscais ao auditor.
+    const EXPORTS_DE_LEITURA = [
+      'analytics.export.execute',
+      'finance.reports.export',
+      'fiscal.documents.export',
+    ];
     const mutacoes = auditor.permissions.filter(
-      (p) => !p.endsWith('.view') && p !== 'analytics.export.execute',
+      (p) => !p.endsWith('.view') && !EXPORTS_DE_LEITURA.includes(p),
     );
     expect(mutacoes).toEqual([]);
     // Auditor vê inclusive os módulos sensíveis
