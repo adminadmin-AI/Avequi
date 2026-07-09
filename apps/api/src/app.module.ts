@@ -53,6 +53,12 @@ import { TaxModule } from './modules/tax/tax.module';
 import { VehicleTrackingModule } from './modules/vehicle-tracking/vehicle-tracking.module';
 import { PriceModule } from './modules/price/price.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { VehicleDocumentModule } from './modules/vehicle-document/vehicle-document.module';
+import { InvestmentModule } from './modules/investment/investment.module';
+import { FinancialForecastModule } from './modules/financial-forecast/financial-forecast.module';
+import { BudgetPlanModule } from './modules/budget-plan/budget-plan.module';
+import { CostingModule } from './modules/costing/costing.module';
+import { PricingModule } from './modules/pricing/pricing.module';
 import { VersionModule } from './modules/version/version.module';
 import { ApprovalModule } from './modules/approval/approval.module';
 import { CommissionModule } from './modules/commission/commission.module';
@@ -167,6 +173,12 @@ import { IamModule } from './modules/iam/iam.module';
     VehicleTrackingModule,
     PriceModule,
     DeliveryModule,
+    VehicleDocumentModule,
+    InvestmentModule,
+    FinancialForecastModule,
+    BudgetPlanModule,
+    CostingModule,
+    PricingModule,
     VersionModule,
     ApprovalModule,
     CommissionModule,

@@ -347,6 +347,7 @@ export enum NcrSeverity {
 export enum SerialStatus {
   IN_PRODUCTION = 'IN_PRODUCTION',
   IN_STOCK = 'IN_STOCK',
+  IN_TRANSIT = 'IN_TRANSIT',
   RESERVED_FOR_SALE = 'RESERVED_FOR_SALE',
   SOLD = 'SOLD',
   TRANSFERRED = 'TRANSFERRED',
