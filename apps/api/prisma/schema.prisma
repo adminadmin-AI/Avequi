@@ -955,6 +955,7 @@ model SalesOrder {
   warehouseId       String
   warehouse         Warehouse         @relation(fields: [warehouseId], references: [id])
   status            SalesOrderStatus  @default(DRAFT)
+  channel           String            @default("FACTORY") // FACTORY = fluxo fábrica c/ separação; COUNTER = venda balcão da filial (#595)
   paymentMethod     PaymentMethod?    @map("payment_method") // forma de pagamento da venda → detPag da NF-e (#479)
   deliveryAddressId String?           @map("delivery_address_id") // endereço de entrega ≠ fiscal → grupo <entrega> (#474)
   deliveryAddress   CustomerAddress?  @relation(fields: [deliveryAddressId], references: [id])

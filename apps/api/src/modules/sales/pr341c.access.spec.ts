@@ -92,6 +92,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findAll: 'sales.orders.view',
     findOne: 'sales.orders.view',
     reserve: 'sales.orders.reserve',
+    counterCheckout: 'sales.orders.reserve', // #595 venda balcão reusa a permissão de reservar
     confirm: 'sales.orders.confirm',
     invoice: 'sales.orders.invoice',
     return: 'sales.orders.return',

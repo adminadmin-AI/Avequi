@@ -41,7 +41,12 @@ const mockPrisma = {
     update: jest.fn(),
   },
   serialNumber: {
+    findFirst: jest.fn(),
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
+  // #595: validação de chassi na venda balcão
+  product: {
+    findMany: jest.fn().mockResolvedValue([]),
   },
   // #475: crédito e bloqueio de faturamento
   customer: {
@@ -94,7 +99,126 @@ describe('SalesService', () => {
     jest.clearAllMocks();
     mockPrisma.financialEntry.findMany.mockResolvedValue([]); // #586 — devolução varre 1:N
     mockTaxCalc.findBestRule.mockResolvedValue({ id: 'rule-1' });
+    mockPrisma.product.findMany.mockResolvedValue([]); // #595
+    mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 }); // #595 happy path
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
+  });
+
+  // ─── checkoutCounterSale (#595) — venda balcão ────────────────────────────
+
+  describe('checkoutCounterSale', () => {
+    const trailer = { id: 'p-1', name: 'Reboque', tracksSerial: true };
+    const counterOrder = {
+      id: 'so-b', companyId: 'co-1', warehouseId: 'wh-1',
+      status: SalesOrderStatus.DRAFT, channel: 'COUNTER', customer: null,
+      items: [{ id: 'si-1', productId: 'p-1', quantity: 1, unitPrice: 100, serialNumberId: 'sn-1', product: trailer }],
+    };
+
+    it('rejeita venda que não é do canal COUNTER', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({ ...counterOrder, channel: 'FACTORY' });
+      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/COUNTER/);
+    });
+
+    it('rejeita quando não está em DRAFT', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.INVOICED });
+      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('bloqueia cliente com faturamento bloqueado (sem override DIRECTOR)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...counterOrder, customer: { billingBlocked: true, billingBlockReason: 'inadimplente' },
+      });
+      await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/bloqueado/);
+    });
+
+    it('DIRECTOR sobrepõe faturamento bloqueado e fecha a venda', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...counterOrder, customer: { billingBlocked: true },
+      });
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 5, reserved: 0 });
+      mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
+      const res = await service.checkoutCounterSale('so-b', 'co-1', 'u1', 'DIRECTOR');
+      expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
+    });
+
+    it('rejeita estoque insuficiente', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 0, reserved: 0 });
+      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/insuficiente/);
+    });
+
+    it('reserva estoque, amarra o chassi (IN_STOCK→RESERVED_FOR_SALE) e vai a READY_TO_INVOICE', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
+
+      const res = await service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL');
+
+      expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
+      expect(mockStockService.reserveBalance).toHaveBeenCalledWith('wh-1', 'p-1', 1, 'co-1', mockPrisma);
+      expect(mockPrisma.serialNumber.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'sn-1', status: 'IN_STOCK', salesOrderId: null }),
+          data: expect.objectContaining({ status: 'RESERVED_FOR_SALE', salesOrderId: 'so-b' }),
+        }),
+      );
+    });
+
+    it('falha na corrida se o chassi já foi reservado por outra venda (guard de concorrência)', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
+      mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 }); // ninguém flipou
+      await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
+    });
+  });
+
+  // ─── createOrder — validação de chassi no canal COUNTER (#595) ────────────
+
+  describe('createOrder (canal COUNTER)', () => {
+    const dtoBase = {
+      warehouseId: 'wh-1',
+      items: [{ productId: 'p-1', quantity: 1, unitPrice: 100, serialNumberId: 'sn-1' }],
+      channel: 'COUNTER' as const,
+    };
+    const trailer = { id: 'p-1', name: 'Reboque', tracksSerial: true };
+
+    it('exige chassi escaneado em item rastreável', async () => {
+      mockPrisma.product.findMany.mockResolvedValue([trailer]);
+      const dto = { ...dtoBase, items: [{ productId: 'p-1', quantity: 1, unitPrice: 100 }] };
+      await expect(service.createOrder(dto as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/escaneie o chassi/i);
+    });
+
+    it('rejeita chassi que não está IN_STOCK', async () => {
+      mockPrisma.product.findMany.mockResolvedValue([trailer]);
+      mockPrisma.serialNumber.findFirst.mockResolvedValue({
+        id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-1', status: 'SOLD', salesOrderId: null,
+      });
+      await expect(service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está disponível/);
+    });
+
+    it('rejeita chassi de outro depósito', async () => {
+      mockPrisma.product.findMany.mockResolvedValue([trailer]);
+      mockPrisma.serialNumber.findFirst.mockResolvedValue({
+        id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-OUTRO', status: 'IN_STOCK', salesOrderId: null,
+      });
+      await expect(service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/depósito/);
+    });
+
+    it('cria a venda balcão gravando canal e chassi no item', async () => {
+      mockPrisma.product.findMany.mockResolvedValue([trailer]);
+      mockPrisma.serialNumber.findFirst.mockResolvedValue({
+        id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-1', status: 'IN_STOCK', salesOrderId: null,
+      });
+      mockPrisma.salesOrder.create.mockResolvedValue({ id: 'so-b', channel: 'COUNTER', items: [] });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL');
+
+      const createArg = mockPrisma.salesOrder.create.mock.calls[0][0];
+      expect(createArg.data.channel).toBe('COUNTER');
+      expect(createArg.data.items.create[0].serialNumberId).toBe('sn-1');
+    });
   });
 
   // ─── reserveOrder (S07.03) ────────────────────────────────────────────────
