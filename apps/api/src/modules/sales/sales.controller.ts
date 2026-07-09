@@ -87,6 +87,23 @@ export class SalesController {
     return this.discountPolicyService.update(id, user.companyId, dto);
   }
 
+  @Get('counter-serials')
+  @RequirePermission('sales.orders.reserve')
+  @ApiOperation({
+    summary:
+      'Chassis disponíveis (IN_STOCK, livres) p/ scan na venda balcão — escopado à venda, ' +
+      'sem exigir stock.serials.view (#595)',
+  })
+  @ApiQuery({ name: 'productId', required: true })
+  @ApiQuery({ name: 'warehouseId', required: true })
+  counterSerials(
+    @CurrentUser() user: any,
+    @Query('productId') productId: string,
+    @Query('warehouseId') warehouseId: string,
+  ) {
+    return this.salesService.listCounterSerials(user.companyId, productId, warehouseId);
+  }
+
   @Get(':id')
   @RequirePermission('sales.orders.view')
   @ApiOperation({ summary: 'Buscar venda por ID' })

@@ -42,6 +42,7 @@ const mockPrisma = {
   },
   serialNumber: {
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
   // #595: validação de chassi na venda balcão
@@ -170,6 +171,24 @@ describe('SalesService', () => {
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 }); // ninguém flipou
       await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
+    });
+  });
+
+  describe('listCounterSerials (#595)', () => {
+    it('exige productId e warehouseId', async () => {
+      await expect(service.listCounterSerials('co-1', '', 'wh-1')).rejects.toThrow(BadRequestException);
+      await expect(service.listCounterSerials('co-1', 'p-1', '')).rejects.toThrow(BadRequestException);
+    });
+
+    it('lista só chassis IN_STOCK e livres do produto/depósito', async () => {
+      mockPrisma.serialNumber.findMany.mockResolvedValue([{ id: 'sn-1', serial: 'VIN1' }]);
+      const res = await service.listCounterSerials('co-1', 'p-1', 'wh-1');
+      expect(res).toHaveLength(1);
+      expect(mockPrisma.serialNumber.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { companyId: 'co-1', productId: 'p-1', warehouseId: 'wh-1', status: 'IN_STOCK', salesOrderId: null },
+        }),
+      );
     });
   });
 

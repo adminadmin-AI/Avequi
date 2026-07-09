@@ -190,6 +190,30 @@ export class SalesService {
   // ─── #595: venda balcão (COUNTER) ────────────────────────────────────────
 
   /**
+   * #595 — chassis escaneáveis no balcão: IN_STOCK, livres, do produto e
+   * depósito da venda. Exposto pelo domínio de vendas (permission
+   * sales.orders.reserve) porque VENDEDOR/LOJA_OPERACIONAL não têm
+   * stock.serials.view — o balcão só enxerga o recorte da própria venda.
+   */
+  async listCounterSerials(companyId: string, productId: string, warehouseId: string) {
+    if (!productId || !warehouseId) {
+      throw new BadRequestException('productId e warehouseId são obrigatórios');
+    }
+    return this.prisma.serialNumber.findMany({
+      where: {
+        companyId,
+        productId,
+        warehouseId,
+        status: 'IN_STOCK' as any,
+        salesOrderId: null,
+      },
+      select: { id: true, serial: true, chassi: true, descricaoCor: true },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+  }
+
+  /**
    * #595 — valida os chassis escaneados na venda balcão: cada item rastreável
    * precisa de um SerialNumber IN_STOCK, do mesmo produto, no depósito da venda,
    * ainda não amarrado a outra OV. Rastreável no balcão vende 1 unidade/linha

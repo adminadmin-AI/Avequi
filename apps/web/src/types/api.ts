@@ -319,6 +319,7 @@ export interface Product extends BaseEntity {
   avgCost?: string | null;
   minStock: string;
   isActive: boolean;
+  tracksSerial?: boolean; // rastreável por chassi — balcão exige scan (#595)
 }
 
 export interface Supplier extends BaseEntity {
@@ -467,6 +468,7 @@ export interface SalesOrder extends BaseEntity {
   warehouseId: string;
   warehouse?: Pick<Warehouse, 'id' | 'name' | 'code'> | null;
   status: SalesOrderStatus;
+  channel?: string; // FACTORY | COUNTER — venda balcão (#595)
   notes?: string | null;
   confirmedAt?: string | null;
   invoicedAt?: string | null;

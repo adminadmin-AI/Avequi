@@ -93,6 +93,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findOne: 'sales.orders.view',
     reserve: 'sales.orders.reserve',
     counterCheckout: 'sales.orders.reserve', // #595 venda balcão reusa a permissão de reservar
+    counterSerials: 'sales.orders.reserve', // #595 chassis escaneáveis no balcão (recorte da venda)
     confirm: 'sales.orders.confirm',
     invoice: 'sales.orders.invoice',
     return: 'sales.orders.return',
