@@ -53,6 +53,7 @@ import {
   TrendingUp,
   Target,
   Coins,
+  PackageCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -122,6 +123,7 @@ export const NAV: NavSection[] = [
       { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
       { href: '/app/quotations', label: 'Cotações', icon: FileText },
+      { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, roles: FINANCE_ROLES },
     ],
   },
   {
