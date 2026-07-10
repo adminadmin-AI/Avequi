@@ -6,6 +6,15 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-10
+
+### Added
+- IAM v2 (#341 parte 2, PR E2/E3): fiscal, compliance, LGPD e approvals no gate único RBAC v2 + cortes de permissões fiscais do GERENTE_FINANCEIRO (#683)
+
+### Changed
+- **Fecha o Bloco E da migração IAM v2** — com E2/E3, o RBAC v2 cobre A (analytics/report/audit), B (cadastros), C (vendas/estoque), D (compras/produção/qualidade), E1 (financeiro/FP&A) e E2/E3 (fiscal/LGPD/approval). Catálogo consolidado em 260 permissões · 28 perfis system.
+- `package-lock.json` sincronizado com a versão do produto (estava defasado em 1.2.0)
+
 ## [1.4.1] - 2026-07-10
 
 ### Added
@@ -93,7 +102,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.2.0...v1.3.0
