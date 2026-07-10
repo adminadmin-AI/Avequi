@@ -9,12 +9,14 @@ import {
   Request,
 } from '@nestjs/common';
 import { InboundNfeStatus } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { MatchNfeDto } from './dto/match-nfe.dto';
 import { UploadNfeDto } from './dto/upload-nfe.dto';
 import { InboundNfeService } from './inbound-nfe.service';
 
-const INBOUND_NFE_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE', 'FINANCIAL'];
+// #341 parte 2 (PR E2): gate único RBAC v2 — @Roles legado removido. Codes da
+// família purchases.inbound-nfe.* (bloco D) já seeded: executores fazem
+// upload/match; import (gera estoque+financeiro) fica com gerências/FINANCEIRO.
 
 @Controller('inbound-nfe')
 export class InboundNfeController {
@@ -22,7 +24,7 @@ export class InboundNfeController {
 
   // POST /inbound-nfe/upload
   @Post('upload')
-  @Roles(...INBOUND_NFE_WRITE_ROLES)
+  @RequirePermission('purchases.inbound-nfe.upload')
   upload(
     @Body() dto: UploadNfeDto,
     @Request() req: { user: { companyId: string; id?: string } },
@@ -32,12 +34,14 @@ export class InboundNfeController {
 
   // GET /inbound-nfe/stats
   @Get('stats')
+  @RequirePermission('purchases.inbound-nfe.view')
   getStats(@Request() req: { user: { companyId: string } }) {
     return this.inboundNfeService.getStats(req.user.companyId);
   }
 
   // GET /inbound-nfe?status=PENDING
   @Get()
+  @RequirePermission('purchases.inbound-nfe.view')
   list(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -49,6 +53,7 @@ export class InboundNfeController {
 
   // GET /inbound-nfe/:id
   @Get(':id')
+  @RequirePermission('purchases.inbound-nfe.view')
   getById(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -58,7 +63,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/match
   @Patch(':id/match')
-  @Roles(...INBOUND_NFE_WRITE_ROLES)
+  @RequirePermission('purchases.inbound-nfe.match')
   matchToPo(
     @Param('id') id: string,
     @Body() dto: MatchNfeDto,
@@ -69,7 +74,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/reject
   @Patch(':id/reject')
-  @Roles(...INBOUND_NFE_WRITE_ROLES)
+  @RequirePermission('purchases.inbound-nfe.reject')
   reject(
     @Param('id') id: string,
     @Body() body: { reason: string },
@@ -80,7 +85,7 @@ export class InboundNfeController {
 
   // PATCH /inbound-nfe/:id/import
   @Patch(':id/import')
-  @Roles(...INBOUND_NFE_WRITE_ROLES)
+  @RequirePermission('purchases.inbound-nfe.import')
   importAsGr(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; id?: string } },

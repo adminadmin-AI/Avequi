@@ -11,7 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TaxRuleService } from './tax-rule.service';
 import { CreateTaxRuleDto } from './dto/create-tax-rule.dto';
 import { UpdateTaxRuleDto } from './dto/update-tax-rule.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('tax-rules')
@@ -21,28 +21,28 @@ export class TaxRuleController {
   constructor(private readonly taxRuleService: TaxRuleService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('fiscal.tax-rules.create')
   @ApiOperation({ summary: 'Criar regra tributária' })
   create(@CurrentUser() user: any, @Body() dto: CreateTaxRuleDto) {
     return this.taxRuleService.create(user.companyId, dto);
   }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('fiscal.tax-rules.view')
   @ApiOperation({ summary: 'Listar regras tributárias da empresa' })
   findAll(@CurrentUser() user: any) {
     return this.taxRuleService.findAll(user.companyId);
   }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('fiscal.tax-rules.view')
   @ApiOperation({ summary: 'Buscar regra tributária por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.taxRuleService.findOne(id, user.companyId);
   }
 
   @Patch(':id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('fiscal.tax-rules.update')
   @ApiOperation({ summary: 'Atualizar regra tributária' })
   update(
     @Param('id') id: string,
@@ -53,7 +53,7 @@ export class TaxRuleController {
   }
 
   @Delete(':id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR')
+  @RequirePermission('fiscal.tax-rules.delete')
   @ApiOperation({ summary: 'Remover regra tributária' })
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.taxRuleService.remove(id, user.companyId);

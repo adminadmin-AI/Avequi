@@ -22,7 +22,7 @@ import archiver = require('archiver');
 import { FiscalDocumentType } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { FiscalService } from './fiscal.service';
 import { ComplianceService } from './compliance.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
@@ -43,7 +43,7 @@ export class FiscalController {
 
   // #503 parte 2 — Compliance Center (rota estática ANTES de :id)
   @Get('compliance')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL')
+  @RequirePermission('fiscal.documents.view')
   @ApiOperation({
     summary:
       'Compliance Center: score de conformidade + prontidão Reforma (cClassTrib/NCM) + ' +
@@ -83,7 +83,7 @@ export class FiscalController {
 
   /** #164 — Cancelar NF-e autorizada (prazo de 24h) */
   @Post(':id/cancel')
-  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @RequirePermission('fiscal.nfe.cancel')
   @HttpCode(200)
   @ApiOperation({ summary: 'Cancelar documento fiscal autorizado (prazo de 24h)' })
   async cancel(
@@ -97,7 +97,7 @@ export class FiscalController {
 
   /** #165 — CC-e (Carta de Correção) */
   @Post(':id/correction')
-  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @RequirePermission('fiscal.nfe.correct')
   @HttpCode(200)
   @ApiOperation({ summary: 'Emitir Carta de Correção (CC-e) para NF-e autorizada' })
   async correction(
@@ -111,7 +111,7 @@ export class FiscalController {
 
   /** #165 — Inutilização de faixa de numeração */
   @Post('void-range')
-  @Roles('SUPER_ADMIN', 'FINANCIAL')
+  @RequirePermission('fiscal.nfe.void-range')
   @HttpCode(200)
   @ApiOperation({ summary: 'Inutilizar faixa de numeração de NF-e' })
   async voidRange(@Body() dto: VoidRangeFiscalDto, @CurrentUser() user: any) {
@@ -123,7 +123,7 @@ export class FiscalController {
 
   /** S08.05 — Reprocessar documento rejeitado ou em erro */
   @Post(':id/retry')
-  @Roles('SUPER_ADMIN', 'MANAGER', 'FINANCIAL')
+  @RequirePermission('fiscal.nfe.retry')
   @ApiOperation({ summary: 'Reprocessar documento fiscal rejeitado' })
   async retry(@Param('id') id: string, @CurrentUser() user: any) {
     await this.fiscalService.retry(id, user.companyId);
@@ -131,6 +131,7 @@ export class FiscalController {
   }
 
   @Get()
+  @RequirePermission('fiscal.documents.view')
   @ApiOperation({ summary: 'Listar documentos fiscais da empresa' })
   findAll(@CurrentUser() user: any) {
     return this.fiscalService.findAll(user.companyId);
@@ -141,7 +142,7 @@ export class FiscalController {
    * Declarado ANTES de :id para não ser capturado pela rota de detalhe.
    */
   @Get('export')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'FINANCIAL')
+  @RequirePermission('fiscal.documents.export')
   @ApiOperation({ summary: 'Exportar XMLs do período em ZIP (contador)' })
   @ApiQuery({ name: 'from', description: 'Data inicial (YYYY-MM-DD)' })
   @ApiQuery({ name: 'to', description: 'Data final (YYYY-MM-DD)' })
@@ -180,6 +181,7 @@ export class FiscalController {
   }
 
   @Get(':id')
+  @RequirePermission('fiscal.documents.view')
   @ApiOperation({ summary: 'Detalhe do documento fiscal' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.fiscalService.findOne(id, user.companyId);
