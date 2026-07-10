@@ -5,7 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import * as Joi from 'joi';
+import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -73,37 +73,11 @@ import { IamModule } from './modules/iam/iam.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../.env',
-      validationSchema: Joi.object({
-        DATABASE_URL: Joi.string().uri().required(),
-        DIRECT_URL: Joi.string().uri().required(),
-        JWT_SECRET: Joi.string().min(32).required(),
-        JWT_EXPIRY: Joi.string().default('1h'),
-        REDIS_URL: Joi.string().uri().required(),
-        API_PORT: Joi.number().default(3001),
-        API_PREFIX: Joi.string().default('api'),
-        WEB_URL: Joi.string().uri().default('http://localhost:3000'),
-        NODE_ENV: Joi.string()
-          .valid('development', 'production', 'test')
-          .default('development'),
-        FOCUS_NFE_TOKEN: Joi.string().optional(),
-        FOCUS_NFE_WEBHOOK_SECRET: Joi.string().optional(),
-        // #344: chave AES-256-GCM do EncryptionService (secret TOTP do MFA em
-        // repouso; o futuro serviço bancário pode reutilizá-la). OPTIONAL de
-        // propósito: "required se MFA estiver em uso" não é expressável no
-        // boot — o fail-fast é em runtime (boot derruba se a chave existir
-        // MALFORMADA; MFA responde 503 se a chave faltar). 64 hex = 32 bytes.
-        ENCRYPTION_KEY: Joi.string()
-          .pattern(/^[0-9a-fA-F]{64}$/)
-          .optional()
-          .messages({
-            'string.pattern.base':
-              'ENCRYPTION_KEY deve ter exatamente 64 caracteres hexadecimais (32 bytes)',
-          }),
-        // SoD (#160/#350): trava de segregação de funções nas aprovações.
-        // DESLIGADA por padrão — regra vigente permite criar e aprovar.
-        SOD_ENFORCE: Joi.boolean().default(false),
-      }),
+      // Carrega o .env da raiz do monorepo e, como fallback, o
+      // apps/api/.env (primeiro arquivo encontrado tem precedência).
+      envFilePath: ['../../.env', '.env'],
+      // Schema completo em src/config/env.validation.ts (#202)
+      validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
         allowUnknown: true,
