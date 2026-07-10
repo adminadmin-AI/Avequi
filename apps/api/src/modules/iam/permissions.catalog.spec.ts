@@ -79,7 +79,12 @@ describe('Catálogo de permissões (#338)', () => {
     //       finance.billing.configure; finance.reports.export; fiscal.documents.export;
     //       finance.acquirers.{view,manage}; finance.investments.{view,manage,approve};
     //       finance.budget-plans.{view,manage}
-    expect(PERMISSIONS_CATALOG.length).toBe(260);
+    // 266 = 260 + 6 da #625 (bloco G, decisões Rafael 10/07):
+    //       sales.carriers.{view,manage} + sales.deliveries.{view,update}
+    //       + vehicle-tracking.documents.{view,manage}.
+    //       (O reconcile/cancel do inventário WMS REUSA stock.inventory.* —
+    //       codes que já existiam; nenhum code novo para isso.)
+    expect(PERMISSIONS_CATALOG.length).toBe(266);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

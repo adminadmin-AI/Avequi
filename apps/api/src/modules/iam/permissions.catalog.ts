@@ -140,6 +140,18 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /sales/discount-policies'],
     ['configure', 'configurar', 'POST /sales/discount-policies/seed-defaults, PATCH /sales/discount-policies/:id'],
   ]),
+  // #625 (bloco G): cadastro de transportadoras — a leitura estava aberta a
+  // qualquer autenticado (carrier.controller sem gate nos GETs).
+  ...r('sales', 'carriers', 'Transportadoras', [
+    ['view', 'ver', 'GET /carriers, GET /carriers/:id'],
+    ['manage', 'criar/editar', 'POST /carriers, PATCH /carriers/:id'],
+  ]),
+  // #625 (bloco G): entregas pós-NF-e (#365) — update muda status de entrega
+  // real (expedição/loja); FINANCEIRO só acompanha (view), decisão Rafael.
+  ...r('sales', 'deliveries', 'Entregas (pós-NF-e)', [
+    ['view', 'ver', 'GET /deliveries'],
+    ['update', 'atualizar status', 'PATCH /deliveries/:id/status'],
+  ]),
   ...r('sales', 'quotations', 'Orçamentos', [
     ['view', 'ver', 'GET /quotations, GET /quotations/stats, GET /quotations/:id'],
     ['create', 'criar', 'POST /quotations'],
@@ -523,6 +535,13 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /vehicle-tracking/atpve, /atpve/pending, /atpve/:id'],
     ['create', 'registrar', 'POST /vehicle-tracking/atpve'],
     ['update', 'editar', 'PATCH /vehicle-tracking/atpve/:id'],
+  ]),
+  // #625 (bloco G): documentos regulatórios do veículo (#364 — CAT/CCT/projeto
+  // técnico) — sensíveis: view restrita a quem tem necessidade real (decisão
+  // Rafael; SOMENTE_LEITURA fora); manage SEM Financeiro (o legado dava).
+  ...r('vehicle-tracking', 'documents', 'Documentos do veículo (CAT/CCT)', [
+    ['view', 'ver', 'GET /vehicle-documents, /pending-deliveries, /by-sale/:salesOrderId, /:id'],
+    ['manage', 'criar/editar/excluir/registrar entrega', 'POST/PATCH/DELETE /vehicle-documents*, POST /vehicle-documents/:id/deliveries'],
   ]),
 ];
 

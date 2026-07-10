@@ -8,7 +8,7 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { ConfirmPutawayDto } from './dto/confirm-putaway.dto';
 import { ConfirmPickTaskDto } from './dto/confirm-pick-task.dto';
@@ -16,7 +16,10 @@ import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
 import { RecordCountDto } from './dto/record-count.dto';
 import { WmsService } from './wms.service';
 
-const WMS_WRITE_ROLES = ['SUPER_ADMIN', 'MANAGER', 'WAREHOUSE'];
+// #341 parte 2 (bloco G): gate unico RBAC v2 (#625). SoD de inventario:
+// ALMOXARIFE abre/conta (inventory.create + wms.execute); reconciliar/
+// cancelar AJUSTA SALDO e fica com supervisao/gerencia (stock.inventory.
+// reconcile/cancel - codes que ja existiam no catalogo).
 
 @Controller('wms')
 export class WmsController {
@@ -24,7 +27,7 @@ export class WmsController {
 
   // POST /wms/locations
   @Post('locations')
-  @Roles(...WMS_WRITE_ROLES)
+  @RequirePermission('stock.wms.configure')
   createLocation(
     @Body() dto: CreateLocationDto,
     @Request() req: { user: { companyId: string } },
@@ -34,6 +37,7 @@ export class WmsController {
 
   // GET /wms/locations?warehouseId=...
   @Get('locations')
+  @RequirePermission('stock.wms.view')
   findLocations(
     @Request() req: { user: { companyId: string } },
     @Query('warehouseId') warehouseId?: string,
@@ -43,6 +47,7 @@ export class WmsController {
 
   // GET /wms/receiving?status=PENDING
   @Get('receiving')
+  @RequirePermission('stock.wms.view')
   findReceivingOrders(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -52,6 +57,7 @@ export class WmsController {
 
   // GET /wms/receiving/:id
   @Get('receiving/:id')
+  @RequirePermission('stock.wms.view')
   findReceivingOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -61,6 +67,7 @@ export class WmsController {
 
   // GET /wms/receiving/:id/report
   @Get('receiving/:id/report')
+  @RequirePermission('stock.wms.view')
   getReceivingReport(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -70,7 +77,7 @@ export class WmsController {
 
   // PATCH /wms/receiving/:id/tasks/:taskId/putaway
   @Patch('receiving/:id/tasks/:taskId/putaway')
-  @Roles(...WMS_WRITE_ROLES)
+  @RequirePermission('stock.wms.execute')
   confirmPutaway(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
@@ -84,6 +91,7 @@ export class WmsController {
 
   // GET /wms/picking?status=PENDING
   @Get('picking')
+  @RequirePermission('stock.wms.view')
   findPickingOrders(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -93,6 +101,7 @@ export class WmsController {
 
   // GET /wms/picking/:id
   @Get('picking/:id')
+  @RequirePermission('stock.wms.view')
   findPickingOrder(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -102,6 +111,7 @@ export class WmsController {
 
   // GET /wms/picking/:id/report
   @Get('picking/:id/report')
+  @RequirePermission('stock.wms.view')
   getPickingReport(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -111,7 +121,7 @@ export class WmsController {
 
   // PATCH /wms/picking/:id/tasks/:taskId/confirm
   @Patch('picking/:id/tasks/:taskId/confirm')
-  @Roles(...WMS_WRITE_ROLES)
+  @RequirePermission('stock.wms.execute')
   confirmPickTask(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
@@ -125,7 +135,7 @@ export class WmsController {
 
   // POST /wms/inventory
   @Post('inventory')
-  @Roles(...WMS_WRITE_ROLES)
+  @RequirePermission('stock.inventory.create')
   createInventoryCount(
     @Body() dto: CreateInventoryCountDto,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -135,6 +145,7 @@ export class WmsController {
 
   // GET /wms/inventory?status=IN_PROGRESS
   @Get('inventory')
+  @RequirePermission('stock.wms.view')
   findInventoryCounts(
     @Request() req: { user: { companyId: string } },
     @Query('status') status?: string,
@@ -144,6 +155,7 @@ export class WmsController {
 
   // GET /wms/inventory/:id
   @Get('inventory/:id')
+  @RequirePermission('stock.wms.view')
   findInventoryCount(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -153,6 +165,7 @@ export class WmsController {
 
   // GET /wms/inventory/:id/report
   @Get('inventory/:id/report')
+  @RequirePermission('stock.wms.view')
   getInventoryReport(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -162,7 +175,7 @@ export class WmsController {
 
   // PATCH /wms/inventory/:id/items/:itemId/count
   @Patch('inventory/:id/items/:itemId/count')
-  @Roles(...WMS_WRITE_ROLES)
+  @RequirePermission('stock.wms.execute')
   recordCount(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
@@ -174,7 +187,7 @@ export class WmsController {
 
   // POST /wms/inventory/:id/reconcile
   @Post('inventory/:id/reconcile')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.inventory.reconcile')
   reconcile(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string; sub: string } },
@@ -186,6 +199,7 @@ export class WmsController {
 
   // GET /wms/dashboard?warehouseId=...
   @Get('dashboard')
+  @RequirePermission('stock.wms.view')
   getDashboard(
     @Request() req: { user: { companyId: string } },
     @Query('warehouseId') warehouseId?: string,
@@ -195,7 +209,7 @@ export class WmsController {
 
   // PATCH /wms/locations/:id/toggle
   @Patch('locations/:id/toggle')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.wms.configure')
   toggleLocation(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -205,7 +219,7 @@ export class WmsController {
 
   // PATCH /wms/warehouses/:id/wms
   @Patch('warehouses/:id/wms')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.wms.configure')
   toggleWarehouseWms(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
@@ -215,7 +229,7 @@ export class WmsController {
 
   // POST /wms/inventory/:id/cancel
   @Post('inventory/:id/cancel')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('stock.inventory.cancel')
   cancelInventoryCount(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },

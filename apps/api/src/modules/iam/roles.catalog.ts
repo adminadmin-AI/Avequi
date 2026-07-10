@@ -71,6 +71,10 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     // #623 (E2, decisão Rafael): regras tributárias são leitura restrita 🔒 —
     // fora do perfil somente-leitura.
     code !== 'fiscal.tax-rules.view' &&
+    // #625 (bloco G, decisão Rafael): documentos regulatórios do veículo e
+    // status de entrega expõem cliente/logística — fora do somente-leitura.
+    code !== 'vehicle-tracking.documents.view' &&
+    code !== 'sales.deliveries.view' &&
     code !== 'dashboard.finance.view' &&
     code !== 'suppliers.portal-tokens.view' &&
     // Trilha de auditoria (iam.*) é sensível: fora do perfil somente-leitura
@@ -222,6 +226,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.authorize-cards',
       'sales.orders.confer',
       ...resourceCodes('sales', 'discount-policies'),
+      // #625 (bloco G): gerência ampla gere transportadoras, entregas e os
+      // documentos regulatórios do veículo (decisão Rafael).
+      ...resourceCodes('sales', 'carriers'),
+      ...resourceCodes('sales', 'deliveries'),
+      ...resourceCodes('vehicle-tracking', 'documents'),
       ...resourceCodes('sales', 'quotations'),
       ...resourceCodes('sales', 'demand'),
       ...resourceCodes('sales', 'forecast'),
@@ -295,7 +304,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'suppliers.registry.view',
       'approvals.requests.view',
       'approvals.requests.approve',
-      ...moduleCodes('analytics', 'vehicle-tracking'),
+      // #625 (bloco G): documentos regulatórios do veículo fora do financeiro
+      // (view/manage restritos — decisão Rafael).
+      ...moduleCodes('analytics', 'vehicle-tracking').filter(
+        (c) => !c.startsWith('vehicle-tracking.documents.'),
+      ),
     ]),
   },
   {
@@ -306,7 +319,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: dedupe([
       ...DASHBOARDS_OPERACIONAIS,
       ...resourceCodes('dashboard', 'alerts'),
-      ...moduleCodes('sales', 'customers'),
+      // #625 (bloco G, decisão Rafael): atualizar STATUS de entrega é
+      // operação de expedição/loja — comercial acompanha (view), não executa.
+      ...moduleCodes('sales', 'customers').filter(
+        (c) => c !== 'sales.deliveries.update',
+      ),
       'products.catalog.view',
       'products.catalog.update',
       'products.pricing.view',
@@ -423,6 +440,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.orders.create',
       'sales.orders.reserve',
       'sales.orders.confirm',
+      // #625 (bloco G): vendedor consulta transportadoras e acompanha a
+      // entrega da venda (leitura).
+      'sales.carriers.view',
+      'sales.deliveries.view',
       // #621: vendedor conduz a venda até o faturamento (plano de pagamento,
       // TEF e conferência de carga — o COMMERCIAL legado fazia os três) e VÊ
       // as alçadas de desconto (sem configurar).
@@ -531,6 +552,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'stock.wms.view',
       'stock.wms.execute',
       'stock.inventory.create',
+      // #625 (bloco G): expedição — atualiza status de entrega pós-NF-e
+      // (o WAREHOUSE legado fazia) e consulta transportadoras.
+      'sales.deliveries.view',
+      'sales.deliveries.update',
+      'sales.carriers.view',
       'purchases.receiving.view',
       'purchases.receiving.create',
       'purchases.requests.view',
@@ -608,7 +634,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // #621: financeiro VÊ alçadas de desconto (o FINANCIAL legado via),
       // sem configurar.
       'sales.discount-policies.view',
-      ...moduleCodes('vehicle-tracking'),
+      // #625 (bloco G, decisão Rafael): financeiro acompanha a entrega (view,
+      // p/ faturamento/cobrança) mas NÃO atualiza status; e NÃO recebe os
+      // documentos regulatórios do veículo (o legado dava manage ao FINANCIAL).
+      'sales.deliveries.view',
+      ...moduleCodes('vehicle-tracking').filter(
+        (c) => !c.startsWith('vehicle-tracking.documents.'),
+      ),
     ]),
   },
   {
@@ -624,6 +656,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'finance.entries.view',
       'finance.reports.view',
       ...resourceCodes('purchases', 'inbound-nfe'),
+      // #625 (bloco G, decisão Rafael): CAT/CCT/projeto técnico são documentos
+      // REGULATÓRIOS do veículo — o perfil fiscal vê e gere.
+      ...resourceCodes('vehicle-tracking', 'documents'),
       'sales.orders.view',
       'sales.orders.invoice',
       'purchases.orders.view',
@@ -683,6 +718,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'stock.balances.view',
       'stock.serials.view',
       'stock.batches.view',
+      // #625 (bloco G): pós-venda consulta os documentos do veículo (CAT/CCT)
+      // para atender o cliente — leitura apenas.
+      'vehicle-tracking.documents.view',
     ]),
   },
 
@@ -755,6 +793,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'purchases.requests.cancel',
       'products.catalog.view',
       'products.pricing.view',
+      // #625 (bloco G): a loja acompanha e atualiza o status da entrega da
+      // própria venda (o STORE legado fazia) — decisão Rafael.
+      'sales.deliveries.view',
+      'sales.deliveries.update',
     ]),
   },
   {
@@ -781,6 +823,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'stock.movements.view',
       'sales.quotations.view',
       'sales.commissions.view',
+      // #625 (bloco G): gerência da filial consulta transportadoras.
+      'sales.carriers.view',
       'analytics.dashboards.view',
       'analytics.reports.view',
     ]),

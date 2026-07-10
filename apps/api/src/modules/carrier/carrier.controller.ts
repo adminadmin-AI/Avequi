@@ -11,7 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { CarrierService } from './carrier.service';
 import { CreateCarrierDto } from './dto/create-carrier.dto';
 import { UpdateCarrierDto } from './dto/update-carrier.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('carriers')
@@ -21,13 +21,14 @@ export class CarrierController {
   constructor(private readonly carrierService: CarrierService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
+  @RequirePermission('sales.carriers.manage')
   @ApiOperation({ summary: 'Criar transportadora' })
   create(@Body() dto: CreateCarrierDto, @CurrentUser() user: any) {
     return this.carrierService.create(dto, user);
   }
 
   @Get()
+  @RequirePermission('sales.carriers.view')
   @ApiOperation({ summary: 'Listar transportadoras' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'isActive', required: false })
@@ -40,13 +41,14 @@ export class CarrierController {
   }
 
   @Get(':id')
+  @RequirePermission('sales.carriers.view')
   @ApiOperation({ summary: 'Buscar transportadora por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.carrierService.findOne(id, user.companyId);
   }
 
   @Patch(':id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL')
+  @RequirePermission('sales.carriers.manage')
   @ApiOperation({ summary: 'Atualizar transportadora' })
   update(@Param('id') id: string, @Body() dto: UpdateCarrierDto, @CurrentUser() user: any) {
     return this.carrierService.update(id, dto, user);
