@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, Star, X } from 'lucide-react';
-import { NAV, flatNav, resolveActiveHref, type NavItem } from '@/lib/nav-config';
+import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
+import { useNavAccess } from '@/hooks/use-permission';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
 import { useCurrentCompany } from '@/hooks/use-current-company';
-import { useAuthStore } from '@/stores/auth-store';
 import { useUiStore } from '@/stores/ui-store';
 import { BrandMark } from '@/components/brand-mark';
 import { cn } from '@/lib/utils';
@@ -64,7 +64,7 @@ function SidebarInner({
   showClose?: boolean;
 }) {
   const pathname = usePathname();
-  const role = useAuthStore((s) => s.user?.role);
+  const access = useNavAccess();
   const counts = useSidebarCounts();
   const companyName = useCurrentCompany();
 
@@ -104,9 +104,9 @@ function SidebarInner({
     () =>
       NAV.map((s) => ({
         ...s,
-        items: s.items.filter((it) => !it.roles || (role ? it.roles.includes(role) : false)),
+        items: s.items.filter((it) => navItemAllowed(it, access)),
       })).filter((s) => s.items.length > 0),
-    [role],
+    [access],
   );
 
   const searchResults = useMemo(() => {
@@ -116,19 +116,19 @@ function SidebarInner({
     for (const section of NAV) {
       const titleMatch = section.title?.toLowerCase().includes(q) ?? false;
       const items = section.items.filter((it) => {
-        if (it.roles && !(role && it.roles.includes(role))) return false;
+        if (!navItemAllowed(it, access)) return false;
         // casa pelo rótulo do item OU pelo título da seção (ex.: "Cadastros")
         return titleMatch || it.label.toLowerCase().includes(q);
       });
       if (items.length > 0) groups.push({ key: section.key, title: section.title, items });
     }
     return groups;
-  }, [search, role]);
+  }, [search, access]);
 
   const favItems = useMemo(() => {
-    const all = flatNav(role);
+    const all = flatNav(access);
     return favorites.map((h) => all.find((it) => it.href === h)).filter(Boolean) as NavItem[];
-  }, [favorites, role]);
+  }, [favorites, access]);
 
   return (
     <div className="flex h-full flex-col">

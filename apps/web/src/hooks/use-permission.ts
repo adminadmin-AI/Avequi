@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import type { NavAccess } from '@/lib/nav-config';
 import { permissionMatches } from '@/lib/permission-match';
 import { useAuthStore } from '@/stores/auth-store';
 import type { MyEffectivePermissions } from '@/types/api';
@@ -104,4 +105,19 @@ export function usePermission(): UsePermissionResult {
     roles,
     legacyFallback: query.data?.legacyFallback ?? false,
   };
+}
+
+/**
+ * Contexto de acesso para filtrar o NAV (#351) — consumido por sidebar,
+ * command palette e RouteGuard via `navItemAllowed`/`checkRouteAccess`.
+ * Enquanto as permissões carregam, `can` fica undefined e os itens gated
+ * por `permission` ficam ocultos / a rota segura render (fail-closed).
+ */
+export function useNavAccess(): NavAccess {
+  const role = useAuthStore((s) => s.user?.role);
+  const { can, isLoading } = usePermission();
+  return useMemo(
+    () => ({ role, can: isLoading ? undefined : can }),
+    [role, can, isLoading],
+  );
 }

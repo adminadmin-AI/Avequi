@@ -64,15 +64,45 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   /**
-   * Se definido, restringe o acesso à rota (e sub-rotas) a esses papéis.
-   * É a FONTE ÚNICA de controle de role no frontend: o mesmo campo esconde
-   * o item do menu (sidebar/command palette) E bloqueia a rota no RouteGuard.
-   * Sem `roles` = liberado para qualquer usuário autenticado.
+   * Permissão RBAC v2 (#351) que libera a rota (e sub-rotas): o MESMO campo
+   * esconde o item do menu (sidebar/command palette) E bloqueia a rota no
+   * RouteGuard. Use o code do endpoint de listagem que a página consome
+   * (ex.: `sales.orders.view` ← GET /sales). Aceita wildcard de sufixo.
+   *
+   * Quando definido, SUBSTITUI `roles` (a matriz v2 expressa perfis que o
+   * enum legado não tem, ex.: ADMIN_EMPRESA/AUDITOR). Enquanto as permissões
+   * do usuário carregam, o item fica oculto e a rota segura render
+   * (fail-closed, igual ao hook usePermission).
    *
    * ⚠️ Isso é defesa de UX, não de segurança — a segurança real é o backend
-   * (@Roles + RolesGuard, ver docs/RBAC.md do PR #453).
+   * (@RequirePermission + PermissionGuard).
+   */
+  permission?: string;
+  /**
+   * (Legado #453) Restringe a esses papéis do enum. Só para módulos ainda NÃO
+   * migrados ao RBAC v2 (CRM #624; satélites alert/carrier/scheduling/user/
+   * wms/delivery #625). Ao migrar um módulo, troque por `permission`.
+   * Sem `roles` e sem `permission` = liberado para qualquer autenticado.
    */
   roles?: string[];
+}
+
+/**
+ * Contexto de acesso para filtrar o NAV — quem fornece é quem tem hooks
+ * (sidebar/palette/guard, via usePermission + useAuthStore).
+ * `can` undefined = permissões ainda não carregadas → itens com `permission`
+ * ficam ocultos (fail-closed); itens legados por `roles` seguem funcionando.
+ */
+export interface NavAccess {
+  role?: string | null;
+  can?: (code: string) => boolean;
+}
+
+/** O item deve aparecer/liberar para este contexto? (fonte única, #351) */
+export function navItemAllowed(item: NavItem, access: NavAccess): boolean {
+  if (item.permission) return access.can ? access.can(item.permission) : false;
+  if (item.roles) return !!access.role && item.roles.includes(access.role);
+  return true;
 }
 
 /**
@@ -105,9 +135,10 @@ export const NAV: NavSection[] = [
     key: 'cadastros',
     title: 'Cadastros',
     items: [
-      { href: '/app/products', label: 'Produtos', icon: Package },
-      { href: '/app/customers', label: 'Clientes', icon: Users },
-      { href: '/app/suppliers', label: 'Fornecedores', icon: Handshake },
+      { href: '/app/products', label: 'Produtos', icon: Package, permission: 'products.catalog.view' },
+      { href: '/app/customers', label: 'Clientes', icon: Users, permission: 'customers.registry.view' },
+      { href: '/app/suppliers', label: 'Fornecedores', icon: Handshake, permission: 'suppliers.registry.view' },
+      // carrier é satélite (#625) — sem code no catálogo ainda
       { href: '/app/carriers', label: 'Transportadoras', icon: Truck },
     ],
   },
@@ -123,9 +154,10 @@ export const NAV: NavSection[] = [
       { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
       { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
-      { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart },
-      { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store },
-      { href: '/app/quotations', label: 'Cotações', icon: FileText },
+      { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart, permission: 'sales.orders.view' },
+      { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store, permission: 'sales.orders.create' },
+      { href: '/app/quotations', label: 'Cotações', icon: FileText, permission: 'sales.quotations.view' },
+      // delivery/vehicle-document sem gates RBAC v2 ainda (#625) — mantém enum
       { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, roles: FINANCE_ROLES },
     ],
   },
@@ -133,10 +165,11 @@ export const NAV: NavSection[] = [
     key: 'estoque',
     title: 'Estoque',
     items: [
-      { href: '/app/stock', label: 'Saldos', icon: Boxes },
-      { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight },
-      { href: '/app/stock/transfers', label: 'Transferências', icon: Truck },
-      { href: '/app/stock/locations', label: 'Localizações', icon: MapPin },
+      { href: '/app/stock', label: 'Saldos', icon: Boxes, permission: 'stock.balances.view' },
+      { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight, permission: 'stock.movements.view' },
+      { href: '/app/stock/transfers', label: 'Transferências', icon: Truck, permission: 'stock.transfers.view' },
+      { href: '/app/stock/locations', label: 'Localizações', icon: MapPin, permission: 'stock.warehouses.view' },
+      // wms é satélite (#625) — controller ainda sem @RequirePermission
       { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList },
     ],
   },
@@ -144,73 +177,74 @@ export const NAV: NavSection[] = [
     key: 'producao',
     title: 'Produção',
     items: [
-      { href: '/app/production', label: 'Ordens de Produção', icon: Factory },
-      { href: '/app/production/bom', label: 'BOM', icon: Network },
-      { href: '/app/production/mrp', label: 'MRP', icon: Calculator },
-      { href: '/app/production/routing', label: 'Roteiros', icon: Workflow },
-      { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge },
+      { href: '/app/production', label: 'Ordens de Produção', icon: Factory, permission: 'production.orders.view' },
+      { href: '/app/production/bom', label: 'BOM', icon: Network, permission: 'production.bom.view' },
+      { href: '/app/production/mrp', label: 'MRP', icon: Calculator, permission: 'production.mrp.view' },
+      { href: '/app/production/routing', label: 'Roteiros', icon: Workflow, permission: 'production.routing.view' },
+      { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge, permission: 'production.work-centers.view' },
     ],
   },
   {
     key: 'suprimentos',
     title: 'Suprimentos',
     items: [
-      { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen },
+      { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen, permission: 'purchases.orders.view' },
       { href: '/app/purchases/automation', label: 'Automação', icon: Zap },
-      { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput },
-      { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck, roles: ADMIN_ROLES },
+      { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput, permission: 'purchases.inbound-nfe.view' },
+      { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck, permission: 'approvals.requests.view' },
     ],
   },
   {
     key: 'qualidade',
     title: 'Qualidade',
     items: [
-      { href: '/app/quality', label: 'Dashboard', icon: ShieldCheck },
-      { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck },
-      { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle },
+      { href: '/app/quality', label: 'Dashboard', icon: ShieldCheck, permission: 'quality.reports.view' },
+      { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck, permission: 'quality.inspections.view' },
+      { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle, permission: 'quality.ncr.view' },
     ],
   },
   {
     key: 'manutencao',
     title: 'Manutenção',
-    items: [{ href: '/app/maintenance', label: 'Ordens de Manutenção', icon: Wrench }],
+    items: [{ href: '/app/maintenance', label: 'Ordens de Manutenção', icon: Wrench, permission: 'maintenance.orders.view' }],
   },
   {
     key: 'fiscal',
     title: 'Fiscal',
     items: [
-      { href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText },
-      { href: '/app/fiscal/rules', label: 'Regras Fiscais', icon: Scale },
-      { href: '/app/fiscal/compliance', label: 'Conformidade', icon: ShieldCheck, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER','FINANCIAL'] },
+      { href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText, permission: 'fiscal.documents.view' },
+      { href: '/app/fiscal/rules', label: 'Regras Fiscais', icon: Scale, permission: 'fiscal.tax-rules.view' },
+      { href: '/app/fiscal/compliance', label: 'Conformidade', icon: ShieldCheck, permission: 'fiscal.documents.view' },
     ],
   },
   {
     key: 'financeiro',
     title: 'Financeiro',
     items: [
-      { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet, roles: FINANCE_ROLES },
-      { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard, roles: FINANCE_ROLES },
-      { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart, roles: FINANCE_ROLES },
-      { href: '/app/finance/pricing', label: 'Formação de Preço', icon: Tags, roles: FINANCE_ROLES },
-      { href: '/app/finance/costing', label: 'Custeio por Absorção', icon: Layers, roles: FINANCE_ROLES },
-      { href: '/app/finance/forecast', label: 'Forecast Financeiro', icon: TrendingUp, roles: FINANCE_ROLES },
-      { href: '/app/finance/budget-plans', label: 'Budget por Drivers', icon: Target, roles: FINANCE_ROLES },
-      { href: '/app/finance/investments', label: 'Análise de Investimentos', icon: Coins, roles: FINANCE_ROLES },
-      { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, roles: FINANCE_ROLES },
-      { href: '/app/finance/acquirers', label: 'Adquirentes & Taxas', icon: Percent, roles: FINANCE_ROLES },
-      { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, roles: FINANCE_ROLES },
-      { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, roles: FINANCE_ROLES },
-      { href: '/app/finance/collection', label: 'Monitor de Cobrança', icon: Activity, roles: FINANCE_ROLES },
-      { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock, roles: FINANCE_ROLES },
-      { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal, roles: FINANCE_ROLES },
+      { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet, permission: 'finance.entries.view' },
+      { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard, permission: 'finance.entries.view' },
+      { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart, permission: 'finance.reports.view' },
+      { href: '/app/finance/pricing', label: 'Formação de Preço', icon: Tags, permission: 'products.pricing.view' },
+      { href: '/app/finance/costing', label: 'Custeio por Absorção', icon: Layers, permission: 'products.pricing.view' },
+      { href: '/app/finance/forecast', label: 'Forecast Financeiro', icon: TrendingUp, permission: 'finance.reports.view' },
+      { href: '/app/finance/budget-plans', label: 'Budget por Drivers', icon: Target, permission: 'finance.budget-plans.view' },
+      { href: '/app/finance/investments', label: 'Análise de Investimentos', icon: Coins, permission: 'finance.investments.view' },
+      { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, permission: 'finance.bank-accounts.view' },
+      { href: '/app/finance/acquirers', label: 'Adquirentes & Taxas', icon: Percent, permission: 'finance.acquirers.view' },
+      { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, permission: 'finance.banking.view' },
+      { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, permission: 'finance.boletos.view' },
+      { href: '/app/finance/collection', label: 'Monitor de Cobrança', icon: Activity, permission: 'finance.billing.view' },
+      { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock, permission: 'finance.payment-schedules.view' },
+      { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal, permission: 'finance.categories.view' },
     ],
   },
   {
     key: 'inteligencia',
     title: 'Inteligência',
     items: [
-      { href: '/app/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/app/reports', label: 'Relatórios', icon: FileSpreadsheet },
+      { href: '/app/analytics', label: 'Analytics', icon: BarChart3, permission: 'analytics.dashboards.view' },
+      { href: '/app/reports', label: 'Relatórios', icon: FileSpreadsheet, permission: 'analytics.reports.view' },
+      // alert é satélite (#625) — controller ainda sem @RequirePermission
       { href: '/app/alerts', label: 'Alertas', icon: Bell },
     ],
   },
@@ -218,21 +252,13 @@ export const NAV: NavSection[] = [
     key: 'config',
     title: 'Configurações',
     items: [
+      // user é satélite (#625) — controller ainda no enum; mantém ADMIN_ROLES
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog, roles: ADMIN_ROLES },
-      // Sem gate de enum: o acesso a Perfis e Permissões segue a matriz RBAC v2
-      // (iam.roles.view: ADMIN_GLOBAL/ADMIN_EMPRESA/DIRETOR/AUDITOR). O enum
-      // legado não expressa ADMIN_EMPRESA/AUDITOR e os bloquearia. Esta camada é
-      // só UX (o backend é a autoridade); a visibilidade fina por permissão
-      // (<Can permission="iam.roles.view">) entra com o #472 (/auth/me/permissions).
-      { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound },
-      // Organização (#347, F5.2 fase 1): idem — SEM gate de enum. O acesso segue
-      // a matriz RBAC v2 (iam.org.view: ADMIN_GLOBAL/ADMIN_EMPRESA/DIRETOR/RH/
-      // ADMIN_FILIAL/AUDITOR). O enum legado não expressa esses perfis. Só UX;
-      // o backend (@RequirePermission) é a autoridade.
-      { href: '/app/settings/organization', label: 'Organização', icon: Network },
-      { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, roles: ADMIN_ROLES },
-      { href: '/app/settings/company', label: 'Empresa', icon: Building2, roles: ['SUPER_ADMIN', 'DIRECTOR'] },
-      { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, roles: ['SUPER_ADMIN'] },
+      { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound, permission: 'iam.roles.view' },
+      { href: '/app/settings/organization', label: 'Organização', icon: Network, permission: 'iam.org.view' },
+      { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
+      { href: '/app/settings/company', label: 'Empresa', icon: Building2, permission: 'settings.companies.view' },
+      { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, permission: 'iam.audit-logs.view' },
     ],
   },
 ];
@@ -254,10 +280,8 @@ export const QUICK_ACTIONS: QuickAction[] = [
 ];
 
 /** Todos os itens de navegação achatados (busca da sidebar + command palette). */
-export function flatNav(role?: string): NavItem[] {
-  return NAV.flatMap((s) => s.items).filter(
-    (it) => !it.roles || (role ? it.roles.includes(role) : false),
-  );
+export function flatNav(access: NavAccess): NavItem[] {
+  return NAV.flatMap((s) => s.items).filter((it) => navItemAllowed(it, access));
 }
 
 export function isActive(pathname: string, href: string): boolean {
@@ -293,26 +317,37 @@ export function resolveRouteItem(pathname: string): NavItem | null {
 
 export type RouteAccess =
   | { status: 'allowed' }
-  /** rota restrita e a role atual não está na lista */
-  | { status: 'denied'; roles: string[] }
+  /** rota com `permission` e as permissões do usuário ainda carregando */
+  | { status: 'loading' }
+  /** rota restrita e o usuário não tem acesso (por permissão OU por role) */
+  | { status: 'denied'; roles: string[]; permission?: string }
   /** nenhum item de navegação casa com o pathname */
   | { status: 'unmapped' };
 
 /**
- * Decide o acesso da role atual ao pathname, usando o MESMO mapa do menu
- * (NAV) — fonte única de verdade. Regras:
- * - item sem `roles`  → liberado para qualquer autenticado;
- * - item com `roles`  → exige que a role esteja na lista;
- * - rota não mapeada  → `unmapped`; o RouteGuard LIBERA (para não quebrar
+ * Decide o acesso ao pathname, usando o MESMO mapa do menu (NAV) — fonte
+ * única de verdade. Regras:
+ * - item com `permission` → exige a permissão RBAC v2 (`access.can`);
+ *   enquanto `can` não está disponível (fetch em andamento) → `loading`
+ *   (o RouteGuard segura o render — fail-closed, sem flash de conteúdo);
+ * - item com `roles` (legado) → exige que a role esteja na lista;
+ * - item sem ambos → liberado para qualquer autenticado;
+ * - rota não mapeada → `unmapped`; o RouteGuard LIBERA (para não quebrar
  *   páginas novas antes de entrarem no NAV) e loga warning em dev.
  *
  * Defesa de UX apenas — a autorização real acontece no backend.
  */
-export function checkRouteAccess(pathname: string, role?: string | null): RouteAccess {
+export function checkRouteAccess(pathname: string, access: NavAccess): RouteAccess {
   const item = resolveRouteItem(pathname);
   if (!item) return { status: 'unmapped' };
+  if (item.permission) {
+    if (!access.can) return { status: 'loading' };
+    return access.can(item.permission)
+      ? { status: 'allowed' }
+      : { status: 'denied', roles: [], permission: item.permission };
+  }
   if (!item.roles) return { status: 'allowed' };
-  return role && item.roles.includes(role)
+  return access.role && item.roles.includes(access.role)
     ? { status: 'allowed' }
     : { status: 'denied', roles: item.roles };
 }
