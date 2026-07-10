@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import { CornerDownLeft, History, Keyboard, Moon, Search, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { flatNav, QUICK_ACTIONS } from '@/lib/nav-config';
-import { useAuthStore } from '@/stores/auth-store';
+import { useNavAccess } from '@/hooks/use-permission';
 import { useUiStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 
@@ -39,7 +39,7 @@ function fuzzyScore(label: string, q: string): number {
 /** Command palette estilo Raycast/Linear (#305, upgrades #325). Ctrl+K. */
 export function CommandPalette() {
   const router = useRouter();
-  const role = useAuthStore((s) => s.user?.role);
+  const access = useNavAccess();
   const { commandOpen, setCommandOpen, setShortcutsOpen } = useUiStore();
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -52,7 +52,7 @@ export function CommandPalette() {
   const isDark = resolvedTheme === 'dark';
 
   const entries = useMemo<Entry[]>(() => {
-    const nav = flatNav(role);
+    const nav = flatNav(access);
     const navEntries: Entry[] = nav.map((it) => ({
       id: 'nav:' + it.href,
       label: it.label,
@@ -96,7 +96,7 @@ export function CommandPalette() {
       },
     ];
     return [...recentEntries, ...actionEntries, ...navEntries];
-  }, [role, recents, isDark, setTheme, setShortcutsOpen]);
+  }, [access, recents, isDark, setTheme, setShortcutsOpen]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
