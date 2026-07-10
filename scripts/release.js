@@ -12,6 +12,7 @@
  * release ou deploy. Isso é decisão consciente: bump → PR → merge → tag → deploy.
  */
 const { readFileSync, writeFileSync, existsSync } = require('fs');
+const { execSync } = require('child_process');
 const { join } = require('path');
 
 const root = join(__dirname, '..');
@@ -60,6 +61,21 @@ for (const rel of PKGS) {
     j.version = next;
     writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
   }
+}
+
+// ─── package-lock.json (sincroniza as versões dos workspaces) ────────────────
+// Sem isso o lock fica pra trás (aconteceu na 1.2.0→1.4.1) e o drift só aparece
+// no próximo npm install de alguém.
+if (!dryRun) {
+  console.log('  package-lock.json: sincronizando (npm install --package-lock-only)…');
+  try {
+    execSync('npm install --package-lock-only --ignore-scripts', { cwd: root, stdio: 'pipe' });
+    console.log(`  package-lock.json: ${cur} → ${next}`);
+  } catch (err) {
+    console.warn(`  ! package-lock.json não sincronizado (${err.message}) — rode npm install --package-lock-only manualmente`);
+  }
+} else {
+  console.log('  [dry] package-lock.json: seria sincronizado');
 }
 
 // ─── CHANGELOG.md ────────────────────────────────────────────────────────────
