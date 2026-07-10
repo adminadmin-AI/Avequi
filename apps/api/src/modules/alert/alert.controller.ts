@@ -8,19 +8,10 @@ import {
   Request,
 } from '@nestjs/common';
 import { AlertType } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AlertService } from './alert.service';
 
-const OPERATIONAL_ROLES = [
-  'SUPER_ADMIN',
-  'MANAGER',
-  'COMMERCIAL',
-  'PRODUCTION',
-  'QUALITY',
-  'WAREHOUSE',
-  'FINANCIAL',
-  'STORE',
-];
+// #341 parte 2 (bloco G): gate unico RBAC v2 - @Roles legado removido (#625).
 
 @Controller('alerts')
 export class AlertController {
@@ -28,12 +19,14 @@ export class AlertController {
 
   // GET /alerts — apenas alertas ativos (não resolvidos)
   @Get()
+  @RequirePermission('dashboard.alerts.view')
   listActive(@Request() req: { user: { companyId: string } }) {
     return this.alertService.listActive(req.user.companyId);
   }
 
   // GET /alerts/all?resolved=true|false&type=STOCK_MIN
   @Get('all')
+  @RequirePermission('dashboard.alerts.view')
   listAll(
     @Request() req: { user: { companyId: string } },
     @Query('resolved') resolved?: string,
@@ -48,14 +41,14 @@ export class AlertController {
 
   // POST /alerts/check — trigger manual de todos os checks
   @Post('check')
-  @Roles('SUPER_ADMIN', 'MANAGER')
+  @RequirePermission('dashboard.alerts.check')
   runCheck(@Request() req: { user: { companyId: string } }) {
     return this.alertService.runAllChecks(req.user.companyId);
   }
 
   // PATCH /alerts/:id/resolve
   @Patch(':id/resolve')
-  @Roles(...OPERATIONAL_ROLES)
+  @RequirePermission('dashboard.alerts.resolve')
   resolve(
     @Param('id') id: string,
     @Request() req: { user: { companyId: string } },
