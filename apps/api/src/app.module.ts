@@ -122,6 +122,9 @@ import { IamModule } from './modules/iam/iam.module';
     StockModule,
     PurchaseModule,
     SalesModule,
+    // ManifestModule ANTES do FiscalModule: as rotas 'fiscal/manifest' precisam
+    // registrar antes do @Get(':id') do FiscalController, senão são engolidas (#686)
+    ManifestModule,
     FiscalModule,
     FinanceModule,
     TransferModule,
@@ -157,7 +160,6 @@ import { IamModule } from './modules/iam/iam.module';
     ApprovalModule,
     CommissionModule,
     RfqModule,
-    ManifestModule,
     LgpdModule,
     BudgetModule,
     SchedulingModule,
