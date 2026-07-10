@@ -41,6 +41,7 @@ interface Acquirer {
   id: string;
   name: string;
   cnpj: string | null;
+  gateway: 'MOCK' | 'INFINITEPAY' | 'GETNET';
   isActive: boolean;
   fees: AcquirerFee[];
 }
@@ -49,6 +50,13 @@ const MODALITY_LABEL: Record<AcquirerFee['modality'], string> = {
   DEBITO: 'Débito',
   CREDITO_AVISTA: 'Crédito à vista',
   CREDITO_PARCELADO: 'Crédito parcelado',
+};
+
+/** TEF/gateway que autoriza as transações da adquirente (#596 multi-adquirente) */
+const GATEWAY_LABEL: Record<Acquirer['gateway'], string> = {
+  MOCK: 'Não integrada (simulado)',
+  INFINITEPAY: 'InfinitePay',
+  GETNET: 'Getnet',
 };
 
 const RESOURCE = '/acquirers';
@@ -67,12 +75,13 @@ export default function AcquirersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [cnpj, setCnpj] = useState('');
+  const [gateway, setGateway] = useState<Acquirer['gateway']>('MOCK');
 
   const saveAcquirer = useMutation({
     mutationFn: () =>
       editingId
-        ? apiClient.patch(`${RESOURCE}/${editingId}`, { name, cnpj: cnpj || undefined })
-        : apiClient.post(RESOURCE, { name, cnpj: cnpj || undefined }),
+        ? apiClient.patch(`${RESOURCE}/${editingId}`, { name, cnpj: cnpj || undefined, gateway })
+        : apiClient.post(RESOURCE, { name, cnpj: cnpj || undefined, gateway }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       setAcqOpen(false);
@@ -160,6 +169,7 @@ export default function AcquirersPage() {
               setEditingId(null);
               setName('');
               setCnpj('');
+              setGateway('MOCK');
               setAcqOpen(true);
             }}
           >
@@ -189,6 +199,9 @@ export default function AcquirersPage() {
                     <Badge variant={a.isActive ? 'success' : 'neutral'}>
                       {a.isActive ? 'Ativa' : 'Inativa'}
                     </Badge>
+                    <Badge variant={a.gateway === 'MOCK' ? 'warning' : 'info'}>
+                      TEF: {GATEWAY_LABEL[a.gateway] ?? a.gateway}
+                    </Badge>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="secondary" onClick={() => openFeeDialog(a.id)}>
@@ -202,6 +215,7 @@ export default function AcquirersPage() {
                         setEditingId(a.id);
                         setName(a.name);
                         setCnpj(a.cnpj ?? '');
+                        setGateway(a.gateway ?? 'MOCK');
                         setAcqOpen(true);
                       }}
                     >
@@ -307,6 +321,20 @@ export default function AcquirersPage() {
               placeholder="Só números (14 dígitos)"
               maxLength={14}
             />
+          </div>
+          <div>
+            <Label>TEF / gateway de autorização</Label>
+            <Select value={gateway} onChange={(e) => setGateway(e.target.value as Acquirer['gateway'])}>
+              {(Object.keys(GATEWAY_LABEL) as Acquirer['gateway'][]).map((g) => (
+                <option key={g} value={g}>
+                  {GATEWAY_LABEL[g]}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-content-muted">
+              Cada adquirente autoriza no seu próprio TEF — InfinitePay e Getnet podem coexistir.
+              “Não integrada” só autoriza simulado (dev/homologação).
+            </p>
           </div>
         </form>
       </FormDialog>

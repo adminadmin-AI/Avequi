@@ -1256,6 +1256,14 @@ enum PaymentAuthStatus {
   DENIED
 }
 
+/// TEF/gateway que processa a adquirente (#596 multi-adquirente).
+/// MOCK = não integrada (autoriza simulado — só dev/homolog).
+enum PaymentGateway {
+  MOCK
+  INFINITEPAY
+  GETNET
+}
+
 /// Adquirente/credenciadora de cartão (Cielo, Rede, Stone...) — devedora dos
 /// recebíveis de cartão (#585). CNPJ alimenta o grupo card da NF-e (#587).
 model Acquirer {
@@ -1264,6 +1272,8 @@ model Acquirer {
   company       Company        @relation(fields: [companyId], references: [id])
   name          String
   cnpj          String?        @db.VarChar(14) // sem máscara — CNPJ da credenciadora no grupo card
+  /// Qual TEF/gateway autoriza as transações desta adquirente (#596)
+  gateway       PaymentGateway @default(MOCK)
   isActive         Boolean          @default(true)
   fees             AcquirerFee[]
   salesPayments    SalesPayment[]
@@ -1316,6 +1326,10 @@ model SalesPayment {
   authCode       String?           @map("auth_code") @db.VarChar(20) // cAut do grupo card (#587)
   nsu            String?           @db.VarChar(20)
   authorizedAt   DateTime?         @map("authorized_at")
+  /// Id da transação no provider (para void/estorno) — #596
+  providerRef    String?           @map("provider_ref") @db.VarChar(80)
+  /// Gateway que AUTORIZOU (estorno roteia por aqui, mesmo se a adquirente trocar de gateway depois)
+  authGateway    PaymentGateway?   @map("auth_gateway")
   financialEntries FinancialEntry[] // títulos gerados por esta forma (#586)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt

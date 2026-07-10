@@ -560,6 +560,13 @@ export enum PaymentAuthStatus {
   DENIED = 'DENIED',
 }
 
+/** TEF/gateway por adquirente (#596 multi-adquirente) */
+export enum PaymentGateway {
+  MOCK = 'MOCK',
+  INFINITEPAY = 'INFINITEPAY',
+  GETNET = 'GETNET',
+}
+
 export enum DebtorType {
   CUSTOMER = 'CUSTOMER',
   ACQUIRER = 'ACQUIRER',
