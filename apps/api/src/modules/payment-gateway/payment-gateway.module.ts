@@ -1,30 +1,25 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
-import { PAYMENT_PORT } from './payment.port';
-import { MockPaymentAdapter } from './adapters/mock.adapter';
+import { GetnetAdapter } from './adapters/getnet.adapter';
 import { InfinitePayAdapter } from './adapters/infinitepay.adapter';
+import { MockPaymentAdapter } from './adapters/mock.adapter';
 import { PaymentAuthorizationService } from './payment-authorization.service';
+import { PaymentPortRegistry } from './payment-port.registry';
 
 /**
- * Gateway de pagamento (#596). O adapter ativo é escolhido por `PAYMENT_PORT`
- * (mock | infinitepay), no mesmo padrão do EmissorPort fiscal (#501). Adicionar
- * uma nova adquirente = novo adapter + um case aqui.
+ * Gateway de pagamento (#596) — MULTI-ADQUIRENTE. O adapter é resolvido POR
+ * ADQUIRENTE (`Acquirer.gateway` → PaymentPortRegistry), permitindo
+ * InfinitePay e Getnet coexistirem; forma sem adquirente usa o default do
+ * ambiente (`PAYMENT_PORT`, mesmo padrão do EmissorPort fiscal #501).
+ * Adicionar uma adquirente = novo adapter + linha no registry + valor no enum.
  */
 @Module({
   imports: [PrismaModule],
   providers: [
     MockPaymentAdapter,
     InfinitePayAdapter,
-    {
-      provide: PAYMENT_PORT,
-      inject: [MockPaymentAdapter, InfinitePayAdapter],
-      useFactory: (mock: MockPaymentAdapter, infinitepay: InfinitePayAdapter) => {
-        const selected = (process.env.PAYMENT_PORT ?? 'mock').toLowerCase();
-        const port = { mock, infinitepay }[selected] ?? mock;
-        new Logger('PaymentGateway').log(`Adapter de pagamento ativo: ${port.name}`);
-        return port;
-      },
-    },
+    GetnetAdapter,
+    PaymentPortRegistry,
     PaymentAuthorizationService,
   ],
   exports: [PaymentAuthorizationService],
