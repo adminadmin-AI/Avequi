@@ -1,7 +1,6 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
-import { FiscalController } from '../../modules/fiscal/fiscal.controller';
 import { UserController } from '../../modules/user/user.controller';
 import { WmsController } from '../../modules/wms/wms.controller';
 
@@ -53,46 +52,10 @@ describe('Matriz RBAC — RolesGuard real contra os controllers', () => {
   // Sobram aqui: Fiscal (bloco E2) e User/WMS (bloco G).
 
   // ─── Fiscal ────────────────────────────────────────────────────────────────
-
-  describe('Fiscal (/fiscal)', () => {
-    it('qualquer autenticado lista documentos fiscais', () => {
-      expectAllowed(FiscalController, 'findAll', 'READER');
-      expectAllowed(FiscalController, 'findAll', 'COMMERCIAL');
-    });
-
-    it('só SUPER_ADMIN e FINANCIAL cancelam NF-e', () => {
-      expectAllowed(FiscalController, 'cancel', 'FINANCIAL');
-      expectAllowed(FiscalController, 'cancel', 'SUPER_ADMIN');
-      expectDenied(FiscalController, 'cancel', 'MANAGER');
-      expectDenied(FiscalController, 'cancel', 'READER');
-    });
-
-    it('inutilização de faixa e CC-e restritas a SUPER_ADMIN/FINANCIAL', () => {
-      expectDenied(FiscalController, 'voidRange', 'COMMERCIAL');
-      expectDenied(FiscalController, 'correction', 'WAREHOUSE');
-      expectAllowed(FiscalController, 'voidRange', 'FINANCIAL');
-    });
-
-    it('webhook é @Public — RolesGuard libera sem usuário', () => {
-      expect(
-        guard.canActivate(contextFor(FiscalController, 'webhook', undefined as any)),
-      ).toBe(true);
-    });
-  });
-
-  // Stock (/stock) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
-  // travada em pr341c.access.spec.ts (PermissionGuard real).
-
-  // Purchase (/purchase) migrou para o RBAC v2 no #341 parte 2 (PR D) —
-  // matriz travada em pr341d.access.spec.ts. SoD v2: COMPRADOR cria e não
-  // aprova; ALMOXARIFE solicita/recebe (não cria PO); gerência/diretoria aprova.
-
-  // Sales (/sales) migrou para o RBAC v2 no #341 parte 2 (PR C) — matriz
-  // travada em pr341c.access.spec.ts. Decisões v2 SUPERSEDEM as de 04/07:
-  // DIRETOR não opera venda; STORE fatura só via LOJA_FATURAMENTO (#463);
-  // G.GERAL segue sem devolução/cancelamento (#463).
-
-  // ─── User ──────────────────────────────────────────────────────────────────
+  // #341 parte 2 (PR E2): o bloco Fiscal migrou para o gate único RBAC v2 —
+  // a matriz agora é exercitada pelo PermissionGuard real em
+  // modules/fiscal/pr341e2.access.spec.ts (inclui o webhook @Public).
+  // Sobram aqui: User e WMS (bloco G).
 
   describe('User (/users)', () => {
     it('leitura de usuários restrita a SUPER_ADMIN/DIRECTOR/MANAGER', () => {

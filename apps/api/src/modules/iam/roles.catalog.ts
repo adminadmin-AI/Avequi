@@ -68,6 +68,9 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     code !== 'sales.discount-policies.view' &&
     code !== 'settings.users.view' &&
     code !== 'approvals.requests.view' &&
+    // #623 (E2, decisão Rafael): regras tributárias são leitura restrita 🔒 —
+    // fora do perfil somente-leitura.
+    code !== 'fiscal.tax-rules.view' &&
     code !== 'dashboard.finance.view' &&
     code !== 'suppliers.portal-tokens.view' &&
     // Trilha de auditoria (iam.*) é sensível: fora do perfil somente-leitura
@@ -261,16 +264,24 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'GERENTE_FINANCEIRO',
     name: 'Gerente Financeiro',
     description:
-      'Financeiro e Fiscal completos (CRUD + aprovações + configuração); leitura em produtos, vendas e compras. Aprova comissões.',
+      'Financeiro completo (CRUD + aprovações + configuração) e leitura fiscal (documentos/export, manifestação, regras tributárias); leitura em produtos, vendas e compras. Aprova comissões. A OPERAÇÃO fiscal (eventos NF-e, manifestar, editar regras) é do perfil FISCAL.',
     permissions: dedupe([
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
       // #623 (E1, decisão Rafael): dono do módulo financeiro — write-off,
       // provisões, régua, adquirentes, conciliação, exports. EXCETO aprovar
       // investimento: alçada é só DIRETOR+admins (quem gerencia não aprova).
-      ...moduleCodes('finance', 'fiscal').filter(
+      ...moduleCodes('finance').filter(
         (c) => c !== 'finance.investments.approve',
       ),
+      // #623 (E2, decisão Rafael): perdeu o fiscal OPERACIONAL amplo que vinha
+      // de moduleCodes('fiscal') (eventos NF-e, manifestar, tax-rules CUD,
+      // tributary sync) — a operação fiscal é do perfil FISCAL. Mantém só as
+      // leituras abaixo.
+      'fiscal.documents.view',
+      'fiscal.documents.export',
+      'fiscal.manifestation.view',
+      'fiscal.tax-rules.view',
       'products.catalog.view',
       'products.pricing.view',
       ...actionCodes('view', ['sales', 'purchases']),

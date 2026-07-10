@@ -273,12 +273,14 @@ describe('Catálogo de perfis system (#339)', () => {
     }
   });
 
-  it('cancelamento de NF-e restrito: só perfis fiscais/financeiros elevados', () => {
+  it('cancelamento de NF-e restrito: só FISCAL e admins', () => {
+    // #623 (E2, decisão Rafael): GERENTE_FINANCEIRO perdeu a operação fiscal
+    // (eventos NF-e ficam com o perfil FISCAL + admins).
     const podeCancelar = SYSTEM_ROLES.filter((r) =>
       resolveEffectivePermissions(r.code).includes('fiscal.nfe.cancel'),
     ).map((r) => r.code);
     expect(podeCancelar.sort()).toEqual(
-      ['ADMIN_GLOBAL', 'ADMIN_EMPRESA', 'FISCAL', 'GERENTE_FINANCEIRO'].sort(),
+      ['ADMIN_GLOBAL', 'ADMIN_EMPRESA', 'FISCAL'].sort(),
     );
   });
 });

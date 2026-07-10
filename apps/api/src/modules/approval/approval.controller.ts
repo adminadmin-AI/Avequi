@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { ApprovalService } from './approval.service';
 
 @ApiTags('approvals')
@@ -11,7 +11,7 @@ export class ApprovalController {
   constructor(private readonly approvalService: ApprovalService) {}
 
   @Post(':documentId/approve')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('approvals.requests.approve')
   @ApiOperation({ summary: 'Aprovar documento por alçada (#188)' })
   @ApiQuery({ name: 'documentType', required: true, enum: ['PO', 'PR', 'EXPENSE'] })
   approve(
@@ -29,7 +29,7 @@ export class ApprovalController {
   }
 
   @Get('pending')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('approvals.requests.view')
   @ApiOperation({ summary: 'Listar itens pendentes de aprovação (#188)' })
   getPending(@CurrentUser() user: any) {
     return this.approvalService.getPending(user.companyId, user.role);
