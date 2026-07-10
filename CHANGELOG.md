@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-07-10
+
+### Fixed
+- fix(fiscal): registra ManifestModule antes do FiscalModule — GET /fiscal/manifest era engolido pelo @Get(':id') (#686) (#687)
+
 ## [1.5.0] - 2026-07-10
 
 ### Added
@@ -102,7 +107,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.3.0...v1.4.0
