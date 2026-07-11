@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { LostReasonCategory, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CrmService } from './crm.service';
 import { LeadIntakeService } from './lead-intake.service';
@@ -143,12 +143,13 @@ export class LeadListService {
     stageId: string,
     actorId: string,
     lostReason?: string,
+    lostReasonCategory?: LostReasonCategory,
   ) {
     this.assertBatch(leadIds);
     const results = [];
     for (const leadId of leadIds) {
       try {
-        await this.crm.changeStage(companyId, leadId, stageId, actorId, lostReason);
+        await this.crm.changeStage(companyId, leadId, stageId, actorId, lostReason, lostReasonCategory);
         results.push({ leadId, ok: true });
       } catch (err) {
         results.push({ leadId, ok: false, error: (err as Error).message });

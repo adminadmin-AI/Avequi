@@ -7,7 +7,8 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { LostReasonCategory } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CrmService } from './crm.service';
@@ -40,11 +41,19 @@ class ChangeStageDto {
   @IsString()
   stageId: string;
 
-  @ApiPropertyOptional({ description: 'Obrigatório quando o estágio destino é Perdido' })
+  @ApiPropertyOptional({ description: 'Complemento em texto livre da perda (opcional, #570)' })
   @IsOptional()
   @IsString()
   @MaxLength(300)
   lostReason?: string;
+
+  @ApiPropertyOptional({
+    description: 'Categoria da perda — OBRIGATÓRIA quando o destino é Perdido (#570)',
+    enum: LostReasonCategory,
+  })
+  @IsOptional()
+  @IsEnum(LostReasonCategory)
+  lostReasonCategory?: LostReasonCategory;
 }
 
 class MoveLeadDto {
@@ -62,11 +71,19 @@ class MoveLeadDto {
   @IsString()
   afterLeadId?: string;
 
-  @ApiPropertyOptional({ description: 'Obrigatório quando o destino é Perdido' })
+  @ApiPropertyOptional({ description: 'Complemento em texto livre da perda (opcional, #570)' })
   @IsOptional()
   @IsString()
   @MaxLength(300)
   lostReason?: string;
+
+  @ApiPropertyOptional({
+    description: 'Categoria da perda — OBRIGATÓRIA quando o destino é Perdido (#570)',
+    enum: LostReasonCategory,
+  })
+  @IsOptional()
+  @IsEnum(LostReasonCategory)
+  lostReasonCategory?: LostReasonCategory;
 }
 
 class LinkOrderDto {
@@ -179,11 +196,19 @@ class BulkStageDto {
   @IsString()
   stageId: string;
 
-  @ApiPropertyOptional({ description: 'Obrigatório quando o destino é Perdido' })
+  @ApiPropertyOptional({ description: 'Complemento em texto livre da perda (opcional, #570)' })
   @IsOptional()
   @IsString()
   @MaxLength(300)
   lostReason?: string;
+
+  @ApiPropertyOptional({
+    description: 'Categoria da perda — OBRIGATÓRIA quando o destino é Perdido (#570)',
+    enum: LostReasonCategory,
+  })
+  @IsOptional()
+  @IsEnum(LostReasonCategory)
+  lostReasonCategory?: LostReasonCategory;
 }
 
 class CreateReminderDto {
@@ -315,6 +340,7 @@ export class CrmController {
       dto.stageId,
       user.id,
       dto.lostReason,
+      dto.lostReasonCategory,
     );
   }
 
@@ -618,7 +644,14 @@ export class CrmController {
     @Body() dto: ChangeStageDto,
     @CurrentUser() user: any,
   ) {
-    return this.crm.changeStage(user.companyId, id, dto.stageId, user.id, dto.lostReason);
+    return this.crm.changeStage(
+      user.companyId,
+      id,
+      dto.stageId,
+      user.id,
+      dto.lostReason,
+      dto.lostReasonCategory,
+    );
   }
 
   @Patch('leads/:id/assignee')

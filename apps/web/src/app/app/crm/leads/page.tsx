@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
 import { SOURCE_LABEL, StageRef } from '../inbox/inbox-types';
+import { LOST_REASON_OPTIONS, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 
 interface LeadRow {
   id: string;
@@ -59,6 +60,7 @@ export default function LeadListPage() {
   const [bulkStage, setBulkStage] = useState('');
   const [bulkSeller, setBulkSeller] = useState('');
   const [lostReason, setLostReason] = useState('');
+  const [lostCategory, setLostCategory] = useState<LostReasonCategory | ''>('');
   const [confirmLgpd, setConfirmLgpd] = useState(false);
 
   const params = useMemo(
@@ -169,7 +171,12 @@ export default function LeadListPage() {
         await apiClient.post('/crm/leads/bulk/stage', {
           leadIds: [...selected],
           stageId: bulkStage,
-          ...(bulkStageIsLost ? { lostReason: lostReason.trim() } : {}),
+          ...(bulkStageIsLost
+            ? {
+                lostReasonCategory: lostCategory,
+                ...(lostReason.trim() ? { lostReason: lostReason.trim() } : {}),
+              }
+            : {}),
         })
       ).data,
     onSuccess: afterBulk,
@@ -289,16 +296,31 @@ export default function LeadListPage() {
             ))}
           </select>
           {bulkStageIsLost && (
-            <input
-              className="rounded-md border bg-background px-2 py-1.5 text-sm"
-              placeholder="Motivo da perda (obrigatório)"
-              value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
-            />
+            <>
+              <select
+                className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                value={lostCategory}
+                onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
+              >
+                <option value="">Categoria da perda…</option>
+                {LOST_REASON_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                placeholder="Detalhe opcional"
+                value={lostReason}
+                maxLength={300}
+                onChange={(e) => setLostReason(e.target.value)}
+              />
+            </>
           )}
           <Button
             size="sm"
-            disabled={!bulkStage || (bulkStageIsLost && !lostReason.trim()) || changeStage.isPending}
+            disabled={!bulkStage || (bulkStageIsLost && !lostCategory) || changeStage.isPending}
             onClick={() => changeStage.mutate()}
           >
             {changeStage.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}

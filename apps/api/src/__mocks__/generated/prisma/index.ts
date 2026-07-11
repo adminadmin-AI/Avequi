@@ -567,6 +567,17 @@ export enum PaymentGateway {
   GETNET = 'GETNET',
 }
 
+/** Categoria estruturada do motivo de perda do lead (#570) */
+export enum LostReasonCategory {
+  PRECO = 'PRECO',
+  CONCORRENTE = 'CONCORRENTE',
+  SEM_RESPOSTA = 'SEM_RESPOSTA',
+  DESISTIU = 'DESISTIU',
+  PRAZO_ENTREGA = 'PRAZO_ENTREGA',
+  FORA_DO_PERFIL = 'FORA_DO_PERFIL',
+  OUTRO = 'OUTRO',
+}
+
 export enum DebtorType {
   CUSTOMER = 'CUSTOMER',
   ACQUIRER = 'ACQUIRER',

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import { LOST_REASON_OPTIONS, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 import { Board, BoardColumn, BoardLead, SOURCE_LABEL, formatBRL } from './funnel-types';
 
 /**
@@ -26,6 +27,7 @@ export default function FunnelPage() {
   const [dragged, setDragged] = useState<BoardLead | null>(null);
   const [lostPrompt, setLostPrompt] = useState<{ lead: BoardLead; stageId: string } | null>(null);
   const [lostReason, setLostReason] = useState('');
+  const [lostCategory, setLostCategory] = useState<LostReasonCategory | ''>('');
 
   const { data: board, isLoading } = useQuery<Board>({
     queryKey: ['crm-board', scope],
@@ -40,11 +42,13 @@ export default function FunnelPage() {
       beforeLeadId?: string;
       afterLeadId?: string;
       lostReason?: string;
+      lostReasonCategory?: LostReasonCategory;
     }) => apiClient.patch(`/crm/leads/${body.leadId}/move`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-board'] });
       setLostPrompt(null);
       setLostReason('');
+      setLostCategory('');
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao mover'),
   });
@@ -210,34 +214,43 @@ export default function FunnelPage() {
             </p>
             <select
               className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-              value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
+              value={lostCategory}
+              onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
             >
-              <option value="">Selecione…</option>
-              <option value="Preço">Preço</option>
-              <option value="Prazo de entrega">Prazo de entrega</option>
-              <option value="Fechou com concorrente">Fechou com concorrente</option>
-              <option value="Sem resposta">Sem resposta</option>
-              <option value="Outro">Outro</option>
+              <option value="">Categoria (obrigatória)…</option>
+              {LOST_REASON_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
+            <input
+              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              placeholder="Detalhe opcional (ex.: achou R$ 2 mil mais barato na X)"
+              value={lostReason}
+              maxLength={300}
+              onChange={(e) => setLostReason(e.target.value)}
+            />
             <div className="flex justify-end gap-2">
               <button
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground"
                 onClick={() => {
                   setLostPrompt(null);
                   setLostReason('');
+                  setLostCategory('');
                 }}
               >
                 Cancelar
               </button>
               <button
                 className="rounded-md bg-danger px-3 py-1.5 text-sm text-white disabled:opacity-50"
-                disabled={!lostReason || move.isPending}
+                disabled={!lostCategory || move.isPending}
                 onClick={() =>
                   move.mutate({
                     leadId: lostPrompt.lead.id,
                     stageId: lostPrompt.stageId,
-                    lostReason,
+                    lostReasonCategory: lostCategory as LostReasonCategory,
+                    ...(lostReason.trim() ? { lostReason: lostReason.trim() } : {}),
                   })
                 }
               >

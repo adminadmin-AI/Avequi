@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { SOURCE_LABEL } from '../inbox/inbox-types';
+import { lostReasonLabel } from '@/lib/crm-lost-reasons';
 import { formatBRL } from '../funnel/funnel-types';
 
 interface Dashboard {
@@ -35,7 +36,12 @@ interface Dashboard {
     winRate: number;
     avgFirstResponseMin: number | null;
   }>;
-  lostReasons: Array<{ reason: string; count: number }>;
+  /** Perdas por categoria (#570) + drill por vendedor e origem */
+  lostReasons: {
+    byCategory: Array<{ category: string | null; count: number }>;
+    bySeller: Array<{ sellerId: string | null; sellerName: string; category: string | null; count: number }>;
+    bySource: Array<{ source: string; category: string | null; count: number }>;
+  };
   /** #569 — leads realocados por SLA estourado no período */
   slaEscalations: number;
   /** #574 — leads que chegaram já em negociação em outra loja */
@@ -199,22 +205,78 @@ export default function CrmDashboardPage() {
             </section>
           </div>
 
-          {/* Motivos de perda */}
-          {data.lostReasons.length > 0 && (
-            <section className="rounded-lg border p-4">
-              <h2 className="mb-3 text-sm font-medium">Motivos de perda</h2>
-              <div className="flex flex-wrap gap-2">
-                {data.lostReasons.map((r) => (
-                  <Badge key={r.reason} variant="danger" outline>
-                    {r.reason}: {r.count}
-                  </Badge>
-                ))}
-              </div>
-            </section>
+          {/* Perdas por categoria (#570) — por que perdemos leads este mês? */}
+          {data.lostReasons.byCategory.length > 0 && (
+            <LostByCategory lost={data.lostReasons} />
           )}
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Perdas por categoria (#570) com drill por vendedor/origem: barra proporcional
+ * por categoria + tabela da dimensão escolhida. "Não categorizado" = leads
+ * perdidos antes da categoria existir (sem migração retroativa).
+ */
+function LostByCategory({ lost }: { lost: Dashboard['lostReasons'] }) {
+  const [dim, setDim] = useState<'seller' | 'source'>('seller');
+  const total = lost.byCategory.reduce((s, c) => s + c.count, 0);
+
+  const rows =
+    dim === 'seller'
+      ? lost.bySeller.map((r) => ({ key: r.sellerName, category: r.category, count: r.count }))
+      : lost.bySource.map((r) => ({ key: SOURCE_LABEL[r.source] ?? r.source, category: r.category, count: r.count }));
+  const byKey = new Map<string, { category: string | null; count: number }[]>();
+  for (const r of rows) {
+    if (!byKey.has(r.key)) byKey.set(r.key, []);
+    byKey.get(r.key)!.push(r);
+  }
+
+  return (
+    <section className="rounded-lg border p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-medium">Por que perdemos? ({total} leads)</h2>
+        <select
+          className="rounded-md border bg-background px-2 py-1 text-xs"
+          value={dim}
+          onChange={(e) => setDim(e.target.value as 'seller' | 'source')}
+        >
+          <option value="seller">por vendedor</option>
+          <option value="source">por origem</option>
+        </select>
+      </div>
+
+      <div className="mb-4 space-y-1.5">
+        {lost.byCategory.map((c) => (
+          <div key={c.category ?? 'null'} className="flex items-center gap-2 text-xs">
+            <span className="w-44 shrink-0 truncate">{lostReasonLabel(c.category)}</span>
+            <div className="h-3 flex-1 overflow-hidden rounded bg-surface-secondary">
+              <div
+                className="h-full rounded bg-danger/70"
+                style={{ width: `${total ? Math.max(2, Math.round((c.count / total) * 100)) : 0}%` }}
+              />
+            </div>
+            <span className="w-14 shrink-0 text-right tabular-nums">
+              {c.count} ({total ? Math.round((c.count / total) * 100) : 0}%)
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-x-6 gap-y-2">
+        {[...byKey.entries()].map(([key, cats]) => (
+          <div key={key} className="text-xs">
+            <span className="font-medium">{key}:</span>{' '}
+            {cats
+              .sort((a, b) => b.count - a.count)
+              .map((c) => `${lostReasonLabel(c.category)} ${c.count}`)
+              .join(' · ')}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

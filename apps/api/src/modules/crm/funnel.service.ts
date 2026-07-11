@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LeadActivityType, PipelineStageType, Prisma } from '@prisma/client';
+import { LeadActivityType, LostReasonCategory, PipelineStageType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface BoardFilters {
@@ -106,7 +106,13 @@ export class FunnelService {
   async moveLead(
     companyId: string,
     leadId: string,
-    input: { stageId: string; beforeLeadId?: string; afterLeadId?: string; lostReason?: string },
+    input: {
+      stageId: string;
+      beforeLeadId?: string;
+      afterLeadId?: string;
+      lostReason?: string;
+      lostReasonCategory?: LostReasonCategory;
+    },
     actorId: string,
   ) {
     const [lead, stage] = await Promise.all([
@@ -120,8 +126,8 @@ export class FunnelService {
     ]);
     if (!lead) throw new NotFoundException('Lead não encontrado');
     if (!stage) throw new BadRequestException('Estágio inválido para esta loja');
-    if (stage.type === PipelineStageType.LOST && !input.lostReason?.trim()) {
-      throw new BadRequestException('Mover para Perdido exige o motivo da perda');
+    if (stage.type === PipelineStageType.LOST && !input.lostReasonCategory) {
+      throw new BadRequestException('Mover para Perdido exige a categoria do motivo da perda');
     }
 
     const position = await this.computePosition(
@@ -139,8 +145,11 @@ export class FunnelService {
         position,
         lastInteractionAt: new Date(),
         ...(stage.type === PipelineStageType.LOST
-          ? { lostReason: input.lostReason!.trim() }
-          : { lostReason: null }),
+          ? {
+              lostReasonCategory: input.lostReasonCategory!,
+              lostReason: input.lostReason?.trim() || null,
+            }
+          : { lostReason: null, lostReasonCategory: null }),
         ...(stageChanged
           ? {
               activities: {
@@ -152,7 +161,10 @@ export class FunnelService {
                     to: stage.id,
                     toName: stage.name,
                     ...(stage.type === PipelineStageType.LOST
-                      ? { lostReason: input.lostReason!.trim() }
+                      ? {
+                          lostReasonCategory: input.lostReasonCategory!,
+                          ...(input.lostReason?.trim() ? { lostReason: input.lostReason.trim() } : {}),
+                        }
                       : {}),
                   },
                 },
@@ -175,24 +187,26 @@ export class FunnelService {
     return updated;
   }
 
-  /** Motivos de perda agregados (dashboard F3.1 e visão do gerente) */
+  /**
+   * Perdas agregadas por CATEGORIA (#570) — leads antigos sem categoria
+   * aparecem como `category: null` ("não categorizado" na UI).
+   */
   async lostReasons(companyId: string, since?: Date) {
     const lostStages = await this.prisma.pipelineStage.findMany({
       where: { companyId, type: PipelineStageType.LOST },
       select: { id: true },
     });
     const grouped = await this.prisma.lead.groupBy({
-      by: ['lostReason'],
+      by: ['lostReasonCategory'],
       where: {
         companyId,
         stageId: { in: lostStages.map((s) => s.id) },
-        lostReason: { not: null },
         ...(since ? { updatedAt: { gte: since } } : {}),
       },
       _count: { _all: true },
     });
     return grouped
-      .map((g) => ({ reason: g.lostReason, count: g._count._all }))
+      .map((g) => ({ category: g.lostReasonCategory, count: g._count._all }))
       .sort((a, b) => b.count - a.count);
   }
 

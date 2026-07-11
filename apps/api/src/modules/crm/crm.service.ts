@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LeadActivityType, PipelineStageType, Prisma } from '@prisma/client';
+import { LeadActivityType, LostReasonCategory, PipelineStageType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface ConversationFilters {
@@ -125,6 +125,7 @@ export class CrmService {
     stageId: string,
     actorId: string,
     lostReason?: string,
+    lostReasonCategory?: LostReasonCategory,
   ) {
     const [lead, stage] = await Promise.all([
       this.prisma.lead.findFirst({
@@ -137,15 +138,17 @@ export class CrmService {
     ]);
     if (!lead) throw new NotFoundException('Lead não encontrado');
     if (!stage) throw new BadRequestException('Estágio inválido para esta loja');
-    if (stage.type === PipelineStageType.LOST && !lostReason?.trim()) {
-      throw new BadRequestException('Mover para Perdido exige o motivo da perda');
+    if (stage.type === PipelineStageType.LOST && !lostReasonCategory) {
+      throw new BadRequestException('Mover para Perdido exige a categoria do motivo da perda');
     }
 
+    const isLost = stage.type === PipelineStageType.LOST;
     const updated = await this.prisma.lead.update({
       where: { id: lead.id },
       data: {
         stageId: stage.id,
-        lostReason: stage.type === PipelineStageType.LOST ? lostReason!.trim() : null,
+        lostReason: isLost ? lostReason?.trim() || null : null,
+        lostReasonCategory: isLost ? lostReasonCategory! : null,
         lastInteractionAt: new Date(),
         activities: {
           create: {
@@ -155,7 +158,12 @@ export class CrmService {
               from: lead.stageId,
               to: stage.id,
               toName: stage.name,
-              ...(stage.type === PipelineStageType.LOST ? { lostReason: lostReason!.trim() } : {}),
+              ...(isLost
+                ? {
+                    lostReasonCategory: lostReasonCategory!,
+                    ...(lostReason?.trim() ? { lostReason: lostReason.trim() } : {}),
+                  }
+                : {}),
             },
           },
         },

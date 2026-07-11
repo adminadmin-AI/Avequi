@@ -193,6 +193,12 @@ export class CrmDashboardService {
       .sort((a, b) => b.won - a.won || b.leads - a.leads);
   }
 
+  /**
+   * Perdas por CATEGORIA (#570) + drill por vendedor e origem. Substitui a
+   * antiga nuvem de texto livre (lostReason) por decisão acionável: 40%
+   * "PRECO" numa loja = problema de pricing, não de vendedor. Leads antigos
+   * sem categoria entram como `category: null` ("não categorizado" na UI).
+   */
   private async lostReasons(range: DashboardRange) {
     const lostStageIds = (
       await this.prisma.pipelineStage.findMany({
@@ -201,19 +207,48 @@ export class CrmDashboardService {
       })
     ).map((s) => s.id);
 
-    const grouped = await this.prisma.lead.groupBy({
-      by: ['lostReason'],
-      where: {
-        companyId: range.companyId,
-        stageId: { in: lostStageIds },
-        lostReason: { not: null },
-        updatedAt: { gte: range.from, lte: range.to },
-      },
-      _count: { _all: true },
-    });
-    return grouped
-      .map((g) => ({ reason: g.lostReason, count: g._count._all }))
-      .sort((a, b) => b.count - a.count);
+    const lostWhere = {
+      companyId: range.companyId,
+      stageId: { in: lostStageIds },
+      updatedAt: { gte: range.from, lte: range.to },
+    };
+
+    const [byCategory, bySellerRaw, bySource] = await Promise.all([
+      this.prisma.lead.groupBy({ by: ['lostReasonCategory'], where: lostWhere, _count: { _all: true } }),
+      this.prisma.lead.groupBy({
+        by: ['assignedToId', 'lostReasonCategory'],
+        where: lostWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.lead.groupBy({
+        by: ['source', 'lostReasonCategory'],
+        where: lostWhere,
+        _count: { _all: true },
+      }),
+    ]);
+
+    const sellerIds = [...new Set(bySellerRaw.map((g) => g.assignedToId).filter(Boolean))] as string[];
+    const sellers = sellerIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true } })
+      : [];
+    const sellerName = new Map(sellers.map((s) => [s.id, s.name]));
+
+    return {
+      byCategory: byCategory
+        .map((g) => ({ category: g.lostReasonCategory, count: g._count._all }))
+        .sort((a, b) => b.count - a.count),
+      bySeller: bySellerRaw.map((g) => ({
+        sellerId: g.assignedToId,
+        sellerName: g.assignedToId ? (sellerName.get(g.assignedToId) ?? '—') : 'Sem vendedor',
+        category: g.lostReasonCategory,
+        count: g._count._all,
+      })),
+      bySource: bySource.map((g) => ({
+        source: g.source,
+        category: g.lostReasonCategory,
+        count: g._count._all,
+      })),
+    };
   }
 
   /** Export CSV da quebra por origem (botão do dashboard) */
