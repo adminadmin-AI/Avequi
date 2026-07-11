@@ -741,6 +741,12 @@ model Warehouse {
   id               String            @id @default(cuid())
   companyId        String
   company          Company           @relation(fields: [companyId], references: [id])
+  // #347 fase 2 (347-A): ponte operacional filial<->deposito — a Branch e a
+  // entidade de ESCOPO organizacional; o Warehouse e o corpo dela nos dados do
+  // ERP core (vendas/estoque/WMS ja apontam para warehouseId). Nullable e
+  // aditivo: deposito sem branch segue funcionando como hoje (sem recorte).
+  branchId         String?
+  branch           Branch?           @relation(fields: [branchId], references: [id])
   name             String
   code             String
   description      String?
@@ -3551,6 +3557,8 @@ model Branch {
   updatedAt DateTime @updatedAt
 
   userRoleAssignments UserRoleAssignment[]
+  // #347 fase 2 (347-A): depositos/lojas operacionais desta filial
+  warehouses          Warehouse[]
 
   @@unique([companyId, code])
   @@map("gdr_branches")
