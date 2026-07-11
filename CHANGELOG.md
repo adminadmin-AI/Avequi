@@ -6,6 +6,13 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-11
+
+### Added
+- feat(crm): motivos de perda estruturados — categoria obrigatória + dashboard acionável (Refs #570) (#703)
+- feat(iam): reset de MFA por administrador (#545) (#702)
+- feat(web): itens do Bloco G no nav filtram por permissão RBAC v2 (follow-up #696) (#701)
+
 ## [1.7.1] - 2026-07-11
 
 ### Fixed
@@ -128,7 +135,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.1...v1.6.0
