@@ -364,7 +364,8 @@ export class FiscalService {
 
     // #499: validação estruturada pré-transmissão — rejeições conhecidas viram
     // erro orientado ANTES de ir à SEFAZ (mesmo padrão do bloqueio fiscal #498)
-    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
+    const model = type === FiscalDocumentType.NFE ? ('nfe' as const) : ('nfce' as const);
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload, model)) return;
 
     // Enviar para Focus NFe
     const response =
@@ -384,8 +385,9 @@ export class FiscalService {
     fiscalDocumentId: string,
     ref: string,
     payload: Record<string, unknown>,
+    model: 'nfe' | 'nfce' = 'nfe',
   ): Promise<boolean> {
-    const issues = validateNfePayload(payload);
+    const issues = validateNfePayload(payload, model);
     if (issues.length === 0) return false;
     const msg = formatValidationIssues(issues);
     this.logger.warn(`Fiscal Validator bloqueou ${ref}: ${msg}`);
