@@ -6,6 +6,14 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-11
+
+### Added
+- feat(sec): rate limiting adaptativo — tracker por usuário + teto 2x p/ autenticados + exports 10/min (#349 parcial) (#706)
+
+### Changed
+- docs(iam): documentação as-built do IAM — arquitetura, fluxos, ER, matriz e receitas (#354) (#705)
+
 ## [1.8.0] - 2026-07-11
 
 ### Added
@@ -135,7 +143,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.6.0...v1.7.0
