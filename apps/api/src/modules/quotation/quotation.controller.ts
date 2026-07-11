@@ -10,6 +10,7 @@ import {
   Request,
   Res,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { QuotationStatus } from '@prisma/client';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -35,6 +36,7 @@ export class QuotationController {
 
   // GET /quotations/:id/pdf — proposta comercial em PDF (#572)
   @Get(':id/pdf')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('sales.quotations.view')
   async pdf(
     @Param('id') id: string,

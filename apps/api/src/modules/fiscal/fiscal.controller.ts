@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
 import type { Response } from 'express';
 import archiver = require('archiver');
@@ -142,6 +142,7 @@ export class FiscalController {
    * Declarado ANTES de :id para não ser capturado pela rota de detalhe.
    */
   @Get('export')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('fiscal.documents.export')
   @ApiOperation({ summary: 'Exportar XMLs do período em ZIP (contador)' })
   @ApiQuery({ name: 'from', description: 'Data inicial (YYYY-MM-DD)' })
