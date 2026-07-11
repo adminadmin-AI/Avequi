@@ -148,4 +148,42 @@ describe('validateNfePayload (#499)', () => {
     expect(msg).toContain('[535]');
     expect(msg).toContain('[511]');
   });
+
+  // ── W16-40 (NT 2026.002): NFC-e sem identificação acima do limite ─────────
+  describe('W16-40 — NFC-e sem identificação do consumidor', () => {
+    const nfce = (total: number, dest: Record<string, any> = {}) =>
+      validPayload(
+        { cpf_destinatario: undefined, ...dest },
+        { valor_total_bruto: total },
+      );
+
+    afterEach(() => delete process.env.NFCE_UNIDENTIFIED_LIMIT);
+
+    it('NFC-e > R$ 10.000 SEM CPF/CNPJ → bloqueia com orientação', () => {
+      const issues = validateNfePayload(nfce(15000), 'nfce');
+      expect(issues.some((i) => i.rejection === 'W16-40')).toBe(true);
+      expect(formatValidationIssues(issues)).toContain('Identifique o cliente');
+    });
+
+    it('NFC-e > limite COM CPF → passa', () => {
+      const issues = validateNfePayload(nfce(15000, { cpf_destinatario: '04252011043' }), 'nfce');
+      expect(issues.some((i) => i.rejection === 'W16-40')).toBe(false);
+    });
+
+    it('NFC-e ≤ limite sem identificação → passa (consumidor não identificado é válido)', () => {
+      const issues = validateNfePayload(nfce(9999.99), 'nfce');
+      expect(issues.some((i) => i.rejection === 'W16-40')).toBe(false);
+    });
+
+    it('limite por UF configurável via NFCE_UNIDENTIFIED_LIMIT', () => {
+      process.env.NFCE_UNIDENTIFIED_LIMIT = '3000';
+      const issues = validateNfePayload(nfce(5000), 'nfce');
+      expect(issues.some((i) => i.rejection === 'W16-40')).toBe(true);
+    });
+
+    it('NF-e (modelo padrão) não passa pela regra', () => {
+      const issues = validateNfePayload(nfce(15000), 'nfe');
+      expect(issues.some((i) => i.rejection === 'W16-40')).toBe(false);
+    });
+  });
 });

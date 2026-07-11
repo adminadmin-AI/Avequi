@@ -152,6 +152,36 @@ describe('SalesService', () => {
       await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/insuficiente/);
     });
 
+    // ── W16-40 (NT 2026.002): venda acima do limite exige cliente identificado ──
+    it('W16-40: venda > R$ 10.000 SEM cliente identificado → 400 orientado', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...counterOrder,
+        items: [{ ...counterOrder.items[0], quantity: 1, unitPrice: 15000 }],
+      });
+      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/W16-40/);
+    });
+
+    it('W16-40: cliente sem CPF/CNPJ no cadastro também bloqueia acima do limite', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...counterOrder,
+        customer: { document: null },
+        items: [{ ...counterOrder.items[0], quantity: 1, unitPrice: 15000 }],
+      });
+      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/identificação/);
+    });
+
+    it('W16-40: venda > limite COM cliente documentado fecha normal', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue({
+        ...counterOrder,
+        customer: { document: '04252011043' },
+        items: [{ ...counterOrder.items[0], quantity: 1, unitPrice: 15000 }],
+      });
+      mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 5, reserved: 0 });
+      mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
+      const res = await service.checkoutCounterSale('so-b', 'co-1');
+      expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
+    });
+
     it('reserva estoque, amarra o chassi (IN_STOCK→RESERVED_FOR_SALE) e vai a READY_TO_INVOICE', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });

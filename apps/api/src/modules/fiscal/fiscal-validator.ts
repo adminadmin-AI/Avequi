@@ -21,9 +21,44 @@ export interface ValidationIssue {
 
 type Payload = Record<string, any>;
 
-export function validateNfePayload(payload: Payload): ValidationIssue[] {
+/**
+ * Limite p/ NFC-e SEM identificação do consumidor (regra W16-40, NT 2026.002
+ * fase 1 — EM PRODUÇÃO na SEFAZ desde 15/06/2026). Default nacional R$ 10.000;
+ * cada UF pode definir o seu → ajustável por env NFCE_UNIDENTIFIED_LIMIT.
+ */
+export function nfceUnidentifiedLimit(): number {
+  const raw = Number(process.env.NFCE_UNIDENTIFIED_LIMIT);
+  return Number.isFinite(raw) && raw > 0 ? raw : 10000;
+}
+
+export function validateNfePayload(
+  payload: Payload,
+  model: 'nfe' | 'nfce' = 'nfe',
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const items: Payload[] = Array.isArray(payload.items) ? payload.items : [];
+
+  // ── W16-40 (NT 2026.002): NFC-e acima do limite exige identificação ───────
+  // Consumidor não identificado é válido SÓ até o limite da UF (default 10k).
+  // Acima disso a SEFAZ rejeita — bloquear aqui evita queimar a ref na Focus
+  // e devolve orientação acionável pro balcão (identificar o cliente).
+  if (model === 'nfce') {
+    const total = items.reduce((sum, i) => sum + (Number(i.valor_total_bruto) || 0), 0);
+    const hasDest =
+      digits(payload.cpf_destinatario).length === 11 ||
+      digits(payload.cnpj_destinatario).length === 14;
+    const limit = nfceUnidentifiedLimit();
+    if (total > limit && !hasDest) {
+      issues.push({
+        rejection: 'W16-40',
+        field: 'cpf_destinatario',
+        message:
+          `NFC-e de R$ ${total.toFixed(2)} sem identificação do consumidor — acima de ` +
+          `R$ ${limit.toFixed(2)} a SEFAZ exige CPF/CNPJ do destinatário (NT 2026.002). ` +
+          'Identifique o cliente na venda (ou emita NF-e com cadastro completo).',
+      });
+    }
+  }
 
   // ── data_emissao: obrigatória e com fuso explícito ≠ UTC ──────────────────
   // Nota emitida após 21h em UTC "pula" de dia → SEFAZ 577 bloqueia cancelamento

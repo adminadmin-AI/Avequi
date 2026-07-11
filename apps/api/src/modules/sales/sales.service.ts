@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { StockService } from '../stock/stock.service';
 import { TaxCalculationService, missingTaxRuleMessage } from '../tax/tax-calculation.service';
+import { nfceUnidentifiedLimit } from '../fiscal/fiscal-validator';
 import { AcquirerService } from '../acquirer/acquirer.service';
 import { isCardMethod } from '../acquirer/payment-classification';
 import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
@@ -325,6 +326,23 @@ export class SalesService {
       throw new BadRequestException(
         `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
           'Somente DIRECTOR pode fechar a venda mesmo assim.',
+      );
+    }
+
+    // W16-40 (NT 2026.002, em produção na SEFAZ desde 15/06/2026): acima do
+    // limite, documento fiscal SEM CPF/CNPJ do destinatário é rejeitado.
+    // Bloquear AQUI (antes de autorizar cartão e reservar chassi) — falhar na
+    // emissão seria tarde: pagamento já capturado e estoque preso.
+    const total = (order.items as any[]).reduce(
+      (sum, i) => sum + Number(i.quantity) * Number(i.unitPrice),
+      0,
+    );
+    const limit = nfceUnidentifiedLimit();
+    if (total > limit && !cust?.document) {
+      throw new BadRequestException(
+        `Venda de R$ ${total.toFixed(2)} exige identificação do cliente (CPF/CNPJ) — ` +
+          `acima de R$ ${limit.toFixed(2)} a SEFAZ rejeita documento sem destinatário ` +
+          '(regra W16-40, NT 2026.002). Identifique o cliente antes de fechar.',
       );
     }
 
