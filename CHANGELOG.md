@@ -6,6 +6,16 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-11
+
+### Added
+- IAM v2 Bloco G (#341 parte 2): satélites (alert, carrier, scheduling, user, wms, delivery, vehicle-tracking/documents) no gate único RBAC v2 — +6 permissões (`sales.carriers.*`, `sales.deliveries.*`, `vehicle-tracking.documents.*`), catálogo 260→266 (#694)
+- Varredura global de cobertura de gate (#353): toda rota da API exige classificação explícita (permissão, roles, @Public em allowlist exata ou exceção consciente) — regressão de endpoint sem guard quebra o CI (#693)
+
+### Changed
+- **@Roles legado ZERADO fora do CRM** — com o Bloco G, o RBAC v2 cobre A–E+G; resta só o Bloco F/CRM (#624) para fechar a #341. `rbac-matrix.spec` legado removido em favor da varredura global.
+- `release.js` sincroniza o `package-lock.json` automaticamente após o bump (#692)
+
 ## [1.6.0] - 2026-07-10
 
 ### Added
@@ -113,7 +123,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.4.1...v1.5.0
