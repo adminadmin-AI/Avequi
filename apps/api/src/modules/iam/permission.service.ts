@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionCacheService } from './permission-cache.service';
+import { companyScope, EffectiveScope } from './scope';
 import {
   ENUM_ROLE_TO_SYSTEM_ROLE,
   findSystemRole,
@@ -113,6 +114,49 @@ export class PermissionService {
   async hasPermission(userId: string, companyId: string, code: string): Promise<boolean> {
     const { permissions } = await this.getUserPermissions(userId, companyId);
     return permissionMatches(new Set(permissions), code);
+  }
+
+  /**
+   * Escopo de DADOS efetivo do usuário na empresa — #347 fase 2 (347-A).
+   *
+   * Regras (decisões Rafael 11/07/2026; ver scope.ts e docs/iam/ESCOPO-FILIAL.md):
+   * - Nenhum assignment ativo (usuário legado em fallback de enum) → COMPANY;
+   * - QUALQUER assignment sem branchId → COMPANY (o vínculo mais amplo vence —
+   *   e é o retrocompatível: hoje nenhum assignment tem branch, então todo
+   *   mundo permanece com a visão global que sempre teve);
+   * - Todos os assignments com branchId → BRANCH, com a união das filiais
+   *   (gerente que acumula lojas = múltiplos assignments) e dos depósitos
+   *   ativos dessas filiais (Warehouse.branchId, a ponte operacional).
+   *
+   * ⚠️ 347-A é SHADOW: este método ainda não é chamado em nenhum request path;
+   * os services passam a consumi-lo (via scopeWhere) nas fases 347-B em
+   * diante — quando entrar no caminho quente, ganha cache como o de permissões.
+   */
+  async getUserScope(userId: string, companyId: string): Promise<EffectiveScope> {
+    const now = new Date();
+    const notExpired = { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
+
+    const assignments = await this.prisma.userRoleAssignment.findMany({
+      where: { userId, companyId, ...notExpired, role: { isActive: true } },
+      select: { branchId: true },
+    });
+
+    if (assignments.length === 0 || assignments.some((a) => !a.branchId)) {
+      return companyScope(userId);
+    }
+
+    const branchIds = [...new Set(assignments.map((a) => a.branchId as string))];
+    const warehouses = await this.prisma.warehouse.findMany({
+      where: { companyId, branchId: { in: branchIds }, isActive: true },
+      select: { id: true },
+    });
+
+    return {
+      level: 'BRANCH',
+      branchIds,
+      warehouseIds: warehouses.map((w) => w.id),
+      userId,
+    };
   }
 
   /** O usuário tem PELO MENOS UMA das permissões? (1 resolução, N checks) */
