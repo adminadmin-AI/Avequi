@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -263,6 +264,65 @@ export class MfaService {
           eventType: SecurityEventType.MFA_DISABLED,
           severity: SecurityEventSeverity.WARNING,
           metadata: {},
+        },
+      }),
+    ]);
+  }
+
+  /**
+   * Reset de MFA por ADMINISTRADOR (#545) — cenário: usuário perdeu o celular
+   * E os backup codes (o `disable` normal exige senha+código do dono, inútil aí).
+   *
+   * Salvaguardas:
+   * - Gate no controller: `iam.roles.assign` (só ADMIN_GLOBAL/ADMIN_EMPRESA);
+   * - REAUTENTICAÇÃO do admin (senha própria) — sessão roubada não reseta;
+   * - Nunca a própria conta (outro admin faz — quatro olhos);
+   * - Alvo sempre da MESMA empresa (anti-IDOR);
+   * - SecurityEvent(MFA_DISABLED, WARNING) síncrono no ALVO com metadata de
+   *   quem resetou (`resetByUserId`) — trilha de auditoria da decisão do #467.
+   *
+   * O usuário volta a logar só com senha e pode re-habilitar o MFA no setup.
+   */
+  async adminReset(
+    admin: { id: string; companyId: string },
+    targetUserId: string,
+    adminPassword: string,
+  ): Promise<void> {
+    if (admin.id === targetUserId) {
+      throw new BadRequestException(
+        'Não é possível resetar o próprio MFA por aqui — peça a outro administrador.',
+      );
+    }
+
+    const adminUser = await this.prisma.user.findUnique({
+      where: { id: admin.id },
+      select: { passwordHash: true },
+    });
+    if (!adminUser || !(await bcrypt.compare(adminPassword ?? '', adminUser.passwordHash))) {
+      throw new UnauthorizedException('Senha do administrador inválida.');
+    }
+
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetUserId, companyId: admin.companyId },
+      select: { id: true },
+    });
+    if (!target) {
+      throw new NotFoundException('Usuário não encontrado nesta empresa.');
+    }
+
+    if (!(await this.isEnabled(targetUserId))) {
+      throw new BadRequestException('O usuário não tem MFA habilitado.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.userMFA.delete({ where: { userId: targetUserId } }),
+      this.prisma.securityEvent.create({
+        data: {
+          companyId: admin.companyId,
+          userId: targetUserId,
+          eventType: SecurityEventType.MFA_DISABLED,
+          severity: SecurityEventSeverity.WARNING,
+          metadata: { resetByUserId: admin.id, reason: 'admin-reset' },
         },
       }),
     ]);

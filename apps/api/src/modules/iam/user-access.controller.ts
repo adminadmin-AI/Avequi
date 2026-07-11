@@ -2,8 +2,9 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { MfaService } from './mfa.service';
 import { UserAccessService } from './user-access.service';
-import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
+import { AdminMfaResetDto, AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
 
 /**
  * Atribuições de perfil e exceções individuais por usuário — issue #352
@@ -18,7 +19,32 @@ import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
 @ApiBearerAuth()
 @Controller('iam/users/:userId')
 export class UserAccessController {
-  constructor(private readonly userAccessService: UserAccessService) {}
+  constructor(
+    private readonly userAccessService: UserAccessService,
+    private readonly mfaService: MfaService,
+  ) {}
+
+  // ─── MFA (#545) ────────────────────────────────────────────────────────────
+
+  @Post('mfa/reset')
+  @RequirePermission('iam.roles.assign')
+  @ApiOperation({
+    summary:
+      'Reset de MFA por administrador (#545) — usuário perdeu celular E backup codes. ' +
+      'Exige senha do próprio admin; nunca a própria conta; gera SecurityEvent auditável.',
+  })
+  async resetMfa(
+    @CurrentUser() user: any,
+    @Param('userId') userId: string,
+    @Body() dto: AdminMfaResetDto,
+  ) {
+    await this.mfaService.adminReset(
+      { id: user.id, companyId: user.companyId },
+      userId,
+      dto.password,
+    );
+    return { message: 'MFA resetado — o usuário volta a logar só com senha e pode reconfigurar.' };
+  }
 
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
 
