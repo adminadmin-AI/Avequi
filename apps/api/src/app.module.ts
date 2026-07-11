@@ -122,9 +122,13 @@ import { IamModule } from './modules/iam/iam.module';
     StockModule,
     PurchaseModule,
     SalesModule,
-    // ManifestModule ANTES do FiscalModule: as rotas 'fiscal/manifest' precisam
-    // registrar antes do @Get(':id') do FiscalController, senão são engolidas (#686)
-    ManifestModule,
+    // Módulos com prefixo ANINHADO registram ANTES do módulo "pai" cujo
+    // controller tem @Get(':id') — senão a rota estática é engolida como se
+    // fosse um id (#686 manifest, #698 budget/schedule). O route-shadowing.spec
+    // varre todos os pares e quebra o CI se esta ordem regredir.
+    ManifestModule, // fiscal/manifest antes de FiscalModule
+    BudgetModule, // finance/budget antes de FinanceModule
+    SchedulingModule, // production/schedule antes de ProductionModule
     FiscalModule,
     FinanceModule,
     TransferModule,
@@ -161,8 +165,6 @@ import { IamModule } from './modules/iam/iam.module';
     CommissionModule,
     RfqModule,
     LgpdModule,
-    BudgetModule,
-    SchedulingModule,
     IamModule,
   ],
   providers: [
