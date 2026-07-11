@@ -24,6 +24,7 @@ const mockPrisma = {
   },
   user: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
   userRoleAssignment: {
     count: jest.fn(),
@@ -326,6 +327,72 @@ describe('MfaService (#344)', () => {
     it('should be best-effort: DB error → false (não derruba o login)', async () => {
       mockPrisma.userRoleAssignment.count.mockRejectedValue(new Error('db down'));
       expect(await service.roleRequiresMfa(user.id)).toBe(false);
+    });
+  });
+
+  // ─── adminReset (#545) ───────────────────────────────────────────────────
+
+  describe('adminReset (#545)', () => {
+    const admin = { id: 'admin-1', companyId: 'company-1' };
+    const ADMIN_PASS = 'S3nh@Admin';
+
+    async function arrange({ targetInCompany = true, mfaEnabled = true } = {}) {
+      const hash = await bcrypt.hash(ADMIN_PASS, 4);
+      mockPrisma.user.findUnique.mockResolvedValue({ passwordHash: hash });
+      mockPrisma.user.findFirst.mockResolvedValue(targetInCompany ? { id: 'user-1' } : null);
+      mockPrisma.userMFA.findUnique.mockResolvedValue(mfaEnabled ? { enabled: true } : null);
+    }
+
+    it('reseta: deleta o UserMFA do ALVO + SecurityEvent com quem resetou (transação)', async () => {
+      await arrange();
+
+      await service.adminReset(admin, 'user-1', ADMIN_PASS);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.userMFA.delete).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+      expect(mockPrisma.securityEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          eventType: 'MFA_DISABLED',
+          metadata: { resetByUserId: 'admin-1', reason: 'admin-reset' },
+        }),
+      });
+    });
+
+    it('nunca a própria conta (quatro olhos) → 400 sem tocar o banco', async () => {
+      await expect(service.adminReset(admin, admin.id, ADMIN_PASS)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('senha do admin inválida → 401 (sessão roubada não reseta)', async () => {
+      await arrange();
+      await expect(service.adminReset(admin, 'user-1', 'errada')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('alvo de OUTRA empresa → 404 (anti-IDOR: escopo pelo companyId do admin)', async () => {
+      await arrange({ targetInCompany: false });
+      await expect(service.adminReset(admin, 'user-de-outra-empresa', ADMIN_PASS)).rejects.toThrow(
+        'Usuário não encontrado nesta empresa.',
+      );
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-de-outra-empresa', companyId: admin.companyId },
+        }),
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('alvo sem MFA habilitado → 400', async () => {
+      await arrange({ mfaEnabled: false });
+      await expect(service.adminReset(admin, 'user-1', ADMIN_PASS)).rejects.toThrow(
+        'O usuário não tem MFA habilitado.',
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
   });
 });

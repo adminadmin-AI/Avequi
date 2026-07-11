@@ -134,3 +134,11 @@ export class GrantUserPermissionDto {
   @MaxLength(500)
   reason?: string;
 }
+
+/** Reset de MFA por administrador (#545) — exige reautenticação por senha. */
+export class AdminMfaResetDto {
+  @ApiProperty({ description: 'Senha do PRÓPRIO administrador (reautenticação)' })
+  @IsString()
+  @MaxLength(200)
+  password!: string;
+}
