@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-07-11
+
+### Fixed
+- fix(rotas): BudgetModule e SchedulingModule antes dos pais + sentinela anti-shadowing (#698) (#699)
+
 ## [1.7.0] - 2026-07-11
 
 ### Added
@@ -123,7 +128,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.5.0...v1.5.1
