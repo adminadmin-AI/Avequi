@@ -6,6 +6,14 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-11
+
+### Added
+- #347 fase 2 (347-A): infraestrutura de escopo por filial/loja em SHADOW (#708)
+
+### Fixed
+- fix(fiscal): guard W16-40 — NFC-e acima do limite exige identificação do consumidor (NT 2026.002) (#710)
+
 ## [1.9.0] - 2026-07-11
 
 ### Added
@@ -143,7 +151,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.7.0...v1.7.1
