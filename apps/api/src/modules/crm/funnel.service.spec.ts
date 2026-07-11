@@ -97,11 +97,24 @@ describe('FunnelService', () => {
       expect(events.emit).not.toHaveBeenCalled();
     });
 
-    it('mover para Perdido sem motivo → 400', async () => {
+    it('mover para Perdido sem CATEGORIA → 400 (#570)', async () => {
       prisma.pipelineStage.findFirst.mockResolvedValue({ id: 's-lost', name: 'Perdido', type: 'LOST' });
       await expect(
-        service.moveLead(COMPANY, 'lead-move', { stageId: 's-lost' }, 'u1'),
-      ).rejects.toThrow(/exige o motivo/);
+        service.moveLead(COMPANY, 'lead-move', { stageId: 's-lost', lostReason: 'só texto' }, 'u1'),
+      ).rejects.toThrow(/exige a categoria/);
+    });
+
+    it('Perdido com categoria grava lostReasonCategory (texto opcional)', async () => {
+      prisma.pipelineStage.findFirst.mockResolvedValue({ id: 's-lost', name: 'Perdido', type: 'LOST' });
+      await service.moveLead(
+        COMPANY,
+        'lead-move',
+        { stageId: 's-lost', lostReasonCategory: 'CONCORRENTE' as any },
+        'u1',
+      );
+      const data = prisma.lead.update.mock.calls[0][0].data;
+      expect(data.lostReasonCategory).toBe('CONCORRENTE');
+      expect(data.lostReason).toBeNull();
     });
 
     it('estágio de outra loja → 400', async () => {
@@ -147,14 +160,15 @@ describe('FunnelService', () => {
   });
 
   describe('lostReasons', () => {
-    it('agrega motivos ordenados por contagem', async () => {
+    it('agrega por CATEGORIA ordenado por contagem; null = não categorizado (#570)', async () => {
       prisma.pipelineStage.findMany.mockResolvedValue([{ id: 'lost-1' }]);
       prisma.lead.groupBy.mockResolvedValue([
-        { lostReason: 'preço', _count: { _all: 8 } },
-        { lostReason: 'prazo', _count: { _all: 3 } },
+        { lostReasonCategory: 'PRECO', _count: { _all: 8 } },
+        { lostReasonCategory: null, _count: { _all: 3 } },
       ]);
       const result = await service.lostReasons(COMPANY);
-      expect(result[0]).toEqual({ reason: 'preço', count: 8 });
+      expect(result[0]).toEqual({ category: 'PRECO', count: 8 });
+      expect(result[1]).toEqual({ category: null, count: 3 });
     });
   });
 });

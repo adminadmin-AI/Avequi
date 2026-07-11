@@ -112,14 +112,22 @@ describe('LeadListService (F3.5-C7 #557)', () => {
       expect(res).toMatchObject({ ok: 2, failed: 0 });
     });
 
-    it('bulkChangeStage propaga lostReason (regra do Perdido preservada)', async () => {
-      await service.bulkChangeStage(COMPANY, ['l1'], 'stage-lost', 'manager-1', 'sem resposta');
+    it('bulkChangeStage propaga lostReason + categoria (regra do Perdido preservada, #570)', async () => {
+      await service.bulkChangeStage(
+        COMPANY,
+        ['l1'],
+        'stage-lost',
+        'manager-1',
+        'sem resposta',
+        'SEM_RESPOSTA' as any,
+      );
       expect(crm.changeStage).toHaveBeenCalledWith(
         COMPANY,
         'l1',
         'stage-lost',
         'manager-1',
         'sem resposta',
+        'SEM_RESPOSTA',
       );
     });
 

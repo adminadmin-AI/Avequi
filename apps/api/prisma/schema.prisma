@@ -3861,6 +3861,18 @@ enum PipelineStageType {
   LOST
 }
 
+/// Categoria estruturada do motivo de perda (#570) — obrigatória (via código)
+/// ao mover para stage LOST; o texto livre (lostReason) vira complemento opcional.
+enum LostReasonCategory {
+  PRECO
+  CONCORRENTE
+  SEM_RESPOSTA
+  DESISTIU
+  PRAZO_ENTREGA
+  FORA_DO_PERFIL
+  OUTRO
+}
+
 enum LeadActivityType {
   MESSAGE_IN
   MESSAGE_OUT
@@ -3949,7 +3961,9 @@ model Lead {
   /// SALE_INVOICED fecha o lead quando a NF-e sai
   salesOrderId      String?               @unique @map("sales_order_id")
   salesOrder        SalesOrder?           @relation(fields: [salesOrderId], references: [id])
-  lostReason        String?               @map("lost_reason") // obrigatório (via código) ao mover p/ stage LOST
+  lostReason        String?               @map("lost_reason") // texto livre opcional (#570) — a categoria é o obrigatório
+  /// Categoria da perda (#570) — obrigatória (via código) ao mover p/ LOST; null = lead antigo "não categorizado"
+  lostReasonCategory LostReasonCategory?  @map("lost_reason_category")
   /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
   firstRespondedAt  DateTime?             @map("first_responded_at")
   /// Escalonamento de SLA (#569) — cada nível dispara 1x só

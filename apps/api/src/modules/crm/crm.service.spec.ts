@@ -93,25 +93,58 @@ describe('CrmService', () => {
       );
     });
 
-    it('mover para Perdido SEM motivo → 400', async () => {
+    it('mover para Perdido SEM categoria → 400 (#570: categoria é o obrigatório)', async () => {
       prisma.pipelineStage.findFirst.mockResolvedValue({
         id: 'stage-lost',
         name: 'Perdido',
         type: 'LOST',
       });
       await expect(
-        service.changeStage(COMPANY, 'lead-1', 'stage-lost', 'seller-1'),
-      ).rejects.toThrow(/exige o motivo/);
+        service.changeStage(COMPANY, 'lead-1', 'stage-lost', 'seller-1', 'texto sem categoria'),
+      ).rejects.toThrow(/exige a categoria/);
     });
 
-    it('mover para Perdido com motivo grava lostReason', async () => {
+    it('Perdido com categoria grava lostReasonCategory + texto opcional', async () => {
       prisma.pipelineStage.findFirst.mockResolvedValue({
         id: 'stage-lost',
         name: 'Perdido',
         type: 'LOST',
       });
-      await service.changeStage(COMPANY, 'lead-1', 'stage-lost', 'seller-1', 'preço');
-      expect(prisma.lead.update.mock.calls[0][0].data.lostReason).toBe('preço');
+      await service.changeStage(
+        COMPANY,
+        'lead-1',
+        'stage-lost',
+        'seller-1',
+        'achou caro na concorrência',
+        'PRECO' as any,
+      );
+      const data = prisma.lead.update.mock.calls[0][0].data;
+      expect(data.lostReasonCategory).toBe('PRECO');
+      expect(data.lostReason).toBe('achou caro na concorrência');
+    });
+
+    it('Perdido só com categoria (sem texto) passa — texto é opcional (#570)', async () => {
+      prisma.pipelineStage.findFirst.mockResolvedValue({
+        id: 'stage-lost',
+        name: 'Perdido',
+        type: 'LOST',
+      });
+      await service.changeStage(COMPANY, 'lead-1', 'stage-lost', 'seller-1', undefined, 'SEM_RESPOSTA' as any);
+      const data = prisma.lead.update.mock.calls[0][0].data;
+      expect(data.lostReasonCategory).toBe('SEM_RESPOSTA');
+      expect(data.lostReason).toBeNull();
+    });
+
+    it('sair de Perdido limpa categoria e texto', async () => {
+      prisma.pipelineStage.findFirst.mockResolvedValue({
+        id: 'stage-open',
+        name: 'Negociação',
+        type: 'OPEN',
+      });
+      await service.changeStage(COMPANY, 'lead-1', 'stage-open', 'seller-1');
+      const data = prisma.lead.update.mock.calls[0][0].data;
+      expect(data.lostReasonCategory).toBeNull();
+      expect(data.lostReason).toBeNull();
     });
 
     it('estágio de outra loja → 400 (tenancy)', async () => {

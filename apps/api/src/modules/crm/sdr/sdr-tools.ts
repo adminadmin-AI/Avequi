@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type Anthropic from '@anthropic-ai/sdk';
-import { LeadActivityType, Prisma, SdrLeadStatus } from '@prisma/client';
+import { LeadActivityType, LostReasonCategory, Prisma, SdrLeadStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CrmService } from '../crm.service';
 import { SDR_ACTOR } from './sdr.types';
@@ -399,8 +399,18 @@ export class SdrToolsService {
       select: { id: true },
     });
     if (lostStage) {
-      // reusa a regra unitária (motivo obrigatório, evento de kanban)
-      await this.crm.changeStage(companyId, leadId, lostStage.id, SDR_ACTOR, `[SDR IA] ${motivo}`.slice(0, 300));
+      // reusa a regra unitária (categoria obrigatória #570, evento de kanban).
+      // Categoria fixa OUTRO até a tool ganhar o param `categoria` — mudar o
+      // input_schema exige rodar o eval-sdr (gate #525), que aguarda a
+      // ANTHROPIC_API_KEY. O texto do modelo segue íntegro no lostReason.
+      await this.crm.changeStage(
+        companyId,
+        leadId,
+        lostStage.id,
+        SDR_ACTOR,
+        `[SDR IA] ${motivo}`.slice(0, 300),
+        LostReasonCategory.OUTRO,
+      );
     }
     await this.prisma.lead.update({
       where: { id: leadId },

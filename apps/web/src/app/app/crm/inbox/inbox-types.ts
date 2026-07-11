@@ -64,6 +64,8 @@ export interface LeadDetail {
   interest: string | null;
   estimatedValue: string | null;
   lostReason: string | null;
+  /** Categoria estruturada da perda (#570); null = não categorizado */
+  lostReasonCategory: string | null;
   createdAt: string;
   stage: StageRef | null;
   assignedTo: { id: string; name: string } | null;

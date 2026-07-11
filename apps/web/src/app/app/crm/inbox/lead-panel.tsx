@@ -15,6 +15,7 @@ import {
   StageRef,
 } from './inbox-types';
 import { LeadNotesReminders } from './lead-notes-reminders';
+import { LOST_REASON_OPTIONS, lostReasonLabel, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 
 /**
  * Painel lateral do lead (F1.3 #509): dados, troca rápida de estágio,
@@ -25,6 +26,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
   const router = useRouter();
   const queryClient = useQueryClient();
   const [lostReason, setLostReason] = useState('');
+  const [lostCategory, setLostCategory] = useState<LostReasonCategory | ''>('');
   const [pendingLostStage, setPendingLostStage] = useState<StageRef | null>(null);
   const [showProposals, setShowProposals] = useState(false); // #572
 
@@ -86,13 +88,14 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
   });
 
   const changeStage = useMutation({
-    mutationFn: (body: { stageId: string; lostReason?: string }) =>
+    mutationFn: (body: { stageId: string; lostReason?: string; lostReasonCategory?: LostReasonCategory }) =>
       apiClient.patch(`/crm/leads/${leadId}/stage`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
       setPendingLostStage(null);
       setLostReason('');
+      setLostCategory('');
       toast.success('Estágio atualizado');
     },
     onError: (e: any) =>
@@ -163,30 +166,50 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
               </option>
             ))}
           </select>
-          {lead.lostReason && (
-            <p className="mt-1 text-xs text-muted-foreground">Motivo da perda: {lead.lostReason}</p>
+          {(lead.lostReasonCategory || lead.lostReason) && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Perda: {lostReasonLabel(lead.lostReasonCategory)}
+              {lead.lostReason ? ` — ${lead.lostReason}` : ''}
+            </p>
           )}
         </div>
 
         {pendingLostStage && (
           <div className="space-y-2 rounded-md border border-destructive/40 p-2">
             <p className="text-xs">
-              Mover para <b>{pendingLostStage.name}</b> exige o motivo:
+              Mover para <b>{pendingLostStage.name}</b> exige a categoria do motivo:
             </p>
+            <select
+              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              value={lostCategory}
+              onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
+            >
+              <option value="">Categoria (obrigatória)…</option>
+              {LOST_REASON_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
             <textarea
               className="w-full rounded-md border bg-background p-2 text-sm"
               rows={2}
               value={lostReason}
+              maxLength={300}
               onChange={(e) => setLostReason(e.target.value)}
-              placeholder="ex: fechou com concorrente, preço, sem resposta..."
+              placeholder="Detalhe opcional (ex.: achou mais barato na loja X)"
             />
             <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="danger"
-                disabled={!lostReason.trim() || changeStage.isPending}
+                disabled={!lostCategory || changeStage.isPending}
                 onClick={() =>
-                  changeStage.mutate({ stageId: pendingLostStage.id, lostReason: lostReason.trim() })
+                  changeStage.mutate({
+                    stageId: pendingLostStage.id,
+                    lostReasonCategory: lostCategory as LostReasonCategory,
+                    ...(lostReason.trim() ? { lostReason: lostReason.trim() } : {}),
+                  })
                 }
               >
                 Confirmar perda
