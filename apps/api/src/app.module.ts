@@ -4,8 +4,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
+import { AdaptiveThrottlerGuard } from './common/guards/adaptive-throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -187,9 +188,11 @@ import { IamModule } from './modules/iam/iam.module';
       provide: APP_GUARD,
       useClass: PermissionGuard,
     },
+    // #349: rate limiting adaptativo — tracker por usuário quando autenticado,
+    // teto global 2× p/ confiáveis; limites estritos de rota nunca inflam.
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AdaptiveThrottlerGuard,
     },
     {
       // Roda DEPOIS dos guards (req.user já populado pelo JwtAuthGuard) e

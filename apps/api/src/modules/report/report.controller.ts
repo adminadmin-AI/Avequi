@@ -7,6 +7,7 @@ import {
   Header,
   StreamableFile,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { ReportService } from './report.service';
 import { ReportJobName } from './report.types';
@@ -31,6 +32,7 @@ export class ReportController {
 
   // GET /reports/export/products
   @Get('export/products')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportProducts(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -39,6 +41,7 @@ export class ReportController {
 
   // GET /reports/export/customers
   @Get('export/customers')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportCustomers(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -47,6 +50,7 @@ export class ReportController {
 
   // GET /reports/export/suppliers
   @Get('export/suppliers')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportSuppliers(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -55,6 +59,7 @@ export class ReportController {
 
   // GET /reports/export/sales
   @Get('export/sales')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportSales(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -63,6 +68,7 @@ export class ReportController {
 
   // GET /reports/export/purchases
   @Get('export/purchases')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportPurchases(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -71,6 +77,7 @@ export class ReportController {
 
   // GET /reports/export/stock
   @Get('export/stock')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.export.execute')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   exportStock(@Request() req: { user: { companyId: string } }): Promise<StreamableFile> {
@@ -138,6 +145,7 @@ export class ReportController {
 
   // GET /reports/:jobId/download
   @Get(':jobId/download')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @RequirePermission('analytics.reports.view')
   @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   downloadReport(

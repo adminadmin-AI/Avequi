@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -314,6 +315,7 @@ export class CrmController {
   }
 
   @Get('leads.csv')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Export CSV da lista de leads (mesmos filtros)' })
   async leadsCsv(@CurrentUser() user: any, @Res() res: Response, @Query() q: Record<string, string>) {
@@ -494,6 +496,7 @@ export class CrmController {
   }
 
   @Get('dashboard/source.csv')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
   @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Export CSV da conversão por origem' })
   @ApiQuery({ name: 'days', required: false })
