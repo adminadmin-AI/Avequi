@@ -72,13 +72,22 @@ describe('checkRouteAccess (#351)', () => {
   });
 
   it('rota legada por roles não depende do carregamento de permissões', () => {
-    // /app/shipping segue no enum (delivery sem gates até #625)
-    expect(checkRouteAccess('/app/shipping', { role: 'FINANCIAL' })).toEqual({
+    // /app/crm/leads segue no enum (CRM é o último bloco pendente, #624)
+    expect(checkRouteAccess('/app/crm/leads', { role: 'MANAGER' })).toEqual({
       status: 'allowed',
     });
-    expect(checkRouteAccess('/app/shipping', { role: 'STORE', can: undefined })).toMatchObject({
+    expect(checkRouteAccess('/app/crm/leads', { role: 'STORE', can: undefined })).toMatchObject({
       status: 'denied',
     });
+  });
+
+  it('rotas do Bloco G agora filtram por permissão (#694/#696 follow-up)', () => {
+    expect(checkRouteAccess('/app/shipping', canNone)).toMatchObject({
+      status: 'denied',
+      permission: 'sales.deliveries.view',
+    });
+    expect(checkRouteAccess('/app/settings/users', canAll)).toEqual({ status: 'allowed' });
+    expect(checkRouteAccess('/app/stock/wms', loading)).toEqual({ status: 'loading' });
   });
 
   it('rota não mapeada → unmapped (guard libera)', () => {
@@ -90,8 +99,9 @@ describe('flatNav (#351)', () => {
   it('sem can(): só itens livres + legados compatíveis com a role', () => {
     const hrefs = flatNav({ role: 'SUPER_ADMIN' }).map((i) => i.href);
     expect(hrefs).toContain('/app'); // livre
-    expect(hrefs).toContain('/app/settings/users'); // legado ADMIN_ROLES
+    expect(hrefs).toContain('/app/crm/leads'); // legado CRM (#624)
     expect(hrefs).not.toContain('/app/sales'); // permission, sem can()
+    expect(hrefs).not.toContain('/app/settings/users'); // Bloco G: agora permission
   });
 
   it('com can() liberando tudo: inclui os itens com permission', () => {

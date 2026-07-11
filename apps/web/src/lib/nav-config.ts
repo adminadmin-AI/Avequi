@@ -79,9 +79,9 @@ export interface NavItem {
    */
   permission?: string;
   /**
-   * (Legado #453) Restringe a esses papéis do enum. Só para módulos ainda NÃO
-   * migrados ao RBAC v2 (CRM #624; satélites alert/carrier/scheduling/user/
-   * wms/delivery #625). Ao migrar um módulo, troque por `permission`.
+   * (Legado #453) Restringe a esses papéis do enum. Restou SÓ para o CRM
+   * (#624, bloco F — última migração pendente do RBAC v2). Ao migrar,
+   * troque por `permission` e apague este campo do codebase.
    * Sem `roles` e sem `permission` = liberado para qualquer autenticado.
    */
   roles?: string[];
@@ -104,15 +104,6 @@ export function navItemAllowed(item: NavItem, access: NavAccess): boolean {
   if (item.roles) return !!access.role && item.roles.includes(access.role);
   return true;
 }
-
-/**
- * Grupos de papéis com acesso a áreas restritas, espelhando a matriz de
- * LEITURA do backend (docs/RBAC.md, PR #453 — Frente 3 do hardening de IAM):
- * financeiro, aprovações e configurações têm leitura restrita; o restante
- * é liberado para qualquer usuário autenticado.
- */
-export const FINANCE_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'FINANCIAL'];
-export const ADMIN_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
 export interface NavSection {
   /** chave estável p/ persistir estado de colapso */
@@ -138,8 +129,7 @@ export const NAV: NavSection[] = [
       { href: '/app/products', label: 'Produtos', icon: Package, permission: 'products.catalog.view' },
       { href: '/app/customers', label: 'Clientes', icon: Users, permission: 'customers.registry.view' },
       { href: '/app/suppliers', label: 'Fornecedores', icon: Handshake, permission: 'suppliers.registry.view' },
-      // carrier é satélite (#625) — sem code no catálogo ainda
-      { href: '/app/carriers', label: 'Transportadoras', icon: Truck },
+      { href: '/app/carriers', label: 'Transportadoras', icon: Truck, permission: 'sales.carriers.view' },
     ],
   },
   {
@@ -157,8 +147,7 @@ export const NAV: NavSection[] = [
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart, permission: 'sales.orders.view' },
       { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store, permission: 'sales.orders.create' },
       { href: '/app/quotations', label: 'Cotações', icon: FileText, permission: 'sales.quotations.view' },
-      // delivery/vehicle-document sem gates RBAC v2 ainda (#625) — mantém enum
-      { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, roles: FINANCE_ROLES },
+      { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, permission: 'sales.deliveries.view' },
     ],
   },
   {
@@ -169,8 +158,7 @@ export const NAV: NavSection[] = [
       { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight, permission: 'stock.movements.view' },
       { href: '/app/stock/transfers', label: 'Transferências', icon: Truck, permission: 'stock.transfers.view' },
       { href: '/app/stock/locations', label: 'Localizações', icon: MapPin, permission: 'stock.warehouses.view' },
-      // wms é satélite (#625) — controller ainda sem @RequirePermission
-      { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList },
+      { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList, permission: 'stock.wms.view' },
     ],
   },
   {
@@ -244,16 +232,14 @@ export const NAV: NavSection[] = [
     items: [
       { href: '/app/analytics', label: 'Analytics', icon: BarChart3, permission: 'analytics.dashboards.view' },
       { href: '/app/reports', label: 'Relatórios', icon: FileSpreadsheet, permission: 'analytics.reports.view' },
-      // alert é satélite (#625) — controller ainda sem @RequirePermission
-      { href: '/app/alerts', label: 'Alertas', icon: Bell },
+      { href: '/app/alerts', label: 'Alertas', icon: Bell, permission: 'dashboard.alerts.view' },
     ],
   },
   {
     key: 'config',
     title: 'Configurações',
     items: [
-      // user é satélite (#625) — controller ainda no enum; mantém ADMIN_ROLES
-      { href: '/app/settings/users', label: 'Usuários', icon: UserCog, roles: ADMIN_ROLES },
+      { href: '/app/settings/users', label: 'Usuários', icon: UserCog, permission: 'settings.users.view' },
       { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound, permission: 'iam.roles.view' },
       { href: '/app/settings/organization', label: 'Organização', icon: Network, permission: 'iam.org.view' },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
