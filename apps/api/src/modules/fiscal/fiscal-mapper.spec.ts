@@ -499,3 +499,21 @@ describe('assinatura Avecchi nas Informações Complementares (13/07)', () => {
     expect(String(buildTransferNFePayload(base).informacoes_adicionais_contribuinte)).toContain('avecchi.ai');
   });
 });
+
+describe('data/hora de saída (dhSaiEnt — pedido Claudio 13/07)', () => {
+  const base = {
+    emitter: { cnpj: '30284708000182', name: 'CRD', ie: '9078144677', crt: 3, state: 'PR', city: 'SJP', street: 'RUA A', number: '1', neighborhood: 'B', zipCode: '83091002', ibgeCode: '4125506' },
+    recipient: { name: 'Cliente', document: '04969592985', state: 'PR', street: 'RUA B', number: '2', neighborhood: 'C', city: 'SJP', zipCode: '83035390', ibgeCode: '4125506' },
+    items: [],
+    totalValue: 0,
+  } as any;
+
+  it('NF-e e transferência levam data_entrada_saida = padrão da emissão', () => {
+    expect(buildNFePayload(base).data_entrada_saida).toBeTruthy();
+    expect(buildTransferNFePayload(base).data_entrada_saida).toBeTruthy();
+  });
+
+  it('NFC-e NÃO leva dhSaiEnt (vedado no modelo 65)', () => {
+    expect(buildNFCePayload(base).data_entrada_saida).toBeUndefined();
+  });
+});
