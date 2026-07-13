@@ -532,9 +532,15 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['update', 'editar', 'PATCH /vehicle-tracking/bin/:id'],
   ]),
   ...r('vehicle-tracking', 'atpve', 'ATPV-e', [
-    ['view', 'ver', 'GET /vehicle-tracking/atpve, /atpve/pending, /atpve/:id'],
+    ['view', 'ver', 'GET /vehicle-tracking/atpve, /atpve/pending, /atpve/:id, /atpve/:id/pdf'],
     ['create', 'registrar', 'POST /vehicle-tracking/atpve'],
-    ['update', 'editar', 'PATCH /vehicle-tracking/atpve/:id'],
+    ['update', 'editar', 'PATCH /vehicle-tracking/atpve/:id, POST /atpve/:id/resend-email'],
+  ]),
+  // #529-#533: integração automática BIN/RENAVE via SERPRO (épico #527)
+  ...r('vehicle-tracking', 'renave', 'Integração RENAVE', [
+    ['view', 'ver status', 'GET /vehicle-tracking/renave/sales-order/:salesOrderId'],
+    ['retry', 're-executar operação em erro', 'POST /vehicle-tracking/renave/operations/:id/retry'],
+    ['manage', 'devolver à montadora (cenário B)', 'POST /vehicle-tracking/renave/devolver-montadora'],
   ]),
   // #625 (bloco G): documentos regulatórios do veículo (#364 — CAT/CCT/projeto
   // técnico) — sensíveis: view restrita a quem tem necessidade real (decisão

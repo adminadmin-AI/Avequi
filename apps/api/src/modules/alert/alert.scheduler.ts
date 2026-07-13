@@ -152,6 +152,27 @@ export class AlertScheduler {
     }
   }
 
+  // ─── #532: operações RENAVE/BIN travadas em ERROR — a cada 10 min ────────
+
+  @Cron('*/10 * * * *', { name: 'renave-ops-health' })
+  async healthCheckRenaveOps(): Promise<void> {
+    // só companies com a integração ligada (flag #532) geram alerta
+    const companies = await this.prisma.company.findMany({
+      where: { renaveEnabled: true },
+      select: { id: true },
+    });
+    for (const company of companies) {
+      const failed = await this.prisma.renaveOperation.count({
+        where: { companyId: company.id, status: 'ERROR' },
+      });
+      if (failed > 0) {
+        await this.alertService.alertRenaveOpFailed(company.id, failed);
+      } else {
+        await this.alertService.resolveRenaveOpAlert(company.id);
+      }
+    }
+  }
+
   // ─── F6: Sync NF-e recebidas — diariamente às 07h ────────────────────────
 
   @Cron('0 7 * * *', { name: 'manifest-sync' })

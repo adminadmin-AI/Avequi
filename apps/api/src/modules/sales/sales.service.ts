@@ -19,6 +19,7 @@ import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
+import { SALE_RETURNED_EVENT, SaleReturnedEvent } from './events/sale-returned.event';
 
 @Injectable()
 export class SalesService {
@@ -941,6 +942,10 @@ export class SalesService {
 
     // 4. Cancelar NF-e (chamada externa, fora da transação) (#178)
     await this.cancelNfeForReturn(id, companyId, dto);
+
+    // 5. Devolução concluída → vehicle-tracking cancela a saída RENAVE (#531).
+    // Fora da transação e fire-and-forget: falha externa nunca desfaz devolução.
+    this.eventEmitter.emit(SALE_RETURNED_EVENT, new SaleReturnedEvent(companyId, id));
 
     return returned;
   }

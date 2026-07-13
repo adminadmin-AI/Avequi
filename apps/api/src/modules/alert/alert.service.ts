@@ -258,6 +258,33 @@ export class AlertService {
     });
   }
 
+  // ─── #532: operações RENAVE/BIN em ERROR (retry esgotado) ─────────────────
+
+  async alertRenaveOpFailed(companyId: string, count: number): Promise<void> {
+    await this.upsertAlert({
+      companyId,
+      type: AlertType.RENAVE_OP_FAILED,
+      severity: AlertSeverity.CRITICAL,
+      title: `${count} operação(ões) RENAVE/BIN em erro`,
+      body:
+        `Existem ${count} operações da integração veicular (BIN/RENAVE/ATPV-e) em ERROR ` +
+        `após esgotar os retries automáticos. Abra a OV e use o retry manual no card ` +
+        `"Documentação veicular" — a venda NÃO é afetada, mas a ATPV-e pode atrasar.`,
+      entityType: 'RenaveOperation',
+    });
+  }
+
+  async resolveRenaveOpAlert(companyId: string): Promise<void> {
+    await this.prisma.alert.updateMany({
+      where: {
+        companyId,
+        type: AlertType.RENAVE_OP_FAILED,
+        resolvedAt: null,
+      },
+      data: { resolvedAt: new Date() },
+    });
+  }
+
   // ─── S24.07: Painel — listar alertas ativos ───────────────────────────────
 
   async listActive(companyId: string): Promise<AlertSummary[]> {

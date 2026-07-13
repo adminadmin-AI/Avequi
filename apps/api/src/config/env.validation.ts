@@ -77,6 +77,27 @@ export const envValidationSchema = Joi.object({
         'FOCUS_NFE_WEBHOOK_SECRET é obrigatório em produção — sem ele o webhook da Focus NFe rejeita todos os retornos',
     }),
 
+  // ─── SERPRO BIN/RENAVE (#529-#532) ───
+  // Todos opcionais: a integração é gateada pela flag Company.renaveEnabled
+  // (OFF por default). Sem certificado, os adapters resolvem 'erro' brando.
+  BIN_WS_BASE_URL: Joi.string()
+    .uri()
+    .default('https://hom.precadastro.estaleiro.serpro.gov.br'),
+  RENAVE_WS_BASE_URL: Joi.string()
+    .uri()
+    .default('https://hom.renave.estaleiro.serpro.gov.br'),
+  // e-CNPJ ICP-Brasil de máquina (mTLS do RENAVE-WS), PFX em base64
+  RENAVE_CERT_PFX_BASE64: Joi.string().allow('').optional(),
+  RENAVE_CERT_PASSPHRASE: Joi.string().allow('').optional(),
+
+  // ─── SMTP transacional (#530 — e-mail da ATPV-e; primeiro mailer do repo) ───
+  // Opcional: sem SMTP_HOST o MailService resolve { ok: false } sem lançar.
+  SMTP_HOST: Joi.string().allow('').optional(),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  SMTP_FROM: Joi.string().allow('').optional(),
+
   // ─── Criptografia de credenciais bancárias (AES-256-GCM) ───
   // 32 bytes = 64 chars hex. Opcional enquanto o EncryptionService não
   // está no main; o formato já é validado para evitar chave inválida.

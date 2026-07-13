@@ -6,6 +6,7 @@ import { EMISSOR_PORT, EmissorPort } from './emissor.port';
 import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
+import { FISCAL_AUTHORIZED_EVENT, FiscalAuthorizedEvent } from './events/fiscal-authorized.event';
 import {
   buildNFCePayload,
   buildNFePayload,
@@ -1033,7 +1034,7 @@ export class FiscalService {
     const protocolNumber =
       response.protocolo ?? response.xml?.match(/<nProt>(\d+)<\/nProt>/)?.[1] ?? null;
 
-    await this.prisma.fiscalDocument.update({
+    const updated = await this.prisma.fiscalDocument.update({
       where: { id: fiscalDocId },
       data: {
         status: newStatus,
@@ -1054,6 +1055,22 @@ export class FiscalService {
     });
 
     this.logger.log(`FiscalDocument ${fiscalDocId} → ${newStatus}`);
+
+    // #529: autorização dispara a cadeia veicular (BIN → RENAVE → ATPV-e).
+    // handleWebhook é idempotente (early-return se já AUTHORIZED) e o ledger
+    // RenaveOperation deduplica — emitir aqui cobre webhook E caminho síncrono.
+    if (newStatus === FiscalStatus.AUTHORIZED) {
+      this.eventEmitter.emit(
+        FISCAL_AUTHORIZED_EVENT,
+        new FiscalAuthorizedEvent(
+          updated.companyId,
+          updated.id,
+          updated.salesOrderId,
+          updated.storeTransferId,
+          updated.chave,
+        ),
+      );
+    }
   }
 }
 
