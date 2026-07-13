@@ -1016,17 +1016,27 @@ export class FiscalService {
       protocolo?: string;
       caminho_danfe?: string; // path do PDF do DANFE na Focus (#482)
       caminho_xml_nota_fiscal?: string; // path do XML autorizado na Focus (#482)
+      // recusa da SEFAZ na autorização (ex.: 726 endereço, 974 respTec) — a Focus
+      // devolve status "erro_autorizacao" com o par status_sefaz/mensagem_sefaz
+      // (descoberto no onboarding da CRD, 13/07)
+      status_sefaz?: string;
+      mensagem_sefaz?: string;
     },
   ): Promise<void> {
     const statusMap: Record<string, FiscalStatus> = {
       autorizado: FiscalStatus.AUTHORIZED,
       processando_autorizacao: FiscalStatus.PROCESSING,
       rejeitado: FiscalStatus.REJECTED,
+      // recusa da SEFAZ = rejeição (tem código/motivo e aceita retry) — antes
+      // caía no fallback ERROR com lastError null (painel ficava mudo)
+      erro_autorizacao: FiscalStatus.REJECTED,
       cancelado: FiscalStatus.CANCELLED,
       erro: FiscalStatus.ERROR,
     };
 
     const newStatus = statusMap[response.status] ?? FiscalStatus.ERROR;
+    const motivo = response.motivo ?? response.mensagem_sefaz ?? null;
+    const codigo = response.codigo ?? response.status_sefaz ?? null;
 
     // Número/série/protocolo SEFAZ (#361) — Focus retorna numero/serie no response;
     // nProt pode vir no campo protocolo ou embutido no XML autorizado
@@ -1049,9 +1059,9 @@ export class FiscalService {
         ...(response.caminho_xml_nota_fiscal && { xmlUrl: this.client.absoluteUrl(response.caminho_xml_nota_fiscal) }),
         ...(newStatus === FiscalStatus.AUTHORIZED && { authorizedAt: new Date() }),
         ...(newStatus === FiscalStatus.CANCELLED && { cancelledAt: new Date() }),
-        rejectionCode: response.codigo ?? null,
-        rejectionReason: newStatus === FiscalStatus.REJECTED ? (response.motivo ?? null) : null,
-        lastError: newStatus === FiscalStatus.ERROR ? (response.motivo ?? null) : null,
+        rejectionCode: codigo,
+        rejectionReason: newStatus === FiscalStatus.REJECTED ? motivo : null,
+        lastError: newStatus === FiscalStatus.ERROR ? motivo : null,
       },
     });
 
