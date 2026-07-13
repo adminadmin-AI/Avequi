@@ -164,6 +164,7 @@ export interface FiscalVehicleData {
   condicao: string;      // 1=Acabado
   codigoMarcaModelo: string; // 6 dígitos RENAVAM
   corDenatran: string;
+  qtdEixos?: number | null; // só p/ descrição no infCpl (veicProd não tem campo)
   lotacao: number;       // 0 p/ reboque
   restricao: string;     // 0=Sem restrição
 }

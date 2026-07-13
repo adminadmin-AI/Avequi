@@ -155,6 +155,7 @@ export class FiscalService {
           corDenatran: sn.corDenatran ?? '00',
           lotacao: sn.lotacao ?? 0,
           restricao: sn.restricao ?? '0',
+          qtdEixos: sn.qtdEixos,
         };
 
         // Alerta #362: sem BIN REGISTERED o reboque não entra no RENAVE nem pode
@@ -253,10 +254,14 @@ export class FiscalService {
       );
     }
 
-    // Veículo: informar chassi
+    // Veículo: descrição completa p/ DETRAN/despachante (formato definido pelo
+    // Claudio 13/07, espelho das notas do sistema anterior). Campos dinâmicos
+    // do SerialNumber; venda p/ RS exige declarar pneus novos.
     for (const it of items) {
       if (it.vehicle) {
-        infCplParts.push(`Veículo: chassi ${it.vehicle.chassi}`);
+        infCplParts.push(
+          vehicleInfCpl(it.vehicle, order.customer?.state ?? undefined),
+        );
       }
     }
 
@@ -1083,6 +1088,43 @@ export class FiscalService {
       );
     }
   }
+}
+
+/** Descrição RENAVAM: por ora 1 marca/modelo (600657) — mover p/ campo do Product quando houver mais */
+const MARCA_MODELO_DESC: Record<string, string> = {
+  '600657': 'R CARRESUL PRT B',
+};
+
+/** "0.570" → "0,57" (toneladas com vírgula, 2 casas — padrão das notas antigas) */
+function ton(v: string | number | null | undefined): string {
+  return Number(v ?? 0).toFixed(2).replace('.', ',');
+}
+
+/**
+ * Descrição do veículo nas Informações Complementares (pedido Claudio 13/07):
+ * "REBOQUE NOVO, COR PRATA, CARROCERIA ABERTA, MARCA R CARRESUL PRT B, COD
+ * 600657, COM 1 EIXO, CAP DE CARGA 0,57 TON, PBT 0,75 TON, ANO DE FABRICACAO
+ * E MODELO 2026, SEM RESERVA DE DOMINIO. CHASSI ..." (+ pneus novos p/ RS)
+ */
+export function vehicleInfCpl(v: FiscalVehicleData, ufDestino?: string): string {
+  const parts: string[] = [];
+  parts.push(`REBOQUE ${v.condicao === '1' ? 'NOVO' : 'USADO'}`);
+  if (v.descricaoCor && v.descricaoCor !== 'NAO INFORMADA') parts.push(`COR ${v.descricaoCor.toUpperCase()}`);
+  parts.push('CARROCERIA ABERTA');
+  const marca = MARCA_MODELO_DESC[v.codigoMarcaModelo];
+  parts.push(marca ? `MARCA ${marca}, COD ${v.codigoMarcaModelo}` : `COD ${v.codigoMarcaModelo}`);
+  if (v.qtdEixos) parts.push(`COM ${v.qtdEixos} EIXO${v.qtdEixos > 1 ? 'S' : ''}`);
+  parts.push(`CAP DE CARGA ${ton(v.pesoLiquido)} TON`);
+  parts.push(`PBT ${ton(v.pesoBruto)} TON`);
+  parts.push(
+    v.anoFabricacao === v.anoModelo
+      ? `ANO DE FABRICACAO E MODELO ${v.anoModelo}`
+      : `ANO FABRICACAO ${v.anoFabricacao} MODELO ${v.anoModelo}`,
+  );
+  parts.push(v.restricao === '0' ? 'SEM RESERVA DE DOMINIO' : 'COM RESTRICAO');
+  let text = `${parts.join(', ')}. CHASSI ${v.chassi}`;
+  if (ufDestino === 'RS') text += '. REBOQUE COM PNEUS NOVOS';
+  return text;
 }
 
 function round2(value: number): number {
