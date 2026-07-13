@@ -1013,7 +1013,7 @@ export class SalesService {
   //   INVOICED: não pode cancelar — usar devolução.
 
   async cancelOrder(id: string, companyId: string, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const cancelled = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, companyId },
         include: { items: true },
@@ -1072,6 +1072,20 @@ export class SalesService {
 
       return cancelled;
     });
+
+    // #596: cartão autorizado no TEF antes do faturamento precisa ser ESTORNADO
+    // quando a venda morre — senão o valor fica preso no cartão do cliente.
+    // Fora da transação e fail-safe: falha no TEF não desfaz o cancelamento
+    // (voidCardPayments loga por pagamento; aqui é o cinto extra).
+    try {
+      await this.paymentAuth.voidCardPayments(id, companyId);
+    } catch (err) {
+      this.logger.error(
+        `OV ${id} cancelada, mas estorno TEF falhou: ${(err as Error).message} — estornar manualmente na adquirente`,
+      );
+    }
+
+    return cancelled;
   }
 
   // ─── Consultas ────────────────────────────────────────────────────────────
