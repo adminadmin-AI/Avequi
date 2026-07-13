@@ -60,6 +60,10 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+const mockPaymentAuth = {
+  authorizeCardPayments: jest.fn(),
+  voidCardPayments: jest.fn().mockResolvedValue(undefined),
+};
 const mockEventEmitter = { emit: jest.fn() };
 
 const mockStockService = {
@@ -96,7 +100,7 @@ describe('SalesService', () => {
         { provide: TaxCalculationService, useValue: mockTaxCalc },
         { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn().mockResolvedValue(undefined) } },
         { provide: AcquirerService, useValue: { resolveFee: jest.fn().mockResolvedValue(null) } },
-        { provide: PaymentAuthorizationService, useValue: { authorizeCardPayments: jest.fn(), voidCardPayments: jest.fn() } },
+        { provide: PaymentAuthorizationService, useValue: mockPaymentAuth },
       ],
     }).compile();
 
@@ -760,7 +764,21 @@ describe('SalesService', () => {
 
   // ─── cancelOrder (S07.05) ─────────────────────────────────────────────────
 
-  describe('cancelOrder', () => {
+    describe('cancelOrder', () => {
+    it('estorna cartões autorizados no TEF após cancelar (#596) e falha de TEF não desfaz o cancelamento', async () => {
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder);
+      const cancelled = { ...baseOrder, status: SalesOrderStatus.CANCELLED, items: [], customer: null, warehouse: {} };
+      mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await service.cancelOrder('so-1', 'co-1', 'user-1');
+      expect(mockPaymentAuth.voidCardPayments).toHaveBeenCalledWith('so-1', 'co-1');
+
+      mockPaymentAuth.voidCardPayments.mockRejectedValueOnce(new Error('TEF offline'));
+      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      expect(result.status).toBe(SalesOrderStatus.CANCELLED);
+    });
+
     it('deve lançar BadRequestException para OV INVOICED (usar devolução)', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...baseOrder,
