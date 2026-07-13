@@ -34,6 +34,7 @@ import {
   validatePlan,
   type DraftPayment,
 } from '../payment-plan-editor';
+import { VehicleDocsCard } from './vehicle-docs-card';
 
 const RESOURCE = '/sales';
 
@@ -310,6 +311,9 @@ export default function SalesDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* #533: Documentação veicular (BIN / RENAVE / ATPV-e) */}
+      <VehicleDocsCard salesOrderId={order.id} />
 
       {/* Itens */}
       <Card className="mb-5">
