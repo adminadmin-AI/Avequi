@@ -272,6 +272,34 @@ describe('FiscalService', () => {
   // ─── S08.04: webhook atualiza status ─────────────────────────────────────
 
   describe('handleWebhook', () => {
+    it('erro_autorizacao vira REJECTED com codigo/motivo da SEFAZ (974 CRD, 13/07)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.PROCESSING,
+      });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({
+        ...baseFiscalDoc,
+        status: FiscalStatus.REJECTED,
+      });
+
+      await service.handleWebhook({
+        ref: 'GDR-SO-so-1',
+        status: 'erro_autorizacao',
+        status_sefaz: '974',
+        mensagem_sefaz: 'CNPJ do responsavel tecnico diverge do cadastrado',
+      });
+
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: FiscalStatus.REJECTED,
+            rejectionCode: '974',
+            rejectionReason: 'CNPJ do responsavel tecnico diverge do cadastrado',
+          }),
+        }),
+      );
+    });
+
     it('deve atualizar FiscalDocument para AUTHORIZED via webhook', async () => {
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
         ...baseFiscalDoc,
