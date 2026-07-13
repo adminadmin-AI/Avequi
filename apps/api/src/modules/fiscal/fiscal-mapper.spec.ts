@@ -471,3 +471,31 @@ describe('fiscal-mapper', () => {
     });
   });
 });
+
+describe('assinatura Avecchi nas Informações Complementares (13/07)', () => {
+  const base = {
+    emitter: { cnpj: '30284708000182', name: 'CRD', ie: '9078144677', crt: 3, state: 'PR', city: 'SAO JOSE DOS PINHAIS', street: 'RUA A', number: '1', neighborhood: 'B', zipCode: '83091002', ibgeCode: '4125506' },
+    recipient: { name: 'Cliente', document: '04969592985', state: 'PR', street: 'RUA B', number: '2', neighborhood: 'C', city: 'SJP', zipCode: '83035390', ibgeCode: '4125506' },
+    items: [],
+    totalValue: 0,
+  } as any;
+
+  it('NF-e sem infCpl leva só a assinatura', () => {
+    const payload = buildNFePayload(base);
+    expect(payload.informacoes_adicionais_contribuinte).toBe(
+      'Documento emitido pelo ERP Avecchi - www.avecchi.ai',
+    );
+  });
+
+  it('NF-e com infCpl preserva o conteúdo e anexa a assinatura', () => {
+    const payload = buildNFePayload({ ...base, infCpl: 'DIFAL recolhido' });
+    expect(payload.informacoes_adicionais_contribuinte).toBe(
+      'DIFAL recolhido | Documento emitido pelo ERP Avecchi - www.avecchi.ai',
+    );
+  });
+
+  it('NFC-e e transferência também levam a assinatura', () => {
+    expect(String(buildNFCePayload(base).informacoes_adicionais_contribuinte)).toContain('avecchi.ai');
+    expect(String(buildTransferNFePayload(base).informacoes_adicionais_contribuinte)).toContain('avecchi.ai');
+  });
+});

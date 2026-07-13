@@ -537,6 +537,17 @@ function mapDeliveryFlat(d: FiscalDeliveryAddress, r?: FiscalRecipient): Record<
 }
 
 /** Payload NFC-e (cupom fiscal eletrônico — consumidor final) */
+/**
+ * Assinatura do sistema nas Informações Complementares (DANFE) — pedido do
+ * Claudio (13/07/2026). Impressa em TODA nota (NF-e, NFC-e, transferência),
+ * de qualquer empresa emissora — é a marca do produto no documento.
+ * "www." proposital: em papel, leigo reconhece como endereço de site.
+ */
+const ERP_SIGNATURE = 'Documento emitido pelo ERP Avecchi - www.avecchi.ai';
+function withBranding(infCpl?: string): string {
+  return infCpl ? `${infCpl} | ${ERP_SIGNATURE}` : ERP_SIGNATURE;
+}
+
 export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unknown> {
   const doc = input.recipient?.document?.replace(/\D/g, '') ?? '';
   return {
@@ -556,6 +567,7 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
     // #587: detPag como lista (multi-forma + grupo card); nome oficial Focus
     // é valor_pagamento — `valor` era ignorado e o vPag saía 0
     formas_pagamento: mapPaymentsFlat(input),
+    informacoes_adicionais_contribuinte: withBranding(input.infCpl),
   };
 }
 
@@ -573,7 +585,7 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     consumidor_final: input.consumidorFinal ? '1' : '0',
     presenca_comprador: '1', // 1=Presencial (venda em loja)
     ...mapFreightFlat(input.freight), // grupo transp — sem freight = modalidade 9 (#481)
-    ...(input.infCpl && { informacoes_adicionais_contribuinte: input.infCpl }),
+    informacoes_adicionais_contribuinte: withBranding(input.infCpl),
     ...mapEmitterFlat(input.emitter),
     ...mapRecipientFlat(input.recipient, input.consumidorFinal),
     // Grupo <entrega> — endereço de entrega ≠ fiscal (#474), campos flat oficiais
@@ -602,6 +614,7 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
   const doc = input.recipient?.document?.replace(/\D/g, '') ?? '';
   return {
     natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
+    informacoes_adicionais_contribuinte: withBranding(input.infCpl),
     data_emissao: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
