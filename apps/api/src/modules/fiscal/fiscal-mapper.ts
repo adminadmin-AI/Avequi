@@ -581,6 +581,8 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
   return {
     natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
     data_emissao: nowBrasilia(),
+    // dhSaiEnt preenchido (pedido Claudio 13/07): saída imediata = emissão (balcão/retira)
+    data_entrada_saida: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
     consumidor_final: input.consumidorFinal ? '1' : '0',
@@ -617,6 +619,8 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
     natureza_operacao: 'TRANSFERÊNCIA DE MERCADORIA',
     informacoes_adicionais_contribuinte: withBranding(input.infCpl),
     data_emissao: nowBrasilia(),
+    // dhSaiEnt preenchido (pedido Claudio 13/07): saída imediata = emissão (balcão/retira)
+    data_entrada_saida: nowBrasilia(),
     tipo_documento: '1',
     finalidade_emissao: '1',
     consumidor_final: '0',
