@@ -1,12 +1,29 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+  Header,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AtpveStatus, BinRegistrationStatus } from '@prisma/client';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BinRegistrationService } from './bin-registration.service';
 import { AtpveService } from './atpve.service';
+import { RenaveOrchestratorService } from './renave-orchestrator.service';
 import { CreateBinRegistrationDto, UpdateBinRegistrationDto } from './dto/bin-registration.dto';
 import { CreateAtpveDto, UpdateAtpveDto } from './dto/atpve.dto';
+import { ReturnManufacturerDto } from './dto/renave.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { VEHICLE_JOB_ATPV_EMAIL, VEHICLE_QUEUE, VehicleJobPayload } from './renave.types';
 
 // #341 parte 2 (bloco G): gate unico RBAC v2 (#625).
 
@@ -17,6 +34,9 @@ export class VehicleTrackingController {
   constructor(
     private readonly binService: BinRegistrationService,
     private readonly atpveService: AtpveService,
+    private readonly orchestrator: RenaveOrchestratorService,
+    private readonly prisma: PrismaService,
+    @InjectQueue(VEHICLE_QUEUE) private readonly queue: Queue<VehicleJobPayload>,
   ) {}
 
   // ─── BIN / SENATRAN (#362) ────────────────────────────────────────────────
@@ -91,5 +111,75 @@ export class VehicleTrackingController {
   @ApiOperation({ summary: 'Atualizar status/dados do ATPV-e' })
   updateAtpve(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: UpdateAtpveDto) {
     return this.atpveService.update(id, user.companyId, dto);
+  }
+
+  // ─── Integração RENAVE/SERPRO (#529-#533) ─────────────────────────────────
+
+  @Get('renave/sales-order/:salesOrderId')
+  @RequirePermission('vehicle-tracking.renave.view')
+  @ApiOperation({ summary: 'Status consolidado BIN/RENAVE/ATPV-e de uma OV (card #533)' })
+  getRenaveStatus(@Param('salesOrderId') salesOrderId: string, @CurrentUser() user: any) {
+    return this.orchestrator.getSalesOrderStatus(salesOrderId, user.companyId);
+  }
+
+  @Post('renave/operations/:id/retry')
+  @RequirePermission('vehicle-tracking.renave.retry')
+  @ApiOperation({ summary: 'Re-executar operação RENAVE em ERROR (padrão fiscal.nfe.retry)' })
+  retryOperation(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.orchestrator.retry(id, user.companyId);
+  }
+
+  @Post('renave/devolver-montadora')
+  @RequirePermission('vehicle-tracking.renave.manage')
+  @ApiOperation({
+    summary:
+      'Devolução entre estabelecimentos (cenário B #531) — exige chave da NF-e de devolução; disparo manual',
+  })
+  returnToManufacturer(@CurrentUser() user: any, @Body() dto: ReturnManufacturerDto) {
+    return this.orchestrator.returnToManufacturer(
+      user.companyId,
+      dto.salesOrderId,
+      dto.serialNumberId,
+      dto.chaveNfeDevolucao,
+    );
+  }
+
+  @Get('atpve/:id/pdf')
+  @RequirePermission('vehicle-tracking.atpve.view')
+  @Header('Content-Type', 'application/pdf')
+  @ApiOperation({ summary: 'Download do PDF da ATPV-e (binário persistido, #530)' })
+  async downloadAtpvePdf(@Param('id') id: string, @CurrentUser() user: any) {
+    const record = await this.prisma.atpveRecord.findFirst({
+      where: { id, companyId: user.companyId },
+      select: { atpvePdfData: true, serialNumber: { select: { chassi: true } } },
+    });
+    if (!record?.atpvePdfData) {
+      throw new NotFoundException('PDF da ATPV-e ainda não disponível');
+    }
+    return new StreamableFile(Buffer.from(record.atpvePdfData), {
+      disposition: `attachment; filename="atpve-${record.serialNumber.chassi ?? id}.pdf"`,
+    });
+  }
+
+  @Post('atpve/:id/resend-email')
+  @RequirePermission('vehicle-tracking.atpve.update')
+  @ApiOperation({ summary: 'Reenviar e-mail da ATPV-e ao cliente (best-effort, #530)' })
+  async resendAtpveEmail(@Param('id') id: string, @CurrentUser() user: any) {
+    const record = await this.prisma.atpveRecord.findFirst({
+      where: { id, companyId: user.companyId },
+      select: { serialNumberId: true, salesOrderId: true },
+    });
+    if (!record) throw new NotFoundException('ATPV-e não encontrada');
+    const operation = await this.prisma.renaveOperation.findFirst({
+      where: {
+        serialNumberId: record.serialNumberId,
+        salesOrderId: record.salesOrderId,
+        type: 'ATPVE_PDF',
+      },
+      select: { id: true },
+    });
+    if (!operation) throw new NotFoundException('Operação ATPVE_PDF não encontrada para esta ATPV-e');
+    await this.queue.add(VEHICLE_JOB_ATPV_EMAIL, { operationId: operation.id }, { attempts: 1 });
+    return { queued: true };
   }
 }

@@ -126,6 +126,12 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findSalesWithoutAtpve: 'vehicle-tracking.atpve.view',
     findOneAtpve: 'vehicle-tracking.atpve.view',
     updateAtpve: 'vehicle-tracking.atpve.update',
+    // #529-#533: integração RENAVE/SERPRO (3 codes novos 266→269 + reuso atpve.*)
+    getRenaveStatus: 'vehicle-tracking.renave.view',
+    retryOperation: 'vehicle-tracking.renave.retry',
+    returnToManufacturer: 'vehicle-tracking.renave.manage',
+    downloadAtpvePdf: 'vehicle-tracking.atpve.view',
+    resendAtpveEmail: 'vehicle-tracking.atpve.update',
   }],
   [VehicleDocumentController, 'vehicle-document', {
     create: 'vehicle-tracking.documents.manage',

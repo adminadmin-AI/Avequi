@@ -138,6 +138,9 @@ model Company {
   quickReplies          QuickReply[]
   leadReminders         LeadReminder[]
   sdrUsages             SdrUsage[]
+  /// Feature flag da integração BIN/RENAVE/ATPV-e (#532) — OFF por default;
+  /// ligar só na GDR matriz após homologação SERPRO (filiais ficam fora)
+  renaveEnabled         Boolean                @default(false) @map("renave_enabled")
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -2339,6 +2342,7 @@ model AtpveRecord {
   salesOrder     SalesOrder   @relation(fields: [salesOrderId], references: [id])
   atpveNumber    String?      @map("atpve_number")
   atpvePdfUrl    String?      @map("atpve_pdf_url") // URL/caminho do PDF do ATPV-e anexado à OV (#527)
+  atpvePdfData   Bytes?       @map("atpve_pdf_data") // binário do PDF — obter-pdf-atpv devolve o arquivo, SERPRO não hospeda URL (#530)
   status         AtpveStatus  @default(PENDING)
   clienteCpf     String       @map("cliente_cpf")
   clienteNome    String       @map("cliente_nome")

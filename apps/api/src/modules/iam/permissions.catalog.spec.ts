@@ -84,7 +84,9 @@ describe('Catálogo de permissões (#338)', () => {
     //       + vehicle-tracking.documents.{view,manage}.
     //       (O reconcile/cancel do inventário WMS REUSA stock.inventory.* —
     //       codes que já existiam; nenhum code novo para isso.)
-    expect(PERMISSIONS_CATALOG.length).toBe(266);
+    // 269 = 266 + 3 da integração RENAVE/SERPRO (#529-#533, épico #527):
+    //       vehicle-tracking.renave.{view,retry,manage}.
+    expect(PERMISSIONS_CATALOG.length).toBe(269);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
