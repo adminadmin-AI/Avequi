@@ -371,8 +371,8 @@ export class FiscalService {
     // Enviar para Focus NFe
     const response =
       type === FiscalDocumentType.NFE
-        ? await this.client.emitNFe(ref, payload)
-        : await this.client.emitNFCe(ref, payload);
+        ? await this.client.emitNFe(ref, payload, fiscalDoc.companyId)
+        : await this.client.emitNFCe(ref, payload, fiscalDoc.companyId);
 
     // Processar resposta e atualizar status
     await this.applyFocusResponse(fiscalDoc.id, response);
@@ -600,7 +600,7 @@ export class FiscalService {
     // #499: validação estruturada pré-transmissão
     if (await this.blockIfInvalid(fiscalDoc.id, ref, payload)) return;
 
-    const response = await this.client.emitNFe(ref, payload);
+    const response = await this.client.emitNFe(ref, payload, fiscalDoc.companyId);
     await this.applyFocusResponse(fiscalDoc.id, response);
   }
 
@@ -628,7 +628,7 @@ export class FiscalService {
     }
 
     // Chamar Focus NFe para cancelamento
-    const response = await this.client.cancelNFe(doc.focusRef, justificativa);
+    const response = await this.client.cancelNFe(doc.focusRef, justificativa, companyId);
 
     if (response.status === 'cancelado') {
       await this.prisma.fiscalDocument.update({
@@ -694,7 +694,7 @@ export class FiscalService {
     }
 
     const sequenceNumber = lastSeq + 1;
-    const response = await this.client.sendCCe(doc.focusRef, correcao);
+    const response = await this.client.sendCCe(doc.focusRef, correcao, companyId);
 
     const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
 
@@ -734,7 +734,7 @@ export class FiscalService {
       numero_inicial: numberStart,
       numero_final: numberEnd,
       justificativa,
-    });
+    }, companyId);
 
     const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
 
@@ -805,7 +805,7 @@ export class FiscalService {
           { authorizedAt: null, createdAt: { gte: from, lte: to } },
         ],
       },
-      select: { id: true, chave: true, xml: true, xmlUrl: true, status: true, focusRef: true, number: true, type: true },
+      select: { id: true, chave: true, xml: true, xmlUrl: true, status: true, focusRef: true, number: true, type: true, companyId: true },
       orderBy: { authorizedAt: 'asc' },
     });
 
@@ -831,18 +831,19 @@ export class FiscalService {
     focusRef: string | null;
     type: FiscalDocumentType;
     xmlUrl: string | null;
+    companyId?: string;
   }): Promise<string | null> {
     let xmlUrl = d.xmlUrl;
     let danfeUrl: string | undefined;
 
     if (!xmlUrl && d.focusRef) {
-      const st = await this.client.getStatus(d.type === FiscalDocumentType.NFCE ? 'nfce' : 'nfe', d.focusRef);
+      const st = await this.client.getStatus(d.type === FiscalDocumentType.NFCE ? 'nfce' : 'nfe', d.focusRef, d.companyId);
       if (st.caminho_xml_nota_fiscal) xmlUrl = this.client.absoluteUrl(st.caminho_xml_nota_fiscal);
       if (st.caminho_danfe) danfeUrl = this.client.absoluteUrl(st.caminho_danfe);
     }
     if (!xmlUrl) return null;
 
-    const xml = await this.client.downloadFile(xmlUrl);
+    const xml = await this.client.downloadFile(xmlUrl, d.companyId);
     if (!xml) return null;
 
     await this.prisma.fiscalDocument.update({

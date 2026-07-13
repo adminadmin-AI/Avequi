@@ -124,7 +124,7 @@ describe('ManifestService', () => {
 
       await service.registerCiencia(mockManifest.chaveNfe, 'comp-1', 'user-1');
 
-      expect(fiscalClient.manifestNfe).toHaveBeenCalledWith(mockManifest.chaveNfe, 210210);
+      expect(fiscalClient.manifestNfe).toHaveBeenCalledWith(mockManifest.chaveNfe, 210210, undefined, 'comp-1');
       expect(prisma.nfeManifest.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -153,7 +153,7 @@ describe('ManifestService', () => {
 
       await service.confirmOperation(mockManifest.chaveNfe, 'comp-1', 'user-1');
 
-      expect(fiscalClient.manifestNfe).toHaveBeenCalledWith(mockManifest.chaveNfe, 210200);
+      expect(fiscalClient.manifestNfe).toHaveBeenCalledWith(mockManifest.chaveNfe, 210200, undefined, 'comp-1');
       expect(prisma.nfeManifest.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -199,6 +199,7 @@ describe('ManifestService', () => {
         mockManifest.chaveNfe,
         210220,
         'Mercadoria não foi recebida pela empresa',
+  'comp-1',
       );
       expect(prisma.nfeManifest.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -228,6 +229,7 @@ describe('ManifestService', () => {
         mockManifest.chaveNfe,
         210240,
         'Não conheço este fornecedor nem operação',
+  'comp-1',
       );
     });
 
