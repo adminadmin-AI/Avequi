@@ -59,6 +59,9 @@ export const envValidationSchema = Joi.object({
   WEB_URL: Joi.string().uri().default('http://localhost:3000'),
 
   // ─── Focus NFe (fiscal) ───
+  // #695 multi-emissor: token por company via env indexada
+  // `FOCUS_NFE_TOKEN__<companyId>` (loja Guarapuava, CRD...). Chaves dinâmicas
+  // passam pelo `allowUnknown: true`; o global abaixo é o fallback da matriz.
   FOCUS_NFE_TOKEN: Joi.string().allow('').optional(),
   FOCUS_NFE_BASE_URL: Joi.string()
     .uri()

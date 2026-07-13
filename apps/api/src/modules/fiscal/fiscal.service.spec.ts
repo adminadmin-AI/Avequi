@@ -165,7 +165,7 @@ describe('FiscalService', () => {
       expect(mockPrisma.fiscalDocument.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ salesOrderId: 'so-1', type: 'NFCE' }) }),
       );
-      expect(mockClient.emitNFCe).toHaveBeenCalledWith('GDR-SO-so-1', expect.any(Object));
+      expect(mockClient.emitNFCe).toHaveBeenCalledWith('GDR-SO-so-1', expect.any(Object), expect.anything());
       // #479: sem forma de pagamento na OV → detPag 99 (outros)
       const payloadSemForma = mockClient.emitNFCe.mock.calls[0][1] as any;
       expect(payloadSemForma.formas_pagamento[0].forma_pagamento).toBe('99');
@@ -425,6 +425,7 @@ describe('FiscalService', () => {
       expect(mockClient.cancelNFe).toHaveBeenCalledWith(
         'GDR-SO-so-1',
         'Erro no valor do produto informado na nota',
+        'co-1',
       );
       expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -540,7 +541,7 @@ describe('FiscalService', () => {
 
       expect(result.sequenceNumber).toBe(1);
       expect(result.protocol).toBe('PROT-123');
-      expect(mockClient.sendCCe).toHaveBeenCalledWith('GDR-SO-so-1', 'Correção do endereço de entrega do cliente');
+      expect(mockClient.sendCCe).toHaveBeenCalledWith('GDR-SO-so-1', 'Correção do endereço de entrega do cliente', 'co-1');
     });
 
     it('deve rejeitar CC-e para documento cancelado (422)', async () => {
@@ -579,6 +580,7 @@ describe('FiscalService', () => {
 
       expect(mockClient.voidRange).toHaveBeenCalledWith(
         expect.objectContaining({ cnpj: '11222333000181', serie: '1', numero_inicial: 101, numero_final: 104 }),
+        'co-1',
       );
       expect(result.protocol).toBe('PROT-VOID');
     });

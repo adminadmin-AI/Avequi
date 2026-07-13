@@ -12,32 +12,45 @@ export type FocusEmissionResponse = EmissionResponse;
 export class FiscalClientService implements EmissorPort {
   private readonly logger = new Logger(FiscalClientService.name);
   private readonly baseUrl: string;
-  private readonly token: string;
 
   constructor(
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {
     this.baseUrl = this.config.get<string>('FOCUS_NFE_BASE_URL', 'https://homologacao.focusnfe.com.br');
-    this.token = this.config.get<string>('FOCUS_NFE_TOKEN', '');
+  }
+
+  /**
+   * #695 — multi-emissor: na conta Focus reestruturada cada CNPJ (matriz,
+   * loja Guarapuava, CRD) tem token próprio. Resolução por env indexada
+   * `FOCUS_NFE_TOKEN__<companyId>` com fallback no token global (matriz).
+   * Env em vez de banco: token é secret e já vive no Railway; company nova
+   * emitindo = 1 env + redeploy (evento raro), sem criptografia própria.
+   */
+  private tokenFor(companyId?: string): string {
+    if (companyId) {
+      const scoped = this.config.get<string>(`FOCUS_NFE_TOKEN__${companyId}`, '');
+      if (scoped) return scoped;
+    }
+    return this.config.get<string>('FOCUS_NFE_TOKEN', '');
   }
 
   /** S08.03: enviar NFC-e para Focus NFe */
-  async emitNFCe(ref: string, payload: Record<string, unknown>): Promise<FocusEmissionResponse> {
-    return this.post(`/v2/nfce?ref=${ref}`, payload);
+  async emitNFCe(ref: string, payload: Record<string, unknown>, companyId?: string): Promise<FocusEmissionResponse> {
+    return this.post(`/v2/nfce?ref=${ref}`, payload, companyId);
   }
 
   /** S08.03: enviar NF-e para Focus NFe */
-  async emitNFe(ref: string, payload: Record<string, unknown>): Promise<FocusEmissionResponse> {
-    return this.post(`/v2/nfe?ref=${ref}`, payload);
+  async emitNFe(ref: string, payload: Record<string, unknown>, companyId?: string): Promise<FocusEmissionResponse> {
+    return this.post(`/v2/nfe?ref=${ref}`, payload, companyId);
   }
 
   /** Cancelar NF-e/NFC-e na SEFAZ via Focus NFe */
-  async cancelNFe(ref: string, justificativa: string): Promise<FocusEmissionResponse> {
+  async cancelNFe(ref: string, justificativa: string, companyId?: string): Promise<FocusEmissionResponse> {
     try {
       const { data } = await firstValueFrom(
         this.http.delete<FocusEmissionResponse>(`${this.baseUrl}/v2/nfe/${ref}`, {
-          auth: { username: this.token, password: '' },
+          auth: { username: this.tokenFor(companyId), password: '' },
           data: { justificativa },
         }),
       );
@@ -49,8 +62,8 @@ export class FiscalClientService implements EmissorPort {
   }
 
   /** CC-e (Carta de Correção) via Focus NFe */
-  async sendCCe(ref: string, correcao: string): Promise<FocusEmissionResponse> {
-    return this.post(`/v2/nfe/${ref}/carta_correcao`, { correcao });
+  async sendCCe(ref: string, correcao: string, companyId?: string): Promise<FocusEmissionResponse> {
+    return this.post(`/v2/nfe/${ref}/carta_correcao`, { correcao }, companyId);
   }
 
   /** Inutilização de faixa de numeração via Focus NFe */
@@ -60,16 +73,16 @@ export class FiscalClientService implements EmissorPort {
     numero_inicial: number;
     numero_final: number;
     justificativa: string;
-  }): Promise<FocusEmissionResponse> {
-    return this.post('/v2/nfe/inutilizacao', payload);
+  }, companyId?: string): Promise<FocusEmissionResponse> {
+    return this.post('/v2/nfe/inutilizacao', payload, companyId);
   }
 
   /** Buscar NF-e recebidas (destinadas ao CNPJ) via Focus NFe */
-  async fetchReceivedNfes(cnpj: string): Promise<any[]> {
+  async fetchReceivedNfes(cnpj: string, companyId?: string): Promise<any[]> {
     try {
       const { data } = await firstValueFrom(
         this.http.get<any[]>(`${this.baseUrl}/v2/nfes_recebidas?cnpj=${cnpj}`, {
-          auth: { username: this.token, password: '' },
+          auth: { username: this.tokenFor(companyId), password: '' },
         }),
       );
       this.logger.log(`Focus NFe: ${Array.isArray(data) ? data.length : 0} NF-e recebidas para CNPJ ${cnpj}`);
@@ -86,6 +99,7 @@ export class FiscalClientService implements EmissorPort {
     chaveNfe: string,
     tipoEvento: number,
     justificativa?: string,
+    companyId?: string,
   ): Promise<FocusEmissionResponse & { protocolo?: string }> {
     try {
       const payload: Record<string, unknown> = { tipo: tipoEvento };
@@ -97,7 +111,7 @@ export class FiscalClientService implements EmissorPort {
         this.http.post<FocusEmissionResponse & { protocolo?: string }>(
           `${this.baseUrl}/v2/nfes_recebidas/${chaveNfe}/manifesto`,
           payload,
-          { auth: { username: this.token, password: '' } },
+          { auth: { username: this.tokenFor(companyId), password: '' } },
         ),
       );
 
@@ -118,11 +132,11 @@ export class FiscalClientService implements EmissorPort {
    * Baixa um arquivo servido pela Focus (XML/DANFE) — aceita caminho relativo
    * ou URL absoluta. Retorna null em erro (não lança). (#482)
    */
-  async downloadFile(path: string): Promise<string | null> {
+  async downloadFile(path: string, companyId?: string): Promise<string | null> {
     try {
       const { data } = await firstValueFrom(
         this.http.get<string>(this.absoluteUrl(path), {
-          auth: { username: this.token, password: '' },
+          auth: { username: this.tokenFor(companyId), password: '' },
           responseType: 'text',
           // impede o axios de tentar parsear o XML como JSON
           transformResponse: [(d) => d],
@@ -137,11 +151,11 @@ export class FiscalClientService implements EmissorPort {
   }
 
   /** Consultar status de um documento já enviado */
-  async getStatus(type: 'nfe' | 'nfce', ref: string): Promise<FocusEmissionResponse> {
+  async getStatus(type: 'nfe' | 'nfce', ref: string, companyId?: string): Promise<FocusEmissionResponse> {
     try {
       const { data } = await firstValueFrom(
         this.http.get<FocusEmissionResponse>(`${this.baseUrl}/v2/${type}/${ref}`, {
-          auth: { username: this.token, password: '' },
+          auth: { username: this.tokenFor(companyId), password: '' },
         }),
       );
       return data;
@@ -150,11 +164,11 @@ export class FiscalClientService implements EmissorPort {
     }
   }
 
-  private async post(path: string, payload: Record<string, unknown>): Promise<FocusEmissionResponse> {
+  private async post(path: string, payload: Record<string, unknown>, companyId?: string): Promise<FocusEmissionResponse> {
     try {
       const { data } = await firstValueFrom(
         this.http.post<FocusEmissionResponse>(`${this.baseUrl}${path}`, payload, {
-          auth: { username: this.token, password: '' },
+          auth: { username: this.tokenFor(companyId), password: '' },
         }),
       );
       this.logger.log(`Focus NFe response: status=${data.status} chave=${data.chave_nfe ?? 'N/A'}`);

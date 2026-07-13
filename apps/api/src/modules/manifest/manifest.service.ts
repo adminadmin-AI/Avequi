@@ -52,7 +52,7 @@ export class ManifestService {
     if (!company) throw new NotFoundException('Empresa não encontrada');
 
     const cnpj = company.cnpj.replace(/\D/g, '');
-    const received = await this.fiscalClient.fetchReceivedNfes(cnpj);
+    const received = await this.fiscalClient.fetchReceivedNfes(cnpj, companyId);
 
     if (!Array.isArray(received)) {
       this.logger.warn(`Focus NFe retornou formato inesperado para NF-e recebidas: ${typeof received}`);
@@ -103,7 +103,7 @@ export class ManifestService {
       );
     }
 
-    const response = await this.fiscalClient.manifestNfe(chaveNfe, MANIFEST_EVENTS.CIENCIA);
+    const response = await this.fiscalClient.manifestNfe(chaveNfe, MANIFEST_EVENTS.CIENCIA, undefined, companyId);
 
     if (response.status === 'erro') {
       throw new BadRequestException(`Erro ao registrar ciência na SEFAZ: ${response.motivo}`);
@@ -134,7 +134,7 @@ export class ManifestService {
       );
     }
 
-    const response = await this.fiscalClient.manifestNfe(chaveNfe, MANIFEST_EVENTS.CONFIRMACAO);
+    const response = await this.fiscalClient.manifestNfe(chaveNfe, MANIFEST_EVENTS.CONFIRMACAO, undefined, companyId);
 
     if (response.status === 'erro') {
       throw new BadRequestException(`Erro ao confirmar operação na SEFAZ: ${response.motivo}`);
@@ -178,6 +178,7 @@ export class ManifestService {
       chaveNfe,
       MANIFEST_EVENTS.OPERACAO_NAO_REALIZADA,
       justificativa,
+      companyId,
     );
 
     if (response.status === 'erro') {
@@ -220,6 +221,7 @@ export class ManifestService {
       chaveNfe,
       MANIFEST_EVENTS.DESCONHECIMENTO,
       justificativa,
+      companyId,
     );
 
     if (response.status === 'erro') {
