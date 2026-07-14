@@ -6,9 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PermissionService } from '../iam/permission.service';
 
-/** Papéis que gerenciam as respostas compartilhadas da loja */
-const STORE_MANAGER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
+/**
+ * Bloco F (#624): a gestão ampliada (respostas compartilhadas da loja +
+ * pessoais de terceiros) deixou de ser decidida pelo enum legado
+ * (STORE_MANAGER_ROLES) e passou à permissão complementar do IAM v2 —
+ * checada via PermissionService (herança, perfis customizados, denies).
+ */
+const MANAGE_ALL_PERMISSION = 'crm.quick-replies.manage-all';
 
 /** Atalho: minúsculo, sem espaço/acentos — o vendedor digita "/pix" no inbox */
 const SHORTCUT_RE = /^[a-z0-9][a-z0-9_-]{0,29}$/;
@@ -23,7 +29,6 @@ export interface QuickReplyInput {
 export interface RequestActor {
   id: string;
   companyId: string;
-  role: string;
 }
 
 /**
@@ -35,7 +40,10 @@ export interface RequestActor {
  */
 @Injectable()
 export class QuickReplyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissions: PermissionService,
+  ) {}
 
   /** Respostas visíveis p/ o vendedor: pessoais dele + compartilhadas da loja */
   async list(actor: RequestActor) {
@@ -53,7 +61,7 @@ export class QuickReplyService {
     const shortcut = this.normalizeShortcut(input.shortcut);
     const text = input.text?.trim();
     if (!text) throw new BadRequestException('Texto da resposta é obrigatório');
-    const ownerId = this.resolveOwner(actor, input.scope);
+    const ownerId = await this.resolveOwner(actor, input.scope);
 
     await this.assertShortcutFree(actor.companyId, ownerId, shortcut);
     return this.prisma.quickReply.create({
@@ -87,26 +95,34 @@ export class QuickReplyService {
 
   // ── internos ────────────────────────────────────────────────────────────────
 
-  /** Carrega e valida permissão: pessoal só pelo dono; da loja só por gerente */
+  /** Gestão ampliada via IAM v2 — nunca pelo enum legado (Bloco F #624) */
+  private canManageAll(actor: RequestActor): Promise<boolean> {
+    return this.permissions.hasPermission(actor.id, actor.companyId, MANAGE_ALL_PERMISSION);
+  }
+
+  /** Carrega e valida: pessoal só pelo dono; da loja/de terceiro exige manage-all */
   private async findOwned(actor: RequestActor, id: string) {
     const reply = await this.prisma.quickReply.findFirst({
       where: { id, companyId: actor.companyId },
     });
     if (!reply) throw new NotFoundException('Resposta rápida não encontrada');
     if (reply.ownerId == null) {
-      if (!STORE_MANAGER_ROLES.includes(actor.role)) {
-        throw new ForbiddenException('Só o gerente altera respostas da loja');
+      if (!(await this.canManageAll(actor))) {
+        throw new ForbiddenException('Só a gestão altera respostas da loja');
       }
-    } else if (reply.ownerId !== actor.id && !STORE_MANAGER_ROLES.includes(actor.role)) {
+    } else if (reply.ownerId !== actor.id && !(await this.canManageAll(actor))) {
       throw new ForbiddenException('Resposta pessoal de outro vendedor');
     }
     return reply;
   }
 
-  private resolveOwner(actor: RequestActor, scope: 'STORE' | 'PERSONAL'): string | null {
+  private async resolveOwner(
+    actor: RequestActor,
+    scope: 'STORE' | 'PERSONAL',
+  ): Promise<string | null> {
     if (scope === 'STORE') {
-      if (!STORE_MANAGER_ROLES.includes(actor.role)) {
-        throw new ForbiddenException('Só o gerente cria respostas da loja');
+      if (!(await this.canManageAll(actor))) {
+        throw new ForbiddenException('Só a gestão cria respostas da loja');
       }
       return null;
     }

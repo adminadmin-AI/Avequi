@@ -3,13 +3,20 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron } from '@nestjs/schedule';
 import { AlertSeverity, AlertType, LeadActivityType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PermissionService } from '../iam/permission.service';
 
-const MANAGER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
+/**
+ * Bloco F (#624): concluir/remover lembrete de OUTRO usuário deixou de ser
+ * decidido pelo enum legado (MANAGER_ROLES) e passou à permissão complementar
+ * crm.reminders.manage-all do IAM v2 (checada via PermissionService —
+ * herança, perfis customizados, denies). O dono segue gerindo os próprios
+ * lembretes apenas com crm.leads.annotate (gate da rota).
+ */
+const MANAGE_ALL_PERMISSION = 'crm.reminders.manage-all';
 
 export interface ReminderActor {
   id: string;
   companyId: string;
-  role: string;
 }
 
 /**
@@ -24,6 +31,7 @@ export class ReminderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly permissions: PermissionService,
   ) {}
 
   // ── Notas ───────────────────────────────────────────────────────────────────
@@ -160,13 +168,16 @@ export class ReminderService {
     if (!lead) throw new NotFoundException('Lead não encontrado nesta loja');
   }
 
-  /** Dono do lembrete ou gerente da loja */
+  /** Dono do lembrete, ou gestão com crm.reminders.manage-all (Bloco F #624) */
   private async findOwned(actor: ReminderActor, id: string) {
     const reminder = await this.prisma.leadReminder.findFirst({
       where: { id, companyId: actor.companyId },
     });
     if (!reminder) throw new NotFoundException('Lembrete não encontrado');
-    if (reminder.userId !== actor.id && !MANAGER_ROLES.includes(actor.role)) {
+    if (
+      reminder.userId !== actor.id &&
+      !(await this.permissions.hasPermission(actor.id, actor.companyId, MANAGE_ALL_PERMISSION))
+    ) {
       throw new NotFoundException('Lembrete não encontrado'); // não vaza existência
     }
     return reminder;

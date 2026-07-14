@@ -7,7 +7,9 @@ import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { usePermission } from '@/hooks/use-permission';
 import { PushSettings } from './push-settings';
+import { buildSettingsPayload } from './settings-payload';
 
 interface Settings {
   slaFirstResponseMin: number;
@@ -38,6 +40,12 @@ export default function CrmSettingsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Partial<Settings>>({});
+  // Bloco F (#624, D5): a retenção LGPD comanda o expurgo diário IRREVERSÍVEL —
+  // o backend recusa a requisição INTEIRA (403) se leadRetentionDays vier no
+  // payload sem crm.lgpd.retention-update. Sem a permissão, o campo fica
+  // desabilitado e é OMITIDO do payload (as demais configs salvam normalmente).
+  const { can } = usePermission();
+  const canEditRetention = can('crm.lgpd.retention-update');
 
   const { data: settings } = useQuery<Settings>({
     queryKey: ['crm-settings'],
@@ -53,7 +61,8 @@ export default function CrmSettingsPage() {
   }, [settings]);
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/crm/settings', form),
+    mutationFn: () =>
+      apiClient.patch('/crm/settings', buildSettingsPayload(form, canEditRetention)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-settings'] });
       toast.success('Configuração salva');
@@ -102,10 +111,21 @@ export default function CrmSettingsPage() {
           <input
             type="number"
             min={0}
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            disabled={!canEditRetention}
+            title={
+              canEditRetention
+                ? undefined
+                : 'Alterar a retenção LGPD é restrito à alta gestão (crm.lgpd.retention-update)'
+            }
+            className="w-full rounded-md border bg-background px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             value={form.leadRetentionDays ?? 0}
             onChange={(e) => setForm({ ...form, leadRetentionDays: parseInt(e.target.value, 10) || 0 })}
           />
+          {!canEditRetention && (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              🔒 Restrito à alta gestão — o expurgo por retenção é irreversível.
+            </span>
+          )}
         </Field>
       </section>
 

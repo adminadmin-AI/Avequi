@@ -28,7 +28,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
-import { Roles } from '../../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { WhatsappService } from './whatsapp.service';
 import { WHATSAPP_QUEUE, WhatsappWebhookBody } from './whatsapp.types';
 
@@ -127,7 +127,7 @@ export class WhatsappController {
 
   @Post('leads/:leadId/messages')
   @ApiBearerAuth()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.messages.send')
   @ApiOperation({ summary: 'Enviar mensagem livre na conversa do lead (janela 24h)' })
   send(
     @Param('leadId') leadId: string,
@@ -138,6 +138,7 @@ export class WhatsappController {
   }
 
   @Get('leads/:leadId/messages')
+  @RequirePermission('crm.conversations.view')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mensagens da conversa do lead (inbox)' })
   @ApiQuery({ name: 'take', required: false })
@@ -159,7 +160,7 @@ export class WhatsappController {
   @Post('leads/:leadId/media')
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.messages.send')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
   @ApiOperation({ summary: 'Enviar mídia (foto/PDF/áudio) na conversa do lead' })
   sendMedia(
@@ -173,6 +174,7 @@ export class WhatsappController {
   }
 
   @Get('media/:messageId')
+  @RequirePermission('crm.conversations.view')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mídia da mensagem (proxy sob demanda na Meta)' })
   async media(

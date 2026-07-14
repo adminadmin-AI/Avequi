@@ -46,10 +46,11 @@ const PUBLIC_ALLOWLIST = [
 /** Controllers com migração RBAC v2 PENDENTE — rotas sem gate toleradas até a
  *  issue fechar. Migrou? Remova a entrada (o teste de estagnação cobra). */
 const PENDING_MIGRATION: Record<string, string> = {
-  // #625 (bloco G) MIGRADO no PR #694 — entradas removidas conforme a regra
-  // deste spec. Restam só os controllers do CRM (bloco F, #624).
-  CrmController: '#624 (bloco F — família crm.*)',
-  WhatsappController: '#624 (bloco F)',
+  // #625 (bloco G) MIGRADO no PR #694; #624 (bloco F — família crm.*)
+  // MIGRADO neste PR: CrmController e WhatsappController saíram da lista
+  // (gate único @RequirePermission nas 49 rotas autenticadas; os webhooks
+  // seguem na PUBLIC_ALLOWLIST acima). A lista está VAZIA: todo controller
+  // novo nasce gateado.
 };
 
 /** Rotas autenticadas-por-design (self-service do próprio usuário) ou com

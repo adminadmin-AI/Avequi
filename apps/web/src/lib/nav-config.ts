@@ -79,9 +79,10 @@ export interface NavItem {
    */
   permission?: string;
   /**
-   * (Legado #453) Restringe a esses papéis do enum. Restou SÓ para o CRM
-   * (#624, bloco F — última migração pendente do RBAC v2). Ao migrar,
-   * troque por `permission` e apague este campo do codebase.
+   * (Legado #453) Restringe a esses papéis do enum. Bloco F (#624) migrou o
+   * CRM — NENHUM item usa mais este campo. O campo e o branch em
+   * navItemAllowed/checkRouteAccess podem ser removidos em follow-up
+   * (mantidos aqui só para não inflar o escopo do PR do CRM).
    * Sem `roles` e sem `permission` = liberado para qualquer autenticado.
    */
   roles?: string[];
@@ -136,14 +137,16 @@ export const NAV: NavSection[] = [
     key: 'comercial',
     title: 'Comercial',
     items: [
-      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle },
-      { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare },
-      { href: '/app/crm/leads', label: 'Leads', icon: ClipboardList, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
-      { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText },
-      { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
-      { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
-      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, roles: ['SUPER_ADMIN','DIRECTOR','MANAGER'] },
-      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer },
+      // Bloco F (#624): CRM migrado do `roles` legado (e de itens sem gate)
+      // para `permission:` — perfis sem CRM deixam de ver o menu (D4).
+      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle, permission: 'crm.conversations.view' },
+      { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare, permission: 'crm.leads.view' },
+      { href: '/app/crm/leads', label: 'Leads', icon: ClipboardList, permission: 'crm.leads.list' },
+      { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText, permission: 'crm.quick-replies.manage' },
+      { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, permission: 'crm.dashboard.view' },
+      { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, permission: 'crm.sdr.monitor' },
+      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, permission: 'crm.settings.view' },
+      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer, permission: 'crm.leads.view' },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart, permission: 'sales.orders.view' },
       { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store, permission: 'sales.orders.create' },
       { href: '/app/quotations', label: 'Cotações', icon: FileText, permission: 'sales.quotations.view' },

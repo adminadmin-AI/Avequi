@@ -24,7 +24,7 @@ import { timingSafeEqual } from 'crypto';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
-import { Roles } from '../../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { LeadIntakeService } from '../lead-intake.service';
 import { CRM_LEADS_QUEUE } from './connectors.types';
 import { StoreResolver } from './connectors.util';
@@ -118,7 +118,7 @@ export class ConnectorsController {
   /** Responder pergunta do ML de dentro do inbox */
   @Post('leads/:leadId/ml-answer/:questionId')
   @ApiBearerAuth()
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.connectors.answer')
   @ApiOperation({ summary: 'Responder pergunta do Mercado Livre pelo ERP' })
   answerMl(
     @Param('leadId') leadId: string,

@@ -2,12 +2,17 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PermissionService } from '../iam/permission.service';
 import { ReminderService, ReminderActor } from './reminder.service';
 
 const COMPANY = 'company-1';
-const SELLER: ReminderActor = { id: 'seller-1', companyId: COMPANY, role: 'COMMERCIAL' };
-const OTHER_SELLER: ReminderActor = { id: 'seller-2', companyId: COMPANY, role: 'STORE' };
-const MANAGER: ReminderActor = { id: 'manager-1', companyId: COMPANY, role: 'MANAGER' };
+const SELLER: ReminderActor = { id: 'seller-1', companyId: COMPANY };
+const OTHER_SELLER: ReminderActor = { id: 'seller-2', companyId: COMPANY };
+const MANAGER: ReminderActor = { id: 'manager-1', companyId: COMPANY };
+
+/** Bloco F (#624): gerir lembrete alheio agora vem do IAM v2, nunca do enum —
+ *  no teste, só o "manager-1" tem crm.reminders.manage-all. */
+const MANAGE_ALL_USERS = new Set([MANAGER.id]);
 
 const FUTURE = new Date(Date.now() + 24 * 3600_000).toISOString();
 
@@ -42,6 +47,15 @@ describe('ReminderService (F3.5-C5 #555)', () => {
         ReminderService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: eventEmitter },
+        {
+          provide: PermissionService,
+          useValue: {
+            hasPermission: jest.fn(
+              async (userId: string, _companyId: string, code: string) =>
+                code === 'crm.reminders.manage-all' && MANAGE_ALL_USERS.has(userId),
+            ),
+          },
+        },
       ],
     }).compile();
     service = module.get(ReminderService);
