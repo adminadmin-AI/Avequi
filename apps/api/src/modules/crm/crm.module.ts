@@ -2,6 +2,7 @@ import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { IamModule } from '../iam/iam.module';
 import { NotificationModule } from '../notification/notification.module';
 import { QuotationModule } from '../quotation/quotation.module';
 import { CrmController } from './crm.controller';
@@ -40,6 +41,10 @@ import { SiteLeadController } from './connectors/site.controller';
 @Module({
   imports: [
     PrismaModule,
+    // Bloco F (#624): PermissionService para as checagens complementares nos
+    // services (quick-replies.manage-all, reminders.manage-all) e o gate
+    // condicional de retenção LGPD no PATCH /crm/settings.
+    IamModule,
     NotificationModule,
     QuotationModule, // #572 — PDF da proposta
     HttpModule.register({ timeout: 15000 }),

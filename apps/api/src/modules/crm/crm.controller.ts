@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
@@ -11,7 +21,7 @@ import {
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { LostReasonCategory } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CrmService } from './crm.service';
 import { IntakeLeadDto } from './dto/intake-lead.dto';
 import { LeadIntakeService } from './lead-intake.service';
@@ -27,6 +37,7 @@ import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
 import { SdrDashboardService } from './sdr/sdr-dashboard.service';
 import { LeadProposalService } from './lead-proposal.service';
+import { PermissionService } from '../iam/permission.service';
 import { Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IsArray, IsBoolean, IsIn, IsInt, IsPositive, Min } from 'class-validator';
@@ -250,12 +261,13 @@ export class CrmController {
     private readonly sdr: SdrAgentService,
     private readonly sdrDashboard: SdrDashboardService,
     private readonly proposals: LeadProposalService,
+    private readonly permissions: PermissionService,
   ) {}
 
   // ── SDR IA (F4 #521/#524) ───────────────────────────────────────────────────
 
   @Post('leads/:id/sdr/takeover')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.sdr.takeover')
   @ApiOperation({ summary: 'Assumir conversa da IA (takeover explícito — IA silencia)' })
   async sdrTakeover(@Param('id') id: string, @CurrentUser() user: any) {
     const taken = await this.sdr.takeover(id, user.id);
@@ -263,7 +275,7 @@ export class CrmController {
   }
 
   @Get('sdr/overview')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.sdr.monitor')
   @ApiOperation({ summary: 'Métricas do SDR IA: atendidos, handoff, descarte, score, custo' })
   @ApiQuery({ name: 'days', required: false })
   sdrOverview(@CurrentUser() user: any, @Query('days') days?: string) {
@@ -272,21 +284,21 @@ export class CrmController {
   }
 
   @Get('sdr/discards')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.sdr.monitor')
   @ApiOperation({ summary: 'Fila de revisão: descartes da IA dos últimos 7 dias' })
   sdrDiscards(@CurrentUser() user: any) {
     return this.sdrDashboard.discards(user.companyId);
   }
 
   @Post('sdr/discards/:leadId/revert')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.sdr.operate')
   @ApiOperation({ summary: 'Reverter descarte da IA (feedback p/ ajuste de prompt)' })
   sdrRevertDiscard(@Param('leadId') leadId: string, @CurrentUser() user: any) {
     return this.sdrDashboard.revertDiscard(user.companyId, leadId, user.id);
   }
 
   @Get('sdr/incidents')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.sdr.monitor')
   @ApiOperation({ summary: 'Incidentes de guardrail do SDR (bloqueios do F4.3)' })
   @ApiQuery({ name: 'days', required: false })
   sdrIncidents(@CurrentUser() user: any, @Query('days') days?: string) {
@@ -297,7 +309,7 @@ export class CrmController {
   // ── LGPD (F3.5-C8 #558) ─────────────────────────────────────────────────────
 
   @Post('leads/:id/anonymize')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.lgpd.anonymize')
   @ApiOperation({
     summary: 'Anonimizar lead (LGPD, direito do titular) — IRREVERSÍVEL, preserva métricas',
   })
@@ -308,7 +320,7 @@ export class CrmController {
   // ── Lista de leads (F3.5-C7 #557) ───────────────────────────────────────────
 
   @Get('leads')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.leads.list')
   @ApiOperation({ summary: 'Lista de leads em tabela: filtros, ordenação e paginação' })
   leadsList(@CurrentUser() user: any, @Query() q: Record<string, string>) {
     return this.leadList.list(user.companyId, this.listFilters(q));
@@ -316,7 +328,7 @@ export class CrmController {
 
   @Get('leads.csv')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.leads.export')
   @ApiOperation({ summary: 'Export CSV da lista de leads (mesmos filtros)' })
   async leadsCsv(@CurrentUser() user: any, @Res() res: Response, @Query() q: Record<string, string>) {
     const csv = await this.leadList.csv(user.companyId, this.listFilters(q));
@@ -326,14 +338,14 @@ export class CrmController {
   }
 
   @Post('leads/bulk/reassign')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.leads.bulk-reassign')
   @ApiOperation({ summary: 'Reatribuir leads em lote (gerente)' })
   bulkReassign(@Body() dto: BulkReassignDto, @CurrentUser() user: any) {
     return this.leadList.bulkReassign(user.companyId, dto.leadIds, dto.toUserId, user.id);
   }
 
   @Post('leads/bulk/stage')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.leads.bulk-stage')
   @ApiOperation({ summary: 'Mudar estágio em lote (Perdido exige motivo)' })
   bulkStage(@Body() dto: BulkStageDto, @CurrentUser() user: any) {
     return this.leadList.bulkChangeStage(
@@ -364,13 +376,14 @@ export class CrmController {
   // ── Proposta em PDF no inbox (V2.5 #572) ────────────────────────────────────
 
   @Get('leads/:id/proposal-options')
+  @RequirePermission('crm.proposals.send')
   @ApiOperation({ summary: 'Cotações do cliente do lead — opções do "Enviar proposta" (#572)' })
   proposalOptions(@Param('id') id: string, @CurrentUser() user: any) {
     return this.proposals.listQuotationsForLead(user.companyId, id);
   }
 
   @Post('leads/:id/send-proposal')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.proposals.send')
   @ApiOperation({ summary: 'Gerar PDF da cotação e enviar como documento no WhatsApp do lead (#572)' })
   sendProposal(@Param('id') id: string, @Body() dto: SendProposalDto, @CurrentUser() user: any) {
     return this.proposals.sendProposal(user.companyId, id, dto.quotationId, user.id);
@@ -379,103 +392,124 @@ export class CrmController {
   // ── Notas e lembretes (F3.5-C5 #555) ────────────────────────────────────────
 
   @Post('leads/:id/notes')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.annotate')
   @ApiOperation({ summary: 'Adicionar nota manual à timeline do lead' })
   addNote(@Param('id') id: string, @Body() dto: AddNoteDto, @CurrentUser() user: any) {
     return this.reminders.addNote(this.actor(user), id, dto.text);
   }
 
   @Get('leads/:id/reminders')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Lembretes pendentes do lead' })
   leadReminders(@Param('id') id: string, @CurrentUser() user: any) {
     return this.reminders.listByLead(this.actor(user), id);
   }
 
   @Post('leads/:id/reminders')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.annotate')
   @ApiOperation({ summary: 'Agendar lembrete de follow-up ("ligar amanhã 14h")' })
   createReminder(@Param('id') id: string, @Body() dto: CreateReminderDto, @CurrentUser() user: any) {
     return this.reminders.createReminder(this.actor(user), id, dto);
   }
 
   @Get('reminders')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Meus lembretes pendentes (vencidos primeiro)' })
   myReminders(@CurrentUser() user: any) {
     return this.reminders.listMine(this.actor(user));
   }
 
   @Patch('reminders/:id/done')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.annotate')
   @ApiOperation({ summary: 'Concluir lembrete' })
   reminderDone(@Param('id') id: string, @CurrentUser() user: any) {
     return this.reminders.markDone(this.actor(user), id);
   }
 
   @Delete('reminders/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.annotate')
   @ApiOperation({ summary: 'Excluir lembrete' })
   reminderRemove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.reminders.remove(this.actor(user), id);
   }
 
   private actor(user: any) {
-    return { id: user.id, companyId: user.companyId, role: user.role };
+    return { id: user.id, companyId: user.companyId };
   }
 
   // ── Respostas rápidas (F3.5-C3 #553) ────────────────────────────────────────
 
   @Get('quick-replies')
+  @RequirePermission('crm.conversations.view')
   @ApiOperation({ summary: 'Respostas rápidas visíveis (loja + pessoais do vendedor)' })
   quickRepliesList(@CurrentUser() user: any) {
-    return this.quickReplies.list({ id: user.id, companyId: user.companyId, role: user.role });
+    return this.quickReplies.list({ id: user.id, companyId: user.companyId });
   }
 
   @Post('quick-replies')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.quick-replies.manage')
   @ApiOperation({ summary: 'Criar resposta rápida (escopo loja exige gerente)' })
   quickReplyCreate(@Body() dto: CreateQuickReplyDto, @CurrentUser() user: any) {
-    return this.quickReplies.create({ id: user.id, companyId: user.companyId, role: user.role }, dto);
+    return this.quickReplies.create({ id: user.id, companyId: user.companyId }, dto);
   }
 
   @Patch('quick-replies/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.quick-replies.manage')
   @ApiOperation({ summary: 'Editar resposta rápida (pessoal só pelo dono)' })
   quickReplyUpdate(@Param('id') id: string, @Body() dto: UpdateQuickReplyDto, @CurrentUser() user: any) {
-    return this.quickReplies.update({ id: user.id, companyId: user.companyId, role: user.role }, id, dto);
+    return this.quickReplies.update({ id: user.id, companyId: user.companyId }, id, dto);
   }
 
   @Delete('quick-replies/:id')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.quick-replies.manage')
   @ApiOperation({ summary: 'Excluir resposta rápida' })
   quickReplyRemove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.quickReplies.remove({ id: user.id, companyId: user.companyId, role: user.role }, id);
+    return this.quickReplies.remove({ id: user.id, companyId: user.companyId }, id);
   }
 
   // ── Configuração (F3.5-C1 #551) ─────────────────────────────────────────────
 
   @Get('settings')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.settings.view')
   @ApiOperation({ summary: 'Configuração do CRM da loja' })
   getSettings(@CurrentUser() user: any) {
     return this.settings.get(user.companyId);
   }
 
   @Patch('settings')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
-  @ApiOperation({ summary: 'Atualizar configuração do CRM' })
-  updateSettings(@Body() dto: UpdateSettingsDto, @CurrentUser() user: any) {
+  @RequirePermission('crm.settings.update')
+  @ApiOperation({
+    summary: 'Atualizar configuração do CRM (leadRetentionDays exige crm.lgpd.retention-update)',
+  })
+  async updateSettings(@Body() dto: UpdateSettingsDto, @CurrentUser() user: any) {
+    // Bloco F (#624, D5): a política de retenção comanda o expurgo diário
+    // (anonimização em massa IRREVERSÍVEL de leads perdidos antigos). Payload
+    // com leadRetentionDays exige a permissão complementar — sem ela, 403 na
+    // requisição INTEIRA: o campo não é ignorado e nada é persistido.
+    if (
+      dto.leadRetentionDays !== undefined &&
+      !(await this.permissions.hasPermission(
+        user.id,
+        user.companyId,
+        'crm.lgpd.retention-update',
+      ))
+    ) {
+      throw new ForbiddenException(
+        'Alterar a retenção LGPD (leadRetentionDays) exige a permissão crm.lgpd.retention-update.',
+      );
+    }
     return this.settings.update(user.companyId, dto);
   }
 
   @Get('settings/sellers')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.settings.view')
   @ApiOperation({ summary: 'Vendedores da loja e disponibilidade no rodízio' })
   getSellers(@CurrentUser() user: any) {
     return this.settings.sellers(user.companyId);
   }
 
   @Patch('settings/sellers/:userId/availability')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.settings.update')
   @ApiOperation({ summary: 'Ligar/desligar vendedor no rodízio (férias/folga)' })
   setSellerAvailability(
     @Param('userId') userId: string,
@@ -488,7 +522,7 @@ export class CrmController {
   // ── Dashboard (F3.1 #517) ───────────────────────────────────────────────────
 
   @Get('dashboard')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.dashboard.view')
   @ApiOperation({ summary: 'Dashboard: funil, conversão por origem/vendedor, motivos' })
   @ApiQuery({ name: 'days', required: false, description: 'Janela em dias (default 30)' })
   dashboardOverview(@CurrentUser() user: any, @Query('days') days?: string) {
@@ -497,7 +531,7 @@ export class CrmController {
 
   @Get('dashboard/source.csv')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // #349: exports 10/min por usuário
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.dashboard.export')
   @ApiOperation({ summary: 'Export CSV da conversão por origem' })
   @ApiQuery({ name: 'days', required: false })
   async dashboardCsv(@CurrentUser() user: any, @Res() res: Response, @Query('days') days?: string) {
@@ -510,20 +544,21 @@ export class CrmController {
   // ── Templates / follow-up (F3.2 #518) ───────────────────────────────────────
 
   @Get('templates')
+  @RequirePermission('crm.conversations.view')
   @ApiOperation({ summary: 'Templates aprovados da loja (reengajamento fora da janela)' })
   templatesList(@CurrentUser() user: any) {
     return this.templates.listApproved(user.companyId);
   }
 
   @Post('templates/sync')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.templates.sync')
   @ApiOperation({ summary: 'Sincronizar templates do Meta Business' })
   templatesSync(@CurrentUser() user: any) {
     return this.templates.sync(user.companyId);
   }
 
   @Post('leads/:id/template')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.templates.send')
   @ApiOperation({ summary: 'Enviar template (janela 24h expirada) — custo Meta' })
   sendTemplate(@Param('id') id: string, @Body() dto: SendTemplateDto, @CurrentUser() user: any) {
     return this.templates.sendTemplate(
@@ -538,6 +573,7 @@ export class CrmController {
   // ── Funil / kanban (F2.1 #514) ──────────────────────────────────────────────
 
   @Get('board')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Board kanban do funil (estágios + leads por coluna)' })
   @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'all'] })
   @ApiQuery({ name: 'source', required: false })
@@ -554,14 +590,14 @@ export class CrmController {
   }
 
   @Patch('leads/:id/move')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.move')
   @ApiOperation({ summary: 'Mover lead no kanban (estágio + posição drag&drop)' })
   move(@Param('id') id: string, @Body() dto: MoveLeadDto, @CurrentUser() user: any) {
     return this.funnel.moveLead(user.companyId, id, dto, user.id);
   }
 
   @Get('lost-reasons')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.dashboard.view')
   @ApiOperation({ summary: 'Motivos de perda agregados' })
   lostReasons(@CurrentUser() user: any) {
     return this.funnel.lostReasons(user.companyId);
@@ -570,6 +606,7 @@ export class CrmController {
   // ── SLA (F2.3 #516) ─────────────────────────────────────────────────────────
 
   @Get('sla')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Painel de SLA: leads estourando e esfriando' })
   @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'all'] })
   sla(@CurrentUser() user: any, @Query('scope') scope?: 'mine' | 'all') {
@@ -579,14 +616,14 @@ export class CrmController {
   // ── Conversão (F2.2 #515) ───────────────────────────────────────────────────
 
   @Post('leads/:id/convert')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.convert')
   @ApiOperation({ summary: 'Converter lead em cliente (pré-preenche a OV)' })
   convert(@Param('id') id: string, @CurrentUser() user: any) {
     return this.conversion.convertToCustomer(user.companyId, id, user.id);
   }
 
   @Post('leads/:id/link-order')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.convert')
   @ApiOperation({ summary: 'Vincular OV criada ao lead (fecha via SALE_INVOICED)' })
   linkOrder(@Param('id') id: string, @Body() dto: LinkOrderDto, @CurrentUser() user: any) {
     return this.conversion.linkSalesOrder(user.companyId, id, dto.salesOrderId);
@@ -595,6 +632,7 @@ export class CrmController {
   // ── Inbox (F1.3 #509) ──────────────────────────────────────────────────────
 
   @Get('conversations')
+  @RequirePermission('crm.conversations.view')
   @ApiOperation({ summary: 'Conversas WhatsApp da loja (inbox)' })
   @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'all'] })
   @ApiQuery({ name: 'search', required: false })
@@ -611,6 +649,7 @@ export class CrmController {
   }
 
   @Get('stages')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Estágios do funil da loja' })
   stages(@CurrentUser() user: any) {
     return this.crm.listStages(user.companyId);
@@ -619,14 +658,14 @@ export class CrmController {
   // ── Leads ──────────────────────────────────────────────────────────────────
 
   @Post('leads')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.create')
   @ApiOperation({ summary: 'Registrar lead manualmente (telefone/balcão) — F1.6' })
   create(@Body() dto: IntakeLeadDto, @CurrentUser() user: any) {
     return this.leadIntake.intake(user.companyId, dto);
   }
 
   @Get('leads/distribution')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.distribution.view')
   @ApiOperation({ summary: 'Distribuição de leads por vendedor no dia (rodízio)' })
   @ApiQuery({ name: 'day', required: false, description: 'YYYY-MM-DD (default: hoje)' })
   distribution(@CurrentUser() user: any, @Query('day') day?: string) {
@@ -634,13 +673,14 @@ export class CrmController {
   }
 
   @Get('leads/:id')
+  @RequirePermission('crm.leads.view')
   @ApiOperation({ summary: 'Detalhe do lead com timeline (painel do inbox)' })
   lead(@Param('id') id: string, @CurrentUser() user: any) {
     return this.crm.getLead(user.companyId, id);
   }
 
   @Patch('leads/:id/stage')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER', 'COMMERCIAL', 'STORE')
+  @RequirePermission('crm.leads.move')
   @ApiOperation({ summary: 'Troca rápida de estágio (Perdido exige motivo)' })
   changeStage(
     @Param('id') id: string,
@@ -658,7 +698,7 @@ export class CrmController {
   }
 
   @Patch('leads/:id/assignee')
-  @Roles('SUPER_ADMIN', 'DIRECTOR', 'MANAGER')
+  @RequirePermission('crm.leads.reassign')
   @ApiOperation({ summary: 'Reatribuir lead a outro vendedor (gerente)' })
   reassign(
     @Param('id') id: string,

@@ -6,12 +6,17 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PermissionService } from '../iam/permission.service';
 import { QuickReplyService, RequestActor } from './quick-reply.service';
 
 const COMPANY = 'company-1';
-const SELLER: RequestActor = { id: 'seller-1', companyId: COMPANY, role: 'COMMERCIAL' };
-const OTHER_SELLER: RequestActor = { id: 'seller-2', companyId: COMPANY, role: 'STORE' };
-const MANAGER: RequestActor = { id: 'manager-1', companyId: COMPANY, role: 'MANAGER' };
+const SELLER: RequestActor = { id: 'seller-1', companyId: COMPANY };
+const OTHER_SELLER: RequestActor = { id: 'seller-2', companyId: COMPANY };
+const MANAGER: RequestActor = { id: 'manager-1', companyId: COMPANY };
+
+/** Bloco F (#624): a gestão ampliada agora vem do IAM v2, nunca do enum —
+ *  no teste, só o "manager-1" tem crm.quick-replies.manage-all. */
+const MANAGE_ALL_USERS = new Set([MANAGER.id]);
 
 describe('QuickReplyService (F3.5-C3 #553)', () => {
   let service: QuickReplyService;
@@ -28,7 +33,19 @@ describe('QuickReplyService (F3.5-C3 #553)', () => {
       },
     };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [QuickReplyService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        QuickReplyService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: PermissionService,
+          useValue: {
+            hasPermission: jest.fn(
+              async (userId: string, _companyId: string, code: string) =>
+                code === 'crm.quick-replies.manage-all' && MANAGE_ALL_USERS.has(userId),
+            ),
+          },
+        },
+      ],
     }).compile();
     service = module.get(QuickReplyService);
   });

@@ -180,6 +180,68 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['adjust', 'ajustar', 'PATCH /forecast/:id/adjust'],
   ]),
 
+  // ── crm ── (crm.controller.ts + whatsapp.controller.ts + connectors/*.controller.ts)
+  // Bloco F da migração IAM v2 (#624, decisões D1–D7 do Rafael, 13/07/2026):
+  // visibilidade e atuação por LOJA (Company = loja no CRM; escopo Branch fica
+  // reservado à 347-B), paridade VENDEDOR × LOJA_OPERACIONAL, LGPD restrita à
+  // alta gestão. Webhooks @Public (WhatsApp/Meta/ML/OLX/site) e o SDR_ACTOR
+  // ficam FORA do RBAC de usuário — allowlist no route-gate-coverage.spec.
+  ...r('crm', 'leads', 'Leads (CRM)', [
+    ['view', 'ver funil', 'GET /crm/board, /crm/leads/:id, /crm/stages, /crm/sla, /crm/leads/:id/reminders, /crm/reminders'],
+    ['create', 'registrar manualmente', 'POST /crm/leads (telefone/balcão — F1.6)'],
+    ['move', 'movimentar/qualificar', 'PATCH /crm/leads/:id/move, /crm/leads/:id/stage (Perdido exige categoria de motivo)'],
+    ['convert', 'converter em cliente/venda', 'POST /crm/leads/:id/convert, /crm/leads/:id/link-order'],
+    ['annotate', 'notas e lembretes próprios', 'POST /crm/leads/:id/notes, /crm/leads/:id/reminders, PATCH /crm/reminders/:id/done, DELETE /crm/reminders/:id (lembrete de TERCEIRO exige crm.reminders.manage-all)'],
+    ['list', 'lista mestre', 'GET /crm/leads'],
+    ['export', 'exportar CSV', 'GET /crm/leads.csv'],
+    ['reassign', 'reatribuir (individual)', 'PATCH /crm/leads/:id/assignee — D6: coordenador resolve ajustes do dia a dia'],
+    ['bulk-reassign', 'reatribuir em massa', 'POST /crm/leads/bulk/reassign (gerencial)'],
+    ['bulk-stage', 'mudar estágio em massa', 'POST /crm/leads/bulk/stage (gerencial)'],
+  ]),
+  ...r('crm', 'conversations', 'Conversas (inbox WhatsApp)', [
+    ['view', 'ver', 'GET /crm/conversations, /whatsapp/leads/:leadId/messages, /whatsapp/media/:messageId, /crm/templates, /crm/quick-replies'],
+  ]),
+  ...r('crm', 'messages', 'Mensagens WhatsApp', [
+    ['send', 'enviar mensagem/mídia ativa', 'POST /whatsapp/leads/:leadId/messages, /whatsapp/leads/:leadId/media (auditada por sentById; digitar = takeover implícito da SDR)'],
+  ]),
+  ...r('crm', 'templates', 'Templates WhatsApp', [
+    ['send', 'disparar no lead', 'POST /crm/leads/:id/template (janela 24h expirada — custo Meta)'],
+    ['sync', 'sincronizar com o Meta', 'POST /crm/templates/sync (gerencial)'],
+  ]),
+  ...r('crm', 'proposals', 'Propostas (PDF no WhatsApp)', [
+    ['send', 'gerar opções e enviar', 'GET /crm/leads/:id/proposal-options + POST /crm/leads/:id/send-proposal (#572 — o GET só alimenta o envio, revisão Claudinho #624)'],
+  ]),
+  ...r('crm', 'quick-replies', 'Respostas rápidas', [
+    ['manage', 'gerir as próprias (pessoais)', 'POST/PATCH/DELETE /crm/quick-replies* (escopo PERSONAL do próprio usuário)'],
+    ['manage-all', 'gerir compartilhadas da loja e pessoais de terceiros', 'complementar condicional nas mesmas rotas — substitui o STORE_MANAGER_ROLES (enum) do service'],
+  ]),
+  ...r('crm', 'reminders', 'Lembretes de terceiros', [
+    ['manage-all', 'concluir/remover lembrete de outro usuário', 'complementar condicional em PATCH /crm/reminders/:id/done e DELETE /crm/reminders/:id — substitui o MANAGER_ROLES (enum) do service'],
+  ]),
+  ...r('crm', 'sdr', 'SDR IA', [
+    ['takeover', 'assumir conversa da IA', 'POST /crm/leads/:id/sdr/takeover (IA silencia; dono do lead não muda)'],
+    ['monitor', 'monitorar', 'GET /crm/sdr/overview, /crm/sdr/discards, /crm/sdr/incidents'],
+    ['operate', 'reverter descarte', 'POST /crm/sdr/discards/:leadId/revert (SÓ esta rota — o kill switch sdrEnabled vive em crm.settings.update, revisão Claudinho #624)'],
+  ]),
+  ...r('crm', 'connectors', 'Conectores (marketplaces)', [
+    ['answer', 'responder pergunta do Mercado Livre', 'POST /crm/connectors/leads/:leadId/ml-answer/:questionId'],
+  ]),
+  ...r('crm', 'distribution', 'Rodízio de captação', [
+    ['view', 'ver relatório', 'GET /crm/leads/distribution'],
+  ]),
+  ...r('crm', 'dashboard', 'Dashboard do CRM', [
+    ['view', 'ver', 'GET /crm/dashboard, /crm/lost-reasons'],
+    ['export', 'exportar CSV', 'GET /crm/dashboard/source.csv'],
+  ]),
+  ...r('crm', 'settings', 'Configurações do CRM', [
+    ['view', 'ver', 'GET /crm/settings, /crm/settings/sellers'],
+    ['update', 'alterar configurações operacionais', 'PATCH /crm/settings (SEM leadRetentionDays — exige crm.lgpd.retention-update), PATCH /crm/settings/sellers/:userId/availability'],
+  ]),
+  ...r('crm', 'lgpd', 'LGPD do CRM', [
+    ['retention-update', 'alterar política de retenção', 'complementar condicional em PATCH /crm/settings quando o payload contém leadRetentionDays — o expurgo diário (03h) anonimiza PERDIDOS antigos de forma irreversível'],
+    ['anonymize', 'anonimizar lead (irreversível)', 'POST /crm/leads/:id/anonymize — apaga identidade + conversa inteira; exclusiva da alta gestão (D5)'],
+  ]),
+
   // ── purchases ── (purchase, rfq, inbound-nfe controllers)
   ...r('purchases', 'orders', 'Pedidos de compra', [
     ['view', 'ver', 'GET /purchase/orders, GET /purchase/orders/:id, /purchase/orders/:id/receiving-status'],

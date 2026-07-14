@@ -77,9 +77,59 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     code !== 'sales.deliveries.view' &&
     code !== 'dashboard.finance.view' &&
     code !== 'suppliers.portal-tokens.view' &&
+    // Bloco F (#624, decisão Rafael D4): SOMENTE_LEITURA consulta o funil
+    // (crm.leads.view) mas NÃO lê o conteúdo das conversas nem as leituras
+    // gerenciais do CRM (dashboard, rodízio, settings).
+    (!code.startsWith('crm.') || code === 'crm.leads.view') &&
     // Trilha de auditoria (iam.*) é sensível: fora do perfil somente-leitura
     !code.startsWith('iam.'),
 );
+
+/**
+ * Bloco F (#624, decisões D1–D7 do Rafael, 13/07/2026) — pacote OPERACIONAL
+ * do CRM: as 12 permissões do vendedor. Paridade VENDEDOR × LOJA_OPERACIONAL
+ * (D3): os dois perfis recebem exatamente este conjunto.
+ */
+const CRM_OPERACIONAL = [
+  'crm.leads.view',
+  'crm.conversations.view',
+  'crm.leads.create',
+  'crm.leads.move',
+  'crm.leads.convert',
+  'crm.leads.annotate',
+  'crm.messages.send',
+  'crm.templates.send',
+  'crm.proposals.send',
+  'crm.sdr.takeover',
+  'crm.connectors.answer',
+  'crm.quick-replies.manage',
+];
+
+/**
+ * Bloco F (#624) — pacote GERENCIAL do CRM SEM as duas ações LGPD
+ * (crm.lgpd.anonymize e crm.lgpd.retention-update, exclusivas de
+ * GERENTE_GERAL/DIRETOR/ADMIN_EMPRESA/ADMIN_GLOBAL — decisão D5).
+ * Lista EXPLÍCITA por decisão do Rafael (D7): nestes perfis NUNCA usam
+ * moduleCodes('crm') — cada permissão crm.* futura exige revisão consciente
+ * antes de entrar aqui.
+ */
+const CRM_GERENCIAL_SEM_LGPD = [
+  'crm.leads.list',
+  'crm.leads.export',
+  'crm.leads.reassign',
+  'crm.leads.bulk-reassign',
+  'crm.leads.bulk-stage',
+  'crm.distribution.view',
+  'crm.dashboard.view',
+  'crm.dashboard.export',
+  'crm.settings.view',
+  'crm.settings.update',
+  'crm.templates.sync',
+  'crm.sdr.monitor',
+  'crm.sdr.operate',
+  'crm.quick-replies.manage-all',
+  'crm.reminders.manage-all',
+];
 
 export const SYSTEM_ROLES: SystemRoleDef[] = [
   // ── Nível Sistema ──────────────────────────────────────────────────────────
@@ -126,6 +176,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // #347 (F5.2 fase 1): enxerga a estrutura organizacional da empresa
       // (o recorte por filial vem na fase 2 do enforcement).
       'iam.org.view',
+      // Bloco F (#624, D7): opera E gere o CRM da filial (Opção C) — lista
+      // explícita, NUNCA moduleCodes('crm'); SEM as duas ações LGPD. Ressalva
+      // de arquitetura: vale para o modelo atual Company = loja; se uma
+      // Company vier a ter múltiplas filiais no CRM, rever o alcance
+      // gerencial na 347-B antes de atribuir este perfil nesse cenário.
+      ...CRM_OPERACIONAL,
+      ...CRM_GERENCIAL_SEM_LGPD,
     ]),
   },
 
@@ -183,6 +240,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // gerenciar perfis/permissões. iam.org.view entra pelo actionCodes('view').
       'iam.org.manage',
       'iam.org.assign',
+      // Bloco F (#624, D5): CRM completo 29/29, incluindo as duas ações LGPD
+      // (o DIRECTOR legado tinha todas as rotas do CRM — zero regressão).
+      // As leituras crm.*.view já entram pelo actionCodes('view') acima.
+      ...moduleCodes('crm'),
     ]),
   },
 
@@ -267,6 +328,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'approvals.requests.approve',
       // Analytics
       ...moduleCodes('analytics'),
+      // Bloco F (#624, D5): CRM completo 29/29 — o MANAGER legado tinha todas
+      // as rotas do CRM, incluindo anonimização; GERENTE_GERAL preserva
+      // (espelhamento obrigatório, zero regressão).
+      ...moduleCodes('crm'),
     ]),
   },
   {
@@ -334,6 +399,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.reports.view',
       'analytics.reports.create',
       'analytics.export.execute',
+      // Bloco F (#624, D5/D7): dono do domínio comercial — CRM operacional +
+      // gerencial completos por lista explícita; SEM as duas ações LGPD
+      // (anonymize/retention-update, exclusivas da alta gestão).
+      ...CRM_OPERACIONAL,
+      ...CRM_GERENCIAL_SEM_LGPD,
     ]),
   },
   {
@@ -400,6 +470,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.quotations.expire',
       'sales.quotations.delete',
       'sales.orders.cancel',
+      // Bloco F (#624, D6): coordenador ACOMPANHA (lista mestre, dashboard,
+      // rodízio, monitor da SDR) e resolve ajustes individuais do dia a dia
+      // (reatribuir UM lead — almoço/falta/lead mal encaixado). SEM operações
+      // em massa, exports, settings, sdr.operate, LGPD e SEM as complementares
+      // de gestão (quick-replies.manage-all / reminders.manage-all).
+      'crm.leads.list',
+      'crm.dashboard.view',
+      'crm.distribution.view',
+      'crm.sdr.monitor',
+      'crm.leads.reassign',
     ],
   },
 
@@ -474,6 +554,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'products.pricing.view',
       'products.pricing.create',
       'stock.balances.view',
+      // Bloco F (#624, D1–D3): vendedor opera o CRM da loja inteira — vê e
+      // atua em qualquer lead da loja (atuar não muda o assignedTo).
+      ...CRM_OPERACIONAL,
     ]),
   },
   {
@@ -731,7 +814,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Vê TUDO (inclusive financeiro, comissões, usuários, LGPD, fila de aprovações e a trilha de auditoria iam.audit-logs) e exporta; nenhuma mutação.',
     permissions: dedupe([
-      ...actionCodes('view'),
+      // Bloco F (#624, decisão Rafael D4): no CRM o auditor lê o funil e as
+      // conversas (crm.leads.view + crm.conversations.view, que entram pelo
+      // actionCodes abaixo); as leituras GERENCIAIS do CRM (rodízio,
+      // dashboard, settings) ficam FORA — ampliação só por decisão específica.
+      ...actionCodes('view').filter(
+        (code) =>
+          !code.startsWith('crm.') ||
+          code === 'crm.leads.view' ||
+          code === 'crm.conversations.view',
+      ),
       'analytics.export.execute',
       // #623 (E1, decisão Rafael): auditor exporta os pacotes de auditoria —
       // management book e massa fiscal (XMLs) — sem nenhuma mutação.
@@ -797,6 +889,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // própria venda (o STORE legado fazia) — decisão Rafael.
       'sales.deliveries.view',
       'sales.deliveries.update',
+      // Bloco F (#624, D3): paridade com o VENDEDOR no CRM — o balcão atende
+      // WhatsApp, conduz e converte o lead da loja (o STORE legado fazia).
+      ...CRM_OPERACIONAL,
     ]),
   },
   {
@@ -827,6 +922,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.carriers.view',
       'analytics.dashboards.view',
       'analytics.reports.view',
+      // Bloco F (#624, D5/D7): gere o CRM da loja (as 12 operacionais vêm por
+      // herança de LOJA_OPERACIONAL); lista explícita — SEM crm.lgpd.anonymize
+      // e SEM crm.lgpd.retention-update (exclusivas da alta gestão).
+      ...CRM_GERENCIAL_SEM_LGPD,
     ]),
   },
 ];

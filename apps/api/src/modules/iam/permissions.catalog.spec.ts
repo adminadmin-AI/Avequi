@@ -44,6 +44,7 @@ describe('Catálogo de permissões (#338)', () => {
       'customers',
       'suppliers',
       'sales',
+      'crm',
       'purchases',
       'stock',
       'production',
@@ -86,7 +87,15 @@ describe('Catálogo de permissões (#338)', () => {
     //       codes que já existiam; nenhum code novo para isso.)
     // 269 = 266 + 3 da integração RENAVE/SERPRO (#529-#533, épico #527):
     //       vehicle-tracking.renave.{view,retry,manage}.
-    expect(PERMISSIONS_CATALOG.length).toBe(269);
+    // 298 = 269 + 29 do Bloco F/CRM (#624, decisões D1–D7 Rafael 13/07/2026):
+    //       crm.leads.{view,create,move,convert,annotate,list,export,reassign,
+    //       bulk-reassign,bulk-stage} + crm.conversations.view +
+    //       crm.messages.send + crm.templates.{send,sync} + crm.proposals.send
+    //       + crm.quick-replies.{manage,manage-all} + crm.reminders.manage-all
+    //       + crm.sdr.{takeover,monitor,operate} + crm.connectors.answer +
+    //       crm.distribution.view + crm.dashboard.{view,export} +
+    //       crm.settings.{view,update} + crm.lgpd.{retention-update,anonymize}.
+    expect(PERMISSIONS_CATALOG.length).toBe(298);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
