@@ -326,6 +326,18 @@ function allocateFreight(items: FiscalItem[], value?: number): number[] | undefi
   });
 }
 
+/**
+ * xProd do item veicular sai "DESCRIÇÃO - CHASSI XXXXXXXXXXXXXXXXX" — exigência
+ * do quadro na validação do DANFE (14/07). xProd aceita 120 chars no XSD: a
+ * descrição é clampada para o chassi nunca ser cortado.
+ */
+export function buildItemDescription(item: FiscalItem): string {
+  const chassi = item.vehicle?.chassi;
+  if (!chassi) return item.name;
+  const suffix = ` - CHASSI ${chassi}`;
+  return item.name.slice(0, 120 - suffix.length) + suffix;
+}
+
 function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, freightShare?: number) {
   const t = item.tax;
   return {
@@ -333,7 +345,7 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, fr
     // vFrete rateado do item — o vFrete do ICMSTot é o somatório (#481)
     ...(freightShare != null && freightShare > 0 && { valor_frete: freightShare }),
     codigo_produto: item.sku,
-    descricao: item.name,
+    descricao: buildItemDescription(item),
     cfop: t?.cfop ?? defaultCfop,
     unidade_comercial: item.unit,
     quantidade_comercial: item.quantity,

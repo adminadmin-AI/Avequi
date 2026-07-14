@@ -187,6 +187,41 @@ describe('fiscal-mapper', () => {
     });
   });
 
+  describe('descrição do item veicular — xProd com chassi', () => {
+    const vehicle = {
+      tipoOperacao: '0', chassi: '9BGRD08X0XG020000', codigoCor: '02', descricaoCor: 'PRATA',
+      potenciaMotor: 0, cilindrada: 0, pesoLiquido: '0.850', pesoBruto: '1.000',
+      serie: 'SN20000', tipoCombustivel: '11', numeroMotor: '0',
+      anoModelo: 2026, anoFabricacao: 2026, tipoPintura: 'S', tipoVeiculo: '10',
+      especieVeiculo: '2', vin: 'N', condicao: '1', codigoMarcaModelo: '600657',
+      corDenatran: '10', lotacao: 0, restricao: '0',
+    };
+
+    it('concatena descrição + chassi quando o item tem veicProd', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], vehicle }],
+      }) as any;
+      expect(payload.items[0].descricao).toBe('Produto A - CHASSI 9BGRD08X0XG020000');
+      expect(payload.items[0].veiculo_chassi).toBe('9BGRD08X0XG020000');
+    });
+
+    it('mantém a descrição pura quando o item não é veicular', () => {
+      const payload = buildNFePayload(baseInput) as any;
+      expect(payload.items[0].descricao).toBe('Produto A');
+    });
+
+    it('clampa a descrição em 120 chars sem nunca cortar o chassi', () => {
+      const payload = buildNFePayload({
+        ...baseInput,
+        items: [{ ...baseInput.items[0], name: 'X'.repeat(150), vehicle }],
+      }) as any;
+      const descricao = payload.items[0].descricao as string;
+      expect(descricao.length).toBe(120);
+      expect(descricao.endsWith(' - CHASSI 9BGRD08X0XG020000')).toBe(true);
+    });
+  });
+
   describe('buildTransferNFePayload', () => {
     it('usa CFOP 5152 para transferência dentro do estado', () => {
       const payload = buildTransferNFePayload({

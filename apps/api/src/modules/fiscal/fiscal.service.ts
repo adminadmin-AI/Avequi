@@ -8,6 +8,7 @@ import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import { FISCAL_AUTHORIZED_EVENT, FiscalAuthorizedEvent } from './events/fiscal-authorized.event';
 import {
+  buildItemDescription,
   buildNFCePayload,
   buildNFePayload,
   buildTransferNFePayload,
@@ -946,7 +947,8 @@ export class FiscalService {
           fiscalDocumentId,
           productId: oi?.product?.id ?? null,
           productCode: fi.sku,
-          productName: fi.name,
+          // mesmo xProd transmitido — item veicular persiste "NOME - CHASSI ..."
+          productName: buildItemDescription(fi),
           ncm: fi.ncm,
           cfop: fi.tax?.cfop ?? null,
           unit: fi.unit,
