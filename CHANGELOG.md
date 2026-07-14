@@ -6,6 +6,12 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-14
+
+### Added
+- feat(api): descrição do item da NF-e concatena o chassi (xProd) (#733)
+- IAM Bloco F: migração RBAC v2 do CRM — família crm.* com 29 permissões (#726)
+
 ## [1.13.1] - 2026-07-13
 
 ### Added
@@ -185,7 +191,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.1...v1.14.0
 [1.13.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.11.1...v1.12.0
