@@ -116,8 +116,17 @@ class SendTemplateDto {
   variables?: string[];
 }
 
-class UpdateSettingsDto {
+export class UpdateSettingsDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() slaFirstResponseMin?: number;
+  @ApiPropertyOptional({ description: 'Escalação de SLA: realoca o lead pelo rodízio ao estourar N× o SLA (#569)' })
+  @IsOptional()
+  @IsBoolean()
+  slaEscalationEnabled?: boolean;
+  @ApiPropertyOptional({ description: 'Fator N da escalação (mínimo 2× o SLA de 1ª resposta)' })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  slaEscalationFactor?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() coolingHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @IsPositive() reopenLostDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() autoFollowupEnabled?: boolean;
