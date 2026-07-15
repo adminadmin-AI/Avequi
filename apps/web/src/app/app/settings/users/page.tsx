@@ -28,7 +28,7 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useList<User>(RESOURCE, undefined, {
     enabled: canManage,
   });
-  const create = useCreate<User, UserFormValues>(RESOURCE);
+  const create = useCreate<User, UserFormValues & { mustChangePassword?: boolean }>(RESOURCE);
   const update = useUpdate<User>(RESOURCE);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,8 +57,13 @@ export default function UsersPage() {
         },
       );
     } else {
+      // MEDIDA TEMPORÁRIA (#735): o web ainda não tem a tela de "definir nova
+      // senha", então um usuário criado com mustChangePassword=true (padrão do
+      // backend, decisão #468) fica IMPEDIDO de entrar — o login devolve o
+      // token restrito de troca e a tela de login não o trata. Enviamos
+      // false explicitamente até a tela existir; REVERTER junto com a #735.
       create.mutate(
-        values,
+        { ...values, mustChangePassword: false },
         {
           onSuccess: () => {
             toast.success('Usuário criado');
