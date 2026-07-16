@@ -90,6 +90,10 @@ export default function ChangePasswordPage() {
           passwordChangeToken={pending.passwordChangeToken}
           submitLabel="Definir senha e entrar"
           onSuccess={handleSuccess}
+          onRestrictedTokenRejected={() => {
+            clearPendingPasswordChange(window.sessionStorage);
+            router.replace('/login?reason=password-change-expired');
+          }}
         />
       </div>
     </div>

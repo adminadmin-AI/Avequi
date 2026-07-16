@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { checkRouteAccess } from './nav-config';
 import {
   PASSWORD_CHANGE_TOKEN_TTL_MS,
   PENDING_PASSWORD_CHANGE_KEY,
@@ -53,6 +54,24 @@ describe('handoff login → /change-password (#735)', () => {
     storePendingPasswordChange(storage, pending);
     clearPendingPasswordChange(storage);
     expect(readPendingPasswordChange(storage)).toBeNull();
+  });
+});
+
+describe('rota /app/account/password (#736) — autenticada, sem permissão de módulo', () => {
+  /**
+   * Contrato do RouteGuard travado por teste: a rota NÃO entra no NAV de
+   * propósito (autoatendimento) → status "unmapped" = liberada para QUALQUER
+   * perfil autenticado, sem gate de permissão/role. A autenticação em si vem
+   * de fora do RouteGuard: o AppLayout redireciona não autenticado p/ /login
+   * e o backend exige Bearer + senha atual no POST /auth/change-password.
+   * Se alguém mapear a rota no NAV com permission/roles, este teste quebra
+   * e a decisão precisa ser revisitada.
+   */
+  it('não é mapeada no NAV → RouteGuard libera p/ qualquer autenticado', () => {
+    const semPermissoes = { role: 'READER', can: () => false };
+    expect(checkRouteAccess('/app/account/password', semPermissoes)).toEqual({
+      status: 'unmapped',
+    });
   });
 });
 

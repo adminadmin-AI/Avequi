@@ -35,12 +35,19 @@ export function PasswordChangeForm({
   passwordChangeToken,
   submitLabel,
   onSuccess,
+  onRestrictedTokenRejected,
 }: {
   mode: 'forced' | 'voluntary';
   /** Obrigatório no modo forced. */
   passwordChangeToken?: string;
   submitLabel: string;
   onSuccess: (newPassword: string) => void | Promise<void>;
+  /**
+   * Modo forced: chamado quando o backend rejeita o passwordChangeToken
+   * (401 — inválido/expirado). Retentar é inútil; o dono do fluxo limpa o
+   * handoff e devolve o usuário ao login.
+   */
+  onRestrictedTokenRejected?: () => void;
 }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -80,6 +87,13 @@ export function PasswordChangeForm({
       );
       await onSuccess(newPassword);
     } catch (err) {
+      // Token restrito rejeitado (forced): sem retry possível — devolve o
+      // controle ao dono do fluxo (limpa handoff + volta ao login).
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (mode === 'forced' && status === 401 && onRestrictedTokenRejected) {
+        onRestrictedTokenRejected();
+        return;
+      }
       setError(resolveChangePasswordError(err));
       setLoading(false);
     }

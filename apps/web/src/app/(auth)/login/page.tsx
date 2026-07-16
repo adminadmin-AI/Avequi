@@ -15,7 +15,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
-import { storePendingPasswordChange } from '@/lib/password-change';
+import { clearPendingPasswordChange, storePendingPasswordChange } from '@/lib/password-change';
 import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +45,10 @@ export default function LoginPage() {
 
   // Carrega e-mail lembrado + detecta avisos vindos por ?reason= (sessão
   // expirada, senha recém-trocada, handoff de troca de senha vencido).
+  // Voltar ao login invalida qualquer handoff pendente de troca de senha —
+  // um novo login emite token novo; o antigo não deve sobreviver aqui.
   useEffect(() => {
+    clearPendingPasswordChange(window.sessionStorage);
     const saved = localStorage.getItem(REMEMBER_KEY);
     if (saved) {
       setEmail(saved);
