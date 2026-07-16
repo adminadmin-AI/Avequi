@@ -1,8 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
+import { SessionService } from '../iam/session.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -12,7 +13,15 @@ const mockPrisma = {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
   },
+  userRoleAssignment: {
+    count: jest.fn(),
+  },
+};
+
+const mockSessionService = {
+  revokeAllSessions: jest.fn().mockResolvedValue(0),
 };
 
 // #468: mock do PasswordPolicyService (validação real coberta em
@@ -45,6 +54,7 @@ describe('UserService', () => {
         UserService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        { provide: SessionService, useValue: mockSessionService },
       ],
     }).compile();
 
@@ -147,10 +157,16 @@ describe('UserService', () => {
     beforeEach(() => {
       mockPrisma.user.findFirst.mockResolvedValue(SAFE_USER);
       mockPrisma.user.update.mockResolvedValue(SAFE_USER);
+      // Defaults das proteções: alvo NÃO é admin global; há 1 outro admin
+      // ativo; revogação de sessões funciona. Cada teste sobrescreve o que
+      // precisar — o beforeEach garante que um teste não vaza p/ o outro.
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(0);
+      mockPrisma.user.count.mockResolvedValue(1);
+      mockSessionService.revokeAllSessions.mockResolvedValue(0);
     });
 
     it('re-hasheia a senha quando o update inclui password', async () => {
-      await service.update('user-1', { password: 'NovaSenha@1' } as any, 'co-1');
+      await service.update('user-1', { password: 'NovaSenha@1' } as any, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       // senha em claro nao pode chegar ao banco
@@ -164,7 +180,7 @@ describe('UserService', () => {
     });
 
     it('NAO toca no passwordHash quando o update nao envia password', async () => {
-      await service.update('user-1', { name: 'Novo Nome' } as any, 'co-1');
+      await service.update('user-1', { name: 'Novo Nome' } as any, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.passwordHash).toBeUndefined();
@@ -173,23 +189,137 @@ describe('UserService', () => {
     });
 
     it('NAO toca no passwordHash quando password e string vazia', async () => {
-      await service.update('user-1', { password: '' } as any, 'co-1');
+      await service.update('user-1', { password: '' } as any, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.passwordHash).toBeUndefined();
+    });
+
+    it('inativa o usuário quando o update envia isActive=false (toggle da tela)', async () => {
+      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+
+      const args = mockPrisma.user.update.mock.calls[0][0];
+      expect(args.data.isActive).toBe(false);
+      expect(args.data.passwordHash).toBeUndefined();
+    });
+
+    it('reativa o usuário quando o update envia isActive=true', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...SAFE_USER, isActive: false });
+      await service.update('user-1', { isActive: true } as any, 'co-1', 'admin-1');
+
+      const args = mockPrisma.user.update.mock.calls[0][0];
+      expect(args.data.isActive).toBe(true);
+    });
+
+    // ── Proteções da inativação (16/07/2026) ─────────────────────────────────
+
+    it('AUTOINATIVAÇÃO: ator = alvo → 403 e NADA é persistido (nem outros campos)', async () => {
+      await expect(
+        service.update('user-1', { isActive: false, name: 'Hacker' } as any, 'co-1', 'user-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('autoedição SEM inativação (ex.: nome) segue permitida', async () => {
+      await service.update('user-1', { name: 'Novo Nome' } as any, 'co-1', 'user-1');
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+
+    it('ÚLTIMO ADMIN GLOBAL ativo: inativação rejeitada com 409, nada persistido', async () => {
+      // alvo TEM vínculo ADMIN_GLOBAL efetivo; nenhum OUTRO admin ativo
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1);
+      mockPrisma.user.count.mockResolvedValue(0);
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('admin global PODE ser inativado quando existe OUTRO admin global ativo', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      mockPrisma.user.count.mockResolvedValue(1); // e existe outro ativo
+
+      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      const args = mockPrisma.user.update.mock.calls[0][0];
+      expect(args.data.isActive).toBe(false);
+    });
+
+    it('CORRIDA: pós-checagem zerou os admins → reverte a inativação e rejeita', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      // pré-checagem vê 1 outro admin; pós-checagem (após persistir) vê 0
+      mockPrisma.user.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      // 1ª chamada inativou; 2ª chamada é a COMPENSAÇÃO (isActive: true)
+      const calls = mockPrisma.user.update.mock.calls;
+      expect(calls[0][0].data.isActive).toBe(false);
+      expect(calls[1][0].data).toEqual({ isActive: true });
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('CORRIDA: compensação TAMBÉM falha → log crítico + erro ao cliente (nunca sucesso)', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      mockPrisma.user.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0); // corrida
+      // 1ª chamada (inativação) funciona; 2ª (compensação) falha
+      mockPrisma.user.update
+        .mockResolvedValueOnce(SAFE_USER)
+        .mockRejectedValueOnce(new Error('conexão caiu'));
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(/Falha ao proteger o último administrador global/);
+      // A compensação FOI tentada (2 updates) e a requisição NÃO retornou sucesso.
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(2);
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('SESSÕES: inativar revoga TODAS as sessões do alvo (reason SECURITY)', async () => {
+      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith('user-1', 'SECURITY');
+    });
+
+    it('SESSÕES: update comum (nome/papel) NÃO revoga nada', async () => {
+      await service.update('user-1', { name: 'Novo Nome', role: 'MANAGER' } as any, 'co-1', 'admin-1');
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('SESSÕES: update que MANTÉM inativo não revoga de novo; reativar não restaura', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...SAFE_USER, isActive: false });
+
+      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: true } as any, 'co-1', 'admin-1');
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('SESSÕES: falha na revogação NÃO desfaz a inativação (refresh já barra inativo #221)', async () => {
+      mockSessionService.revokeAllSessions.mockRejectedValueOnce(new Error('redis fora'));
+
+      const result = await service.update(
+        'user-1',
+        { isActive: false } as any,
+        'co-1',
+        'admin-1',
+      );
+      expect(result).toBeDefined();
+      expect(mockPrisma.user.update.mock.calls[0][0].data.isActive).toBe(false);
     });
 
     it('valida escopo de empresa antes de atualizar (anti-IDOR)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.update('user-1', { name: 'X' } as any, 'outra-co'),
+        service.update('user-1', { name: 'X' } as any, 'outra-co', 'admin-1'),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('usa select seguro (sem passwordHash) na resposta do update', async () => {
-      await service.update('user-1', { name: 'X' } as any, 'co-1');
+      await service.update('user-1', { name: 'X' } as any, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.select).toBeDefined();
