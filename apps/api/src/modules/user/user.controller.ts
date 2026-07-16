@@ -55,6 +55,8 @@ export class UserController {
   @RequirePermission('settings.users.update')
   @ApiOperation({ summary: 'Atualizar usuário' })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: any) {
-    return this.userService.update(id, dto, user.companyId);
+    // user.id (do JWT) identifica o ATOR — usado pelo bloqueio de
+    // autoinativação; nunca vem do body.
+    return this.userService.update(id, dto, user.companyId, user.id);
   }
 }

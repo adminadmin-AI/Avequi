@@ -74,7 +74,7 @@ describe('UserController', () => {
   });
 
   describe('update', () => {
-    it('usa o companyId do JWT para escopo do update', async () => {
+    it('usa companyId E id do ATOR vindos do JWT (escopo + bloqueio de autoinativação)', async () => {
       mockUserService.update.mockResolvedValue({ id: 'user-2' });
 
       await controller.update('user-2', { name: 'Novo' } as any, CURRENT_USER);
@@ -83,6 +83,7 @@ describe('UserController', () => {
         'user-2',
         { name: 'Novo' },
         'co-1',
+        'user-1',
       );
     });
   });

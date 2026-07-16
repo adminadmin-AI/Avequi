@@ -12,6 +12,8 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { usePermission } from '@/hooks/use-permission';
+import { canShowStatusToggle } from './permissions';
 import { roleLabel, roleVariant } from './roles';
 import { UserForm, type UserFormValues } from './user-form';
 
@@ -24,6 +26,10 @@ export default function UsersPage() {
 
   const toast = useToast();
   const confirm = useConfirm();
+  // Toggle Ativo/Inativo espelha a permissão real do backend
+  // (settings.users.update) — sem ela o botão nem aparece (fail-closed).
+  const { can } = usePermission();
+  const showStatusToggle = canShowStatusToggle(can);
 
   const { data: users = [], isLoading } = useList<User>(RESOURCE, undefined, {
     enabled: canManage,
@@ -85,7 +91,9 @@ export default function UsersPage() {
       { id: u.id, data: { isActive: !u.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Usuário inativado' : 'Usuário reativado'),
-        onError: () => toast.error('Erro ao alterar status'),
+        // Mostra o motivo real da API (ex.: 400 de validação, 403 de
+        // permissão) — o genérico escondia a causa e travou o diagnóstico.
+        onError: (e) => toast.error(resolveApiError(e, 'Erro ao alterar status')),
       },
     );
   }
@@ -128,23 +136,25 @@ export default function UsersPage() {
           >
             <Pencil size={15} />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleActive(u);
-            }}
-            disabled={u.id === currentUser?.id}
-            title={
-              u.id === currentUser?.id
-                ? 'Você não pode inativar a si mesmo'
-                : u.isActive
-                  ? 'Inativar'
-                  : 'Reativar'
-            }
-            className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-content-muted"
-          >
-            <Power size={15} />
-          </button>
+          {showStatusToggle && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleActive(u);
+              }}
+              disabled={u.id === currentUser?.id}
+              title={
+                u.id === currentUser?.id
+                  ? 'Você não pode inativar a si mesmo'
+                  : u.isActive
+                    ? 'Inativar'
+                    : 'Reativar'
+              }
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-content-muted"
+            >
+              <Power size={15} />
+            </button>
+          )}
         </div>
       ),
     },
@@ -213,4 +223,13 @@ export default function UsersPage() {
       </FormDialog>
     </div>
   );
+}
+
+/** Extrai a mensagem real da API (string ou array do class-validator). */
+function resolveApiError(err: unknown, fallback: string): string {
+  const message = (err as { response?: { data?: { message?: string | string[] } } })?.response
+    ?.data?.message;
+  if (Array.isArray(message)) return message.join('\n');
+  if (typeof message === 'string' && message) return message;
+  return fallback;
 }

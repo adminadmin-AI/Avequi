@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
+import { SessionService } from '../iam/session.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -44,6 +45,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         UserService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        { provide: SessionService, useValue: { revokeAllSessions: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
 
@@ -135,7 +137,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
 
   describe('update (reset de senha pelo admin)', () => {
     it('aplica complexidade + bloqueio de reuso antes de trocar', async () => {
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
 
       expect(mockPasswordPolicy.validateComplexity).toHaveBeenCalledWith('NovaSenha#2026x', {
         email: createdUser.email,
@@ -169,7 +171,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       );
 
       await expect(
-        service.update('user-novo', { password: 'Repetida#2026x' } as any, 'company-1'),
+        service.update('user-novo', { password: 'Repetida#2026x' } as any, 'company-1', 'admin-1'),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
@@ -179,6 +181,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         'user-novo',
         { password: 'NovaSenha#2026x', mustChangePassword: true } as any,
         'company-1',
+        'admin-1',
       );
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -189,7 +192,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('#468: reset por admin SEM a flag já força a troca (mustChangePassword=true por padrão)', async () => {
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -199,7 +202,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('update SEM senha não toca na política nem nos campos de senha', async () => {
-      await service.update('user-novo', { name: 'Novo Nome' } as any, 'company-1');
+      await service.update('user-novo', { name: 'Novo Nome' } as any, 'company-1', 'admin-1');
 
       expect(mockPasswordPolicy.validateComplexity).not.toHaveBeenCalled();
       expect(mockPasswordPolicy.assertNotReused).not.toHaveBeenCalled();
