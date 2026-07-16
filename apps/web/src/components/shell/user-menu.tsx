@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Building2, ChevronDown, LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { Building2, ChevronDown, KeyRound, LogOut, Moon, Settings, Sun } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { USER_ROLE_LABELS } from '@/lib/enums';
@@ -94,6 +94,12 @@ export function UserMenu() {
             }}
           >
             {isDark ? 'Tema claro' : 'Tema escuro'}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon={<KeyRound />}
+            onSelect={() => router.push('/app/account/password')}
+          >
+            Alterar senha
           </DropdownMenuItem>
           <DropdownMenuItem
             icon={<Settings />}

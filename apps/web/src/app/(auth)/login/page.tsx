@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   Boxes,
+  CheckCircle2,
   Eye,
   EyeOff,
   Factory,
@@ -14,6 +15,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
+import { clearPendingPasswordChange, storePendingPasswordChange } from '@/lib/password-change';
 import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,28 +41,47 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [errorKey, setErrorKey] = useState(0); // força re-trigger da animação de shake
-  const [sessionExpired, setSessionExpired] = useState(false);
+  const [notice, setNotice] = useState<'expired' | 'password-changed' | 'password-change-expired' | null>(null);
 
-  // Carrega e-mail lembrado + detecta sessão expirada (?reason=expired).
+  // Carrega e-mail lembrado + detecta avisos vindos por ?reason= (sessão
+  // expirada, senha recém-trocada, handoff de troca de senha vencido).
+  // Voltar ao login invalida qualquer handoff pendente de troca de senha —
+  // um novo login emite token novo; o antigo não deve sobreviver aqui.
   useEffect(() => {
+    clearPendingPasswordChange(window.sessionStorage);
     const saved = localStorage.getItem(REMEMBER_KEY);
     if (saved) {
       setEmail(saved);
       setRemember(true);
     }
     const params = new URLSearchParams(window.location.search);
-    if (params.get('reason') === 'expired') setSessionExpired(true);
+    const reason = params.get('reason');
+    if (reason === 'expired' || reason === 'password-changed' || reason === 'password-change-expired') {
+      setNotice(reason);
+    }
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setSessionExpired(false);
+    setNotice(null);
     try {
-      await login(email, password);
+      const result = await login(email, password);
       if (remember) localStorage.setItem(REMEMBER_KEY, email);
       else localStorage.removeItem(REMEMBER_KEY);
+      // Troca de senha obrigatória (#735): sem tokens finais — handoff do
+      // token restrito via sessionStorage (nunca URL) e segue para a tela
+      // de definição de nova senha.
+      if (result.passwordChangeRequired) {
+        storePendingPasswordChange(window.sessionStorage, {
+          passwordChangeToken: result.passwordChangeToken,
+          email,
+          passwordExpired: result.passwordExpired,
+        });
+        router.push('/change-password');
+        return;
+      }
       router.push('/app');
     } catch (err: unknown) {
       const message = resolveError(err);
@@ -150,7 +171,22 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {sessionExpired && (
+          {notice === 'password-changed' && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2.5 text-caption text-success-700 dark:border-success-900 dark:bg-success-900/20 dark:text-success-400">
+              <CheckCircle2 size={16} className="mt-px shrink-0" />
+              <span>Senha definida com sucesso! Entre com a sua nova senha.</span>
+            </div>
+          )}
+          {notice === 'password-change-expired' && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-caption text-warning-800 dark:border-warning-900 dark:bg-warning-900/20 dark:text-warning-300">
+              <AlertCircle size={16} className="mt-px shrink-0" />
+              <span>
+                O prazo para definir a nova senha expirou. Entre de novo com a senha provisória
+                para recomeçar.
+              </span>
+            </div>
+          )}
+          {notice === 'expired' && (
             <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-caption text-warning-800 dark:border-warning-900 dark:bg-warning-900/20 dark:text-warning-300">
               <AlertCircle size={16} className="mt-px shrink-0" />
               <span>Sua sessão expirou. Faça login novamente para continuar.</span>

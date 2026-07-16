@@ -401,11 +401,28 @@ export class AuthService {
     currentPassword?: string;
     newPassword: string;
   }) {
-    const { userId, sessionId, restricted } = this.resolveChangePasswordIdentity(input);
+    const { userId, sessionId, restricted, tokenIssuedAt } =
+      this.resolveChangePasswordIdentity(input);
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Sessão inválida. Faça login novamente.');
+    }
+
+    // Anti-replay do token restrito: o JWT é stateless, então um token
+    // capturado valeria pelos 10 min inteiros MESMO depois de a senha já ter
+    // sido trocada — permitindo uma segunda troca por cima da senha que o
+    // usuário acabou de definir. Token emitido ANTES da última troca
+    // (iat < passwordChangedAt) é rejeitado: cada troca invalida todos os
+    // tokens restritos anteriores. (iat vem em segundos; passwordChangedAt
+    // em ms — trunca o timestamp da troca para segundos p/ comparar justo.)
+    if (restricted && user.passwordChangedAt && tokenIssuedAt != null) {
+      const changedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (tokenIssuedAt < changedAtSeconds) {
+        throw new UnauthorizedException(
+          'Token de troca de senha inválido ou expirado. Faça login novamente.',
+        );
+      }
     }
 
     if (!restricted) {
@@ -481,7 +498,7 @@ export class AuthService {
   private resolveChangePasswordIdentity(input: {
     authorizationHeader?: string;
     passwordChangeToken?: string;
-  }): { userId: string; sessionId?: string; restricted: boolean } {
+  }): { userId: string; sessionId?: string; restricted: boolean; tokenIssuedAt?: number } {
     if (input.passwordChangeToken) {
       let payload: any;
       try {
@@ -496,7 +513,7 @@ export class AuthService {
           'Token de troca de senha inválido ou expirado. Faça login novamente.',
         );
       }
-      return { userId: payload.sub, restricted: true };
+      return { userId: payload.sub, restricted: true, tokenIssuedAt: payload.iat };
     }
 
     const header = input.authorizationHeader ?? '';

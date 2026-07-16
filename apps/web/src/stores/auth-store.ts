@@ -10,10 +10,22 @@ interface AuthUser {
   companyId: string;
 }
 
+/**
+ * Resultado do login (#735): quando o backend exige troca de senha (primeiro
+ * acesso com mustChangePassword ou senha vencida por rotação, #345), o
+ * /auth/login NÃO devolve tokens finais — devolve um passwordChangeToken
+ * restrito (10 min, só aceito pelo POST /auth/change-password). Nesse caso
+ * NADA é gravado no localStorage e o caller redireciona para a tela de
+ * definição de nova senha.
+ */
+export type LoginResult =
+  | { passwordChangeRequired: false }
+  | { passwordChangeRequired: true; passwordChangeToken: string; passwordExpired: boolean };
+
 interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
 }
 
@@ -25,9 +37,20 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         const { data } = await apiClient.post('/auth/login', { email, password });
+        // Troca de senha obrigatória (#735): sem tokens finais — antes deste
+        // guard o accessToken era gravado como a string "undefined" e o
+        // usuário "entrava e caía" de volta no login.
+        if (data.passwordChangeRequired) {
+          return {
+            passwordChangeRequired: true as const,
+            passwordChangeToken: data.passwordChangeToken as string,
+            passwordExpired: !!data.passwordExpired,
+          };
+        }
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
         set({ user: data.user, isAuthenticated: true });
+        return { passwordChangeRequired: false as const };
       },
 
       logout: async () => {
