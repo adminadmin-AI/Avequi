@@ -262,6 +262,22 @@ describe('UserService', () => {
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
 
+    it('CORRIDA: compensação TAMBÉM falha → log crítico + erro ao cliente (nunca sucesso)', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      mockPrisma.user.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0); // corrida
+      // 1ª chamada (inativação) funciona; 2ª (compensação) falha
+      mockPrisma.user.update
+        .mockResolvedValueOnce(SAFE_USER)
+        .mockRejectedValueOnce(new Error('conexão caiu'));
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(/Falha ao proteger o último administrador global/);
+      // A compensação FOI tentada (2 updates) e a requisição NÃO retornou sucesso.
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(2);
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
     it('SESSÕES: inativar revoga TODAS as sessões do alvo (reason SECURITY)', async () => {
       await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
       expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith('user-1', 'SECURITY');

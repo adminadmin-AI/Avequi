@@ -144,14 +144,39 @@ export class UserService {
     if (deactivating) {
       // Pós-checagem anti-corrida: duas inativações simultâneas de admins
       // globais podem AMBAS passar na pré-checagem (read committed). Se após
-      // persistir não restou NENHUM admin global ativo, desfaz e rejeita —
-      // na pior corrida os dois pedidos falham e os dois admins continuam
-      // ativos (fail-safe na direção segura, sem transação interativa, que o
-      // pooler do Supabase em modo transação não suporta com segurança).
+      // persistir não restou NENHUM admin global ativo, tenta COMPENSAR
+      // (reativa o usuário) e rejeita a requisição. Isso MITIGA a corrida e
+      // restaura o estado nas colisões cobertas pelos testes — mas NÃO é uma
+      // garantia absoluta: sem serialização/lock/transação atômica (o pooler
+      // do Supabase em modo transação não suporta transação interativa com
+      // segurança), permanece uma janela residual excepcional se processo,
+      // banco ou conexão falharem entre a persistência e a compensação. O
+      // endurecimento definitivo (lock/serialização compatível com a infra)
+      // fica como débito técnico separado.
       if (await this.isEffectiveGlobalAdmin(id)) {
         const remaining = await this.countActiveGlobalAdmins(id);
         if (remaining === 0) {
-          await this.prisma.user.update({ where: { id }, data: { isActive: true } });
+          try {
+            await this.prisma.user.update({ where: { id }, data: { isActive: true } });
+          } catch (err) {
+            // Compensação falhou: o usuário ficou inativo SEM nenhum admin
+            // global ativo restante — estado inconsistente que exige ação
+            // manual. Nunca silencioso: log crítico estruturado (só IDs
+            // técnicos, sem dado sensível) e a requisição retorna erro.
+            this.logger.error(
+              JSON.stringify({
+                event: 'user_deactivate_last_admin_compensation_failed',
+                severity: 'critical',
+                userId: id,
+                actorId,
+                message: (err as Error).message,
+              }),
+            );
+            throw new ConflictException(
+              'Falha ao proteger o último administrador global: o usuário pode ter ficado ' +
+                'inativo. Reative-o imediatamente e contate o suporte.',
+            );
+          }
           throw new ConflictException(
             'Não é possível inativar o último administrador global ativo do sistema.',
           );
