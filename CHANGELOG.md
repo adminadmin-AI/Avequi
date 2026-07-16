@@ -6,6 +6,16 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-16
+
+### Added
+- feat(web): telas de troca de senha — primeiro acesso / senha vencida (`/change-password`) e voluntária (`/app/account/password`), com anti-replay do token restrito (#743)
+- feat(web): toggle Ativo/Inativo de usuários em settings/users, condicionado a `settings.users.update` (#744)
+
+### Fixed
+- fix(api): `PATCH /crm/settings` aceita os campos de escalação de SLA do #569 (save do CRM voltou a persistir) (#741)
+- fix(api): toggle Ativo/Inativo de usuário — DTO aceita `isActive`; autoinativação bloqueada (403), proteção do último ADMIN_GLOBAL (409) e revogação de sessões ao inativar (#744)
+
 ## [1.14.0] - 2026-07-14
 
 ### Added
@@ -191,7 +201,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.15.0...HEAD
+[1.15.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.1...v1.14.0
 [1.13.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.12.0...v1.13.0
