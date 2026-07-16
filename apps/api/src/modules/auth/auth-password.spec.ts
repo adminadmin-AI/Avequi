@@ -231,6 +231,53 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       );
     });
 
+    it('ANTI-REPLAY: token restrito emitido ANTES da última troca → 401, nada persistido', async () => {
+      // Cenário de ataque: token capturado; a vítima já trocou a senha
+      // (passwordChangedAt recente). O token segue criptograficamente válido
+      // pelos 10 min — mas iat < passwordChangedAt DEVE ser rejeitado, senão
+      // o atacante troca a senha POR CIMA da que o usuário acabou de definir.
+      const changedAt = new Date('2026-07-15T12:00:00.000Z');
+      const issuedBefore = Math.floor(changedAt.getTime() / 1000) - 60; // 1 min antes
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1',
+        scope: PASSWORD_CHANGE_SCOPE,
+        iat: issuedBefore,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordChangedAt: changedAt,
+      });
+
+      await expect(
+        service.changePassword({
+          passwordChangeToken: 'token-replay',
+          newPassword: 'NovaSenha#2026x',
+        }),
+      ).rejects.toThrow('Token de troca de senha inválido ou expirado');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('token restrito emitido DEPOIS da última troca (uso legítimo) → troca normalmente', async () => {
+      const changedAt = new Date('2026-07-15T12:00:00.000Z');
+      const issuedAfter = Math.floor(changedAt.getTime() / 1000) + 60; // 1 min depois
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1',
+        scope: PASSWORD_CHANGE_SCOPE,
+        iat: issuedAfter,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        passwordChangedAt: changedAt,
+      });
+
+      const result = await service.changePassword({
+        passwordChangeToken: 'token-legitimo',
+        newPassword: 'NovaSenha#2026x',
+      });
+      expect(result).toEqual({ success: true, message: 'Senha alterada com sucesso.' });
+    });
+
     it('autenticado normal: exige senha atual e preserva a sessão atual', async () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-atual' });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
