@@ -940,71 +940,17 @@ export class SalesService {
       return updated;
     });
 
-    // 4. Cancelar NF-e (chamada externa, fora da transação) (#178)
-    await this.cancelNfeForReturn(id, companyId, dto);
-
-    // 5. Devolução concluída → vehicle-tracking cancela a saída RENAVE (#531).
-    // Fora da transação e fire-and-forget: falha externa nunca desfaz devolução.
-    this.eventEmitter.emit(SALE_RETURNED_EVENT, new SaleReturnedEvent(companyId, id));
+    // 4. Lado fiscal (#747, fora da transação): o FiscalListener ouve o evento e
+    // cancela a NF-e NA SEFAZ (<24h) ou emite a NF-e de devolução referenciada
+    // (>24h). Antes o cancelamento só marcava CANCELLED no banco, sem SEFAZ.
+    // 5. vehicle-tracking cancela a saída RENAVE (#531).
+    // Fire-and-forget: falha externa nunca desfaz a devolução interna.
+    this.eventEmitter.emit(
+      SALE_RETURNED_EVENT,
+      new SaleReturnedEvent(companyId, id, dto.justificativa ?? dto.reason),
+    );
 
     return returned;
-  }
-
-  /**
-   * Tenta cancelar a NF-e vinculada à venda.
-   * Se o prazo de 24h expirou ou não há NF-e autorizada, apenas loga o aviso.
-   */
-  private async cancelNfeForReturn(
-    salesOrderId: string,
-    companyId: string,
-    dto: ReturnOrderDto,
-  ): Promise<void> {
-    try {
-      const fiscalDoc = await this.prisma.fiscalDocument.findFirst({
-        where: { salesOrderId, companyId, status: 'AUTHORIZED' },
-      });
-
-      if (!fiscalDoc) {
-        this.logger.log(`OV ${salesOrderId}: sem NF-e AUTHORIZED para cancelar`);
-        return;
-      }
-
-      const justificativa =
-        dto.justificativa ?? `Devolução de venda — ${dto.reason}`;
-
-      const hoursElapsed = (Date.now() - fiscalDoc.createdAt.getTime()) / (1000 * 60 * 60);
-      if (hoursElapsed > 24) {
-        this.logger.warn(
-          `NF-e ${fiscalDoc.id} da OV ${salesOrderId}: prazo de 24h expirado (${Math.floor(hoursElapsed)}h). ` +
-            `Cancelamento automático não disponível — necessário Carta de Correção ou NF-e de devolução.`,
-        );
-        return;
-      }
-
-      // Marca o documento para cancelamento — o cancelamento efetivo na SEFAZ
-      // deve ser executado via endpoint fiscal/cancel (evita dependência circular)
-      await this.prisma.fiscalDocument.update({
-        where: { id: fiscalDoc.id },
-        data: {
-          status: 'CANCELLED',
-          cancelledAt: new Date(),
-          cancellationJustification: justificativa,
-        },
-      });
-
-      // Cancelar CR vinculada ao fiscalDoc (redundante mas seguro caso o CR esteja vinculado via fiscalDocumentId)
-      await this.prisma.financialEntry.updateMany({
-        where: { fiscalDocumentId: fiscalDoc.id, status: { not: 'CANCELLED' } },
-        data: { status: 'CANCELLED' },
-      });
-
-      this.logger.log(`NF-e ${fiscalDoc.id} cancelada (devolução OV ${salesOrderId})`);
-    } catch (err) {
-      this.logger.error(
-        `Erro ao cancelar NF-e da OV ${salesOrderId}: ${(err as Error).message}. ` +
-          `Devolução concluída, cancelamento fiscal pendente.`,
-      );
-    }
   }
 
   // ─── S07.05: Cancelar venda ───────────────────────────────────────────────

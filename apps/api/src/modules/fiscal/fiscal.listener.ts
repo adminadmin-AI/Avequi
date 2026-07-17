@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { FiscalDocumentType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
+import { FiscalDocumentType, FiscalStatus, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from '../sales/events/sale-invoiced.event';
+import { SALE_RETURNED_EVENT, SaleReturnedEvent } from '../sales/events/sale-returned.event';
 import { TRANSFER_DISPATCHED_EVENT, TransferDispatchedEvent } from '../transfer/events/transfer-dispatched.event';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import { FiscalService } from './fiscal.service';
@@ -40,6 +41,48 @@ export class FiscalListener {
     } catch (err: any) {
       // Falha fiscal nunca desfaz a venda — apenas loga
       this.logger.error(`Erro ao emitir NF para OV=${event.salesOrderId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * #747 — Lado fiscal da devolução (a reversão interna é do returnOrder):
+   * NF-e AUTHORIZED dentro das 24h → CANCELA na SEFAZ (antes só marcava
+   * CANCELLED no banco, sem evento na SEFAZ); fora das 24h → emite a NF-e de
+   * DEVOLUÇÃO referenciada (entrada 1202/2202, espelho da original).
+   * Falha aqui nunca desfaz a devolução interna — fica no doc p/ retry.
+   */
+  @OnEvent(SALE_RETURNED_EVENT, { async: true })
+  async handleSaleReturned(event: SaleReturnedEvent): Promise<void> {
+    const doc = await this.prisma.fiscalDocument.findFirst({
+      where: {
+        salesOrderId: event.salesOrderId,
+        companyId: event.companyId,
+        status: FiscalStatus.AUTHORIZED,
+      },
+    });
+    if (!doc) {
+      this.logger.log(`OV ${event.salesOrderId}: sem NF-e AUTHORIZED — nada a fazer no fiscal`);
+      return;
+    }
+
+    const justificativa = event.reason
+      ? `Devolução de venda — ${event.reason}`
+      : 'Devolução de venda registrada no ERP';
+    const hoursElapsed = (Date.now() - doc.createdAt.getTime()) / (1000 * 60 * 60);
+
+    try {
+      if (hoursElapsed <= 24) {
+        await this.fiscalService.cancel(doc.id, event.companyId, justificativa);
+        this.logger.log(`NF-e ${doc.id} cancelada na SEFAZ (devolução OV ${event.salesOrderId})`);
+      } else {
+        await this.fiscalService.emitReturnNote(doc.id, event.companyId, event.reason);
+        this.logger.log(`NF-e de devolução emitida p/ original ${doc.id} (OV ${event.salesOrderId}, ${Math.floor(hoursElapsed)}h)`);
+      }
+    } catch (err: any) {
+      this.logger.error(
+        `Lado fiscal da devolução OV ${event.salesOrderId} falhou: ${err.message}. ` +
+          'Devolução interna mantida — resolver via cancelamento/devolução manual no módulo fiscal.',
+      );
     }
   }
 

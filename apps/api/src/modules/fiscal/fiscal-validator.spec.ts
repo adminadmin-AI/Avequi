@@ -59,10 +59,18 @@ describe('validateNfePayload (#499)', () => {
     expect(issues).toEqual([expect.objectContaining({ rejection: '234' })]);
   });
 
+  // Devolução completa: entrada (tipo_documento 0) + NF-e original referenciada (#747)
+  const CHAVE_ORIGINAL = '41260730284708000182550010000200021392278324';
+  const devolucaoBase = {
+    finalidade_emissao: '4',
+    tipo_documento: '0',
+    notas_referenciadas: [{ chave_nfe: CHAVE_ORIGINAL }],
+  };
+
   it('devolução (finalidade 4) sem pagamento 90/valor 0 → rej. 871', () => {
     const issues = validateNfePayload(
       validPayload({
-        finalidade_emissao: '4',
+        ...devolucaoBase,
         formas_pagamento: [{ forma_pagamento: '17', valor_pagamento: 100 }],
       }),
     );
@@ -72,11 +80,53 @@ describe('validateNfePayload (#499)', () => {
   it('devolução com pagamento 90/valor 0 passa', () => {
     const issues = validateNfePayload(
       validPayload({
-        finalidade_emissao: '4',
+        ...devolucaoBase,
         formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
       }),
     );
     expect(issues).toEqual([]);
+  });
+
+  it('finalidade 4 sem notas_referenciadas → rej. 321 (#747)', () => {
+    const issues = validateNfePayload(
+      validPayload({
+        finalidade_emissao: '4',
+        tipo_documento: '0',
+        formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
+      }),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: '321', field: 'notas_referenciadas' })]);
+  });
+
+  it('finalidade 4 com chave referenciada inválida (≠44 dígitos) → rej. 321', () => {
+    const issues = validateNfePayload(
+      validPayload({
+        ...devolucaoBase,
+        notas_referenciadas: [{ chave_nfe: '123' }],
+        formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
+      }),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: '321' })]);
+  });
+
+  it('devolução como saída (tipo_documento 1) → rej. 866 (deve ser entrada)', () => {
+    const issues = validateNfePayload(
+      validPayload({
+        ...devolucaoBase,
+        tipo_documento: '1',
+        formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
+      }),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: '866', field: 'tipo_documento' })]);
+  });
+
+  it('finalidade 5/6 (nota de crédito/débito da Reforma) também exige referência (#753)', () => {
+    for (const finalidade of ['5', '6'] as const) {
+      const issues = validateNfePayload(validPayload({ finalidade_emissao: finalidade }));
+      expect(issues).toEqual(
+        expect.arrayContaining([expect.objectContaining({ rejection: '321', field: 'notas_referenciadas' })]),
+      );
+    }
   });
 
   it('valor_frete no cabeçalho → rej. 535 (vFrete é rateado por item)', () => {

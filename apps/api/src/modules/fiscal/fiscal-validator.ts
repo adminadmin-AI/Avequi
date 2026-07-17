@@ -143,6 +143,28 @@ export function validateNfePayload(
     }
   }
 
+  // ── Emissão referenciada (finNFe 4/5/6): NF-e original obrigatória (#747) ──
+  const finalidade = String(payload.finalidade_emissao ?? '');
+  if (['4', '5', '6'].includes(finalidade)) {
+    const refs: Payload[] = Array.isArray(payload.notas_referenciadas) ? payload.notas_referenciadas : [];
+    const chavesOk =
+      refs.length > 0 && refs.every((r) => String(r.chave_nfe ?? '').replace(/\D/g, '').length === 44);
+    if (!chavesOk) {
+      issues.push({
+        rejection: '321',
+        field: 'notas_referenciadas',
+        message: `NF-e com finalidade ${finalidade} exige notas_referenciadas com a chave (44 dígitos) da NF-e original.`,
+      });
+    }
+    if (finalidade === '4' && String(payload.tipo_documento ?? '') !== '0') {
+      issues.push({
+        rejection: '866',
+        field: 'tipo_documento',
+        message: 'Devolução de venda emitida pelo vendedor é nota de ENTRADA (tipo_documento 0).',
+      });
+    }
+  }
+
   // ── Frete: vFrete é RATEADO POR ITEM, nunca no cabeçalho ───────────────────
   if (payload.valor_frete != null && Number(payload.valor_frete) > 0) {
     issues.push({

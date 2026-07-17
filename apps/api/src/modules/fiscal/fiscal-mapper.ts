@@ -238,6 +238,11 @@ export interface FiscalPayloadInput {
   infCpl?: string; // informações complementares (#370)
   delivery?: FiscalDeliveryAddress; // grupo <entrega> quando ≠ endereço fiscal (#474)
   freight?: FiscalFreight; // grupo transp — ausente = modalidade 9 (#481)
+  // #747/#754 — emissão referenciada (devolução hoje; débito/crédito no épico #753)
+  finalidade?: '1' | '2' | '3' | '4' | '5' | '6'; // finNFe — ausente = '1'
+  naturezaOperacao?: string; // sobrescreve a natureza padrão do builder
+  tipoDocumento?: '0' | '1'; // tpNF — 0=entrada (devolução), ausente = '1'
+  referencedKeys?: string[]; // chaves das NF-e referenciadas (notas_referenciadas)
 }
 
 /**
@@ -587,16 +592,23 @@ export function buildNFCePayload(input: FiscalPayloadInput): Record<string, unkn
 /** Payload NF-e (nota fiscal eletrônica — saída para pessoa jurídica ou interestadual) */
 export function buildNFePayload(input: FiscalPayloadInput): Record<string, unknown> {
   const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
-  const cfop = isInterstate ? '6101' : '5101';
+  const isReturn = input.finalidade === '4';
+  // Devolução de venda é nota de ENTRADA: CFOP 1202/2202 (fallback — a TaxRule
+  // DEVOLUCAO_VENDA do item prevalece via item.tax.cfop, como na venda)
+  const cfop = isReturn ? (isInterstate ? '2202' : '1202') : isInterstate ? '6101' : '5101';
   const freightShares = allocateFreight(input.items, input.freight?.value);
 
   return {
-    natureza_operacao: 'VENDA DE PRODUÇÃO PRÓPRIA',
+    natureza_operacao: input.naturezaOperacao ?? 'VENDA DE PRODUÇÃO PRÓPRIA',
     data_emissao: nowBrasilia(),
     // dhSaiEnt preenchido (pedido Claudio 13/07): saída imediata = emissão (balcão/retira)
     data_entrada_saida: nowBrasilia(),
-    tipo_documento: '1',
-    finalidade_emissao: '1',
+    tipo_documento: input.tipoDocumento ?? '1',
+    finalidade_emissao: input.finalidade ?? '1',
+    // NF-e referenciada (obrigatória em devolução/débito/crédito — #747/#753)
+    ...(input.referencedKeys?.length && {
+      notas_referenciadas: input.referencedKeys.map((chave_nfe) => ({ chave_nfe })),
+    }),
     consumidor_final: input.consumidorFinal ? '1' : '0',
     presenca_comprador: '1', // 1=Presencial (venda em loja)
     ...mapFreightFlat(input.freight), // grupo transp — sem freight = modalidade 9 (#481)

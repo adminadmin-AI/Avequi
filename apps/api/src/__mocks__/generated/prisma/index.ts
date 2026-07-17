@@ -215,6 +215,15 @@ export enum FiscalDocumentType {
   NFCE = 'NFCE',
 }
 
+export enum FiscalFinalidade {
+  NORMAL = 'NORMAL',
+  COMPLEMENTAR = 'COMPLEMENTAR',
+  AJUSTE = 'AJUSTE',
+  DEVOLUCAO = 'DEVOLUCAO',
+  NOTA_CREDITO = 'NOTA_CREDITO',
+  NOTA_DEBITO = 'NOTA_DEBITO',
+}
+
 export enum FiscalStatus {
   PENDING = 'PENDING',
   PROCESSING = 'PROCESSING',
