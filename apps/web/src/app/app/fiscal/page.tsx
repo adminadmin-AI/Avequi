@@ -3,10 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Copy, ExternalLink, FileDown, LayoutDashboard } from 'lucide-react';
+import { Copy, ExternalLink, FileDown, LayoutDashboard, Ban } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
-import type { FiscalDocument, FiscalStatus, FiscalDocumentType } from '@/types/api';
+import type { FiscalDocument, FiscalStatus, FiscalDocumentType, FiscalFinalidade } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,9 +17,11 @@ import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-pick
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
 import { KpiGrid } from '@/components/ui/layout';
+import { Can } from '@/components/can';
 import { formatDate } from '@/lib/format';
-import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL } from './fiscal-status';
+import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL, FISCAL_FINALIDADE_LABEL, FISCAL_FINALIDADE_FILTER_OPTIONS } from './fiscal-status';
 import { EmitNfeDialog } from './emit-nfe-dialog';
+import { VoidRangeDialog } from './void-range-dialog';
 
 const RESOURCE = '/fiscal';
 
@@ -42,6 +44,8 @@ export default function FiscalPage() {
 
   const [statusFilter, setStatusFilter] = useState<'' | FiscalStatus>('');
   const [typeFilter, setTypeFilter] = useState<'' | FiscalDocumentType>('');
+  // #758 — filtro por finalidade (Reforma Tributária: devolução/débito/crédito)
+  const [finalidadeFilter, setFinalidadeFilter] = useState<'' | FiscalFinalidade>('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -67,16 +71,19 @@ export default function FiscalPage() {
     return docs.filter((d) => {
       if (statusFilter && d.status !== statusFilter) return false;
       if (typeFilter && d.type !== typeFilter) return false;
+      if (finalidadeFilter && d.finalidade !== finalidadeFilter) return false;
       if (from && d.createdAt < from) return false;
       if (to && d.createdAt > to + 'T23:59:59') return false;
       return true;
     });
-  }, [docs, statusFilter, typeFilter, from, to]);
+  }, [docs, statusFilter, typeFilter, finalidadeFilter, from, to]);
 
   function copyChave(chave: string) {
     navigator.clipboard?.writeText(chave);
     toast.success('Chave copiada');
   }
+
+  const [voidRangeOpen, setVoidRangeOpen] = useState(false);
 
   // #482 — ZIP com os XMLs do período filtrado (default: mês corrente) p/ o contador
   const [exporting, setExporting] = useState(false);
@@ -119,7 +126,17 @@ export default function FiscalPage() {
       key: 'type',
       header: 'Tipo',
       align: 'center',
-      cell: (d) => <Badge variant={d.type === 'NFE' ? 'brand' : 'info'}>{FISCAL_TYPE_LABEL[d.type]}</Badge>,
+      cell: (d) => (
+        <div className="flex items-center justify-center gap-1.5">
+          <Badge variant={d.type === 'NFE' ? 'brand' : 'info'}>{FISCAL_TYPE_LABEL[d.type]}</Badge>
+          {/* #758 — badge de finalidade só quando ≠ NORMAL (venda comum não precisa de destaque) */}
+          {d.finalidade && d.finalidade !== 'NORMAL' && (
+            <Badge variant={FISCAL_FINALIDADE_LABEL[d.finalidade].variant}>
+              {FISCAL_FINALIDADE_LABEL[d.finalidade].label}
+            </Badge>
+          )}
+        </div>
+      ),
     },
     {
       key: 'status',
@@ -187,6 +204,13 @@ export default function FiscalPage() {
               <LayoutDashboard size={16} />
               Dashboard
             </Button>
+            {/* #758 (extra) — inutilização de faixa de numeração */}
+            <Can permission="fiscal.nfe.void-range">
+              <Button variant="secondary" onClick={() => setVoidRangeOpen(true)}>
+                <Ban size={16} />
+                Inutilizar numeração
+              </Button>
+            </Can>
             <EmitNfeDialog />
           </div>
         }
@@ -218,6 +242,21 @@ export default function FiscalPage() {
             <option value="NFCE">NFC-e</option>
           </Select>
         </div>
+        <div>
+          <Label>Finalidade</Label>
+          <Select
+            aria-label="Filtrar por finalidade"
+            value={finalidadeFilter}
+            onChange={(e) => setFinalidadeFilter(e.target.value as '' | FiscalFinalidade)}
+          >
+            <option value="">Todas</option>
+            {FISCAL_FINALIDADE_FILTER_OPTIONS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="min-w-[260px]">
           <Label>Período de emissão</Label>
           <DateRangePicker
@@ -239,6 +278,8 @@ export default function FiscalPage() {
         searchPlaceholder="Buscar..."
         emptyMessage="Nenhum documento fiscal encontrado."
       />
+
+      <VoidRangeDialog open={voidRangeOpen} onOpenChange={setVoidRangeOpen} />
     </div>
   );
 }
