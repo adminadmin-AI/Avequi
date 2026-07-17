@@ -24,6 +24,7 @@ import {
   KeyRound,
   Landmark,
   LayoutDashboard,
+  LifeBuoy,
   LineChart,
   MapPin,
   Network,
@@ -248,6 +249,16 @@ export const NAV: NavSection[] = [
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, permission: 'settings.companies.view' },
       { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, permission: 'iam.audit-logs.view' },
+    ],
+  },
+  {
+    key: 'suporte',
+    title: 'Suporte',
+    items: [
+      // Self-service (épico #764): reportar/ver os PRÓPRIOS chamados não tem
+      // gate de permissão — liberado para qualquer autenticado, coerente com
+      // o backend (SupportController sem @RequirePermission).
+      { href: '/app/support', label: 'Meus chamados', icon: LifeBuoy },
     ],
   },
 ];

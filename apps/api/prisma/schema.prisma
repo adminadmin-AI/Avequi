@@ -60,6 +60,7 @@ model Company {
   goodsReceipts         GoodsReceipt[]
   salesOrders           SalesOrder[]
   fiscalDocuments       FiscalDocument[]
+  supportIncidents      SupportIncident[]
   financialEntries      FinancialEntry[]
   bankAccounts          BankAccount[]
   storeTransfers        StoreTransfer[]
@@ -318,6 +319,7 @@ model User {
   quickReplies              QuickReply[] // F3.5-C3 (#553) — respostas rápidas pessoais
   leadReminders             LeadReminder[] // F3.5-C5 (#555) — lembretes de follow-up
   pushSubscriptions         PushSubscription[] // CRM V2.1 (#568) — web push por dispositivo
+  supportIncidents          SupportIncident[]      @relation("SupportReporter")
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
   // IAM v2 — F4.2 (#345) — password policy (campos ADITIVOS)
@@ -4298,4 +4300,73 @@ model VehicleDocumentDelivery {
   @@index([salesOrderId])
   @@index([vehicleDocumentId])
   @@map("gdr_vehicle_document_deliveries")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suporte — intake & triagem de bugs (épico #764, WP1 #765)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SupportIncidentSource {
+  USER_REPORT
+  AUTO_ERROR
+}
+
+enum SupportIncidentStatus {
+  NEW
+  TRIAGING
+  TRIAGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum SupportIncidentSeverity {
+  P0
+  P1
+  P2
+  P3
+}
+
+/// Chamado de suporte — fonte da verdade cliente-facing (#764). Isolado por companyId.
+model SupportIncident {
+  id                String                   @id @default(cuid())
+  companyId         String
+  company           Company                  @relation(fields: [companyId], references: [id])
+  reportedById      String?
+  reportedBy        User?                    @relation("SupportReporter", fields: [reportedById], references: [id])
+  source            SupportIncidentSource    @default(USER_REPORT)
+  protocol          String                   @unique // #AVQ-000123 — visível ao cliente
+  title             String
+  description       String?
+  route             String? // tela onde ocorreu
+  appVersion        String? // gitSha/versão publicada
+  requestId         String? // correlação com o log do servidor
+  stackSignature    String? // hash normalizado p/ dedup (WP2)
+  status            SupportIncidentStatus    @default(NEW)
+  severity          SupportIncidentSeverity? // preenchido pela triagem (WP4)
+  diagnosis         Json? // saída do agente — INTERNO, nunca cliente (WP4)
+  githubIssueNumber Int? // vínculo com a issue do time (WP3)
+  duplicateOfId     String? // dedup
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  updates           SupportIncidentUpdate[]
+
+  @@index([companyId, status])
+  @@index([stackSignature])
+  @@map("gdr_support_incidents")
+}
+
+/// Timeline de status do chamado — alimenta o "Meus chamados" (#765).
+model SupportIncidentUpdate {
+  id           String                @id @default(cuid())
+  incidentId   String
+  incident     SupportIncident       @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  status       SupportIncidentStatus
+  clientNote   String? // texto que o CLIENTE vê (gateado)
+  internalNote String? // interno
+  createdAt    DateTime              @default(now())
+
+  @@index([incidentId])
+  @@map("gdr_support_incident_updates")
 }

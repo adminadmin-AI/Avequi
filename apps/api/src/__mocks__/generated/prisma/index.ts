@@ -691,3 +691,24 @@ export enum SdrLeadStatus {
   HANDOFF = 'HANDOFF',
   DISCARDED = 'DISCARDED',
 }
+
+export enum SupportIncidentSource {
+  USER_REPORT = 'USER_REPORT',
+  AUTO_ERROR = 'AUTO_ERROR',
+}
+
+export enum SupportIncidentStatus {
+  NEW = 'NEW',
+  TRIAGING = 'TRIAGING',
+  TRIAGED = 'TRIAGED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+  CLOSED = 'CLOSED',
+}
+
+export enum SupportIncidentSeverity {
+  P0 = 'P0',
+  P1 = 'P1',
+  P2 = 'P2',
+  P3 = 'P3',
+}
