@@ -4,6 +4,7 @@ import { FiscalDocumentType, FiscalStatus } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FiscalService } from './fiscal.service';
 import { EMISSOR_PORT } from './emissor.port';
+import { IbsCbsAdjustmentService } from './ibscbs-adjustment.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT } from './events/fiscal-cancelled.event';
@@ -103,6 +104,7 @@ describe('FiscalService', () => {
         { provide: EMISSOR_PORT, useValue: mockClient },
         { provide: TaxCalculationService, useValue: mockTaxCalc },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        IbsCbsAdjustmentService, // #755 — motor puro, instância real
       ],
     }).compile();
 
@@ -882,6 +884,133 @@ describe('FiscalService', () => {
 
       const payload = mockClient.emitNFe.mock.calls[0][1] as any;
       expect(payload.items[0].cfop).toBe('2202');
+    });
+  });
+
+  // ─── #757: Nota de Débito/Crédito IBS/CBS (finNFe 5/6) ────────────────────
+  describe('emitAdjustmentNote (#757)', () => {
+    const CHAVE = '41260730284708000182550010000200021392278324';
+    const taxRow = {
+      cstIcms: '00', baseIcms: '3000', aliquotaIcms: '12', valorIcms: '360',
+      cstIpi: '53', cstPis: '49', cstCofins: '99',
+      cClassTrib: '000001', cstCbs: '000', baseCbs: '3000', aliquotaCbs: '0.9', valorCbs: '27',
+      cstIbsUf: '000', baseIbsUf: '3000', aliquotaIbsUf: '0.1', valorIbsUf: '3',
+      cstIbsMun: '000', baseIbsMun: '3000', aliquotaIbsMun: '0', valorIbsMun: '0',
+    };
+    const adjOriginal = () => ({
+      id: 'nfe-orig',
+      companyId: 'co-1',
+      type: 'NFE',
+      status: 'AUTHORIZED',
+      finalidade: 'NORMAL',
+      chave: CHAVE,
+      number: 20002,
+      series: 1,
+      items: [
+        {
+          id: 'fdi-1', productCode: 'COD001', productName: 'Produto A', ncm: '87163900',
+          quantity: '1', unitPrice: '3000', totalPrice: '3000', taxes: [{ ...taxRow }],
+        },
+      ],
+      salesOrder: {
+        id: 'so-1',
+        status: 'INVOICED',
+        company: baseOrder.company,
+        customer: {
+          name: 'Cliente PR', document: '52998224725', state: 'PR', city: 'Curitiba',
+          address: 'Rua B', number: '10', neighborhood: 'Centro', zipCode: '80000-000',
+          ibgeCode: '4106902', email: null, fiscalEmail: null, ie: null, indIeDest: null,
+          razaoSocial: null, complement: null,
+        },
+      },
+    });
+
+    beforeEach(() => {
+      mockClient.emitNFe.mockResolvedValue({ status: 'processando_autorizacao' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue({ id: 'nfe-adj', companyId: 'co-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({});
+      mockPrisma.fiscalDocument.findMany.mockResolvedValue([]);
+    });
+
+    it('débito AMOUNT (multa e juros): cria doc NOTA_DEBITO vinculado e transmite payload só-IBS/CBS', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(adjOriginal());
+
+      await service.emitAdjustmentNote('nfe-orig', 'co-1', 'DEBITO', {
+        tipo: '04',
+        spec: { mode: 'AMOUNT', amount: 350, description: 'multa e juros' },
+        justificativa: 'atraso 30 dias',
+      });
+
+      expect(mockPrisma.fiscalDocument.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'NFE',
+          finalidade: 'NOTA_DEBITO',
+          tipoNotaDebito: '04',
+          referencedDocumentId: 'nfe-orig',
+        }),
+      });
+      expect(mockClient.emitNFe).toHaveBeenCalledTimes(1);
+      const [ref, payload] = mockClient.emitNFe.mock.calls[0] as any[];
+      expect(ref).toBe('GDR-ADJ-nfe-orig-1');
+      expect(payload.finalidade_emissao).toBe('6');
+      expect(payload.tipo_nota_debito).toBe('04');
+      expect(payload.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+      const item = payload.items[0];
+      expect(item.ibs_cbs_base_calculo).toBe(350);
+      expect(item.cbs_valor).toBe(3.15); // 0,9% efetiva espelhada
+      expect(Object.keys(item).some((k) => k.startsWith('icms_'))).toBe(false);
+    });
+
+    it('crédito FULL: estorno integral com finalidade 5', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(adjOriginal());
+
+      await service.emitAdjustmentNote('nfe-orig', 'co-1', 'CREDITO', {
+        tipo: '04',
+        spec: { mode: 'FULL' },
+      });
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.finalidade_emissao).toBe('5');
+      expect(payload.tipo_nota_credito).toBe('04');
+      expect(payload.items[0].ibs_cbs_base_calculo).toBe(3000);
+      expect(payload.items[0].cbs_valor).toBe(27);
+    });
+
+    it('bloqueia ajuste simultâneo em PENDING/PROCESSING', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(adjOriginal());
+      mockPrisma.fiscalDocument.findMany.mockResolvedValueOnce([
+        { id: 'adj-1', status: 'PROCESSING', tipoNotaDebito: '04' },
+      ]);
+
+      await expect(
+        service.emitAdjustmentNote('nfe-orig', 'co-1', 'DEBITO', {
+          tipo: '04',
+          spec: { mode: 'AMOUNT', amount: 100 },
+        }),
+      ).rejects.toThrow(/em processamento/);
+      expect(mockClient.emitNFe).not.toHaveBeenCalled();
+    });
+
+    it('motivo fora do catálogo → erro orientado (crédito só 01-06)', async () => {
+      await expect(
+        service.emitAdjustmentNote('nfe-orig', 'co-1', 'CREDITO', {
+          tipo: '07',
+          spec: { mode: 'FULL' },
+        }),
+      ).rejects.toThrow(/inválido/);
+    });
+
+    it('original não-AUTHORIZED → bloqueia', async () => {
+      const doc = adjOriginal();
+      (doc as any).status = 'CANCELLED';
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(doc);
+
+      await expect(
+        service.emitAdjustmentNote('nfe-orig', 'co-1', 'DEBITO', {
+          tipo: '04',
+          spec: { mode: 'AMOUNT', amount: 100 },
+        }),
+      ).rejects.toThrow(/AUTHORIZED/);
     });
   });
 });

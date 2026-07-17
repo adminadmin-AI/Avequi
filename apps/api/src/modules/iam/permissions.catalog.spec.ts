@@ -96,7 +96,8 @@ describe('Catálogo de permissões (#338)', () => {
     //       crm.distribution.view + crm.dashboard.{view,export} +
     //       crm.settings.{view,update} + crm.lgpd.{retention-update,anonymize}.
     // 299 = 298 + fiscal.nfe.return-note (#747, NF-e de devolução referenciada).
-    expect(PERMISSIONS_CATALOG.length).toBe(299);
+    // 301 = 299 + fiscal.nfe.{debit-note,credit-note} (#757, notas 5/6 da Reforma).
+    expect(PERMISSIONS_CATALOG.length).toBe(301);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

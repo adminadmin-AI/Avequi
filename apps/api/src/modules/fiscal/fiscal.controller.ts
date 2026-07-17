@@ -27,8 +27,28 @@ import { FiscalService } from './fiscal.service';
 import { ComplianceService } from './compliance.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
 import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
+import { CreditNoteFiscalDto, DebitNoteFiscalDto } from './dto/adjustment-note-fiscal.dto';
 import { ReturnNoteFiscalDto } from './dto/return-note-fiscal.dto';
 import { VoidRangeFiscalDto } from './dto/void-range-fiscal.dto';
+import { AdjustmentSpec } from './ibscbs-adjustment.service';
+
+/** Resolve o modo do ajuste — exatamente UM entre full/totalDelta/itemDeltas/amount (#757) */
+function adjustmentSpecFromDto(dto: {
+  full?: boolean;
+  totalDelta?: number;
+  itemDeltas?: Array<{ fiscalDocumentItemId: string; baseDelta: number }>;
+  amount?: number;
+  description?: string;
+}): AdjustmentSpec {
+  const modes = [dto.full, dto.totalDelta != null, !!dto.itemDeltas?.length, dto.amount != null].filter(Boolean);
+  if (modes.length !== 1) {
+    throw new BadRequestException('Informe exatamente um modo: full | totalDelta | itemDeltas | amount.');
+  }
+  if (dto.full) return { mode: 'FULL' };
+  if (dto.amount != null) return { mode: 'AMOUNT', amount: dto.amount, description: dto.description };
+  if (dto.totalDelta != null) return { mode: 'TOTAL', totalDelta: dto.totalDelta };
+  return { mode: 'ITEMS', itemDeltas: dto.itemDeltas! };
+}
 
 @ApiTags('Fiscal')
 @ApiBearerAuth()
@@ -125,6 +145,48 @@ export class FiscalController {
   ) {
     await this.fiscalService.emitReturnNote(id, user.companyId, dto.motivo);
     return { ok: true, message: 'NF-e de devolução em processamento' };
+  }
+
+  /** #757 — Nota de Débito IBS/CBS (finNFe 6, SINIEF 49/2025) referenciando a NF-e original */
+  @Post(':id/debit-note')
+  @RequirePermission('fiscal.nfe.debit-note')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Emitir Nota de Débito IBS/CBS (finNFe 6) referenciando a NF-e original (:id). Só IBS/CBS; original AUTHORIZED.',
+  })
+  async debitNote(
+    @Param('id') id: string,
+    @Body() dto: DebitNoteFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    await this.fiscalService.emitAdjustmentNote(id, user.companyId, 'DEBITO', {
+      tipo: dto.tipo,
+      spec: adjustmentSpecFromDto(dto),
+      justificativa: dto.justificativa,
+    });
+    return { ok: true, message: 'Nota de débito em processamento' };
+  }
+
+  /** #757 — Nota de Crédito IBS/CBS (finNFe 5, SINIEF 49/2025) referenciando a NF-e original */
+  @Post(':id/credit-note')
+  @RequirePermission('fiscal.nfe.credit-note')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Emitir Nota de Crédito IBS/CBS (finNFe 5) referenciando a NF-e original (:id). Só IBS/CBS; original AUTHORIZED.',
+  })
+  async creditNote(
+    @Param('id') id: string,
+    @Body() dto: CreditNoteFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    await this.fiscalService.emitAdjustmentNote(id, user.companyId, 'CREDITO', {
+      tipo: dto.tipo,
+      spec: adjustmentSpecFromDto(dto),
+      justificativa: dto.justificativa,
+    });
+    return { ok: true, message: 'Nota de crédito em processamento' };
   }
 
   /** #165 — Inutilização de faixa de numeração */

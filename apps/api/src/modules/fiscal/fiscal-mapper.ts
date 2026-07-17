@@ -664,3 +664,90 @@ export function buildTransferNFePayload(input: FiscalPayloadInput): Record<strin
     formas_pagamento: [{ forma_pagamento: '99', valor_pagamento: input.totalValue }],
   };
 }
+
+// ─── #756: Nota de Débito/Crédito da Reforma (finNFe 5/6, SINIEF 49/2025) ─────
+
+export interface FiscalAdjustmentPayloadItem {
+  sku: string;
+  name: string;
+  ncm: string | null;
+  base: number;
+  cClassTrib: string;
+  cstCbs: string;
+  cbsAliquota: number;
+  cbsValor: number;
+  ibsUfAliquota: number;
+  ibsUfValor: number;
+  ibsMunAliquota: number;
+  ibsMunValor: number;
+}
+
+export interface AdjustmentPayloadInput {
+  ref: string;
+  finalidade: '5' | '6'; // 5 = Nota de Crédito, 6 = Nota de Débito
+  tipoNota: string; // tpNFCredito 01-06 / tpNFDebito 01-08
+  referencedKey: string; // chave da NF-e original (obrigatória)
+  emitter: FiscalEmitter;
+  recipient?: FiscalRecipient;
+  items: FiscalAdjustmentPayloadItem[];
+  infCpl?: string;
+  naturezaOperacao?: string;
+  /** tpNF — default '1' (saída). A definir em homologação p/ crédito (F4 #760). */
+  tipoDocumento?: '0' | '1';
+  /** CFOP dos itens — default 5949/6949 (outra saída) conforme UF; confirmar na F4. */
+  cfop?: string;
+}
+
+// Payload flat Focus para nota de débito/crédito IBS/CBS. Regra da Reforma:
+// notas finNFe 5/6 SÓ podem conter IBS/CBS — nenhum campo de icms/ipi/pis/
+// cofins nos itens (a SEFAZ rejeita tributo estranho). Campos tipo_nota_debito
+// e tipo_nota_credito conforme dicionário Focus (campos.focusnfe.com.br);
+// nomes flat errados são ignorados EM SILÊNCIO — validação real na F4 (#760).
+export function buildAdjustmentNFePayload(input: AdjustmentPayloadInput): Record<string, unknown> {
+  const natureza =
+    input.naturezaOperacao ??
+    (input.finalidade === '6' ? 'NOTA DE DEBITO IBS/CBS' : 'NOTA DE CREDITO IBS/CBS');
+
+  const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
+  const cfop = input.cfop ?? (isInterstate ? '6949' : '5949');
+
+  return {
+    natureza_operacao: natureza,
+    data_emissao: nowBrasilia(),
+    tipo_documento: input.tipoDocumento ?? '1',
+    finalidade_emissao: input.finalidade,
+    ...(input.finalidade === '6'
+      ? { tipo_nota_debito: input.tipoNota }
+      : { tipo_nota_credito: input.tipoNota }),
+    notas_referenciadas: [{ chave_nfe: input.referencedKey }],
+    consumidor_final: '0',
+    presenca_comprador: '9', // não presencial — ajuste documental
+    modalidade_frete: '9',
+    ...mapEmitterFlat(input.emitter),
+    ...mapRecipientFlat(input.recipient, false),
+    items: input.items.map((it, idx) => ({
+      numero_item: idx + 1,
+      codigo_produto: it.sku,
+      descricao: it.name,
+      cfop,
+      codigo_ncm: (it.ncm ?? '00000000').replace(/\D/g, '').padStart(8, '0'),
+      unidade_comercial: 'UN',
+      quantidade_comercial: 1,
+      valor_unitario_comercial: it.base,
+      valor_total_bruto: it.base,
+      // SOMENTE grupo IBS/CBS (grupo UB) — nada de ICMS/IPI/PIS/COFINS
+      ibs_cbs_situacao_tributaria: it.cstCbs,
+      ibs_cbs_classificacao_tributaria: it.cClassTrib,
+      ibs_cbs_base_calculo: it.base,
+      cbs_aliquota: it.cbsAliquota,
+      cbs_valor: it.cbsValor,
+      ibs_uf_aliquota: it.ibsUfAliquota,
+      ibs_uf_valor: it.ibsUfValor,
+      ibs_mun_aliquota: it.ibsMunAliquota,
+      ibs_mun_valor: it.ibsMunValor,
+    })),
+    // ajuste documental: sem operação comercial — mesmo padrão da devolução
+    formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
+    informacoes_adicionais_contribuinte: withBranding(input.infCpl),
+  };
+}
