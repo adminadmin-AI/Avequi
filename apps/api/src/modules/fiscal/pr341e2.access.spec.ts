@@ -92,6 +92,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     compliance: 'fiscal.documents.view',
     cancel: 'fiscal.nfe.cancel',
     correction: 'fiscal.nfe.correct',
+    returnNote: 'fiscal.nfe.return-note', // #747 — NF-e de devolução referenciada
     voidRange: 'fiscal.nfe.void-range',
     retry: 'fiscal.nfe.retry',
     findAll: 'fiscal.documents.view',

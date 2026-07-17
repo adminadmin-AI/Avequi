@@ -755,4 +755,133 @@ describe('FiscalService', () => {
       expect(payload.nome_destinatario).toBe('Loja Guarapuava');
     });
   });
+
+  // ─── #747: NF-e de devolução referenciada (entrada, finNFe 4) ─────────────
+  describe('emitReturnNote (#747)', () => {
+    const CHAVE = '41260730284708000182550010000200021392278324';
+    const taxRow = {
+      cstIcms: '00', baseIcms: '300', aliquotaIcms: '12', valorIcms: '36',
+      cstIpi: '53', baseIpi: '0', aliquotaIpi: '0', valorIpi: '0',
+      cstPis: '49', basePis: '0', aliquotaPis: '0', valorPis: '0',
+      cstCofins: '99', baseCofins: '0', aliquotaCofins: '0', valorCofins: '0',
+      cClassTrib: '000001', cstCbs: '000', baseCbs: '300', aliquotaCbs: '0.9', valorCbs: '2.7',
+      cstIbsUf: '000', baseIbsUf: '300', aliquotaIbsUf: '0.1', valorIbsUf: '0.3',
+      cstIbsMun: '000', baseIbsMun: '300', aliquotaIbsMun: '0', valorIbsMun: '0',
+    };
+    const originalDoc = () => ({
+      id: 'nfe-orig',
+      companyId: 'co-1',
+      type: 'NFE',
+      status: 'AUTHORIZED',
+      finalidade: 'NORMAL',
+      chave: CHAVE,
+      number: 20002,
+      series: 1,
+      items: [
+        {
+          id: 'fdi-orig', productCode: 'COD001', productName: 'Produto A', ncm: '61099000',
+          cest: null, unit: 'UN', quantity: '2', unitPrice: '150', taxes: [{ ...taxRow }],
+        },
+      ],
+      salesOrder: {
+        id: 'so-1',
+        status: 'RETURNED',
+        company: baseOrder.company,
+        customer: {
+          name: 'Cliente PR', document: '52998224725', state: 'PR', city: 'Curitiba',
+          address: 'Rua B', number: '10', neighborhood: 'Centro', zipCode: '80000-000',
+          ibgeCode: '4106902', email: null, fiscalEmail: null, ie: null, indIeDest: null,
+          razaoSocial: null, complement: null,
+        },
+        items: [
+          {
+            product: { id: 'p1', sku: 'COD001', name: 'Produto A', unit: 'UN', origem: '0' },
+            serialNumber: null, quantity: '2', unitPrice: '150',
+          },
+        ],
+      },
+    });
+
+    beforeEach(() => {
+      mockClient.emitNFe.mockResolvedValue({ status: 'processando_autorizacao', ref: 'GDR-RET-nfe-orig' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue({ id: 'nfe-dev', companyId: 'co-1' });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({});
+    });
+
+    it('cria doc DEVOLUCAO vinculado à original e transmite o payload espelho (entrada 1202, ref à chave)', async () => {
+      mockPrisma.fiscalDocument.findFirst
+        .mockResolvedValueOnce(originalDoc()) // original
+        .mockResolvedValueOnce(null); // sem devolução existente
+
+      await service.emitReturnNote('nfe-orig', 'co-1', 'defeito de fabricação');
+
+      expect(mockPrisma.fiscalDocument.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'NFE',
+          finalidade: 'DEVOLUCAO',
+          referencedDocumentId: 'nfe-orig',
+          focusRef: 'GDR-RET-nfe-orig',
+          // vínculo com a OV vai pela referência — salesOrderId NÃO é usado (@unique da NORMAL)
+        }),
+      });
+      const create = mockPrisma.fiscalDocument.create.mock.calls[0][0].data;
+      expect(create.salesOrderId).toBeUndefined();
+
+      expect(mockClient.emitNFe).toHaveBeenCalledTimes(1);
+      const [ref, payload] = mockClient.emitNFe.mock.calls[0] as any[];
+      expect(ref).toBe('GDR-RET-nfe-orig');
+      expect(payload.finalidade_emissao).toBe('4');
+      expect(payload.tipo_documento).toBe('0');
+      expect(payload.natureza_operacao).toBe('DEVOLUCAO DE VENDA');
+      expect(payload.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+      expect(payload.formas_pagamento).toEqual([{ forma_pagamento: '90', valor_pagamento: 0 }]);
+      // espelho: CFOP de entrada intra + IBS/CBS da original preservados
+      expect(payload.items[0].cfop).toBe('1202');
+      expect(payload.items[0].ibs_cbs_classificacao_tributaria).toBe('000001');
+      expect(payload.items[0].cbs_valor).toBe(2.7);
+      // itens persistidos no doc de devolução
+      expect(mockPrisma.fiscalDocumentItem.create).toHaveBeenCalled();
+    });
+
+    it('bloqueia se a OV não está RETURNED (reversão interna primeiro)', async () => {
+      const doc = originalDoc();
+      doc.salesOrder.status = 'INVOICED';
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(doc);
+
+      await expect(service.emitReturnNote('nfe-orig', 'co-1')).rejects.toThrow(/RETURNED/);
+      expect(mockClient.emitNFe).not.toHaveBeenCalled();
+    });
+
+    it('idempotência: devolução viva (não REJECTED/ERROR) não reemite', async () => {
+      mockPrisma.fiscalDocument.findFirst
+        .mockResolvedValueOnce(originalDoc())
+        .mockResolvedValueOnce({ id: 'nfe-dev', status: 'AUTHORIZED' });
+
+      await service.emitReturnNote('nfe-orig', 'co-1');
+
+      expect(mockPrisma.fiscalDocument.create).not.toHaveBeenCalled();
+      expect(mockClient.emitNFe).not.toHaveBeenCalled();
+    });
+
+    it('original NFC-e → erro orientado (devolução referenciada é só p/ NF-e)', async () => {
+      const doc = originalDoc();
+      (doc as any).type = 'NFCE';
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValueOnce(doc);
+
+      await expect(service.emitReturnNote('nfe-orig', 'co-1')).rejects.toThrow(/NF-e/);
+    });
+
+    it('cliente interestadual → CFOP 2202', async () => {
+      const doc = originalDoc();
+      (doc.salesOrder.customer as any).state = 'SP';
+      mockPrisma.fiscalDocument.findFirst
+        .mockResolvedValueOnce(doc)
+        .mockResolvedValueOnce(null);
+
+      await service.emitReturnNote('nfe-orig', 'co-1');
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.items[0].cfop).toBe('2202');
+    });
+  });
 });

@@ -27,6 +27,7 @@ import { FiscalService } from './fiscal.service';
 import { ComplianceService } from './compliance.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
 import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
+import { ReturnNoteFiscalDto } from './dto/return-note-fiscal.dto';
 import { VoidRangeFiscalDto } from './dto/void-range-fiscal.dto';
 
 @ApiTags('Fiscal')
@@ -107,6 +108,23 @@ export class FiscalController {
   ) {
     const result = await this.fiscalService.correction(id, user.companyId, dto.correcao);
     return { ok: true, ...result };
+  }
+
+  /** #747 — NF-e de devolução referenciada (entrada, finNFe 4, CFOP 1202/2202) */
+  @Post(':id/return-note')
+  @RequirePermission('fiscal.nfe.return-note')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Emitir NF-e de devolução referenciando a NF-e original (:id). Exige OV RETURNED e original AUTHORIZED.',
+  })
+  async returnNote(
+    @Param('id') id: string,
+    @Body() dto: ReturnNoteFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    await this.fiscalService.emitReturnNote(id, user.companyId, dto.motivo);
+    return { ok: true, message: 'NF-e de devolução em processamento' };
   }
 
   /** #165 — Inutilização de faixa de numeração */

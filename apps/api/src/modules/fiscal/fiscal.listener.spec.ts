@@ -55,3 +55,70 @@ describe('FiscalListener.handleFiscalCancelled (#586: 1:N)', () => {
     });
   });
 });
+
+// ─── #747: lado fiscal da devolução (SALE_RETURNED) ───────────────────────────
+import { SaleReturnedEvent } from '../sales/events/sale-returned.event';
+import { Test as NestTest } from '@nestjs/testing';
+
+describe('FiscalListener.handleSaleReturned (#747)', () => {
+  let listener: FiscalListener;
+  const mockFiscalService = { cancel: jest.fn(), emitReturnNote: jest.fn() };
+  const prisma = { fiscalDocument: { findFirst: jest.fn() } };
+
+  beforeEach(async () => {
+    const module = await NestTest.createTestingModule({
+      providers: [
+        FiscalListener,
+        { provide: FiscalService, useValue: mockFiscalService },
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    listener = module.get(FiscalListener);
+    jest.clearAllMocks();
+  });
+
+  it('NF-e AUTHORIZED dentro das 24h → cancela na SEFAZ (antes só marcava no banco)', async () => {
+    prisma.fiscalDocument.findFirst.mockResolvedValue({
+      id: 'nfe-1',
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    });
+
+    await listener.handleSaleReturned(new SaleReturnedEvent('co-1', 'so-1', 'defeito'));
+
+    expect(mockFiscalService.cancel).toHaveBeenCalledWith('nfe-1', 'co-1', 'Devolução de venda — defeito');
+    expect(mockFiscalService.emitReturnNote).not.toHaveBeenCalled();
+  });
+
+  it('NF-e AUTHORIZED fora das 24h → emite NF-e de devolução referenciada', async () => {
+    prisma.fiscalDocument.findFirst.mockResolvedValue({
+      id: 'nfe-1',
+      createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+    });
+
+    await listener.handleSaleReturned(new SaleReturnedEvent('co-1', 'so-1', 'defeito'));
+
+    expect(mockFiscalService.emitReturnNote).toHaveBeenCalledWith('nfe-1', 'co-1', 'defeito');
+    expect(mockFiscalService.cancel).not.toHaveBeenCalled();
+  });
+
+  it('sem NF-e AUTHORIZED → não faz nada no fiscal', async () => {
+    prisma.fiscalDocument.findFirst.mockResolvedValue(null);
+
+    await listener.handleSaleReturned(new SaleReturnedEvent('co-1', 'so-1'));
+
+    expect(mockFiscalService.cancel).not.toHaveBeenCalled();
+    expect(mockFiscalService.emitReturnNote).not.toHaveBeenCalled();
+  });
+
+  it('falha no lado fiscal não estoura (devolução interna preservada)', async () => {
+    prisma.fiscalDocument.findFirst.mockResolvedValue({
+      id: 'nfe-1',
+      createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+    });
+    mockFiscalService.emitReturnNote.mockRejectedValue(new Error('SEFAZ fora'));
+
+    await expect(
+      listener.handleSaleReturned(new SaleReturnedEvent('co-1', 'so-1', 'x')),
+    ).resolves.toBeUndefined();
+  });
+});

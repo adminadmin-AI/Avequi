@@ -552,3 +552,45 @@ describe('data/hora de saída (dhSaiEnt — pedido Claudio 13/07)', () => {
     expect(buildNFCePayload(base).data_entrada_saida).toBeUndefined();
   });
 });
+
+// ─── #747: emissão referenciada (devolução finNFe 4; base p/ 5/6 do épico #753) ─
+describe('buildNFePayload — devolução referenciada (#747)', () => {
+  const CHAVE = '41260730284708000182550010000200021392278324';
+  const devInput: FiscalPayloadInput = {
+    ...baseInput,
+    finalidade: '4',
+    tipoDocumento: '0',
+    naturezaOperacao: 'DEVOLUCAO DE VENDA',
+    referencedKeys: [CHAVE],
+    paymentMethod: '90',
+  };
+
+  it('monta finalidade 4, entrada, natureza própria e notas_referenciadas', () => {
+    const p = buildNFePayload(devInput) as any;
+    expect(p.finalidade_emissao).toBe('4');
+    expect(p.tipo_documento).toBe('0');
+    expect(p.natureza_operacao).toBe('DEVOLUCAO DE VENDA');
+    expect(p.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+    // devolução exige pagamento 90 com valor 0 (rej. 871)
+    expect(p.formas_pagamento).toEqual([{ forma_pagamento: '90', valor_pagamento: 0 }]);
+  });
+
+  it('CFOP fallback de devolução: 1202 intra / 2202 interestadual (item sem tax)', () => {
+    const intra = buildNFePayload(devInput) as any; // sem recipient → intra
+    expect(intra.items[0].cfop).toBe('1202');
+    const inter = buildNFePayload({
+      ...devInput,
+      recipient: { name: 'Cliente SP', state: 'SP' },
+    }) as any;
+    expect(inter.items[0].cfop).toBe('2202');
+  });
+
+  it('sem os campos novos, o payload de venda permanece intacto (retrocompat)', () => {
+    const p = buildNFePayload(baseInput) as any;
+    expect(p.finalidade_emissao).toBe('1');
+    expect(p.tipo_documento).toBe('1');
+    expect(p.natureza_operacao).toBe('VENDA DE PRODUÇÃO PRÓPRIA');
+    expect(p.notas_referenciadas).toBeUndefined();
+    expect(p.items[0].cfop).toBe('5101');
+  });
+});

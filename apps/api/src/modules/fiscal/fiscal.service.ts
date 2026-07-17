@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FiscalDocumentType, FiscalStatus, PaymentMethod, TaxOperationType } from '@prisma/client';
+import { FiscalDocumentType, FiscalFinalidade, FiscalStatus, PaymentMethod, TaxOperationType } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from './emissor.port';
@@ -131,33 +131,7 @@ export class FiscalService {
       let vehicle: FiscalVehicleData | undefined;
       const sn = i.serialNumber;
       if (sn?.chassi) {
-        vehicle = {
-          tipoOperacao: sn.tipoOperacao ?? '0', // 0=Outros — GDR não é concessionária (#372)
-          chassi: sn.chassi,
-          codigoCor: sn.codigoCor ?? '00',
-          descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
-          potenciaMotor: sn.potenciaMotor ?? 0,
-          cilindrada: sn.cilindrada ?? 0,
-          pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
-          pesoBruto: String(sn.pesoBruto ?? '0.000'),
-          serie: sn.serial,
-          tipoCombustivel: sn.tipoCombustivel ?? '11', // conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
-          numeroMotor: sn.numeroMotor ?? '0',
-          cmt: sn.cmt ? String(sn.cmt) : undefined,
-          distanciaEixos: sn.distanciaEixos ?? undefined,
-          anoModelo: sn.anoModelo ?? new Date().getFullYear(),
-          anoFabricacao: sn.anoFabricacao ?? new Date().getFullYear(),
-          tipoPintura: sn.tipoPintura ?? 'S',
-          tipoVeiculo: sn.tipoVeiculo ?? '10',
-          especieVeiculo: sn.especieVeiculo ?? '2',
-          vin: sn.vin ?? 'N',
-          condicao: sn.condicaoVeiculo ?? '1',
-          codigoMarcaModelo: sn.codigoMarcaModelo ?? i.product.codigoMarcaModelo ?? '999999',
-          corDenatran: sn.corDenatran ?? '00',
-          lotacao: sn.lotacao ?? 0,
-          restricao: sn.restricao ?? '0',
-          qtdEixos: sn.qtdEixos,
-        };
+        vehicle = this.buildVehicleData(sn, i.product);
 
         // Alerta #362: sem BIN REGISTERED o reboque não entra no RENAVE nem pode
         // ser emplacado — a NF-e sai, mas a pendência precisa aparecer na operação
@@ -384,6 +358,284 @@ export class FiscalService {
     await this.applyFocusResponse(fiscalDoc.id, response);
   }
 
+  /** Grupo veicProd a partir do SerialNumber (extraído p/ venda E devolução — #747) */
+  private buildVehicleData(sn: any, product: any): FiscalVehicleData {
+    return {
+      tipoOperacao: sn.tipoOperacao ?? '0', // 0=Outros — GDR não é concessionária (#372)
+      chassi: sn.chassi,
+      codigoCor: sn.codigoCor ?? '00',
+      descricaoCor: sn.descricaoCor ?? 'NAO INFORMADA',
+      potenciaMotor: sn.potenciaMotor ?? 0,
+      cilindrada: sn.cilindrada ?? 0,
+      pesoLiquido: String(sn.pesoLiquido ?? '0.000'),
+      pesoBruto: String(sn.pesoBruto ?? '0.000'),
+      serie: sn.serial,
+      tipoCombustivel: sn.tipoCombustivel ?? '11', // conforme NF-e real #14236 aceita pela SEFAZ/PR (#372)
+      numeroMotor: sn.numeroMotor ?? '0',
+      cmt: sn.cmt ? String(sn.cmt) : undefined,
+      distanciaEixos: sn.distanciaEixos ?? undefined,
+      anoModelo: sn.anoModelo ?? new Date().getFullYear(),
+      anoFabricacao: sn.anoFabricacao ?? new Date().getFullYear(),
+      tipoPintura: sn.tipoPintura ?? 'S',
+      tipoVeiculo: sn.tipoVeiculo ?? '10',
+      especieVeiculo: sn.especieVeiculo ?? '2',
+      vin: sn.vin ?? 'N',
+      condicao: sn.condicaoVeiculo ?? '1',
+      codigoMarcaModelo: sn.codigoMarcaModelo ?? product?.codigoMarcaModelo ?? '999999',
+      corDenatran: sn.corDenatran ?? '00',
+      lotacao: sn.lotacao ?? 0,
+      restricao: sn.restricao ?? '0',
+      qtdEixos: sn.qtdEixos,
+    };
+  }
+
+  // ─── #747: NF-e de DEVOLUÇÃO (entrada, finNFe 4) referenciando a original ──
+
+  /**
+   * Emite a NF-e de devolução da venda: nota de ENTRADA (tipo_documento 0,
+   * finalidade 4, CFOP 1202/2202) que ESPELHA os tributos persistidos da NF-e
+   * original (FiscalDocumentItem/ItemTax) — devolução estorna o que foi
+   * destacado na original; recalcular com regras vigentes poderia divergir
+   * (vigência #500). Formato validado na SEFAZ em 16/07 (notas 20004/20005,
+   * incl. veicProd preservado). O vínculo com a OV vai por referencedDocumentId
+   * (salesOrderId fica NULL — o @unique é da nota NORMAL da OV).
+   */
+  async emitReturnNote(originalDocumentId: string, companyId: string, reason?: string): Promise<void> {
+    const original = await this.prisma.fiscalDocument.findFirst({
+      where: { id: originalDocumentId, companyId },
+      include: {
+        items: { include: { taxes: true }, orderBy: { id: 'asc' } },
+        salesOrder: {
+          include: {
+            company: true,
+            customer: true,
+            items: { include: { product: true, serialNumber: true } },
+          },
+        },
+      },
+    });
+
+    if (!original) throw new NotFoundException(`Documento fiscal ${originalDocumentId} não encontrado`);
+    if (original.type !== FiscalDocumentType.NFE) {
+      throw new BadRequestException(
+        'Devolução referenciada só é suportada para NF-e (mod 55). Venda NFC-e: fluxo pendente (#747).',
+      );
+    }
+    if (original.status !== FiscalStatus.AUTHORIZED || !original.chave) {
+      throw new BadRequestException(
+        `Somente NF-e AUTHORIZED (com chave) pode ser devolvida. Status atual: ${original.status}`,
+      );
+    }
+    if (original.finalidade !== FiscalFinalidade.NORMAL) {
+      throw new BadRequestException('Devolução referencia apenas a NF-e de venda (finalidade NORMAL).');
+    }
+    const order = original.salesOrder as any;
+    if (!order) throw new BadRequestException('NF-e sem OV vinculada — devolução deve ser tratada manualmente.');
+    if (order.status !== 'RETURNED') {
+      throw new BadRequestException(
+        'A OV precisa estar RETURNED (devolução interna executada) antes da NF-e de devolução.',
+      );
+    }
+    if (!original.items?.length || original.items.some((it: any) => !it.taxes?.length)) {
+      throw new BadRequestException(
+        'NF-e original sem itens/impostos persistidos — emitir devolução manualmente (docs pré-#166).',
+      );
+    }
+
+    // Idempotência: uma devolução viva por NF-e original
+    const existing = await this.prisma.fiscalDocument.findFirst({
+      where: { referencedDocumentId: original.id, finalidade: FiscalFinalidade.DEVOLUCAO },
+    });
+    if (existing && existing.status !== FiscalStatus.REJECTED && existing.status !== FiscalStatus.ERROR) {
+      this.logger.warn(`Devolução já existe para NF-e ${original.id}: status=${existing.status}`);
+      return;
+    }
+
+    const ref = `GDR-RET-${original.id}`;
+    const fiscalDoc = existing
+      ? await this.prisma.fiscalDocument.update({
+          where: { id: existing.id },
+          data: {
+            status: FiscalStatus.PENDING,
+            retryCount: { increment: 1 },
+            lastError: null,
+            rejectionCode: null,
+            rejectionReason: null,
+          },
+        })
+      : await this.prisma.fiscalDocument.create({
+          data: {
+            companyId,
+            type: FiscalDocumentType.NFE,
+            finalidade: FiscalFinalidade.DEVOLUCAO,
+            referencedDocumentId: original.id,
+            status: FiscalStatus.PENDING,
+            focusRef: ref,
+          },
+        });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'FiscalDocument',
+        action: 'EMIT_RETURN',
+        payload: { fiscalDocumentId: fiscalDoc.id, referencedDocumentId: original.id, reason: reason ?? null },
+      },
+    });
+
+    // Espelho dos itens persistidos da original. Pareamento com o item da OV:
+    // 1º pelo CHASSI persistido no productName ("... - CHASSI X" — #733), 2º por
+    // SKU quando único, 3º por índice. Índice puro trocaria chassi entre itens
+    // do mesmo modelo (ordem do banco não é garantida).
+    const isInterstate = order.customer?.state && order.company.state !== order.customer.state;
+    const returnCfop = isInterstate ? '2202' : '1202';
+    const orderItems: any[] = order.items ?? [];
+    const pairOrderItem = (it: any, idx: number): any => {
+      const m = /- CHASSI (\S+)$/.exec(it.productName ?? '');
+      if (m) {
+        const byChassi = orderItems.find((o) => o.serialNumber?.chassi === m[1]);
+        if (byChassi) return byChassi;
+      }
+      const bySku = orderItems.filter((o) => o.product?.sku === it.productCode);
+      if (bySku.length === 1) return bySku[0];
+      return orderItems[idx];
+    };
+
+    const paired: any[] = original.items.map((it: any, idx: number) => pairOrderItem(it, idx));
+
+    const items: FiscalItem[] = original.items.map((it: any, idx: number) => {
+      const t = it.taxes?.[0];
+      const oi = paired[idx];
+      const sn = oi?.serialNumber;
+      const num = (v: any): number | undefined => (v == null ? undefined : Number(v));
+      return {
+        sku: it.productCode ?? oi?.product?.sku ?? 'ITEM',
+        // nome CRU do produto — o persistido já tem "- CHASSI" (buildItemDescription re-anexa)
+        name: oi?.product?.name ?? it.productName,
+        ncm: it.ncm ?? '00000000',
+        quantity: Number(it.quantity),
+        unitPrice: Number(it.unitPrice),
+        unit: it.unit ?? oi?.product?.unit,
+        origem: oi?.product?.origem,
+        ean: oi?.product?.ean ?? undefined,
+        cest: it.cest ?? undefined,
+        tax: {
+          cfop: returnCfop,
+          icmsCst: t.cstIcms ?? '00',
+          icmsBase: num(t.baseIcms) ?? 0,
+          icmsAliquota: num(t.aliquotaIcms) ?? 0,
+          icmsValor: num(t.valorIcms) ?? 0,
+          ipiCst: t.cstIpi ?? '53',
+          ipiBase: num(t.baseIpi) ?? 0,
+          ipiAliquota: num(t.aliquotaIpi) ?? 0,
+          ipiValor: num(t.valorIpi) ?? 0,
+          pisCst: t.cstPis ?? '49',
+          pisBase: num(t.basePis) ?? 0,
+          pisAliquota: num(t.aliquotaPis) ?? 0,
+          pisValor: num(t.valorPis) ?? 0,
+          cofinsCst: t.cstCofins ?? '99',
+          cofinsBase: num(t.baseCofins) ?? 0,
+          cofinsAliquota: num(t.aliquotaCofins) ?? 0,
+          cofinsValor: num(t.valorCofins) ?? 0,
+          // DIFAL NÃO espelha: é apuração do emitente na venda, não compõe a entrada
+          ...(t.cClassTrib && {
+            ibsCbs: {
+              cClassTrib: t.cClassTrib,
+              cbsCst: t.cstCbs ?? '000',
+              base: num(t.baseCbs) ?? 0,
+              cbsAliquota: num(t.aliquotaCbs) ?? 0,
+              cbsValor: num(t.valorCbs) ?? 0,
+              ibsUfAliquota: num(t.aliquotaIbsUf) ?? 0,
+              ibsUfValor: num(t.valorIbsUf) ?? 0,
+              ibsMunAliquota: num(t.aliquotaIbsMun) ?? 0,
+              ibsMunValor: num(t.valorIbsMun) ?? 0,
+            },
+          }),
+        },
+        // Devolução veicular MANTÉM o veicProd (validado SEFAZ homolog 16/07)
+        vehicle: sn?.chassi ? this.buildVehicleData(sn, oi?.product) : undefined,
+      };
+    });
+
+    const totalValue = calcTotalValue(items);
+    const recipientDoc = order.customer?.document?.replace(/\D/g, '') ?? '';
+    const consumidorFinal = order.customer?.indIeDest
+      ? order.customer.indIeDest !== 'CONTRIBUINTE'
+      : !order.customer?.ie || recipientDoc.length === 11;
+
+    const infCpl =
+      `DEVOLUCAO DE VENDA REF NF-E ${original.number ?? ''} SERIE ${original.series ?? 1}` +
+      (reason ? `. MOTIVO: ${reason}` : '');
+
+    const input: FiscalPayloadInput = {
+      ref,
+      finalidade: '4',
+      tipoDocumento: '0',
+      naturezaOperacao: 'DEVOLUCAO DE VENDA',
+      referencedKeys: [original.chave],
+      paymentMethod: '90', // devolução exige "90 - sem pagamento" valor 0 (rej. 871)
+      emitter: {
+        cnpj: order.company.cnpj,
+        name: order.company.razaoSocial ?? order.company.name,
+        ie: order.company.ie ?? undefined,
+        crt: order.company.crt ?? undefined,
+        address: order.company.street ?? 'Endereço não cadastrado',
+        number: order.company.number ?? undefined,
+        complement: order.company.complement ?? undefined,
+        neighborhood: order.company.neighborhood ?? undefined,
+        city: order.company.city ?? 'Cidade',
+        state: order.company.state ?? 'SP',
+        zipCode: order.company.zipCode ?? undefined,
+        ibgeCode: order.company.ibgeCode ?? undefined,
+        phone: order.company.phone ?? undefined,
+      },
+      recipient: order.customer
+        ? {
+            name: order.customer.name,
+            razaoSocial: order.customer.razaoSocial ?? undefined,
+            document: order.customer.document ?? undefined,
+            ie: order.customer.ie ?? undefined,
+            indIeDest: order.customer.indIeDest ?? undefined,
+            email: order.customer.fiscalEmail ?? order.customer.email ?? undefined,
+            address: order.customer.address ?? undefined,
+            number: order.customer.number ?? undefined,
+            complement: order.customer.complement ?? undefined,
+            neighborhood: order.customer.neighborhood ?? undefined,
+            city: order.customer.city ?? undefined,
+            state: order.customer.state ?? undefined,
+            zipCode: order.customer.zipCode ?? undefined,
+            ibgeCode: order.customer.ibgeCode ?? undefined,
+          }
+        : undefined,
+      items,
+      totalValue,
+      consumidorFinal,
+      infCpl,
+      // sem delivery/freight: devolução entra no estabelecimento (modalidade 9)
+    };
+
+    await this.persistFiscalItems(fiscalDoc.id, items, paired);
+
+    const vIBS = round2(
+      items.reduce((s, it) => s + (it.tax?.ibsCbs ? it.tax.ibsCbs.ibsUfValor + it.tax.ibsCbs.ibsMunValor : 0), 0),
+    );
+    const vCBS = round2(items.reduce((s, it) => s + (it.tax?.ibsCbs?.cbsValor ?? 0), 0));
+    const hasIbsCbs = items.some((it) => it.tax?.ibsCbs);
+    await this.prisma.fiscalDocument.update({
+      where: { id: fiscalDoc.id },
+      data: {
+        infCpl,
+        ...(hasIbsCbs && { vIBS, vCBS, vCredPres: 0, vCredPresCondSus: 0, vIBSMono: 0, vCBSMono: 0 }),
+      },
+    });
+
+    const payload = buildNFePayload(input);
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload, 'nfe')) return;
+
+    const response = await this.client.emitNFe(ref, payload, companyId);
+    await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
   /**
    * #499 — roda o Fiscal Validator no payload flat; com problemas, marca o
    * documento ERROR com mensagem orientada e NÃO transmite. Retorna true se bloqueou.
@@ -454,6 +706,15 @@ export class FiscalService {
       throw new BadRequestException(
         `Documento não pode ser reprocessado. Status atual: ${doc.status}`,
       );
+    }
+
+    // #747: devolução reprocessa pelo fluxo referenciado (salesOrderId é NULL)
+    if (doc.finalidade === FiscalFinalidade.DEVOLUCAO) {
+      if (!doc.referencedDocumentId) {
+        throw new BadRequestException('Devolução sem vínculo à NF-e original — reprocessamento manual.');
+      }
+      await this.emitReturnNote(doc.referencedDocumentId, companyId);
+      return;
     }
 
     await this.emitForSale(doc.salesOrderId, doc.type);

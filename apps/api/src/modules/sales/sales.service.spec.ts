@@ -691,7 +691,7 @@ describe('SalesService', () => {
       expect(mockPrisma.financialEntry.updateMany).not.toHaveBeenCalled();
     });
 
-    it('deve cancelar NF-e autorizada dentro do prazo de 24h (#178)', async () => {
+    it('#747: delega o lado fiscal ao SALE_RETURNED (listener cancela ou emite devolução) e não toca o FiscalDocument inline', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
@@ -707,13 +707,6 @@ describe('SalesService', () => {
         warehouse: {},
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
-      // NF-e emitida há 2h (dentro do prazo)
-      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
-        id: 'nfe-1',
-        status: 'AUTHORIZED',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      });
-      mockPrisma.fiscalDocument.update.mockResolvedValue({});
       mockPrisma.financialEntry.updateMany.mockResolvedValue({});
 
       await service.returnOrder(
@@ -723,16 +716,20 @@ describe('SalesService', () => {
         'user-1',
       );
 
-      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith({
-        where: { id: 'nfe-1' },
-        data: expect.objectContaining({
-          status: 'CANCELLED',
-          cancellationJustification: 'Devolução por defeito de fabricação confirmado',
+      // O returnOrder NÃO mexe mais no documento fiscal (antes marcava
+      // CANCELLED no banco sem cancelar na SEFAZ) — quem age é o FiscalListener
+      expect(mockPrisma.fiscalDocument.update).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'sales.order.returned',
+        expect.objectContaining({
+          companyId: 'co-1',
+          salesOrderId: 'so-1',
+          reason: 'Devolução por defeito de fabricação confirmado',
         }),
-      });
+      );
     });
 
-    it('não deve cancelar NF-e quando prazo de 24h expirado (#178)', async () => {
+    it('#747: sem justificativa, o reason da devolução segue no evento', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
@@ -748,17 +745,14 @@ describe('SalesService', () => {
         warehouse: {},
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
-      // NF-e emitida há 48h (fora do prazo)
-      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({
-        id: 'nfe-1',
-        status: 'AUTHORIZED',
-        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
-      });
 
       await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
 
-      // NF-e não é cancelada quando fora do prazo
       expect(mockPrisma.fiscalDocument.update).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'sales.order.returned',
+        expect.objectContaining({ salesOrderId: 'so-1', reason: 'Defeito' }),
+      );
     });
   });
 

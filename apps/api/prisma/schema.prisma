@@ -1071,6 +1071,20 @@ enum FiscalDocumentType {
   NFCE
 }
 
+// finNFe (B25) — finalidade de emissão. NORMAL=1, COMPLEMENTAR=2, AJUSTE=3,
+// DEVOLUCAO=4, NOTA_CREDITO=5 e NOTA_DEBITO=6 (Reforma Tributária, Ajuste
+// SINIEF 49/2025). `type` continua sendo o MODELO do documento (55/65) para o
+// unique de numeração (companyId, series, number, type) permanecer correto —
+// a numeração SEFAZ é por série, independente da finalidade. (#754)
+enum FiscalFinalidade {
+  NORMAL
+  COMPLEMENTAR
+  AJUSTE
+  DEVOLUCAO
+  NOTA_CREDITO
+  NOTA_DEBITO
+}
+
 enum FiscalStatus {
   PENDING
   PROCESSING
@@ -1089,6 +1103,15 @@ model FiscalDocument {
   storeTransferId           String?              @unique
   storeTransfer             StoreTransfer?       @relation(fields: [storeTransferId], references: [id])
   type                      FiscalDocumentType   @default(NFCE)
+  // Finalidade + vínculo à NF-e original (#754). Devolução/débito/crédito NÃO
+  // ocupam o salesOrderId (@unique = 1 doc NORMAL por OV): o vínculo com a
+  // operação vai pela nota referenciada (referencedDocumentId → doc original).
+  finalidade                FiscalFinalidade     @default(NORMAL)
+  referencedDocumentId      String?              @map("referenced_document_id")
+  referencedDocument        FiscalDocument?      @relation("FiscalDocumentReference", fields: [referencedDocumentId], references: [id])
+  referencingDocuments      FiscalDocument[]     @relation("FiscalDocumentReference")
+  tipoNotaDebito            String?              @db.VarChar(2) @map("tipo_nota_debito") // tpNFDebito 01-08 (SINIEF 49/2025)
+  tipoNotaCredito           String?              @db.VarChar(2) @map("tipo_nota_credito") // tpNFCredito 01-06
   status                    FiscalStatus         @default(PENDING)
   focusRef                  String?
   chave                     String?
@@ -1121,6 +1144,7 @@ model FiscalDocument {
   updatedAt                 DateTime             @updatedAt
 
   @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
+  @@index([referencedDocumentId])
   @@map("gdr_fiscal_documents")
 }
 
