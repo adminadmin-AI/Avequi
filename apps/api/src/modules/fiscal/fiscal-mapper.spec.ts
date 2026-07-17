@@ -594,3 +594,74 @@ describe('buildNFePayload — devolução referenciada (#747)', () => {
     expect(p.items[0].cfop).toBe('5101');
   });
 });
+
+// ─── #756: Nota de Débito/Crédito IBS/CBS (finNFe 5/6, SINIEF 49/2025) ────────
+import { buildAdjustmentNFePayload } from './fiscal-mapper';
+
+describe('buildAdjustmentNFePayload (#756)', () => {
+  const CHAVE = '41260730284708000182550010000200021392278324';
+  const adjItem = {
+    sku: 'AJUSTE',
+    name: 'MULTA E JUROS',
+    ncm: '87163900',
+    base: 350,
+    cClassTrib: '000001',
+    cstCbs: '000',
+    cbsAliquota: 0.9,
+    cbsValor: 3.15,
+    ibsUfAliquota: 0.1,
+    ibsUfValor: 0.35,
+    ibsMunAliquota: 0,
+    ibsMunValor: 0,
+  };
+  const base = {
+    ref: 'GDR-ADJ-1',
+    tipoNota: '04',
+    referencedKey: CHAVE,
+    emitter: baseInput.emitter,
+    items: [adjItem],
+  };
+
+  it('débito (finNFe 6): tipo_nota_debito + referência + pagamento 90/0', () => {
+    const p = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
+    expect(p.finalidade_emissao).toBe('6');
+    expect(p.tipo_nota_debito).toBe('04');
+    expect(p.tipo_nota_credito).toBeUndefined();
+    expect(p.natureza_operacao).toBe('NOTA DE DEBITO IBS/CBS');
+    expect(p.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+    expect(p.formas_pagamento).toEqual([{ forma_pagamento: '90', valor_pagamento: 0 }]);
+  });
+
+  it('crédito (finNFe 5): tipo_nota_credito', () => {
+    const p = buildAdjustmentNFePayload({ ...base, finalidade: '5' }) as any;
+    expect(p.finalidade_emissao).toBe('5');
+    expect(p.tipo_nota_credito).toBe('04');
+    expect(p.tipo_nota_debito).toBeUndefined();
+    expect(p.natureza_operacao).toBe('NOTA DE CREDITO IBS/CBS');
+  });
+
+  it('item leva SOMENTE grupo IBS/CBS — nenhum campo de icms/ipi/pis/cofins', () => {
+    const p = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
+    const it = p.items[0];
+    const stray = Object.keys(it).filter((k) =>
+      ['icms_', 'ipi_', 'pis_', 'cofins_'].some((pre) => k.startsWith(pre)),
+    );
+    expect(stray).toEqual([]);
+    expect(it.ibs_cbs_situacao_tributaria).toBe('000');
+    expect(it.ibs_cbs_classificacao_tributaria).toBe('000001');
+    expect(it.ibs_cbs_base_calculo).toBe(350);
+    expect(it.cbs_valor).toBe(3.15);
+    expect(it.valor_total_bruto).toBe(350);
+  });
+
+  it('CFOP default 5949 intra / 6949 interestadual', () => {
+    const intra = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
+    expect(intra.items[0].cfop).toBe('5949');
+    const inter = buildAdjustmentNFePayload({
+      ...base,
+      finalidade: '6',
+      recipient: { name: 'Cliente SP', state: 'SP' },
+    }) as any;
+    expect(inter.items[0].cfop).toBe('6949');
+  });
+});

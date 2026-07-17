@@ -8,16 +8,19 @@ import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import { FISCAL_AUTHORIZED_EVENT, FiscalAuthorizedEvent } from './events/fiscal-authorized.event';
 import {
+  buildAdjustmentNFePayload,
   buildItemDescription,
   buildNFCePayload,
   buildNFePayload,
   buildTransferNFePayload,
   calcTotalValue,
+  FiscalAdjustmentPayloadItem,
   FiscalItem,
   FiscalPayloadInput,
   FiscalVehicleData,
   cardBrandCode,
 } from './fiscal-mapper';
+import { AdjustmentSpec, IbsCbsAdjustmentService } from './ibscbs-adjustment.service';
 
 const CANCEL_DEADLINE_HOURS = 24;
 
@@ -30,6 +33,7 @@ export class FiscalService {
     @Inject(EMISSOR_PORT) private readonly client: EmissorPort,
     private readonly taxCalc: TaxCalculationService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly ibsCbsAdjustment: IbsCbsAdjustmentService,
   ) {}
 
   // ─── S08.03: Emitir NF para venda confirmada ──────────────────────────────
@@ -636,6 +640,320 @@ export class FiscalService {
     await this.applyFocusResponse(fiscalDoc.id, response);
   }
 
+  // ─── #757: Nota de Débito/Crédito IBS/CBS (finNFe 5/6, épico #753) ─────────
+
+  /** Motivos válidos por espécie (tpNFDebito 01-08 / tpNFCredito 01-06, SINIEF 49/2025) */
+  private static readonly ADJUSTMENT_TIPOS: Record<'DEBITO' | 'CREDITO', string[]> = {
+    DEBITO: ['01', '02', '03', '04', '05', '06', '07', '08'],
+    CREDITO: ['01', '02', '03', '04', '05', '06'],
+  };
+
+  /**
+   * Emite Nota de Débito (finNFe 6) ou de Crédito (finNFe 5) referenciando a
+   * NF-e original. Os valores vêm do motor de diferença (#755) — espelho das
+   * alíquotas efetivas persistidas da original; SÓ IBS/CBS (regra da Reforma).
+   * Múltiplos ajustes na mesma original são legítimos (ex.: multa mensal) —
+   * bloqueia apenas ajuste simultâneo em PENDING/PROCESSING; REJECTED/ERROR é
+   * reaproveitado (retry). ⚠️ NÃO usar em produção antes da homologação F4
+   * (#760): tipo_documento/CFOP das notas 5/6 ainda serão confirmados na SEFAZ.
+   */
+  async emitAdjustmentNote(
+    originalDocumentId: string,
+    companyId: string,
+    kind: 'DEBITO' | 'CREDITO',
+    dto: { tipo: string; spec: AdjustmentSpec; justificativa?: string },
+  ): Promise<void> {
+    if (!FiscalService.ADJUSTMENT_TIPOS[kind].includes(dto.tipo)) {
+      throw new BadRequestException(
+        `Motivo "${dto.tipo}" inválido para nota de ${kind.toLowerCase()} — use ${FiscalService.ADJUSTMENT_TIPOS[kind].join(', ')}.`,
+      );
+    }
+
+    const original = await this.prisma.fiscalDocument.findFirst({
+      where: { id: originalDocumentId, companyId },
+      include: {
+        items: { include: { taxes: true }, orderBy: { id: 'asc' } },
+        salesOrder: { include: { company: true, customer: true } },
+      },
+    });
+
+    if (!original) throw new NotFoundException(`Documento fiscal ${originalDocumentId} não encontrado`);
+    if (original.type !== FiscalDocumentType.NFE) {
+      throw new BadRequestException('Nota de débito/crédito só referencia NF-e (mod 55).');
+    }
+    if (original.status !== FiscalStatus.AUTHORIZED || !original.chave) {
+      throw new BadRequestException(
+        `Somente NF-e AUTHORIZED (com chave) pode ser ajustada. Status atual: ${original.status}`,
+      );
+    }
+    if (original.finalidade !== FiscalFinalidade.NORMAL) {
+      throw new BadRequestException('Nota de débito/crédito referencia apenas a NF-e de venda (finalidade NORMAL).');
+    }
+    const order = original.salesOrder as any;
+    if (!order?.company) {
+      throw new BadRequestException('NF-e original sem OV/emitente vinculado — ajuste manual.');
+    }
+    if (!original.items?.length || original.items.some((it: any) => !it.taxes?.length)) {
+      throw new BadRequestException('NF-e original sem itens/impostos persistidos — ajuste manual (docs pré-#166).');
+    }
+
+    // Ajuste simultâneo bloqueado; REJECTED/ERROR do mesmo motivo é reaproveitado
+    const finalidade = kind === 'DEBITO' ? FiscalFinalidade.NOTA_DEBITO : FiscalFinalidade.NOTA_CREDITO;
+    const siblings = await this.prisma.fiscalDocument.findMany({
+      where: { referencedDocumentId: original.id, finalidade },
+    });
+    const inFlight = siblings.find(
+      (s) => s.status === FiscalStatus.PENDING || s.status === FiscalStatus.PROCESSING,
+    );
+    if (inFlight) {
+      throw new BadRequestException(
+        `Já existe nota de ${kind.toLowerCase()} em processamento para esta NF-e (doc ${inFlight.id}) — aguarde o retorno da SEFAZ.`,
+      );
+    }
+    const tipoField = kind === 'DEBITO' ? 'tipoNotaDebito' : 'tipoNotaCredito';
+    const reusable = siblings.find(
+      (s) =>
+        (s.status === FiscalStatus.REJECTED || s.status === FiscalStatus.ERROR) &&
+        (s as any)[tipoField] === dto.tipo,
+    );
+
+    // Motor de diferença (#755) sobre os impostos persistidos da original
+    const result = this.ibsCbsAdjustment.compute(
+      original.items.map((it: any) => {
+        const t = it.taxes[0];
+        const num = (v: any): number => (v == null ? 0 : Number(v));
+        return {
+          id: it.id,
+          sku: it.productCode ?? 'ITEM',
+          name: it.productName,
+          ncm: it.ncm,
+          tax: {
+            cClassTrib: t.cClassTrib,
+            cstCbs: t.cstCbs,
+            baseCbs: num(t.baseCbs),
+            valorCbs: num(t.valorCbs),
+            baseIbsUf: num(t.baseIbsUf),
+            valorIbsUf: num(t.valorIbsUf),
+            baseIbsMun: num(t.baseIbsMun),
+            valorIbsMun: num(t.valorIbsMun),
+          },
+        };
+      }),
+      dto.spec,
+    );
+
+    const ref = reusable?.focusRef ?? `GDR-ADJ-${original.id}-${siblings.length + 1}`;
+    const fiscalDoc = reusable
+      ? await this.prisma.fiscalDocument.update({
+          where: { id: reusable.id },
+          data: {
+            status: FiscalStatus.PENDING,
+            retryCount: { increment: 1 },
+            lastError: null,
+            rejectionCode: null,
+            rejectionReason: null,
+          },
+        })
+      : await this.prisma.fiscalDocument.create({
+          data: {
+            companyId,
+            type: FiscalDocumentType.NFE,
+            finalidade,
+            [tipoField]: dto.tipo,
+            referencedDocumentId: original.id,
+            status: FiscalStatus.PENDING,
+            focusRef: ref,
+          },
+        });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'FiscalDocument',
+        action: kind === 'DEBITO' ? 'EMIT_DEBIT_NOTE' : 'EMIT_CREDIT_NOTE',
+        payload: {
+          fiscalDocumentId: fiscalDoc.id,
+          referencedDocumentId: original.id,
+          tipo: dto.tipo,
+          spec: dto.spec as any,
+          justificativa: dto.justificativa ?? null,
+        },
+      },
+    });
+
+    // Persistir itens do ajuste (só IBS/CBS) — base p/ registro fiscal e retry
+    if (!reusable) {
+      for (const it of result.items) {
+        const docItem = await this.prisma.fiscalDocumentItem.create({
+          data: {
+            fiscalDocumentId: fiscalDoc.id,
+            productName: it.name,
+            productCode: it.sku,
+            ncm: it.ncm,
+            quantity: 1,
+            unitPrice: it.base,
+            totalPrice: it.base,
+          },
+        });
+        await this.prisma.fiscalDocumentItemTax.create({
+          data: {
+            fiscalDocumentItemId: docItem.id,
+            cClassTrib: it.cClassTrib,
+            cstCbs: it.cstCbs,
+            baseCbs: it.base,
+            aliquotaCbs: it.cbsAliquota,
+            valorCbs: it.cbsValor,
+            cstIbsUf: it.cstCbs,
+            baseIbsUf: it.base,
+            aliquotaIbsUf: it.ibsUfAliquota,
+            valorIbsUf: it.ibsUfValor,
+            cstIbsMun: it.cstCbs,
+            baseIbsMun: it.base,
+            aliquotaIbsMun: it.ibsMunAliquota,
+            valorIbsMun: it.ibsMunValor,
+          },
+        });
+      }
+    }
+
+    const infCpl =
+      `NOTA DE ${kind} IBS/CBS (SINIEF 49/2025) REF NF-E ${original.number ?? ''} SERIE ${original.series ?? 1}` +
+      (dto.justificativa ? `. ${dto.justificativa.toUpperCase()}` : '');
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: fiscalDoc.id },
+      data: { infCpl, vIBS: result.vIBS, vCBS: result.vCBS, vCredPres: 0, vCredPresCondSus: 0, vIBSMono: 0, vCBSMono: 0 },
+    });
+
+    const payload = buildAdjustmentNFePayload({
+      ref,
+      finalidade: kind === 'DEBITO' ? '6' : '5',
+      tipoNota: dto.tipo,
+      referencedKey: original.chave,
+      emitter: this.mapCompanyToEmitter(order.company),
+      recipient: order.customer ? this.mapCustomerToRecipient(order.customer) : undefined,
+      items: result.items.map((it) => this.toAdjustmentPayloadItem(it)),
+      infCpl,
+    });
+
+    if (await this.blockIfInvalid(fiscalDoc.id, ref, payload, 'nfe')) return;
+
+    const response = await this.client.emitNFe(ref, payload, companyId);
+    await this.applyFocusResponse(fiscalDoc.id, response);
+  }
+
+  /** Retry de nota de débito/crédito: re-monta o payload dos itens persistidos do próprio ajuste */
+  private async retryAdjustment(doc: { id: string; companyId: string }): Promise<void> {
+    const adj = await this.prisma.fiscalDocument.findFirst({
+      where: { id: doc.id, companyId: doc.companyId },
+      include: {
+        items: { include: { taxes: true }, orderBy: { id: 'asc' } },
+        referencedDocument: { include: { salesOrder: { include: { company: true, customer: true } } } },
+      },
+    });
+    if (!adj?.referencedDocument?.chave || !(adj.referencedDocument as any).salesOrder?.company) {
+      throw new BadRequestException('Ajuste sem NF-e original/emitente vinculado — reprocessamento manual.');
+    }
+    const order = (adj.referencedDocument as any).salesOrder;
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: adj.id },
+      data: { status: FiscalStatus.PENDING, retryCount: { increment: 1 }, lastError: null, rejectionCode: null, rejectionReason: null },
+    });
+
+    const kind = adj.finalidade === FiscalFinalidade.NOTA_DEBITO ? ('6' as const) : ('5' as const);
+    const num = (v: any): number => (v == null ? 0 : Number(v));
+    const payload = buildAdjustmentNFePayload({
+      ref: adj.focusRef!,
+      finalidade: kind,
+      tipoNota: (kind === '6' ? adj.tipoNotaDebito : adj.tipoNotaCredito) ?? '',
+      referencedKey: adj.referencedDocument.chave,
+      emitter: this.mapCompanyToEmitter(order.company),
+      recipient: order.customer ? this.mapCustomerToRecipient(order.customer) : undefined,
+      items: adj.items.map((it: any) => {
+        const t = it.taxes?.[0] ?? {};
+        return {
+          sku: it.productCode ?? 'AJUSTE',
+          name: it.productName,
+          ncm: it.ncm,
+          base: num(it.totalPrice),
+          cClassTrib: t.cClassTrib ?? '000001',
+          cstCbs: t.cstCbs ?? '000',
+          cbsAliquota: num(t.aliquotaCbs),
+          cbsValor: num(t.valorCbs),
+          ibsUfAliquota: num(t.aliquotaIbsUf),
+          ibsUfValor: num(t.valorIbsUf),
+          ibsMunAliquota: num(t.aliquotaIbsMun),
+          ibsMunValor: num(t.valorIbsMun),
+        };
+      }),
+      infCpl: adj.infCpl ?? undefined,
+    });
+
+    if (await this.blockIfInvalid(adj.id, adj.focusRef!, payload, 'nfe')) return;
+    const response = await this.client.emitNFe(adj.focusRef!, payload, doc.companyId);
+    await this.applyFocusResponse(adj.id, response);
+  }
+
+  /** Company → FiscalEmitter (mesmo mapeamento do emitForSale/emitReturnNote) */
+  private mapCompanyToEmitter(company: any) {
+    return {
+      cnpj: company.cnpj,
+      name: company.razaoSocial ?? company.name,
+      ie: company.ie ?? undefined,
+      crt: company.crt ?? undefined,
+      address: company.street ?? 'Endereço não cadastrado',
+      number: company.number ?? undefined,
+      complement: company.complement ?? undefined,
+      neighborhood: company.neighborhood ?? undefined,
+      city: company.city ?? 'Cidade',
+      state: company.state ?? 'SP',
+      zipCode: company.zipCode ?? undefined,
+      ibgeCode: company.ibgeCode ?? undefined,
+      phone: company.phone ?? undefined,
+    };
+  }
+
+  /** Customer → FiscalRecipient (mesmo mapeamento do emitForSale/emitReturnNote) */
+  private mapCustomerToRecipient(customer: any) {
+    return {
+      name: customer.name,
+      razaoSocial: customer.razaoSocial ?? undefined,
+      document: customer.document ?? undefined,
+      ie: customer.ie ?? undefined,
+      indIeDest: customer.indIeDest ?? undefined,
+      email: customer.fiscalEmail ?? customer.email ?? undefined,
+      address: customer.address ?? undefined,
+      number: customer.number ?? undefined,
+      complement: customer.complement ?? undefined,
+      neighborhood: customer.neighborhood ?? undefined,
+      city: customer.city ?? undefined,
+      state: customer.state ?? undefined,
+      zipCode: customer.zipCode ?? undefined,
+      ibgeCode: customer.ibgeCode ?? undefined,
+    };
+  }
+
+  private toAdjustmentPayloadItem(it: {
+    sku: string; name: string; ncm: string | null; base: number; cClassTrib: string; cstCbs: string;
+    cbsAliquota: number; cbsValor: number; ibsUfAliquota: number; ibsUfValor: number; ibsMunAliquota: number; ibsMunValor: number;
+  }): FiscalAdjustmentPayloadItem {
+    return {
+      sku: it.sku,
+      name: it.name,
+      ncm: it.ncm,
+      base: it.base,
+      cClassTrib: it.cClassTrib,
+      cstCbs: it.cstCbs,
+      cbsAliquota: it.cbsAliquota,
+      cbsValor: it.cbsValor,
+      ibsUfAliquota: it.ibsUfAliquota,
+      ibsUfValor: it.ibsUfValor,
+      ibsMunAliquota: it.ibsMunAliquota,
+      ibsMunValor: it.ibsMunValor,
+    };
+  }
+
   /**
    * #499 — roda o Fiscal Validator no payload flat; com problemas, marca o
    * documento ERROR com mensagem orientada e NÃO transmite. Retorna true se bloqueou.
@@ -714,6 +1032,12 @@ export class FiscalService {
         throw new BadRequestException('Devolução sem vínculo à NF-e original — reprocessamento manual.');
       }
       await this.emitReturnNote(doc.referencedDocumentId, companyId);
+      return;
+    }
+
+    // #757: nota de débito/crédito re-monta o payload dos itens persistidos do ajuste
+    if (doc.finalidade === FiscalFinalidade.NOTA_DEBITO || doc.finalidade === FiscalFinalidade.NOTA_CREDITO) {
+      await this.retryAdjustment({ id: doc.id, companyId });
       return;
     }
 
@@ -912,7 +1236,13 @@ export class FiscalService {
           companyId,
           entity: 'FiscalDocument',
           action: 'CANCEL',
-          payload: { fiscalDocumentId: id, justificativa },
+          // #727: protocolo/mensagem do evento de cancelamento p/ auditoria
+          payload: {
+            fiscalDocumentId: id,
+            justificativa,
+            protocolo: (response as any).protocolo ?? null,
+            mensagemSefaz: (response as any).mensagem_sefaz ?? null,
+          },
         },
       });
 
@@ -924,16 +1254,19 @@ export class FiscalService {
 
       this.logger.log(`NF-e ${id} cancelada com sucesso`);
     } else {
-      // Rejeição do cancelamento pela SEFAZ
+      // Rejeição do cancelamento pela SEFAZ (#727: capturar mensagem_sefaz/status_sefaz)
+      const motivo =
+        response.motivo ?? (response as any).mensagem_sefaz ?? 'Erro ao cancelar na SEFAZ';
+      const codigo = (response as any).codigo ?? (response as any).status_sefaz;
       await this.prisma.fiscalDocument.update({
         where: { id },
         data: {
-          lastError: response.motivo ?? 'Erro ao cancelar na SEFAZ',
+          lastError: codigo ? `[${codigo}] ${motivo}` : motivo,
         },
       });
 
       throw new BadRequestException(
-        `Cancelamento rejeitado pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`,
+        `Cancelamento rejeitado pela SEFAZ: ${codigo ? `[${codigo}] ` : ''}${motivo}`,
       );
     }
   }
@@ -1003,7 +1336,11 @@ export class FiscalService {
       justificativa,
     }, companyId);
 
-    const protocol = response.status === 'autorizado' ? (response.chave_nfe ?? response.ref ?? null) : null;
+    // #727: o protocolo real vem em `protocolo` — chave_nfe/ref são fallbacks legados
+    const protocol =
+      response.status === 'autorizado'
+        ? ((response as any).protocolo ?? response.chave_nfe ?? response.ref ?? null)
+        : null;
 
     if (response.status === 'autorizado' || response.status === 'processando_autorizacao') {
       await this.prisma.fiscalVoidRange.create({
@@ -1023,14 +1360,25 @@ export class FiscalService {
           companyId,
           entity: 'FiscalVoidRange',
           action: 'VOID',
-          payload: { serie, numberStart, numberEnd },
+          // #727: protocolo/mensagem da SEFAZ p/ auditoria
+          payload: {
+            serie,
+            numberStart,
+            numberEnd,
+            protocolo: protocol,
+            mensagemSefaz: (response as any).mensagem_sefaz ?? null,
+          },
         },
       });
 
       return { protocol: protocol ?? undefined };
     }
 
-    throw new BadRequestException(`Inutilização rejeitada pela SEFAZ: ${response.motivo ?? 'erro desconhecido'}`);
+    const voidMotivo = response.motivo ?? (response as any).mensagem_sefaz ?? 'erro desconhecido';
+    const voidCodigo = (response as any).codigo ?? (response as any).status_sefaz;
+    throw new BadRequestException(
+      `Inutilização rejeitada pela SEFAZ: ${voidCodigo ? `[${voidCodigo}] ` : ''}${voidMotivo}`,
+    );
   }
 
   // ─── Consultas ────────────────────────────────────────────────────────────
@@ -1303,8 +1651,11 @@ export class FiscalService {
     };
 
     const newStatus = statusMap[response.status] ?? FiscalStatus.ERROR;
-    const motivo = response.motivo ?? response.mensagem_sefaz ?? null;
     const codigo = response.codigo ?? response.status_sefaz ?? null;
+    // #757: rejeições da Reforma (IBS/CBS) ganham orientação acionável no motivo
+    const rawMotivo = response.motivo ?? response.mensagem_sefaz ?? null;
+    const guidance = codigo ? REFORMA_REJECTION_GUIDANCE[String(codigo)] : undefined;
+    const motivo = rawMotivo && guidance ? `${rawMotivo} — ${guidance}` : rawMotivo;
 
     // Número/série/protocolo SEFAZ (#361) — Focus retorna numero/serie no response;
     // nProt pode vir no campo protocolo ou embutido no XML autorizado
@@ -1352,6 +1703,17 @@ export class FiscalService {
     }
   }
 }
+
+/**
+ * #757 — orientação acionável p/ rejeições da Reforma Tributária (IBS/CBS,
+ * NT 2025.002-RTC). Anexada ao motivo da rejeição no applyFocusResponse.
+ */
+const REFORMA_REJECTION_GUIDANCE: Record<string, string> = {
+  '960': 'Reforma: item sem grupo IBS/CBS obrigatório — confira o cClassTrib do produto e as regras fiscais (Compliance Center).',
+  '1106': 'Reforma: cClassTrib inexistente ou incompatível com o CST — revise a classificação tributária do item.',
+  '1033': 'Reforma: CST IBS/CBS 2xx exige grupo gRed (percentual de redução + alíquota efetiva).',
+  '1026': 'Reforma: alíquotas IBS/CBS fora da tabela vigente (LC 214/2025 art. 343) — confira as TaxRules.',
+};
 
 /** Descrição RENAVAM: por ora 1 marca/modelo (600657) — mover p/ campo do Product quando houver mais */
 const MARCA_MODELO_DESC: Record<string, string> = {

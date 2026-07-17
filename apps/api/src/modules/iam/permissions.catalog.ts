@@ -518,6 +518,8 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['cancel', 'cancelar NF-e', 'POST /fiscal/:id/cancel (prazo legal 24h)'],
     ['correct', 'emitir carta de correção (CC-e)', 'POST /fiscal/:id/correction'],
     ['return-note', 'emitir NF-e de devolução referenciada', 'POST /fiscal/:id/return-note (#747)'],
+    ['debit-note', 'emitir nota de débito IBS/CBS (Reforma)', 'POST /fiscal/:id/debit-note (#757)'],
+    ['credit-note', 'emitir nota de crédito IBS/CBS (Reforma)', 'POST /fiscal/:id/credit-note (#757)'],
     ['void-range', 'inutilizar faixa de numeração', 'POST /fiscal/void-range'],
     ['retry', 'reprocessar rejeitada', 'POST /fiscal/:id/retry'],
   ]),

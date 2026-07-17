@@ -127,8 +127,9 @@ export function validateNfePayload(
     });
   }
 
-  // ── Devolução (finNFe 4): pagamento obrigatório "90 - Sem pagamento" ───────
-  if (String(payload.finalidade_emissao ?? '') === '4') {
+  // ── finNFe 4/5/6: pagamento obrigatório "90 - Sem pagamento" ───────────────
+  // Devolução (4) e ajustes documentais da Reforma (5/6): sem operação comercial.
+  if (['4', '5', '6'].includes(String(payload.finalidade_emissao ?? ''))) {
     const pags: Payload[] = Array.isArray(payload.formas_pagamento) ? payload.formas_pagamento : [];
     const ok =
       pags.length > 0 &&
@@ -138,7 +139,7 @@ export function validateNfePayload(
         rejection: '871',
         field: 'formas_pagamento',
         message:
-          'NF-e de devolução (finalidade 4) exige forma_pagamento "90 - Sem pagamento" com valor 0 (rej. 871).',
+          `NF-e com finalidade ${payload.finalidade_emissao} exige forma_pagamento "90 - Sem pagamento" com valor 0 (rej. 871).`,
       });
     }
   }
@@ -163,6 +164,49 @@ export function validateNfePayload(
         message: 'Devolução de venda emitida pelo vendedor é nota de ENTRADA (tipo_documento 0).',
       });
     }
+  }
+
+  // ── Notas de Débito/Crédito da Reforma (finNFe 5/6, SINIEF 49/2025) #756 ───
+  if (finalidade === '5' || finalidade === '6') {
+    // motivo obrigatório: tpNFCredito 01-06 (fin 5) / tpNFDebito 01-08 (fin 6)
+    const tipoField = finalidade === '6' ? 'tipo_nota_debito' : 'tipo_nota_credito';
+    const tipo = String(payload[tipoField] ?? '');
+    const validTipos =
+      finalidade === '6'
+        ? ['01', '02', '03', '04', '05', '06', '07', '08']
+        : ['01', '02', '03', '04', '05', '06'];
+    if (!validTipos.includes(tipo)) {
+      issues.push({
+        rejection: 'B25',
+        field: tipoField,
+        message:
+          `NF-e com finalidade ${finalidade} exige ${tipoField} válido ` +
+          `(${validTipos[0]}-${validTipos[validTipos.length - 1]}). Recebido: "${tipo || 'vazio'}".`,
+      });
+    }
+
+    // notas 5/6 SÓ podem conter IBS/CBS — tributo estranho = rejeição da Reforma
+    const forbidden = ['icms_', 'ipi_', 'pis_', 'cofins_'];
+    items.forEach((item, idx) => {
+      const n = item.numero_item ?? idx + 1;
+      const stray = Object.keys(item).filter((k) => forbidden.some((p) => k.startsWith(p)));
+      if (stray.length > 0) {
+        issues.push({
+          rejection: 'RTC',
+          field: `items[${n}]`,
+          message:
+            `Nota de ${finalidade === '6' ? 'débito' : 'crédito'} (finNFe ${finalidade}) só pode conter IBS/CBS — ` +
+            `remova do item ${n}: ${stray.join(', ')}.`,
+        });
+      }
+      if (!item.ibs_cbs_situacao_tributaria || item.ibs_cbs_base_calculo == null) {
+        issues.push({
+          rejection: 'RTC',
+          field: `items[${n}]`,
+          message: `Item ${n} sem grupo IBS/CBS (ibs_cbs_situacao_tributaria/base) — obrigatório em nota de débito/crédito.`,
+        });
+      }
+    });
   }
 
   // ── Frete: vFrete é RATEADO POR ITEM, nunca no cabeçalho ───────────────────

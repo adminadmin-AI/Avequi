@@ -237,3 +237,76 @@ describe('validateNfePayload (#499)', () => {
     });
   });
 });
+
+// ─── #756: validação das notas de débito/crédito (finNFe 5/6) ─────────────────
+describe('validateNfePayload — notas 5/6 da Reforma (#756)', () => {
+  const CHAVE = '41260730284708000182550010000200021392278324';
+  const adjBase = (finalidade: '5' | '6', extra: Record<string, any> = {}) =>
+    validPayload({
+      finalidade_emissao: finalidade,
+      ...(finalidade === '6' ? { tipo_nota_debito: '04' } : { tipo_nota_credito: '04' }),
+      notas_referenciadas: [{ chave_nfe: CHAVE }],
+      formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
+      items: [
+        {
+          numero_item: 1,
+          codigo_produto: 'AJUSTE',
+          descricao: 'MULTA E JUROS',
+          cfop: '5949',
+          codigo_ncm: '87163900',
+          valor_total_bruto: 350,
+          ibs_cbs_situacao_tributaria: '000',
+          ibs_cbs_classificacao_tributaria: '000001',
+          ibs_cbs_base_calculo: 350,
+          cbs_aliquota: 0.9,
+          cbs_valor: 3.15,
+          ibs_uf_aliquota: 0.1,
+          ibs_uf_valor: 0.35,
+        },
+      ],
+      ...extra,
+    });
+
+  it('payload 5/6 completo passa', () => {
+    expect(validateNfePayload(adjBase('6'))).toEqual([]);
+    expect(validateNfePayload(adjBase('5'))).toEqual([]);
+  });
+
+  it('finalidade 6 sem tipo_nota_debito → bloqueia (B25)', () => {
+    const p = adjBase('6');
+    delete p.tipo_nota_debito;
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: 'B25', field: 'tipo_nota_debito' }),
+    ]);
+  });
+
+  it('tipo_nota_credito fora do catálogo (07) → bloqueia', () => {
+    const p = adjBase('5', { tipo_nota_credito: '07' });
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: 'B25', field: 'tipo_nota_credito' }),
+    ]);
+  });
+
+  it('tributo estranho no item (icms_*) → bloqueia (só IBS/CBS)', () => {
+    const p = adjBase('6');
+    (p.items as any[])[0].icms_situacao_tributaria = '00';
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: 'RTC', field: 'items[1]' }),
+    ]);
+  });
+
+  it('item sem grupo IBS/CBS → bloqueia', () => {
+    const p = adjBase('6');
+    delete (p.items as any[])[0].ibs_cbs_situacao_tributaria;
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: 'RTC' }),
+    ]);
+  });
+
+  it('finalidade 5/6 sem pagamento 90/0 → rej. 871', () => {
+    const p = adjBase('6', { formas_pagamento: [{ forma_pagamento: '17', valor_pagamento: 350 }] });
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '871' }),
+    ]);
+  });
+});
