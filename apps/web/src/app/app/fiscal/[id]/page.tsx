@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, RotateCcw, Ban, FileEdit, Copy, FileDown, FileText } from 'lucide-react';
+import { ExternalLink, RotateCcw, Ban, FileEdit, Copy, FileDown, FileText, FileStack, Undo2, Link2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
-import type { FiscalDocument } from '@/types/api';
+import type { FiscalDocument, SalesOrderStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +18,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Can } from '@/components/can';
 import { formatBRL, formatDateTime } from '@/lib/format';
-import { FISCAL_STATUS, FISCAL_TYPE_LABEL } from '../fiscal-status';
+import { FISCAL_STATUS, FISCAL_TYPE_LABEL, FISCAL_FINALIDADE_LABEL, TIPO_NOTA_DEBITO_LABEL, TIPO_NOTA_CREDITO_LABEL } from '../fiscal-status';
+import { AdjustmentNoteDialog } from '../adjustment-note-dialog';
 
 const RESOURCE = '/fiscal';
 
@@ -27,9 +29,17 @@ const RESOURCE = '/fiscal';
 interface DocWithOrder extends FiscalDocument {
   salesOrder?: {
     id: string;
+    status?: SalesOrderStatus;
     customer?: { id: string; name: string } | null;
     items?: { id: string; quantity: string; unitPrice: string; product?: { id: string; sku: string; name: string; ncm?: string | null } | null }[];
   } | null;
+}
+
+// #758 — rótulo do motivo (tipoNotaDebito/tipoNotaCredito) por finalidade
+function motivoLabel(doc: Pick<FiscalDocument, 'finalidade' | 'tipoNotaDebito' | 'tipoNotaCredito'>): string | null {
+  if (doc.finalidade === 'NOTA_DEBITO' && doc.tipoNotaDebito) return TIPO_NOTA_DEBITO_LABEL[doc.tipoNotaDebito] ?? doc.tipoNotaDebito;
+  if (doc.finalidade === 'NOTA_CREDITO' && doc.tipoNotaCredito) return TIPO_NOTA_CREDITO_LABEL[doc.tipoNotaCredito] ?? doc.tipoNotaCredito;
+  return null;
 }
 
 export default function FiscalDetailPage() {
@@ -44,6 +54,11 @@ export default function FiscalDetailPage() {
   const [justificativa, setJustificativa] = useState('');
   const [cceOpen, setCceOpen] = useState(false);
   const [correcao, setCorrecao] = useState('');
+  // #758 — wizard de nota de ajuste (débito/crédito IBS/CBS)
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  // #747 — devolução: motivo vai nas informações complementares da NF-e de devolução
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnMotivo, setReturnMotivo] = useState('');
 
   const retry = useMutation({
     mutationFn: () => apiClient.post(`${RESOURCE}/${id}/retry`, {}),
@@ -55,6 +70,10 @@ export default function FiscalDetailPage() {
   });
   const correction = useMutation({
     mutationFn: (correcao: string) => apiClient.post(`${RESOURCE}/${id}/correction`, { correcao }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
+  });
+  const returnNote = useMutation({
+    mutationFn: (motivo: string) => apiClient.post(`${RESOURCE}/${id}/return-note`, { motivo: motivo || undefined }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
   });
 
@@ -90,6 +109,16 @@ export default function FiscalDetailPage() {
       onError: () => toast.error('Falha ao emitir CC-e'),
     });
   }
+  function submitReturn() {
+    returnNote.mutate(returnMotivo, {
+      onSuccess: () => {
+        toast.success('NF-e de devolução em processamento');
+        setReturnOpen(false);
+        setReturnMotivo('');
+      },
+      onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Falha ao emitir NF-e de devolução'),
+    });
+  }
 
   if (isLoading || !doc) {
     return (
@@ -106,6 +135,9 @@ export default function FiscalDetailPage() {
   const canRetry = doc.status === 'REJECTED' || doc.status === 'ERROR';
   const canCancel = doc.status === 'AUTHORIZED';
   const canCce = doc.status === 'AUTHORIZED';
+  // #758 — ajuste/devolução só fazem sentido sobre a NF-e de venda original autorizada
+  const isAdjustableOriginal = doc.type === 'NFE' && doc.status === 'AUTHORIZED' && doc.finalidade === 'NORMAL';
+  const canReturnNote = isAdjustableOriginal && doc.salesOrder?.status === 'RETURNED';
 
   // #482 — baixa o XML armazenado no banco com o nome padrão <chave>-nfe.xml
   function downloadXml() {
@@ -131,6 +163,12 @@ export default function FiscalDetailPage() {
             <Badge variant={FISCAL_STATUS[doc.status].variant}>
               {FISCAL_STATUS[doc.status].label}
             </Badge>
+            {/* #758 — badge de finalidade quando ≠ NORMAL (venda comum não precisa de destaque) */}
+            {doc.finalidade !== 'NORMAL' && (
+              <Badge variant={FISCAL_FINALIDADE_LABEL[doc.finalidade].variant}>
+                {FISCAL_FINALIDADE_LABEL[doc.finalidade].label}
+              </Badge>
+            )}
             <span className="text-caption text-content-muted">
               Emitido em {formatDateTime(doc.createdAt)}
             </span>
@@ -194,6 +232,22 @@ export default function FiscalDetailPage() {
                 <Button variant="secondary" onClick={() => setCceOpen(true)}>
                   <FileEdit size={16} /> Carta de correção
                 </Button>
+              )}
+              {/* #758 — Nota de Débito/Crédito IBS/CBS (Ajuste SINIEF 49/2025) */}
+              {isAdjustableOriginal && (
+                <Can anyOf={['fiscal.nfe.debit-note', 'fiscal.nfe.credit-note']}>
+                  <Button variant="secondary" onClick={() => setAdjustmentOpen(true)}>
+                    <FileStack size={16} /> Nota de ajuste
+                  </Button>
+                </Can>
+              )}
+              {/* #747 — NF-e de devolução (exige OV RETURNED) */}
+              {canReturnNote && (
+                <Can permission="fiscal.nfe.return-note">
+                  <Button variant="secondary" onClick={() => setReturnOpen(true)}>
+                    <Undo2 size={16} /> Emitir NF-e de devolução
+                  </Button>
+                </Can>
               )}
               {canCancel && (
                 <Button variant="danger" onClick={() => setCancelOpen(true)}>
@@ -272,6 +326,46 @@ export default function FiscalDetailPage() {
         </CardContent>
       </Card>
 
+      {/* #758 — vínculo bidirecional com devolução/nota de débito/crédito */}
+      {(doc.referencedDocument || (doc.referencingDocuments && doc.referencingDocuments.length > 0)) && (
+        <Card className="mt-5">
+          <CardHeader>
+            <CardTitle className="text-base">Documentos vinculados</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {doc.referencedDocument && (
+              <Link
+                href={`/app/fiscal/${doc.referencedDocument.id}`}
+                className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline dark:text-brand-400"
+              >
+                <Link2 size={14} />
+                Referencia {FISCAL_TYPE_LABEL[doc.referencedDocument.type]} {doc.referencedDocument.number ?? '—'}/{doc.referencedDocument.series ?? 1}
+              </Link>
+            )}
+            {doc.referencingDocuments && doc.referencingDocuments.length > 0 && (
+              <ul className="space-y-2">
+                {doc.referencingDocuments.map((ref) => (
+                  <li key={ref.id} className="flex flex-wrap items-center gap-2 rounded-md border border-line px-3 py-2 text-sm">
+                    <Badge variant={FISCAL_FINALIDADE_LABEL[ref.finalidade].variant}>
+                      {FISCAL_FINALIDADE_LABEL[ref.finalidade].label}
+                    </Badge>
+                    <Badge variant={FISCAL_STATUS[ref.status].variant}>{FISCAL_STATUS[ref.status].label}</Badge>
+                    {motivoLabel(ref) && <span className="text-content-secondary">{motivoLabel(ref)}</span>}
+                    <span className="text-content-muted">{formatDateTime(ref.createdAt)}</span>
+                    <Link
+                      href={`/app/fiscal/${ref.id}`}
+                      className="ml-auto inline-flex items-center gap-1 text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      Ver documento <ExternalLink size={13} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cancelar */}
       <FormDialog
         open={cancelOpen}
@@ -307,6 +401,28 @@ export default function FiscalDetailPage() {
           </div>
         </form>
       </FormDialog>
+
+      {/* #747 — NF-e de devolução */}
+      <FormDialog
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        title="Emitir NF-e de devolução"
+        description="NF-e de entrada referenciando esta NF-e original (finalidade Devolução, CFOP 1202/2202)."
+        formId="return-form"
+        submitLabel="Emitir devolução"
+        loading={returnNote.isPending}
+      >
+        <form id="return-form" onSubmit={(e) => { e.preventDefault(); submitReturn(); }} className="space-y-3 py-1">
+          <div>
+            <Label>Motivo (opcional)</Label>
+            <Input value={returnMotivo} onChange={(e) => setReturnMotivo(e.target.value)} placeholder="Ex.: Produto com defeito de fabricação" maxLength={200} />
+          </div>
+        </form>
+      </FormDialog>
+
+      {/* #758 — wizard de nota de ajuste (débito/crédito IBS/CBS) — invalida [RESOURCE]
+          internamente ao confirmar, o que já cobre o refetch do detalhe (prefix match) */}
+      <AdjustmentNoteDialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen} documentId={id} items={doc.items} />
     </div>
   );
 }

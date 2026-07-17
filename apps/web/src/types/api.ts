@@ -74,13 +74,71 @@ export type FiscalStatus =
   | 'ERROR';
 export type FiscalDocumentType = 'NFE' | 'NFCE';
 
+// #758 — finalidade da nota (Reforma Tributária: notas de ajuste IBS/CBS além
+// da devolução #754). O modelo NÃO ganhou um FiscalDocumentType novo — a
+// distinção é por finalidade + vínculo com a NF-e original.
+export type FiscalFinalidade =
+  | 'NORMAL'
+  | 'COMPLEMENTAR'
+  | 'AJUSTE'
+  | 'DEVOLUCAO'
+  | 'NOTA_CREDITO'
+  | 'NOTA_DEBITO';
+
+// #758 — impostos IBS/CBS persistidos por item (base/alíquota/valor efetivos
+// da NF-e original), usados pelo wizard de nota de ajuste.
+export interface FiscalDocumentItemTax {
+  id: string;
+  cClassTrib?: string | null;
+  cstCbs?: string | null;
+  baseCbs?: string | null;
+  aliquotaCbs?: string | null;
+  valorCbs?: string | null;
+  cstIbsUf?: string | null;
+  baseIbsUf?: string | null;
+  aliquotaIbsUf?: string | null;
+  valorIbsUf?: string | null;
+  cstIbsMun?: string | null;
+  baseIbsMun?: string | null;
+  aliquotaIbsMun?: string | null;
+  valorIbsMun?: string | null;
+}
+
 export interface FiscalDocumentItem {
   id: string;
-  description?: string | null;
+  productCode?: string | null;
+  productName: string;
   ncm?: string | null;
+  cfop?: string | null;
+  unit?: string | null;
   quantity?: string | null;
-  unitValue?: string | null;
-  totalValue?: string | null;
+  unitPrice?: string | null;
+  totalPrice?: string | null;
+  taxes?: FiscalDocumentItemTax[];
+}
+
+// #758 — resumo da NF-e referenciada (findOne inclui referencedDocument)
+export interface FiscalDocumentRef {
+  id: string;
+  number?: number | null;
+  series?: number | null;
+  type: FiscalDocumentType;
+  finalidade: FiscalFinalidade;
+  status: FiscalStatus;
+  chave?: string | null;
+}
+
+// #758 — resumo dos documentos que referenciam este (devolução/débito/crédito)
+export interface FiscalDocumentReferencing {
+  id: string;
+  number?: number | null;
+  series?: number | null;
+  type: FiscalDocumentType;
+  finalidade: FiscalFinalidade;
+  status: FiscalStatus;
+  tipoNotaDebito?: string | null;
+  tipoNotaCredito?: string | null;
+  createdAt: string;
 }
 
 export interface FiscalDocument extends BaseEntity {
@@ -89,6 +147,13 @@ export interface FiscalDocument extends BaseEntity {
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   type: FiscalDocumentType;
   status: FiscalStatus;
+  // #754/#758 — finalidade + vínculo bidirecional com a NF-e original
+  finalidade: FiscalFinalidade;
+  referencedDocumentId?: string | null;
+  referencedDocument?: FiscalDocumentRef | null;
+  referencingDocuments?: FiscalDocumentReferencing[];
+  tipoNotaDebito?: string | null; // tpNFDebito 01-08 (SINIEF 49/2025)
+  tipoNotaCredito?: string | null; // tpNFCredito 01-06
   focusRef?: string | null;
   chave?: string | null;
   number?: number | null;
