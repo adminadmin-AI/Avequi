@@ -81,6 +81,10 @@ const SELF_SERVICE_OK = new Set([
   'SupplierPortalController.listReceipts',
   'SupplierPortalController.listPayments',
   'SupplierPortalController.listNcrs',
+  // Support (#764) — reportar problema e ver os próprios chamados é direito de
+  // qualquer usuário logado (self-service); gestão/triagem virá com permissão.
+  'SupportController.create',
+  'SupportController.listMine',
 ]);
 
 interface Route {

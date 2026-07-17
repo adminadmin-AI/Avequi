@@ -328,6 +328,16 @@ export interface BaseEntity {
   updatedAt?: string;
 }
 
+// ─── Suporte (épico #764) ───────────────────────────────────────────────────────
+export type SupportIncidentStatus =
+  | 'NEW'
+  | 'TRIAGING'
+  | 'TRIAGED'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'CLOSED';
+export type SupportIncidentSeverity = 'P0' | 'P1' | 'P2' | 'P3';
+
 // ─── Recursos ─────────────────────────────────────────────────────────────────
 export interface Company extends BaseEntity {
   name: string;
@@ -1181,4 +1191,30 @@ export interface SaleMissingDoc {
   id: string;
   invoicedAt: string | null;
   createdAt: string;
+}
+
+/** Timeline de status do chamado — alimenta "Meus chamados" (#765). */
+export interface SupportIncidentUpdate {
+  id: string;
+  incidentId: string;
+  status: SupportIncidentStatus;
+  clientNote?: string | null;
+  createdAt: string;
+}
+
+/** Chamado de suporte (self-service, épico #764). */
+export interface SupportIncident {
+  id: string;
+  companyId: string;
+  protocol: string;
+  title: string;
+  description?: string | null;
+  route?: string | null;
+  appVersion?: string | null;
+  requestId?: string | null;
+  status: SupportIncidentStatus;
+  severity?: SupportIncidentSeverity | null;
+  createdAt: string;
+  updatedAt: string;
+  updates?: SupportIncidentUpdate[];
 }

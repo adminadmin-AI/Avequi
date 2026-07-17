@@ -1,0 +1,83 @@
+import { Test } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SupportIncidentSource, SupportIncidentStatus } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { SupportService, SUPPORT_INCIDENT_CAPTURED } from './support.service';
+
+describe('SupportService', () => {
+  let service: SupportService;
+  let prisma: any;
+  let events: { emit: jest.Mock };
+
+  beforeEach(async () => {
+    prisma = {
+      supportIncident: {
+        count: jest.fn().mockResolvedValue(41),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }: any) =>
+            Promise.resolve({ id: 'inc1', createdAt: new Date(), ...data }),
+          ),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    events = { emit: jest.fn() };
+
+    const mod = await Test.createTestingModule({
+      providers: [
+        SupportService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: EventEmitter2, useValue: events },
+      ],
+    }).compile();
+
+    service = mod.get(SupportService);
+  });
+
+  it('cria chamado com protocolo sequencial, status NEW e source USER_REPORT', async () => {
+    const res = await service.createIncident(
+      'c1',
+      { title: 'Erro na venda' } as any,
+      'u1',
+    );
+    expect(prisma.supportIncident.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: 'c1',
+          reportedById: 'u1',
+          source: SupportIncidentSource.USER_REPORT,
+          status: SupportIncidentStatus.NEW,
+          protocol: 'AVQ-000042',
+          title: 'Erro na venda',
+        }),
+      }),
+    );
+    expect(res.protocol).toBe('AVQ-000042');
+  });
+
+  it('emite support.incident.captured no create', async () => {
+    await service.createIncident('c1', { title: 'x' } as any, 'u1');
+    expect(events.emit).toHaveBeenCalledWith(
+      SUPPORT_INCIDENT_CAPTURED,
+      expect.objectContaining({ companyId: 'c1' }),
+    );
+  });
+
+  it('retenta o protocolo em colisão de unique (P2002)', async () => {
+    prisma.supportIncident.create
+      .mockRejectedValueOnce({ code: 'P2002' })
+      .mockImplementationOnce(({ data }: any) =>
+        Promise.resolve({ id: 'inc2', createdAt: new Date(), ...data }),
+      );
+    const res = await service.createIncident('c1', { title: 'x' } as any, 'u1');
+    expect(res.protocol).toBe('AVQ-000043'); // 41 + 1 + attempt(1)
+    expect(prisma.supportIncident.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('listMine filtra pelos chamados do próprio usuário', async () => {
+    await service.listMine('c1', 'u1');
+    expect(prisma.supportIncident.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: 'c1', reportedById: 'u1' } }),
+    );
+  });
+});

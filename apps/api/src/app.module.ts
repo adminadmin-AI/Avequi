@@ -45,6 +45,7 @@ import { QualityModule } from './modules/quality/quality.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SerialModule } from './modules/serial/serial.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { SupportModule } from './modules/support/support.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
 import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
@@ -146,6 +147,7 @@ import { IamModule } from './modules/iam/iam.module';
     AnalyticsModule,
     SerialModule,
     MaintenanceModule,
+    SupportModule,
     SupplierPortalModule,
     QuotationModule,
     InboundNfeModule,
