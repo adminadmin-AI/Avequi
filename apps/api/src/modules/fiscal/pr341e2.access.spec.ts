@@ -95,6 +95,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     returnNote: 'fiscal.nfe.return-note', // #747 — NF-e de devolução referenciada
     debitNote: 'fiscal.nfe.debit-note', // #757 — nota de débito IBS/CBS (finNFe 6)
     creditNote: 'fiscal.nfe.credit-note', // #757 — nota de crédito IBS/CBS (finNFe 5)
+    adjustmentPreview: 'fiscal.documents.view', // #758 — preview do ajuste (leitura, não emite)
     voidRange: 'fiscal.nfe.void-range',
     retry: 'fiscal.nfe.retry',
     findAll: 'fiscal.documents.view',

@@ -105,3 +105,35 @@ export class CreditNoteFiscalDto {
   @MaxLength(200)
   justificativa?: string;
 }
+
+/** #758 — preview do ajuste (mesmos modos, sem motivo; não persiste nem transmite) */
+export class PreviewAdjustmentFiscalDto {
+  @ApiPropertyOptional({ description: 'true = estorno integral' })
+  @IsOptional()
+  full?: boolean;
+
+  @ApiPropertyOptional({ description: 'redução total (R$) rateada proporcionalmente' })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  totalDelta?: number;
+
+  @ApiPropertyOptional({ type: [AdjustmentItemDeltaDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdjustmentItemDeltaDto)
+  itemDeltas?: AdjustmentItemDeltaDto[];
+
+  @ApiPropertyOptional({ description: 'valor avulso (item sintético)' })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  amount?: number;
+
+  @ApiPropertyOptional({ description: 'descrição do item sintético' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  description?: string;
+}

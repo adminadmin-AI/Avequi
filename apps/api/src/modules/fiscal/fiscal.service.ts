@@ -1394,10 +1394,71 @@ export class FiscalService {
   async findOne(id: string, companyId: string) {
     const doc = await this.prisma.fiscalDocument.findFirst({
       where: { id, companyId },
-      include: { salesOrder: { include: { items: { include: { product: true } }, customer: true } } },
+      include: {
+        salesOrder: { include: { items: { include: { product: true } }, customer: true } },
+        // #758: itens/impostos persistidos (wizard de ajuste usa ids e bases IBS/CBS)
+        items: { include: { taxes: true }, orderBy: { id: 'asc' } },
+        // #758: vínculo bidirecional devolução/débito/crédito ↔ original
+        referencedDocument: {
+          select: { id: true, number: true, series: true, type: true, finalidade: true, status: true, chave: true },
+        },
+        referencingDocuments: {
+          select: { id: true, number: true, series: true, type: true, finalidade: true, status: true, tipoNotaDebito: true, tipoNotaCredito: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
     if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
     return doc;
+  }
+
+  /**
+   * #758 — Preview da nota de ajuste: mesmos guards e motor da emissão (#755),
+   * SEM persistir nem transmitir. O wizard mostra a diferença antes do confirm.
+   */
+  async previewAdjustment(
+    originalDocumentId: string,
+    companyId: string,
+    spec: AdjustmentSpec,
+  ) {
+    const original = await this.prisma.fiscalDocument.findFirst({
+      where: { id: originalDocumentId, companyId },
+      include: { items: { include: { taxes: true }, orderBy: { id: 'asc' } } },
+    });
+    if (!original) throw new NotFoundException(`Documento fiscal ${originalDocumentId} não encontrado`);
+    if (original.type !== FiscalDocumentType.NFE || original.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException('Ajuste só é possível sobre NF-e AUTHORIZED.');
+    }
+    if (original.finalidade !== FiscalFinalidade.NORMAL) {
+      throw new BadRequestException('Ajuste referencia apenas a NF-e de venda (finalidade NORMAL).');
+    }
+    if (!original.items?.length || original.items.some((it: any) => !it.taxes?.length)) {
+      throw new BadRequestException('NF-e original sem itens/impostos persistidos — ajuste manual (docs pré-#166).');
+    }
+
+    const num = (v: any): number => (v == null ? 0 : Number(v));
+    return this.ibsCbsAdjustment.compute(
+      original.items.map((it: any) => {
+        const t = it.taxes[0];
+        return {
+          id: it.id,
+          sku: it.productCode ?? 'ITEM',
+          name: it.productName,
+          ncm: it.ncm,
+          tax: {
+            cClassTrib: t.cClassTrib,
+            cstCbs: t.cstCbs,
+            baseCbs: num(t.baseCbs),
+            valorCbs: num(t.valorCbs),
+            baseIbsUf: num(t.baseIbsUf),
+            valorIbsUf: num(t.valorIbsUf),
+            baseIbsMun: num(t.baseIbsMun),
+            valorIbsMun: num(t.valorIbsMun),
+          },
+        };
+      }),
+      spec,
+    );
   }
 
   // ─── Exportação de XMLs para o contador (#482) ────────────────────────────

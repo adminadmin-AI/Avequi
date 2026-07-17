@@ -27,7 +27,7 @@ import { FiscalService } from './fiscal.service';
 import { ComplianceService } from './compliance.service';
 import { CancelFiscalDto } from './dto/cancel-fiscal.dto';
 import { CorrectionFiscalDto } from './dto/correction-fiscal.dto';
-import { CreditNoteFiscalDto, DebitNoteFiscalDto } from './dto/adjustment-note-fiscal.dto';
+import { CreditNoteFiscalDto, DebitNoteFiscalDto, PreviewAdjustmentFiscalDto } from './dto/adjustment-note-fiscal.dto';
 import { ReturnNoteFiscalDto } from './dto/return-note-fiscal.dto';
 import { VoidRangeFiscalDto } from './dto/void-range-fiscal.dto';
 import { AdjustmentSpec } from './ibscbs-adjustment.service';
@@ -145,6 +145,23 @@ export class FiscalController {
   ) {
     await this.fiscalService.emitReturnNote(id, user.companyId, dto.motivo);
     return { ok: true, message: 'NF-e de devolução em processamento' };
+  }
+
+  /** #758 — Preview da nota de ajuste (motor #755, sem persistir/transmitir) */
+  @Post(':id/adjustment-preview')
+  @RequirePermission('fiscal.documents.view')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Calcular o preview da diferença IBS/CBS (nota de débito/crédito) sobre a NF-e original (:id) — leitura, não emite.',
+  })
+  async adjustmentPreview(
+    @Param('id') id: string,
+    @Body() dto: PreviewAdjustmentFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.fiscalService.previewAdjustment(id, user.companyId, adjustmentSpecFromDto(dto));
+    return { ok: true, ...result };
   }
 
   /** #757 — Nota de Débito IBS/CBS (finNFe 6, SINIEF 49/2025) referenciando a NF-e original */
