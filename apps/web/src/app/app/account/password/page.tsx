@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { useToast } from '@/components/ui/toast';
 import { PasswordChangeForm } from '@/components/password/password-change-form';
+import { handleVoluntaryPasswordSuccess } from './success-redirect';
 
 /**
  * Troca voluntária de senha (#736) — usuário logado, qualquer perfil
@@ -13,11 +14,15 @@ import { PasswordChangeForm } from '@/components/password/password-change-form';
  *
  * Efeito colateral importante (#345): a troca revoga TODAS as outras
  * sessões do usuário (a atual permanece) — comunicado na tela e no toast.
+ *
+ * Pós-sucesso: toast + volta ao Início com replace (feedback do smoke
+ * v1.15.0 — permanecer na página deixava sensação de tarefa inacabada, e o
+ * Voltar não deve retornar à tela concluída). Lógica em success-redirect.ts,
+ * travada por teste.
  */
 export default function AccountPasswordPage() {
   const toast = useToast();
-  // Remonta o form após o sucesso — campos limpos sem estado residual.
-  const [formKey, setFormKey] = useState(0);
+  const router = useRouter();
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -28,13 +33,14 @@ export default function AccountPasswordPage() {
 
       <div className="rounded-lg border p-4">
         <PasswordChangeForm
-          key={formKey}
           mode="voluntary"
           submitLabel="Alterar senha"
-          onSuccess={() => {
-            setFormKey((k) => k + 1);
-            toast.success('Senha alterada. Suas outras sessões foram desconectadas.');
-          }}
+          onSuccess={() =>
+            handleVoluntaryPasswordSuccess({
+              toastSuccess: toast.success,
+              replace: router.replace,
+            })
+          }
         />
       </div>
 
