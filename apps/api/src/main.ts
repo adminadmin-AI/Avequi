@@ -3,7 +3,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { readBuildMeta } from './modules/version/version.util';
 
 async function bootstrap() {
@@ -50,7 +49,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix(process.env.API_PREFIX ?? 'api');
 
-  app.useGlobalFilters(new AllExceptionsFilter());
+  // AllExceptionsFilter registrado via APP_FILTER (DI) no app.module (#766)
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -171,6 +172,8 @@ import { IamModule } from './modules/iam/iam.module';
     IamModule,
   ],
   providers: [
+    // Filtro global de exceções via DI (injeta EventEmitter2 p/ captura 5xx #766)
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

@@ -6,9 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
-function makeHost(headers: Record<string, string> = {}) {
+function makeHost(
+  headers: Record<string, string> = {},
+  user?: { companyId?: string },
+) {
   const response = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn(),
@@ -17,6 +21,7 @@ function makeHost(headers: Record<string, string> = {}) {
     method: 'GET',
     url: '/api/test',
     headers,
+    user,
   };
   const host = {
     switchToHttp: () => ({
@@ -165,5 +170,34 @@ describe('AllExceptionsFilter', () => {
     expect(body.requestId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
+  });
+
+  it('emite app.server_error em 5xx com o contexto do request', () => {
+    const events = { emit: jest.fn() } as unknown as EventEmitter2;
+    const f = new AllExceptionsFilter(events);
+    const { host } = makeHost({ 'x-request-id': 'req-1' }, { companyId: 'c1' });
+
+    f.catch(new Error('boom interno'), host);
+
+    expect(events.emit).toHaveBeenCalledWith(
+      'app.server_error',
+      expect.objectContaining({
+        companyId: 'c1',
+        requestId: 'req-1',
+        errorName: 'Error',
+        errorMessage: 'boom interno',
+        route: '/api/test',
+      }),
+    );
+  });
+
+  it('NAO emite captura em erro 4xx (so 5xx)', () => {
+    const events = { emit: jest.fn() } as unknown as EventEmitter2;
+    const f = new AllExceptionsFilter(events);
+    const { host } = makeHost({}, { companyId: 'c1' });
+
+    f.catch(new NotFoundException('nao existe'), host);
+
+    expect(events.emit).not.toHaveBeenCalled();
   });
 });

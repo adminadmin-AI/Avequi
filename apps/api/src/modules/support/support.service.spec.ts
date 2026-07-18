@@ -19,6 +19,7 @@ describe('SupportService', () => {
             Promise.resolve({ id: 'inc1', createdAt: new Date(), ...data }),
           ),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     };
     events = { emit: jest.fn() };
@@ -79,5 +80,43 @@ describe('SupportService', () => {
     expect(prisma.supportIncident.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { companyId: 'c1', reportedById: 'u1' } }),
     );
+  });
+
+  it('captureAutoError cria incidente AUTO_ERROR quando nao ha duplicado', async () => {
+    await service.captureAutoError({
+      companyId: 'c1',
+      errorName: 'TypeError',
+      errorMessage: 'x is undefined',
+      stack: 'TypeError: x is undefined\n  at Foo (/app/src/foo.ts:10:5)',
+      route: '/api/sales',
+      requestId: 'req-9',
+    });
+    expect(prisma.supportIncident.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: 'c1',
+          source: SupportIncidentSource.AUTO_ERROR,
+          reportedById: null,
+          stackSignature: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it('captureAutoError deduplica: nao cria se ja ha incidente ativo de mesma assinatura', async () => {
+    prisma.supportIncident.findFirst.mockResolvedValueOnce({ id: 'existing' });
+    await service.captureAutoError({
+      companyId: 'c1',
+      errorName: 'TypeError',
+      errorMessage: 'x is undefined',
+      stack: 'TypeError: x is undefined',
+    });
+    expect(prisma.supportIncident.create).not.toHaveBeenCalled();
+  });
+
+  it('captureAutoError ignora erro sem tenant (companyId ausente)', async () => {
+    await service.captureAutoError({ errorName: 'Error', errorMessage: 'boom' });
+    expect(prisma.supportIncident.findFirst).not.toHaveBeenCalled();
+    expect(prisma.supportIncident.create).not.toHaveBeenCalled();
   });
 });
