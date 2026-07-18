@@ -668,6 +668,16 @@ export class FiscalService {
         `Motivo "${dto.tipo}" inválido para nota de ${kind.toLowerCase()} — use ${FiscalService.ADJUSTMENT_TIPOS[kind].join(', ')}.`,
       );
     }
+    // SEFAZ-PR homolog (F4 #760): finNFe 5 + retorno/recusa cai em conflito de
+    // regras 327↔328 (todo CFOP é rejeitado). O caso real é coberto pela NF-e
+    // de DEVOLUÇÃO (finNFe 4, POST /fiscal/:id/return-note). Sentinela G3 do
+    // audit-homologacao detecta quando a SEFAZ corrigir.
+    if (kind === 'CREDITO' && ['03', '06'].includes(dto.tipo)) {
+      throw new BadRequestException(
+        'Retorno/recusa na entrega (motivos 03/06) está com regras conflitantes na SEFAZ (rej. 327↔328) — ' +
+          'use a NF-e de devolução (finalidade 4) para este caso.',
+      );
+    }
 
     const original = await this.prisma.fiscalDocument.findFirst({
       where: { id: originalDocumentId, companyId },
@@ -832,7 +842,14 @@ export class FiscalService {
       referencedKey: original.chave,
       emitter: this.mapCompanyToEmitter(order.company),
       recipient: order.customer ? this.mapCustomerToRecipient(order.customer) : undefined,
-      items: result.items.map((it) => this.toAdjustmentPayloadItem(it)),
+      // gDFeReferenciado por item (rej. 1038): nItem do item correspondente na
+      // original; item sintético (AMOUNT) referencia o item 1
+      items: result.items.map((it) =>
+        this.toAdjustmentPayloadItem(
+          it,
+          it.sourceItemId ? original.items.findIndex((oi: any) => oi.id === it.sourceItemId) + 1 : 1,
+        ),
+      ),
       infCpl,
     });
 
@@ -848,7 +865,12 @@ export class FiscalService {
       where: { id: doc.id, companyId: doc.companyId },
       include: {
         items: { include: { taxes: true }, orderBy: { id: 'asc' } },
-        referencedDocument: { include: { salesOrder: { include: { company: true, customer: true } } } },
+        referencedDocument: {
+          include: {
+            items: { orderBy: { id: 'asc' } }, // p/ recompor o nItem do gDFeReferenciado
+            salesOrder: { include: { company: true, customer: true } },
+          },
+        },
       },
     });
     if (!adj?.referencedDocument?.chave || !(adj.referencedDocument as any).salesOrder?.company) {
@@ -872,6 +894,10 @@ export class FiscalService {
       recipient: order.customer ? this.mapCustomerToRecipient(order.customer) : undefined,
       items: adj.items.map((it: any) => {
         const t = it.taxes?.[0] ?? {};
+        // nItem na original recomposto por productCode; sintético (AJUSTE) → 1
+        const origIdx = ((adj.referencedDocument as any).items ?? []).findIndex(
+          (oi: any) => oi.productCode && oi.productCode === it.productCode,
+        );
         return {
           sku: it.productCode ?? 'AJUSTE',
           name: it.productName,
@@ -885,6 +911,7 @@ export class FiscalService {
           ibsUfValor: num(t.valorIbsUf),
           ibsMunAliquota: num(t.aliquotaIbsMun),
           ibsMunValor: num(t.valorIbsMun),
+          referencedItemNumber: origIdx >= 0 ? origIdx + 1 : 1,
         };
       }),
       infCpl: adj.infCpl ?? undefined,
@@ -934,10 +961,13 @@ export class FiscalService {
     };
   }
 
-  private toAdjustmentPayloadItem(it: {
-    sku: string; name: string; ncm: string | null; base: number; cClassTrib: string; cstCbs: string;
-    cbsAliquota: number; cbsValor: number; ibsUfAliquota: number; ibsUfValor: number; ibsMunAliquota: number; ibsMunValor: number;
-  }): FiscalAdjustmentPayloadItem {
+  private toAdjustmentPayloadItem(
+    it: {
+      sku: string; name: string; ncm: string | null; base: number; cClassTrib: string; cstCbs: string;
+      cbsAliquota: number; cbsValor: number; ibsUfAliquota: number; ibsUfValor: number; ibsMunAliquota: number; ibsMunValor: number;
+    },
+    referencedItemNumber?: number,
+  ): FiscalAdjustmentPayloadItem {
     return {
       sku: it.sku,
       name: it.name,
@@ -951,6 +981,7 @@ export class FiscalService {
       ibsUfValor: it.ibsUfValor,
       ibsMunAliquota: it.ibsMunAliquota,
       ibsMunValor: it.ibsMunValor,
+      referencedItemNumber: referencedItemNumber && referencedItemNumber > 0 ? referencedItemNumber : 1,
     };
   }
 

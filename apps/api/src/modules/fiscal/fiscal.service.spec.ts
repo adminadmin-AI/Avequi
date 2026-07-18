@@ -954,8 +954,11 @@ describe('FiscalService', () => {
       expect(ref).toBe('GDR-ADJ-nfe-orig-1');
       expect(payload.finalidade_emissao).toBe('6');
       expect(payload.tipo_nota_debito).toBe('04');
-      expect(payload.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+      // referência é por ITEM (gDFeReferenciado) — cabeçalho vazio (rej. 1010)
+      expect(payload.notas_referenciadas).toBeUndefined();
       const item = payload.items[0];
+      expect(item.chave_acesso_dfe_referenciado).toBe(CHAVE);
+      expect(item.numero_item_dfe_referenciado).toBe('1');
       expect(item.ibs_cbs_base_calculo).toBe(350);
       expect(item.cbs_valor).toBe(3.15); // 0,9% efetiva espelhada
       expect(Object.keys(item).some((k) => k.startsWith('icms_'))).toBe(false);
@@ -988,6 +991,16 @@ describe('FiscalService', () => {
           spec: { mode: 'AMOUNT', amount: 100 },
         }),
       ).rejects.toThrow(/em processamento/);
+      expect(mockClient.emitNFe).not.toHaveBeenCalled();
+    });
+
+    it('crédito retorno/recusa (03/06) bloqueado — conflito SEFAZ 327↔328, usar devolução', async () => {
+      await expect(
+        service.emitAdjustmentNote('nfe-orig', 'co-1', 'CREDITO', {
+          tipo: '03',
+          spec: { mode: 'FULL' },
+        }),
+      ).rejects.toThrow(/devolução/);
       expect(mockClient.emitNFe).not.toHaveBeenCalled();
     });
 

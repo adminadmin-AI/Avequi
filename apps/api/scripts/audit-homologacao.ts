@@ -10,6 +10,7 @@
 
 import { writeFileSync } from 'fs';
 import {
+  buildAdjustmentNFePayload,
   buildNFePayload,
   buildTransferNFePayload,
   FiscalPayloadInput,
@@ -196,6 +197,7 @@ async function runScenario(
     fcpEsperado?: number;
     vNF?: string;
     tPag?: string;
+    xmlTags?: Record<string, string>; // #759 — asserts genéricos <tag>=valor no XML
   },
 ): Promise<Result> {
   const ref = `GDR-AUD-${RUN}-${id}`;
@@ -248,6 +250,11 @@ async function runScenario(
     }
     if (expect.tPag) {
       checks.push({ name: `detPag tPag=${expect.tPag} (#479)`, ok: tag(xml, 'tPag') === expect.tPag, detail: `tPag=${tag(xml, 'tPag')}` });
+    }
+    if (expect.xmlTags) {
+      for (const [t, v] of Object.entries(expect.xmlTags)) {
+        checks.push({ name: `XML <${t}>=${v}`, ok: tag(xml, t) === v, detail: `<${t}>=${tag(xml, t) ?? 'ausente'}` });
+      }
     }
   }
 
@@ -382,6 +389,56 @@ async function main() {
     ];
     results.push({ id: 'F2', name: 'Carta de correção (CC-e)', ref: a4.ref, status: cce?.status ?? `http${http}`, msg: (cce?.mensagem_sefaz ?? cce?.mensagem ?? '').slice(0, 160), checks });
     for (const c of checks) console.log(`   ${c.ok ? '✅' : '❌'} ${c.name}${c.detail ? ` — ${c.detail}` : ''}`);
+  }
+
+
+  // ── Bloco G — Notas de Débito/Crédito IBS/CBS (finNFe 5/6, SINIEF 49/2025) ──
+  // Referenciam a A1 (venda PR 45000; IBS/CBS 000001: CBS 0,9% / IBS UF 0,1%).
+  // Usa o builder de PRODUÇÃO (#756) — valida os nomes flat tipo_nota_* e as
+  // incertezas da F2 (#753): tipo_documento default '1' e CFOP 5949.
+  if (a1.chave) {
+    const chaveA1 = a1.chave.replace(/^NFe/, '');
+    const adjustItem = (base: number, name = 'AJUSTE IBS/CBS AUDITORIA') => ({
+      sku: 'AJUSTE', name, ncm: '87163900', base,
+      cClassTrib: '000001', cstCbs: '000',
+      cbsAliquota: 0.9, cbsValor: r2(base * 0.9 / 100),
+      ibsUfAliquota: 0.1, ibsUfValor: r2(base * 0.1 / 100),
+      ibsMunAliquota: 0, ibsMunValor: 0,
+    });
+
+    await runScenario('G1', 'Nota de Débito — multa e juros (finNFe 6, tpNFDebito 04, ref A1)',
+      buildAdjustmentNFePayload({
+        ref: '', finalidade: '6', tipoNota: '04', referencedKey: chaveA1,
+        emitter, recipient: recipientPF('PR'),
+        items: [adjustItem(350, 'MULTA E JUROS ATRASO')],
+        infCpl: 'Nota de debito de auditoria — multa e juros (SINIEF 49/2025)',
+      }), {
+        ibscbs: { vCBS: cbs(350), vIBSUF: ibsUf(350) },
+        xmlTags: { finNFe: '6', tpNFDebito: '04', tpNF: '1', chaveAcesso: chaveA1 },
+      });
+
+    await runScenario('G2', 'Nota de Crédito — redução de valores (finNFe 5, tpNFCredito 04, ref A1)',
+      buildAdjustmentNFePayload({
+        ref: '', finalidade: '5', tipoNota: '04', referencedKey: chaveA1,
+        emitter, recipient: recipientPF('PR'),
+        items: [adjustItem(1000, 'REDUCAO DE VALORES')],
+        infCpl: 'Nota de credito de auditoria — reducao de valores (SINIEF 49/2025)',
+      }), {
+        ibscbs: { vCBS: cbs(1000), vIBSUF: ibsUf(1000) },
+        xmlTags: { finNFe: '5', tpNFCredito: '04', tpNF: '0', refNFe: chaveA1 },
+      });
+
+    // G3 = SENTINELA de conflito SEFAZ-PR (F4 run 178433*): finNFe 5 +
+    // tpNFCredito 03 rejeita QUALQUER CFOP (1949→327; 1201/1202→328). O app
+    // bloqueia os motivos 03/06 com orientação p/ devolução (finNFe 4). Se
+    // este cenário AUTORIZAR um dia, a SEFAZ corrigiu → reabrir os motivos.
+    await runScenario('G3', 'SENTINELA — crédito retorno por recusa (finNFe 5 tp03: conflito SEFAZ 327↔328)',
+      buildAdjustmentNFePayload({
+        ref: '', finalidade: '5', tipoNota: '03', referencedKey: chaveA1,
+        emitter, recipient: recipientPF('PR'),
+        items: [adjustItem(45000, 'RETORNO POR RECUSA NA ENTREGA')],
+        infCpl: 'Sentinela de conflito 327/328 — nao deve autorizar ate NT da SEFAZ',
+      }), { authorized: false });
   }
 
   // ── Relatório ──

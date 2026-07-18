@@ -628,16 +628,38 @@ describe('buildAdjustmentNFePayload (#756)', () => {
     expect(p.tipo_nota_debito).toBe('04');
     expect(p.tipo_nota_credito).toBeUndefined();
     expect(p.natureza_operacao).toBe('NOTA DE DEBITO IBS/CBS');
-    expect(p.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]);
+    // referência é POR ITEM (gDFeReferenciado) — cabeçalho junto = rej. 1010
+    expect(p.notas_referenciadas).toBeUndefined();
     expect(p.formas_pagamento).toEqual([{ forma_pagamento: '90', valor_pagamento: 0 }]);
   });
 
-  it('crédito (finNFe 5): tipo_nota_credito', () => {
+  it('crédito (finNFe 5): ENTRADA + referência no CABEÇALHO (rej. 1161/254 SEFAZ homolog F4)', () => {
     const p = buildAdjustmentNFePayload({ ...base, finalidade: '5' }) as any;
     expect(p.finalidade_emissao).toBe('5');
     expect(p.tipo_nota_credito).toBe('04');
     expect(p.tipo_nota_debito).toBeUndefined();
     expect(p.natureza_operacao).toBe('NOTA DE CREDITO IBS/CBS');
+    expect(p.tipo_documento).toBe('0'); // crédito = entrada
+    expect(p.notas_referenciadas).toEqual([{ chave_nfe: CHAVE }]); // cabeçalho (rej. 254)
+    expect(p.items[0].chave_acesso_dfe_referenciado).toBeUndefined(); // item só no débito
+  });
+
+  it('débito (finNFe 6) permanece saída (tipo_documento 1)', () => {
+    const p = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
+    expect(p.tipo_documento).toBe('1');
+  });
+
+  it('itens do DÉBITO levam gDFeReferenciado (chave + nItem — rej. 1038 SEFAZ homolog F4)', () => {
+    const p = buildAdjustmentNFePayload({
+      ...base,
+      finalidade: '6',
+      items: [{ ...adjItem, referencedItemNumber: 3 }],
+    }) as any;
+    expect(p.items[0].chave_acesso_dfe_referenciado).toBe(CHAVE);
+    expect(p.items[0].numero_item_dfe_referenciado).toBe('3');
+    // default: item sintético referencia o item 1
+    const p2 = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
+    expect(p2.items[0].numero_item_dfe_referenciado).toBe('1');
   });
 
   it('item leva SOMENTE grupo IBS/CBS — nenhum campo de icms/ipi/pis/cofins', () => {
@@ -654,14 +676,22 @@ describe('buildAdjustmentNFePayload (#756)', () => {
     expect(it.valor_total_bruto).toBe(350);
   });
 
-  it('CFOP default 5949 intra / 6949 interestadual', () => {
-    const intra = buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any;
-    expect(intra.items[0].cfop).toBe('5949');
-    const inter = buildAdjustmentNFePayload({
-      ...base,
-      finalidade: '6',
-      recipient: { name: 'Cliente SP', state: 'SP' },
-    }) as any;
-    expect(inter.items[0].cfop).toBe('6949');
+  it('CFOP acompanha o sentido (rej. 519): débito 5949/6949, crédito 1949/2949', () => {
+    expect((buildAdjustmentNFePayload({ ...base, finalidade: '6' }) as any).items[0].cfop).toBe('5949');
+    expect(
+      (buildAdjustmentNFePayload({ ...base, finalidade: '6', recipient: { name: 'Cliente SP', state: 'SP' } }) as any)
+        .items[0].cfop,
+    ).toBe('6949');
+    expect((buildAdjustmentNFePayload({ ...base, finalidade: '5' }) as any).items[0].cfop).toBe('1949');
+    expect(
+      (buildAdjustmentNFePayload({ ...base, finalidade: '5', recipient: { name: 'Cliente SP', state: 'SP' } }) as any)
+        .items[0].cfop,
+    ).toBe('2949');
+    // retorno/recusa (tpNFCredito 03/06) é devolução → 1202/2202 (rej. 327)
+    expect((buildAdjustmentNFePayload({ ...base, finalidade: '5', tipoNota: '03' }) as any).items[0].cfop).toBe('1202');
+    expect(
+      (buildAdjustmentNFePayload({ ...base, finalidade: '5', tipoNota: '06', recipient: { name: 'Cliente SP', state: 'SP' } }) as any)
+        .items[0].cfop,
+    ).toBe('2202');
   });
 });

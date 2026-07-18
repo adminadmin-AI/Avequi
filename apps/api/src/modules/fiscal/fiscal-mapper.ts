@@ -680,6 +680,8 @@ export interface FiscalAdjustmentPayloadItem {
   ibsUfValor: number;
   ibsMunAliquota: number;
   ibsMunValor: number;
+  /** nItem do item correspondente na NF-e ORIGINAL (gDFeReferenciado — rej. 1038) */
+  referencedItemNumber?: number;
 }
 
 export interface AdjustmentPayloadInput {
@@ -692,9 +694,13 @@ export interface AdjustmentPayloadInput {
   items: FiscalAdjustmentPayloadItem[];
   infCpl?: string;
   naturezaOperacao?: string;
-  /** tpNF — default '1' (saída). A definir em homologação p/ crédito (F4 #760). */
+  /**
+   * tpNF — validado na SEFAZ homolog (F4 #760, run 1784332636080): nota de
+   * CRÉDITO exige ENTRADA (rej. 1161 com tpNF=1); débito é saída. Default
+   * derivado da finalidade; override só para caso excepcional documentado.
+   */
   tipoDocumento?: '0' | '1';
-  /** CFOP dos itens — default 5949/6949 (outra saída) conforme UF; confirmar na F4. */
+  /** CFOP dos itens — default 5949/6949 (outra saída) conforme UF. */
   cfop?: string;
 }
 
@@ -709,17 +715,34 @@ export function buildAdjustmentNFePayload(input: AdjustmentPayloadInput): Record
     (input.finalidade === '6' ? 'NOTA DE DEBITO IBS/CBS' : 'NOTA DE CREDITO IBS/CBS');
 
   const isInterstate = input.recipient?.state && input.emitter.state !== input.recipient.state;
-  const cfop = input.cfop ?? (isInterstate ? '6949' : '5949');
+  // CFOP acompanha o sentido (rej. 519) E o motivo (rej. 327, SEFAZ homolog F4):
+  // crédito por RETORNO/RECUSA (tpNFCredito 03/06) é devolução → 1202/2202;
+  // demais créditos (entrada) → 1949/2949; débito (saída) → 5949/6949.
+  const isRetorno = input.finalidade === '5' && ['03', '06'].includes(input.tipoNota);
+  const cfop =
+    input.cfop ??
+    (input.finalidade === '5'
+      ? isRetorno
+        ? isInterstate ? '2202' : '1202'
+        : isInterstate ? '2949' : '1949'
+      : isInterstate ? '6949' : '5949');
 
   return {
     natureza_operacao: natureza,
     data_emissao: nowBrasilia(),
-    tipo_documento: input.tipoDocumento ?? '1',
+    // crédito = ENTRADA (0), débito = saída (1) — rej. 1161 validada na SEFAZ
+    tipo_documento: input.tipoDocumento ?? (input.finalidade === '5' ? '0' : '1'),
     finalidade_emissao: input.finalidade,
     ...(input.finalidade === '6'
       ? { tipo_nota_debito: input.tipoNota }
       : { tipo_nota_credito: input.tipoNota }),
-    notas_referenciadas: [{ chave_nfe: input.referencedKey }],
+    // Referenciamento ASSIMÉTRICO (3 rodadas SEFAZ homolog F4, run 178433*):
+    // crédito é ENTRADA e referencia no CABEÇALHO (sem = rej. 254), como a
+    // devolução; débito é SAÍDA e referencia POR ITEM (gDFeReferenciado —
+    // sem = rej. 1038; cabeçalho junto = rej. 1010).
+    ...(input.finalidade === '5' && {
+      notas_referenciadas: [{ chave_nfe: input.referencedKey }],
+    }),
     consumidor_final: '0',
     presenca_comprador: '9', // não presencial — ajuste documental
     modalidade_frete: '9',
@@ -735,6 +758,12 @@ export function buildAdjustmentNFePayload(input: AdjustmentPayloadInput): Record
       quantidade_comercial: 1,
       valor_unitario_comercial: it.base,
       valor_total_bruto: it.base,
+      // gDFeReferenciado POR ITEM — só no DÉBITO (saída); no crédito a
+      // referência vai no cabeçalho (ver comentário do referenciamento acima)
+      ...(input.finalidade === '6' && {
+        chave_acesso_dfe_referenciado: input.referencedKey,
+        numero_item_dfe_referenciado: String(it.referencedItemNumber ?? 1),
+      }),
       // SOMENTE grupo IBS/CBS (grupo UB) — nada de ICMS/IPI/PIS/COFINS
       ibs_cbs_situacao_tributaria: it.cstCbs,
       ibs_cbs_classificacao_tributaria: it.cClassTrib,

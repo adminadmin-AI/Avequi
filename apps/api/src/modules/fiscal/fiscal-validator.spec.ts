@@ -120,13 +120,13 @@ describe('validateNfePayload (#499)', () => {
     expect(issues).toEqual([expect.objectContaining({ rejection: '866', field: 'tipo_documento' })]);
   });
 
-  it('finalidade 5/6 (nota de crédito/débito da Reforma) também exige referência (#753)', () => {
-    for (const finalidade of ['5', '6'] as const) {
-      const issues = validateNfePayload(validPayload({ finalidade_emissao: finalidade }));
-      expect(issues).toEqual(
-        expect.arrayContaining([expect.objectContaining({ rejection: '321', field: 'notas_referenciadas' })]),
-      );
-    }
+  it('finalidade 5/6 sem referência → exigência conforme o sentido (254 crédito / 1038 débito)', () => {
+    expect(validateNfePayload(validPayload({ finalidade_emissao: '5' }))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rejection: '254' })]),
+    );
+    expect(validateNfePayload(validPayload({ finalidade_emissao: '6' }))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rejection: '1038' })]),
+    );
   });
 
   it('valor_frete no cabeçalho → rej. 535 (vFrete é rateado por item)', () => {
@@ -244,17 +244,25 @@ describe('validateNfePayload — notas 5/6 da Reforma (#756)', () => {
   const adjBase = (finalidade: '5' | '6', extra: Record<string, any> = {}) =>
     validPayload({
       finalidade_emissao: finalidade,
+      // crédito é ENTRADA (rej. 1161); débito é saída — validado na SEFAZ homolog F4
+      tipo_documento: finalidade === '5' ? '0' : '1',
       ...(finalidade === '6' ? { tipo_nota_debito: '04' } : { tipo_nota_credito: '04' }),
-      notas_referenciadas: [{ chave_nfe: CHAVE }],
+      // assimetria validada na SEFAZ: crédito referencia no cabeçalho (254),
+      // débito por item (1038); os dois juntos = 1010
+      ...(finalidade === '5' ? { notas_referenciadas: [{ chave_nfe: CHAVE }] } : {}),
       formas_pagamento: [{ forma_pagamento: '90', valor_pagamento: 0 }],
       items: [
         {
           numero_item: 1,
           codigo_produto: 'AJUSTE',
           descricao: 'MULTA E JUROS',
-          cfop: '5949',
+          cfop: finalidade === '5' ? '1949' : '5949',
           codigo_ncm: '87163900',
           valor_total_bruto: 350,
+          // gDFeReferenciado por item — só débito (rej. 1038)
+          ...(finalidade === '6'
+            ? { chave_acesso_dfe_referenciado: CHAVE, numero_item_dfe_referenciado: '1' }
+            : {}),
           ibs_cbs_situacao_tributaria: '000',
           ibs_cbs_classificacao_tributaria: '000001',
           ibs_cbs_base_calculo: 350,
@@ -300,6 +308,44 @@ describe('validateNfePayload — notas 5/6 da Reforma (#756)', () => {
     delete (p.items as any[])[0].ibs_cbs_situacao_tributaria;
     expect(validateNfePayload(p)).toEqual([
       expect.objectContaining({ rejection: 'RTC' }),
+    ]);
+  });
+
+  it('débito: item sem gDFeReferenciado → rej. 1038 (SEFAZ homolog F4)', () => {
+    const p = adjBase('6');
+    delete (p.items as any[])[0].chave_acesso_dfe_referenciado;
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '1038' }),
+    ]);
+  });
+
+  it('crédito sem NF referenciada no cabeçalho → rej. 254', () => {
+    const p = adjBase('5');
+    delete p.notas_referenciadas;
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '254', field: 'notas_referenciadas' }),
+    ]);
+  });
+
+  it('nota de crédito como saída → rej. 1161 (crédito exige entrada)', () => {
+    const p = adjBase('5', { tipo_documento: '1' });
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '1161', field: 'tipo_documento' }),
+    ]);
+  });
+
+  it('débito com notas_referenciadas no cabeçalho → rej. 1010 (débito referencia só por item)', () => {
+    const p = adjBase('6', { notas_referenciadas: [{ chave_nfe: CHAVE }] });
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '1010', field: 'notas_referenciadas' }),
+    ]);
+  });
+
+  it('CFOP de saída em nota de crédito → rej. 519 (entrada exige 1/2xxx)', () => {
+    const p = adjBase('5');
+    (p.items as any[])[0].cfop = '5949';
+    expect(validateNfePayload(p)).toEqual([
+      expect.objectContaining({ rejection: '519', field: 'items[1].cfop' }),
     ]);
   });
 
