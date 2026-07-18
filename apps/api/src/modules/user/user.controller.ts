@@ -34,7 +34,9 @@ export class UserController {
   @RequirePermission('settings.users.create')
   @ApiOperation({ summary: 'Criar novo usuário' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: any) {
-    return this.userService.create(dto, user.companyId);
+    // #738: user.id (do JWT) é o ATOR — vira grantedBy do vínculo v2 espelho;
+    // nunca vem do body.
+    return this.userService.create(dto, user.companyId, user.id);
   }
 
   @Get()
