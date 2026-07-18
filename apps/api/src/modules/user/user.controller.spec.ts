@@ -49,6 +49,22 @@ describe('UserController', () => {
       expect(mockUserService.create).toHaveBeenCalledWith(
         expect.anything(),
         'co-1', // companyId SEMPRE do JWT, nunca do body
+        'user-1', // #738: ator (grantedBy do vínculo v2) do JWT, nunca do body
+      );
+    });
+
+    it('#738: passa o id do ator do JWT como 3º argumento (grantedBy do espelho)', async () => {
+      mockUserService.create.mockResolvedValue({ id: 'novo' });
+
+      await controller.create(
+        { name: 'X', email: 'x@gdr.com.br', password: 'senha123', role: 'READER' as any } as any,
+        { ...CURRENT_USER, id: 'admin-do-jwt' },
+      );
+
+      expect(mockUserService.create).toHaveBeenCalledWith(
+        expect.anything(),
+        'co-1',
+        'admin-do-jwt',
       );
     });
   });

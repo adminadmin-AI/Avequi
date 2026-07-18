@@ -12,7 +12,10 @@ const mockPrisma = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
   },
+  userRoleAssignment: { count: jest.fn() },
+  role: { findFirst: jest.fn() },
 };
 
 const mockPasswordPolicy = {
@@ -58,6 +61,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     mockPrisma.user.findFirst.mockResolvedValue(createdUser);
     mockPrisma.user.findUnique.mockResolvedValue({ passwordHash: 'hash-antigo' });
     mockPrisma.user.update.mockResolvedValue(createdUser);
+    mockPrisma.role.findFirst.mockResolvedValue({ id: 'role-loja-op' }); // #738 perfil-espelho existe
   });
 
   describe('create', () => {
@@ -70,7 +74,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     };
 
     it('aplica a política de complexidade com o contexto do NOVO usuário', async () => {
-      await service.create(dto);
+      await service.create(dto, 'company-1', 'admin-1');
 
       expect(mockPasswordPolicy.validateComplexity).toHaveBeenCalledWith('SenhaForte#2026', {
         email: 'joao@gdr.com.br',
@@ -83,14 +87,14 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         throw new BadRequestException(['A senha deve ter no mínimo 10 caracteres.']);
       });
 
-      await expect(service.create({ ...dto, password: 'fraca' })).rejects.toThrow(
+      await expect(service.create({ ...dto, password: 'fraca' }, 'company-1', 'admin-1')).rejects.toThrow(
         BadRequestException,
       );
       expect(mockPrisma.user.create).not.toHaveBeenCalled();
     });
 
     it('marca passwordChangedAt na criação e semeia o histórico com o hash inicial', async () => {
-      await service.create(dto);
+      await service.create(dto, 'company-1', 'admin-1');
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -105,7 +109,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('admin pode criar com mustChangePassword=true (troca forçada no 1º login)', async () => {
-      await service.create({ ...dto, mustChangePassword: true });
+      await service.create({ ...dto, mustChangePassword: true }, 'company-1', 'admin-1');
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -115,7 +119,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('#468: sem a flag, admin-create já força a troca (mustChangePassword=true por padrão)', async () => {
-      await service.create(dto); // dto NÃO traz mustChangePassword
+      await service.create(dto, 'company-1', 'admin-1'); // dto NÃO traz mustChangePassword
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -125,7 +129,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('#468: admin pode desativar explicitamente com mustChangePassword=false', async () => {
-      await service.create({ ...dto, mustChangePassword: false });
+      await service.create({ ...dto, mustChangePassword: false }, 'company-1', 'admin-1');
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({

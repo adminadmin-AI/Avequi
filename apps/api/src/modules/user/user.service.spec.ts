@@ -18,6 +18,9 @@ const mockPrisma = {
   userRoleAssignment: {
     count: jest.fn(),
   },
+  role: {
+    findFirst: jest.fn(),
+  },
 };
 
 const mockSessionService = {
@@ -62,15 +65,22 @@ describe('UserService', () => {
   });
 
   describe('create', () => {
+    beforeEach(() => {
+      // #738: por padrão o perfil system-espelho existe (companyId null).
+      mockPrisma.role.findFirst.mockResolvedValue({ id: 'role-gerente-geral' });
+    });
+
+    const baseDto = {
+      name: 'João',
+      email: 'joao@gdr.com.br',
+      password: 'senha123',
+      role: 'MANAGER' as any,
+    };
+
     it('hasheia a senha com bcrypt e NUNCA persiste a senha em claro', async () => {
       mockPrisma.user.create.mockResolvedValue(SAFE_USER);
 
-      await service.create({
-        name: 'João',
-        email: 'joao@gdr.com.br',
-        password: 'senha123',
-        role: 'MANAGER' as any,
-      }, 'co-1');
+      await service.create({ ...baseDto }, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.create.mock.calls[0][0];
       // senha em claro nao pode ir para o banco em nenhum campo
@@ -84,18 +94,110 @@ describe('UserService', () => {
     it('usa select seguro (sem passwordHash) na resposta', async () => {
       mockPrisma.user.create.mockResolvedValue(SAFE_USER);
 
-      await service.create({
-        name: 'João',
-        email: 'joao@gdr.com.br',
-        password: 'senha123',
-        role: 'MANAGER' as any,
-      }, 'co-1');
+      await service.create({ ...baseDto }, 'co-1', 'admin-1');
 
       const args = mockPrisma.user.create.mock.calls[0][0];
       expect(args.select).toBeDefined();
       expect(args.select.passwordHash).toBeUndefined();
       expect(args.select.id).toBe(true);
       expect(args.select.email).toBe(true);
+    });
+
+    // ── #738: espelhamento automático enum → perfil v2 na criação ────────────
+
+    it('cria o vínculo v2 do perfil-espelho JUNTO do usuário (nested write atômico)', async () => {
+      mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+
+      await service.create({ ...baseDto, role: 'MANAGER' as any }, 'co-1', 'admin-1');
+
+      // resolveu MANAGER → GERENTE_GERAL, perfil system global (companyId null)
+      expect(mockPrisma.role.findFirst).toHaveBeenCalledWith({
+        where: { code: 'GERENTE_GERAL', companyId: null },
+        select: { id: true },
+      });
+      // vínculo criado no MESMO user.create (nested = 1 transação implícita)
+      const args = mockPrisma.user.create.mock.calls[0][0];
+      expect(args.data.roleAssignments.create).toEqual({
+        roleId: 'role-gerente-geral',
+        companyId: 'co-1', // escopo da empresa do usuário
+        grantedBy: 'admin-1', // ator do JWT
+      });
+    });
+
+    it('escreve o vínculo numa ÚNICA operação (não faz create separado de assignment)', async () => {
+      mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+
+      await service.create({ ...baseDto }, 'co-1', 'admin-1');
+
+      // atomicidade: nada é criado fora do user.create (nested write)
+      expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.create.mock.calls[0][0].data.roleAssignments).toBeDefined();
+    });
+
+    it('espelha cada enum relevante no perfil system correto', async () => {
+      mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+      const cases: Array<[string, string]> = [
+        ['SUPER_ADMIN', 'ADMIN_GLOBAL'],
+        ['DIRECTOR', 'DIRETOR'],
+        ['MANAGER', 'GERENTE_GERAL'],
+        ['STORE', 'LOJA_OPERACIONAL'],
+      ];
+      for (const [enumRole, systemCode] of cases) {
+        jest.clearAllMocks();
+        mockPrisma.role.findFirst.mockResolvedValue({ id: `role-${systemCode}` });
+        mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+        await service.create({ ...baseDto, role: enumRole as any }, 'co-1', 'admin-1');
+        expect(mockPrisma.role.findFirst).toHaveBeenCalledWith({
+          where: { code: systemCode, companyId: null },
+          select: { id: true },
+        });
+      }
+    });
+
+    it('grantedBy vem do ator (parâmetro), imune a qualquer coisa no corpo do dto', async () => {
+      mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+
+      // mesmo se o dto trouxer lixo tentando forjar o concessor
+      await service.create(
+        { ...baseDto, grantedBy: 'forjado', actorId: 'forjado' } as any,
+        'co-1',
+        'admin-real',
+      );
+
+      expect(mockPrisma.user.create.mock.calls[0][0].data.roleAssignments.create.grantedBy).toBe(
+        'admin-real',
+      );
+    });
+
+    it('ENUM SEM MAPEAMENTO no catálogo → falha a criação inteira (nada criado)', async () => {
+      await expect(
+        service.create({ ...baseDto, role: 'PAPEL_INEXISTENTE' as any }, 'co-1', 'admin-1'),
+      ).rejects.toThrow(/não tem perfil RBAC v2 correspondente/);
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('PERFIL SYSTEM AUSENTE no banco → falha a criação inteira (nada criado)', async () => {
+      mockPrisma.role.findFirst.mockResolvedValue(null);
+      await expect(
+        service.create({ ...baseDto }, 'co-1', 'admin-1'),
+      ).rejects.toThrow(/não encontrado/);
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('a resolução do perfil acontece ANTES do create (sem usuário parcial se falha)', async () => {
+      mockPrisma.role.findFirst.mockResolvedValue(null);
+      await expect(service.create({ ...baseDto }, 'co-1', 'admin-1')).rejects.toBeDefined();
+      // password também não foi registrado no histórico (nada persistido)
+      expect(mockPasswordPolicy.recordPasswordChange).not.toHaveBeenCalled();
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('criação normal NÃO depende de seed (resolve o perfil já existente no banco)', async () => {
+      mockPrisma.user.create.mockResolvedValue(SAFE_USER);
+      await service.create({ ...baseDto }, 'co-1', 'admin-1');
+      // um único lookup de role + o create; nenhuma rotina de seed acionada
+      expect(mockPrisma.role.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
     });
   });
 

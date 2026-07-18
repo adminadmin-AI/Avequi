@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -10,6 +11,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { ENUM_ROLE_TO_SYSTEM_ROLE } from '../iam/roles.catalog';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -35,7 +37,7 @@ export class UserService {
     private readonly sessionService: SessionService,
   ) {}
 
-  async create(dto: CreateUserDto, companyId: string) {
+  async create(dto: CreateUserDto, companyId: string, actorId: string) {
     // #345: senha definida pelo admin também passa pela política de
     // complexidade (inclusive não conter o nome/e-mail do NOVO usuário).
     this.passwordPolicy.validateComplexity(dto.password, {
@@ -43,8 +45,19 @@ export class UserService {
       name: dto.name,
     });
 
+    // #738: resolve o perfil RBAC v2 ANTES de criar nada. O usuário nasce com
+    // o vínculo v2 do perfil-espelho do enum (mesmo mapeamento do seed), senão
+    // o PermissionGuard (fail-closed) negaria toda rota até um seed rodar.
+    // Ao contrário do seed (tolerante, pula sem mapear), na criação de um
+    // usuário NOVO um mapeamento ausente FALHA a operação inteira — não
+    // criamos usuário sem perfil v2 (seria reproduzir o bug da #738).
+    const roleId = await this.resolveSystemRoleIdForEnum(dto.role);
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const { password: _pw, ...rest } = dto;
+    // Nested write: o Prisma envolve user + assignment numa ÚNICA transação
+    // implícita (batch, não interativa) — atômico e compatível com o pooler
+    // transacional do Supabase; o userId do vínculo é preenchido pela relação.
     const user = await this.prisma.user.create({
       // companyId SEMPRE vem do JWT (nunca do body — #450). #345:
       // passwordChangedAt marca a criação; mustChangePassword=true por PADRÃO
@@ -56,6 +69,12 @@ export class UserService {
         passwordHash,
         passwordChangedAt: new Date(),
         mustChangePassword: dto.mustChangePassword ?? true,
+        // #738: vínculo v2 escopado à empresa do usuário (o perfil system é
+        // global/companyId null, mas a atribuição vale na empresa dele — mesma
+        // regra do seed). grantedBy = admin autenticado (do JWT, nunca do body).
+        roleAssignments: {
+          create: { roleId, companyId, grantedBy: actorId },
+        },
       },
       select: SELECT_SAFE,
     });
@@ -65,6 +84,33 @@ export class UserService {
     await this.passwordPolicy.recordPasswordChange(user.id, null, passwordHash);
 
     return user;
+  }
+
+  /**
+   * #738: mapeia o papel legado (enum) → perfil system RBAC v2 e devolve o id.
+   * Falha explícita (sem criar usuário) se o enum não tem espelho no catálogo
+   * ou se o perfil system não existe no banco — o oposto do comportamento
+   * tolerante do seed, que pode pular usuários pré-existentes sem mapa.
+   */
+  private async resolveSystemRoleIdForEnum(enumRole: string): Promise<string> {
+    const systemRoleCode = ENUM_ROLE_TO_SYSTEM_ROLE[enumRole];
+    if (!systemRoleCode) {
+      throw new BadRequestException(
+        `Papel '${enumRole}' não tem perfil RBAC v2 correspondente no catálogo. ` +
+          'Cadastre o mapeamento antes de criar usuários com este papel.',
+      );
+    }
+    // Perfil system = global (companyId null) — mesma âncora usada pelo seed.
+    const role = await this.prisma.role.findFirst({
+      where: { code: systemRoleCode, companyId: null },
+      select: { id: true },
+    });
+    if (!role) {
+      throw new BadRequestException(
+        `Perfil system '${systemRoleCode}' não encontrado. Rode o seed de perfis IAM antes de criar usuários.`,
+      );
+    }
+    return role.id;
   }
 
   async findAll(requestingUser: { role: string; companyId: string }) {
