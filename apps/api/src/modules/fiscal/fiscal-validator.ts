@@ -144,9 +144,11 @@ export function validateNfePayload(
     }
   }
 
-  // ── Emissão referenciada (finNFe 4/5/6): NF-e original obrigatória (#747) ──
+  // ── Devolução (finNFe 4): NF-e original no CABEÇALHO obrigatória (#747) ────
+  // Notas 5/6 NÃO usam o cabeçalho — referência é POR ITEM (gDFeReferenciado);
+  // cabeçalho + item juntos = rej. 1010 (validado na SEFAZ homolog F4).
   const finalidade = String(payload.finalidade_emissao ?? '');
-  if (['4', '5', '6'].includes(finalidade)) {
+  if (finalidade === '4') {
     const refs: Payload[] = Array.isArray(payload.notas_referenciadas) ? payload.notas_referenciadas : [];
     const chavesOk =
       refs.length > 0 && refs.every((r) => String(r.chave_nfe ?? '').replace(/\D/g, '').length === 44);
@@ -157,7 +159,7 @@ export function validateNfePayload(
         message: `NF-e com finalidade ${finalidade} exige notas_referenciadas com a chave (44 dígitos) da NF-e original.`,
       });
     }
-    if (finalidade === '4' && String(payload.tipo_documento ?? '') !== '0') {
+    if (String(payload.tipo_documento ?? '') !== '0') {
       issues.push({
         rejection: '866',
         field: 'tipo_documento',
@@ -204,6 +206,67 @@ export function validateNfePayload(
           rejection: 'RTC',
           field: `items[${n}]`,
           message: `Item ${n} sem grupo IBS/CBS (ibs_cbs_situacao_tributaria/base) — obrigatório em nota de débito/crédito.`,
+        });
+      }
+      // gDFeReferenciado POR ITEM — só na nota de DÉBITO (rej. 1038; SEFAZ
+      // homolog F4). O crédito referencia no cabeçalho (regra abaixo).
+      if (
+        finalidade === '6' &&
+        String(item.chave_acesso_dfe_referenciado ?? '').replace(/\D/g, '').length !== 44
+      ) {
+        issues.push({
+          rejection: '1038',
+          field: `items[${n}].chave_acesso_dfe_referenciado`,
+          message: `Item ${n} sem DF-e referenciado (chave de 44 dígitos) — obrigatório em nota de débito (rej. 1038).`,
+        });
+      }
+    });
+
+    // crédito é ENTRADA (rej. 1161 "Tipo de Operacao incompativel", SEFAZ homolog F4)
+    if (finalidade === '5' && String(payload.tipo_documento ?? '') !== '0') {
+      issues.push({
+        rejection: '1161',
+        field: 'tipo_documento',
+        message: 'Nota de Crédito (finNFe 5) exige nota de ENTRADA (tipo_documento 0) — rej. 1161.',
+      });
+    }
+
+    // Referenciamento assimétrico (SEFAZ homolog F4):
+    // crédito (entrada) exige NF referenciada no CABEÇALHO (rej. 254)
+    if (finalidade === '5') {
+      const refs: Payload[] = Array.isArray(payload.notas_referenciadas) ? payload.notas_referenciadas : [];
+      const ok = refs.length > 0 && refs.every((r) => String(r.chave_nfe ?? '').replace(/\D/g, '').length === 44);
+      if (!ok) {
+        issues.push({
+          rejection: '254',
+          field: 'notas_referenciadas',
+          message: 'Nota de Crédito exige notas_referenciadas (chave de 44 dígitos) no cabeçalho — rej. 254.',
+        });
+      }
+    }
+    // débito (saída) referencia SÓ por item — cabeçalho junto = rej. 1010
+    if (finalidade === '6' && Array.isArray(payload.notas_referenciadas) && payload.notas_referenciadas.length > 0) {
+      issues.push({
+        rejection: '1010',
+        field: 'notas_referenciadas',
+        message:
+          'Nota de débito não pode referenciar no cabeçalho E no item — use apenas o gDFeReferenciado por item (rej. 1010).',
+      });
+    }
+
+    // CFOP acompanha o sentido (rej. 519): crédito/entrada 1-2xxx, débito/saída 5-6xxx
+    items.forEach((item, idx) => {
+      const n = item.numero_item ?? idx + 1;
+      const cfop = String(item.cfop ?? '');
+      const okDir = finalidade === '5' ? /^[12]/.test(cfop) : /^[56]/.test(cfop);
+      if (cfop && !okDir) {
+        issues.push({
+          rejection: '519',
+          field: `items[${n}].cfop`,
+          message:
+            finalidade === '5'
+              ? `Nota de Crédito é ENTRADA — CFOP do item ${n} deve iniciar em 1/2 (rej. 519). Recebido: ${cfop}.`
+              : `Nota de Débito é SAÍDA — CFOP do item ${n} deve iniciar em 5/6. Recebido: ${cfop}.`,
         });
       }
     });
