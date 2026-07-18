@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-18
+
+### Added
+- feat(support): canal de reporte de bugs (épico #764) — reporter no app + "Meus chamados" (#765) e captura automática de erro 5xx com dedup (#766)
+
 ## [1.17.0] - 2026-07-18
 
 ### Added
@@ -225,7 +230,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.17.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.14.0...v1.15.0
