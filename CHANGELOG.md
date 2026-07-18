@@ -6,6 +6,19 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-18
+
+### Added
+- feat(fiscal): **Notas de Débito e Crédito IBS/CBS (finNFe 6/5, Ajuste SINIEF 49/2025) — HOMOLOGADAS na SEFAZ** (épico #753). Motor de diferença (`IbsCbsAdjustmentService`: espelho das alíquotas efetivas da original; modos integral/total/por item/valor avulso), builder de payload validado em 4 rodadas de homologação (crédito=entrada+referência no cabeçalho; débito=saída+`gDFeReferenciado` por item; CFOP por sentido e motivo), endpoints `POST /fiscal/:id/debit-note`/`credit-note` (permissões novas `fiscal.nfe.debit-note`/`credit-note` — catálogo 301) e preview em `POST /fiscal/:id/adjustment-preview` (#755, #756, #757, #759, #760 — PRs #772, #773, #775)
+- feat(web): wizard de Nota de Débito/Crédito no detalhe da NF-e (espécie+motivo → valor → justificativa → revisão com preview vCBS/vIBS), badge+filtro de finalidade, card Documentos vinculados (original ↔ ajustes/devoluções), botão de NF-e de devolução manual e UI de inutilização de faixa (void-range) (#758 — PR #773)
+- feat(support): módulo de suporte — chamados self-service com protocolo AVQ, página "Meus chamados" e captura automática de rota/versão (épico #764, WP1 #765 — PR #774)
+
+### Fixed
+- fix(fiscal): cancelamento e inutilização agora capturam protocolo e `mensagem_sefaz` da Focus (auditoria completa; `FiscalVoidRange.protocol` usa o protocolo real) e rejeições da Reforma (960/1026/1033/1106) chegam com orientação acionável (#727 — PR #772)
+
+### Notes
+- Nota de crédito por retorno/recusa (tpNFCredito 03/06) bloqueada com orientação para a NF-e de devolução — conflito de regras 327↔328 na SEFAZ-PR, documentado em `docs/faturamento/auditoria-homologacao-notas-debito-credito-2026-07-17.md`; cenário sentinela G3 no `audit-homologacao.ts` acusa quando a SEFAZ corrigir
+
 ## [1.16.0] - 2026-07-17
 
 ### Added
@@ -212,7 +225,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.13.1...v1.14.0
