@@ -112,32 +112,6 @@ export default function PayablesPage() {
     return d;
   }, []);
 
-  // ── KPIs (sobre o total) ──
-  const summary = useMemo(() => {
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    let toComeValue = 0,
-      toComeCount = 0,
-      overdueValue = 0,
-      overdueCount = 0,
-      paidMonth = 0,
-      totalOpen = 0;
-
-    for (const e of entries) {
-      if (e.paidAt && new Date(e.paidAt) >= monthStart) paidMonth += num(e.paidAmount);
-      if (!isOpen(e)) continue;
-      const rem = remainingOf(e);
-      totalOpen += rem;
-      if (daysOverdue(e, today) > 0) {
-        overdueValue += rem;
-        overdueCount += 1;
-      } else {
-        toComeValue += rem;
-        toComeCount += 1;
-      }
-    }
-    return { toComeValue, toComeCount, overdueValue, overdueCount, paidMonth, totalOpen };
-  }, [entries, today]);
-
   // ── Filtros ──
   const [dueFrom, setDueFrom] = useState('');
   const [dueTo, setDueTo] = useState('');
@@ -156,6 +130,32 @@ export default function PayablesPage() {
       return true;
     });
   }, [entries, dueFrom, dueTo, statusFilter, supplierFilter, today]);
+
+  // ── KPIs (refletem os filtros ativos; sem filtro = totais completos) ──
+  const summary = useMemo(() => {
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    let toComeValue = 0,
+      toComeCount = 0,
+      overdueValue = 0,
+      overdueCount = 0,
+      paidMonth = 0,
+      totalOpen = 0;
+
+    for (const e of filtered) {
+      if (e.paidAt && new Date(e.paidAt) >= monthStart) paidMonth += num(e.paidAmount);
+      if (!isOpen(e)) continue;
+      const rem = remainingOf(e);
+      totalOpen += rem;
+      if (daysOverdue(e, today) > 0) {
+        overdueValue += rem;
+        overdueCount += 1;
+      } else {
+        toComeValue += rem;
+        toComeCount += 1;
+      }
+    }
+    return { toComeValue, toComeCount, overdueValue, overdueCount, paidMonth, totalOpen };
+  }, [filtered, today]);
 
   // ── Ações ──
   const [payTarget, setPayTarget] = useState<FinancialEntry | null>(null);
