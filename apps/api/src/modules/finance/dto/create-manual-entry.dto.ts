@@ -12,9 +12,19 @@ export class CreateManualEntryDto {
   @IsNotEmpty()
   dueDate: string;
 
+  // #788 — previsão de pagamento (opcional). Se ausente, o service usa o vencimento.
+  @IsOptional()
+  @IsDateString()
+  expectedPaymentDate?: string;
+
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  // #785 — fornecedor do título (contas a pagar). Opcional.
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
 
   @IsOptional()
   @IsString()

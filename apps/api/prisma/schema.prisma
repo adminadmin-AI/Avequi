@@ -1394,6 +1394,9 @@ model FinancialEntry {
   status             FinancialEntryStatus   @default(OPEN)
   amount             Decimal                @db.Decimal(14, 4)
   dueDate            DateTime
+  // #788 — previsão de pagamento: data de planejamento editável, distinta do
+  // vencimento (equivalente ao `data_previsao` do Omie). Default = vencimento.
+  expectedPaymentDate DateTime?             @map("expected_payment_date")
   description        String?
   source             EntrySource            @default(AUTO_SALES)
   attachmentUrl      String?

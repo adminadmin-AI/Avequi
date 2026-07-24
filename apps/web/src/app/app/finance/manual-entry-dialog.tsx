@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
-import type { FinancialCategory, CostCenter, FinancialEntryType } from '@/types/api';
+import type { FinancialCategory, CostCenter, FinancialEntryType, Supplier } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,8 @@ const schema = z.object({
   description: z.string().min(1, 'Informe a descrição'),
   amount: z.coerce.number().min(0.01, 'Valor deve ser maior que zero'),
   dueDate: z.string().min(1, 'Informe o vencimento'),
+  expectedPaymentDate: z.string().optional(),
+  supplierId: z.string().optional(),
   categoryId: z.string().optional(),
   costCenterId: z.string().optional(),
 });
@@ -54,6 +56,7 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
 
   const { data: catRoots = [] } = useList<FinancialCategory>('/finance/categories');
   const { data: ccRoots = [] } = useList<CostCenter>('/finance/cost-centers');
+  const { data: suppliers = [] } = useList<Supplier>('/suppliers');
   const categories = useMemo(() => flattenOptions(catRoots), [catRoots]);
   const costCenters = useMemo(() => flattenOptions(ccRoots), [ccRoots]);
 
@@ -75,6 +78,8 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
   function onSubmit(values: FormValues) {
     const payload = {
       ...values,
+      expectedPaymentDate: values.expectedPaymentDate || undefined,
+      supplierId: values.supplierId || undefined,
       categoryId: values.categoryId || undefined,
       costCenterId: values.costCenterId || undefined,
     };
@@ -129,6 +134,22 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
             </Field>
             <Field label="Vencimento" required error={errors.dueDate?.message}>
               <Input type="date" {...register('dueDate')} error={!!errors.dueDate} />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Previsão de pagamento" error={errors.expectedPaymentDate?.message}>
+              <Input type="date" {...register('expectedPaymentDate')} />
+            </Field>
+            <Field label="Fornecedor" error={errors.supplierId?.message}>
+              <Select {...register('supplierId')}>
+                <option value="">— Nenhum —</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
 

@@ -577,6 +577,7 @@ export interface FinancialEntry extends BaseEntity {
   status: FinancialEntryStatus;
   amount: string;
   dueDate: string;
+  expectedPaymentDate?: string | null; // #788 — previsão de pagamento (default = vencimento)
   description?: string | null;
   source: EntrySource;
   paidAt?: string | null;
