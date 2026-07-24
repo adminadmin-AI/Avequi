@@ -46,6 +46,10 @@ function effectiveStatus(e: FinancialEntry, today: Date): FinancialEntryStatus {
 function pendingApproval(e: FinancialEntry): boolean {
   return !!e.purchaseOrder && e.purchaseOrder.status === 'DRAFT';
 }
+/** Fornecedor do título: vínculo direto (#785) tem precedência; senão, o da PO. */
+function supplierName(e: FinancialEntry): string {
+  return e.supplier?.name ?? e.purchaseOrder?.supplier?.name ?? '';
+}
 
 const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }> = {
   OPEN: { label: 'Em aberto', variant: 'info' },
@@ -124,8 +128,7 @@ export default function PayablesPage() {
       if (dueTo && e.dueDate > dueTo + 'T23:59:59') return false;
       if (statusFilter && effectiveStatus(e, today) !== statusFilter) return false;
       if (supplierFilter) {
-        const name = e.purchaseOrder?.supplier?.name ?? '';
-        if (!name.toLowerCase().includes(supplierFilter.toLowerCase())) return false;
+        if (!supplierName(e).toLowerCase().includes(supplierFilter.toLowerCase())) return false;
       }
       return true;
     });
@@ -194,7 +197,7 @@ export default function PayablesPage() {
       header: 'Fornecedor',
       cell: (e) => (
         <div className="flex items-center gap-2">
-          <span>{e.purchaseOrder?.supplier?.name ?? <span className="text-content-muted">—</span>}</span>
+          <span>{supplierName(e) || <span className="text-content-muted">—</span>}</span>
           {pendingApproval(e) && (
             <Badge variant="warning" className="whitespace-nowrap">
               Aprovação pendente

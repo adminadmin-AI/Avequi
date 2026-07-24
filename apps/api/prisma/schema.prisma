@@ -503,6 +503,7 @@ model Supplier {
   portalTokens         SupplierToken[]
   batches              Batch[]                @relation("BatchSupplier")
   payables             Payable[]
+  financialEntries     FinancialEntry[] // #785 — títulos (contas a pagar) vinculados direto ao fornecedor
   rfqQuotes            RfqQuote[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
@@ -1408,6 +1409,10 @@ model FinancialEntry {
   salesOrder         SalesOrder?            @relation(fields: [salesOrderId], references: [id])
   purchaseOrderId    String?
   purchaseOrder      PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
+  // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie).
+  // Complementa purchaseOrder.supplier: a tela usa este quando não há PO vinculada.
+  supplierId         String?
+  supplier           Supplier?              @relation(fields: [supplierId], references: [id])
   goodsReceiptId     String?                @unique
   goodsReceipt       GoodsReceipt?          @relation(fields: [goodsReceiptId], references: [id])
   fiscalDocumentId   String?                @unique
@@ -1433,6 +1438,7 @@ model FinancialEntry {
   @@index([parentEntryId])
   @@index([salesOrderId])
   @@index([debtorType])
+  @@index([supplierId])
   @@map("gdr_financial_entries")
 }
 

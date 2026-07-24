@@ -584,6 +584,7 @@ export interface FinancialEntry extends BaseEntity {
   paymentNote?: string | null;
   salesOrderId?: string | null;
   purchaseOrderId?: string | null;
+  supplierId?: string | null;
   // Relações incluídas pelo GET /finance
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   purchaseOrder?: {
@@ -592,6 +593,8 @@ export interface FinancialEntry extends BaseEntity {
     approvedAt?: string | null;
     supplier?: Pick<Supplier, 'id' | 'name'> | null;
   } | null;
+  // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie)
+  supplier?: Pick<Supplier, 'id' | 'name'> | null;
 }
 
 export interface FinancialCategory extends BaseEntity {
