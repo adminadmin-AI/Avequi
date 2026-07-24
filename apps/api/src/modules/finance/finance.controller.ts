@@ -282,12 +282,11 @@ export class FinanceController {
     return this.financeService.getCashFlow(req.user.companyId, { from, to });
   }
 
-  @Get(':id')
-  @RequirePermission('finance.entries.view')
-  @ApiOperation({ summary: 'Buscar lançamento por ID' })
-  findOne(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
-    return this.financeService.findOne(id, req.user.companyId);
-  }
+  // NOTA: o handler `@Get(':id')` (findOne) fica no FIM da classe de propósito.
+  // No NestJS a ordem de declaração define a ordem de match das rotas; um
+  // `@Get(':id')` declarado antes de rotas GET estáticas (bank-accounts,
+  // categories, cost-centers) as engoliria — "categories" viraria um :id e
+  // devolveria 404 "lançamento não encontrado". Não mover para cima. (#787)
 
   @Patch(':id/pay')
   @RequirePermission('finance.entries.pay')
@@ -457,5 +456,13 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.deactivateCostCenter(id, req.user.companyId);
+  }
+
+  // Catch-all de ID: DEVE ser o último GET da classe (ver nota acima). (#787)
+  @Get(':id')
+  @RequirePermission('finance.entries.view')
+  @ApiOperation({ summary: 'Buscar lançamento por ID' })
+  findOne(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
+    return this.financeService.findOne(id, req.user.companyId);
   }
 }
