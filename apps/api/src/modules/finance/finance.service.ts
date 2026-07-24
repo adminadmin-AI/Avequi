@@ -259,14 +259,22 @@ export class FinanceService {
       if (recurrence === 'MONTHLY') dueDate.setMonth(dueDate.getMonth() + i);
       else if (recurrence === 'WEEKLY') dueDate.setDate(dueDate.getDate() + i * 7);
 
+      // #788 — previsão de pagamento: usa a informada; senão, o vencimento
+      // (recalculado por parcela na recorrência).
+      const expectedPaymentDate = dto.expectedPaymentDate
+        ? new Date(dto.expectedPaymentDate)
+        : new Date(dueDate);
+
       return {
         companyId,
         type: dto.type as FinancialEntryType,
         status: FinancialEntryStatus.OPEN,
         amount: dto.amount,
         dueDate,
+        expectedPaymentDate,
         description: count > 1 ? `${dto.description} (${i + 1}/${count})` : dto.description,
         source: 'MANUAL' as const,
+        supplierId: dto.supplierId ?? null, // #785
         categoryId: dto.categoryId ?? null,
         attachmentUrl: dto.attachmentUrl ?? null,
       };

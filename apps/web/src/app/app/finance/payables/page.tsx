@@ -227,6 +227,14 @@ export default function PayablesPage() {
       cell: (e) => formatDate(e.dueDate),
     },
     {
+      key: 'expectedPaymentDate',
+      header: 'Previsão',
+      sortable: true,
+      // #788 — previsão de pagamento; cai pro vencimento quando não informada.
+      accessor: (e) => e.expectedPaymentDate ?? e.dueDate,
+      cell: (e) => formatDate(e.expectedPaymentDate ?? e.dueDate),
+    },
+    {
       key: 'status',
       header: 'Status',
       align: 'center',
