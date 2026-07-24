@@ -534,6 +534,7 @@ export class FinanceService {
       include: {
         salesOrder: { include: { customer: true } },
         purchaseOrder: { include: { supplier: true } },
+        supplier: true, // #785 — fornecedor direto (títulos sem PO, ex.: migração Omie)
         goodsReceipt: true,
         fiscalDocument: { select: { id: true, chave: true, status: true } },
       },
@@ -547,6 +548,7 @@ export class FinanceService {
       include: {
         salesOrder: { include: { customer: true, items: { include: { product: true } } } },
         purchaseOrder: { include: { supplier: true } },
+        supplier: true, // #785 — fornecedor direto (títulos sem PO)
         goodsReceipt: { include: { items: { include: { product: true } } } },
         fiscalDocument: true,
         payments: { orderBy: { paidAt: 'asc' } },
