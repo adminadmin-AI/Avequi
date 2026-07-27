@@ -101,6 +101,15 @@ export const envValidationSchema = Joi.object({
   SMTP_PASS: Joi.string().allow('').optional(),
   SMTP_FROM: Joi.string().allow('').optional(),
 
+  // ─── Suporte — issue no GitHub (#767) ───
+  // Opcional: sem token/repo o GithubIssueService é no-op (o chamado funciona
+  // normalmente, só não espelha no GitHub). Repo no formato "owner/repo".
+  SUPPORT_GITHUB_TOKEN: Joi.string().allow('').optional(),
+  SUPPORT_GITHUB_REPO: Joi.string()
+    .pattern(/^[\w.-]+\/[\w.-]+$/)
+    .allow('')
+    .optional(),
+
   // ─── Criptografia de credenciais bancárias (AES-256-GCM) ───
   // 32 bytes = 64 chars hex. Opcional enquanto o EncryptionService não
   // está no main; o formato já é validado para evitar chave inválida.

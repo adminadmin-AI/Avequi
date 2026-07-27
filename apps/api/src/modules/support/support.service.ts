@@ -10,6 +10,12 @@ import type { ServerErrorEvent } from '../../common/events/server-error.event';
 /** Evento consumido pelos WPs seguintes (ack e-mail #771, issue #767, triagem #768). */
 export const SUPPORT_INCIDENT_CAPTURED = 'support.incident.captured';
 
+/** Payload do `support.incident.captured` — emitido só quando o incidente é criado de fato. */
+export interface SupportIncidentCapturedEvent {
+  incidentId: string;
+  companyId: string;
+}
+
 /** Enquanto existir um incidente nestes status, um 5xx de mesma assinatura é dedup. */
 const ACTIVE_STATUSES: SupportIncidentStatus[] = [
   SupportIncidentStatus.NEW,
