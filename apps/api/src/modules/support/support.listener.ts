@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
 import { OnEvent } from '@nestjs/event-emitter';
+import { Queue } from 'bull';
 import {
   APP_SERVER_ERROR,
   ServerErrorEvent,
@@ -10,6 +12,7 @@ import {
   SupportService,
 } from './support.service';
 import { GithubIssueService } from './github-issue.service';
+import { TRIAGE_QUEUE, TriageJobData } from './support.types';
 
 /**
  * Reações a eventos de suporte. Roda FORA do caminho da resposta (o filtro já
@@ -22,6 +25,7 @@ export class SupportListener {
   constructor(
     private readonly support: SupportService,
     private readonly githubIssues: GithubIssueService,
+    @InjectQueue(TRIAGE_QUEUE) private readonly triageQueue: Queue<TriageJobData>,
   ) {}
 
   /** Captura automática de erros 5xx (#766). */
@@ -50,6 +54,24 @@ export class SupportListener {
     } catch (err) {
       this.logger.warn(
         `Falha ao criar issue GitHub (incidente ${evt.incidentId}): ${(err as Error).message}`,
+      );
+    }
+
+    // WP4 (#768): segunda camada — enfileira a triagem repo-aware. Try/catch
+    // próprio para NUNCA afetar o fluxo do chamado nem a criação da issue.
+    try {
+      await this.triageQueue.add(
+        { incidentId: evt.incidentId },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: 500,
+          removeOnFail: 100,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao enfileirar triagem (incidente ${evt.incidentId}): ${(err as Error).message}`,
       );
     }
   }

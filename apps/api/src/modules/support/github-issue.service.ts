@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import type { SupportIncident } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { redactPii } from './redact-pii';
+import { githubPost } from './github-fetch';
+import type { TriageDiagnosis } from './support.types';
 
 /** Timeout curto — a criação da issue é fire-and-forget, não pode segurar nada. */
 const GITHUB_TIMEOUT_MS = 10_000;
@@ -128,19 +130,81 @@ export class GithubIssueService {
     token: string,
     body: unknown,
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), GITHUB_TIMEOUT_MS);
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timer));
+    return githubPost(url, token, body, GITHUB_TIMEOUT_MS);
+  }
+
+  /**
+   * WP4 (#768): posta o diagnóstico da triagem como comentário na issue do
+   * incidente. Comentário é interno do time — mas texto livre vindo do LLM
+   * (causa provável, passo self-service, fix sugerido) ainda passa pelo
+   * `redactPii` antes de sair (decisão travada do épico: nada não-redigido
+   * cruza para o GitHub). Fail-safe: sem config, issue ausente, ou erro de
+   * rede, é no-op silencioso e nunca lança.
+   */
+  async commentDiagnosis(
+    issueNumber: number,
+    diagnosis: TriageDiagnosis,
+  ): Promise<boolean> {
+    const repo = this.config.get<string>('SUPPORT_GITHUB_REPO', '');
+    const token = this.config.get<string>('SUPPORT_GITHUB_TOKEN', '');
+    if (!repo || !token) {
+      this.logger.debug('GitHub não configurado — comentário de triagem não postado');
+      return false;
+    }
+    try {
+      const res = await this.githubFetch(
+        `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
+        token,
+        { body: this.buildDiagnosisComment(diagnosis) },
+      );
+      if (!res.ok) {
+        this.logger.warn(
+          `GitHub recusou o comentário de triagem (${res.status}) na issue #${issueNumber}`,
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao comentar triagem na issue #${issueNumber}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  }
+
+  /** Markdown do comentário de triagem — texto livre do LLM sempre redigido. */
+  private buildDiagnosisComment(d: TriageDiagnosis): string {
+    const flag = d.needsHuman ? '🔴 **PRECISA DE HUMANO**' : '🟢 auto-resolúvel';
+    const conf = `${Math.round(d.confidence * 100)}%`;
+    const files = d.files.length
+      ? d.files
+          .map((f) => `- \`${f.path}:${f.line}\` — ${redactPii(f.reason)}`)
+          .join('\n')
+      : '_nenhum arquivo apontado_';
+    const lines = [
+      `## 🤖 Triagem automática (#768)`,
+      ``,
+      `**Severidade:** ${d.severity} · **Confiança:** ${conf} · ${flag}`,
+      `**Módulo:** ${d.module}`,
+      d.isDuplicateOf ? `**Duplicado de:** ${d.isDuplicateOf}` : null,
+      ``,
+      `### Causa provável`,
+      redactPii(d.probableCause),
+      ``,
+      `### Arquivos suspeitos`,
+      files,
+      d.suggestedFix
+        ? `\n### Correção sugerida\n${redactPii(d.suggestedFix)}`
+        : null,
+      d.safeSelfServiceStep
+        ? `\n### Passo seguro de self-service\n${redactPii(d.safeSelfServiceStep)}`
+        : null,
+      ``,
+      `---`,
+      `_Diagnóstico gerado por LLM repo-aware. PII redigida na origem. ` +
+        `Fonte da verdade cliente-facing: o incidente (diagnóstico é interno)._`,
+    ].filter((l) => l !== null);
+    return lines.join('\n');
   }
 
   private buildBody(incident: IncidentWithCompany): string {

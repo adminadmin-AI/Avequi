@@ -2,9 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHash } from 'crypto';
 import { SupportIncidentSource, SupportIncidentStatus } from '@prisma/client';
-import type { SupportIncident } from '@prisma/client';
+import type { Prisma, SupportIncident, SupportIncidentSeverity } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateIncidentDto } from './dto/create-incident.dto';
+import { UpdateDiagnosisDto } from './dto/update-diagnosis.dto';
 import type { ServerErrorEvent } from '../../common/events/server-error.event';
 
 /** Evento consumido pelos WPs seguintes (ack e-mail #771, issue #767, triagem #768). */
@@ -155,6 +156,31 @@ export class SupportService {
         },
       },
     });
+  }
+
+  /**
+   * WP4 (#768) — grava o diagnóstico do runner (write-back assinado, chamado
+   * pelo controller APÓS validar o HMAC). `diagnosis`+`triagedAt` são INTERNOS
+   * (fora do select do listMine); `severity` é cliente-facing por design (o
+   * schema reserva o campo "preenchido pela triagem"). Não mexe em `status`
+   * de propósito — transição de status é fluxo separado e afeta o dedup.
+   * Retorna o vínculo com a issue para o controller postar o comentário.
+   */
+  async applyDiagnosis(incidentId: string, dto: UpdateDiagnosisDto) {
+    const incident = await this.prisma.supportIncident.update({
+      where: { id: incidentId },
+      data: {
+        diagnosis: dto as unknown as Prisma.InputJsonValue,
+        triagedAt: new Date(),
+        severity: dto.severity as SupportIncidentSeverity,
+      },
+      select: { id: true, protocol: true, githubIssueNumber: true },
+    });
+    this.logger.log(
+      `Diagnóstico gravado em ${incident.protocol} (sev ${dto.severity}, ` +
+        `needsHuman=${dto.needsHuman})`,
+    );
+    return incident;
   }
 
   // ─── interno ───────────────────────────────────────────────────────────────

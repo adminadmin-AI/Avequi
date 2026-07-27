@@ -157,4 +157,47 @@ describe('GithubIssueService', () => {
     expect(number).toBeNull();
     expect(prisma.supportIncident.update).not.toHaveBeenCalled();
   });
+
+  describe('commentDiagnosis (WP4 #768)', () => {
+    const DIAG = {
+      probableCause: 'Cliente joao@gdr.com.br não persiste (CPF 123.456.789-01)',
+      files: [{ path: 'customer.service.ts', line: 42, reason: 'valida e-mail joao@gdr.com.br' }],
+      module: 'customer',
+      severity: 'P1' as const,
+      isDuplicateOf: null,
+      confidence: 0.9,
+      suggestedFix: 'tratar telefone (11) 99999-8888',
+      safeSelfServiceStep: null,
+      needsHuman: true,
+    };
+
+    it('comenta na issue com o diagnóstico e REDIGE o texto livre do LLM', async () => {
+      fetchMock.mockResolvedValue(ghResponse(201));
+      const ok = await service.commentDiagnosis(55, DIAG);
+      expect(ok).toBe(true);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/owner/repo/issues/55/comments');
+      const body = JSON.parse(init.body).body;
+      expect(body).toContain('P1');
+      expect(body).toContain('PRECISA DE HUMANO');
+      // PII do texto livre redigida
+      expect(body).toContain('[EMAIL]');
+      expect(body).toContain('[CPF]');
+      expect(body).toContain('[TELEFONE]');
+      expect(body).not.toMatch(/joao@gdr|123\.456\.789-01|99999-8888/);
+    });
+
+    it('é no-op sem config (retorna false, não toca rede)', async () => {
+      env = {};
+      const ok = await service.commentDiagnosis(55, DIAG);
+      expect(ok).toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('erro de rede NÃO propaga (retorna false)', async () => {
+      fetchMock.mockRejectedValue(new Error('ECONNRESET'));
+      await expect(service.commentDiagnosis(55, DIAG)).resolves.toBe(false);
+    });
+  });
 });

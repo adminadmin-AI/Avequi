@@ -1,0 +1,46 @@
+# Runner repo-aware da triagem de suporte por IA (épico #764 / WP4 #768).
+#
+# Disparado por `repository_dispatch` (event_type: support-triage) a partir do
+# TriageProcessor da API. Faz checkout raso do repo (o runner é REPO-AWARE:
+# lê os arquivos do módulo/rota do incidente), roda o script de triagem com a
+# API da Anthropic e faz o write-back ASSINADO (HMAC) na API.
+#
+# Segredos necessários no repo (Settings → Secrets and variables → Actions):
+#   ANTHROPIC_API_KEY          — chave da API Claude (sem ela, o script sai 0)
+#   SUPPORT_API_BASE_URL       — ex.: https://avequi-api-production.up.railway.app/api
+#   SUPPORT_TRIAGE_HMAC_SECRET — MESMO segredo do env da API (assina o PATCH)
+name: support-triage
+
+on:
+  repository_dispatch:
+    types: [support-triage]
+
+# Só leitura do código; o write-back vai pela API (não pelo GITHUB_TOKEN).
+permissions:
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (raso, na versão publicada quando disponível)
+        uses: actions/checkout@v4
+        with:
+          # appVersion do incidente pode trazer o gitSha publicado; se não for
+          # um ref válido, o checkout cai no default branch (fallback abaixo).
+          ref: ${{ github.event.client_payload.appVersion || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Rodar triagem
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPPORT_API_BASE_URL: ${{ secrets.SUPPORT_API_BASE_URL }}
+          SUPPORT_TRIAGE_HMAC_SECRET: ${{ secrets.SUPPORT_TRIAGE_HMAC_SECRET }}
+          TRIAGE_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/support-triage.mjs
