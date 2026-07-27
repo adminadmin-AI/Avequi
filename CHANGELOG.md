@@ -6,6 +6,13 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-07-27
+
+### Added
+- feat(support): WP3 — incidente de suporte espelhado em issue do GitHub com contexto **redigido** (PII mascarada: CPF/CNPJ/e-mail/telefone; stack nunca sai, só assinatura), label `cliente:<tenant>` e vínculo `githubIssueNumber`; no-op sem `SUPPORT_GITHUB_TOKEN`/`SUPPORT_GITHUB_REPO` (#767 — PR #793)
+- feat(support): WP4 — triagem repo-aware por IA: fila Bull `TRIAGE_QUEUE` → `repository_dispatch` → GitHub Action com checkout da release → LLM (forte no diagnóstico, barato na dedup) → write-back assinado (HMAC-SHA256 do corpo bruto, fail-closed) em `PATCH /support/incidents/:id/diagnosis`, gravando `diagnosis`/`triagedAt`/`severity` e comentando na issue; diagnosis é interno (cliente não vê) (#768 — PR #794)
+- feat(chassi): 5 models `gdr_chassi_*` para a Marcadora de Chassi — séries, quadros, pool nunca-repetir, gravações (VIN unique) e eventos; contrato externo da ferramenta local (#782 — PR #792)
+
 ## [1.19.0] - 2026-07-27
 
 ### Added
@@ -242,7 +249,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.19.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.20.0...HEAD
+[1.20.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.16.0...v1.17.0
