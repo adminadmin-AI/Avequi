@@ -6,6 +6,18 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-07-27
+
+### Added
+- feat(finance): editar título de contas a pagar em aberto — `PATCH /finance/entries/:id` gateado pela permissão nova `finance.entries.update` (catálogo 302; FINANCEIRO e GERENTE_FINANCEIRO), com isolamento por empresa, reconciliação OPEN↔OVERDUE ao mudar vencimento, bloqueio com agendamento PENDENTE, rateio em 3 vias e auditoria com ator + diff (#789)
+- feat(finance): previsão de pagamento (`expected_payment_date`, equivalente ao `data_previsao` do Omie) + fornecedor no Novo Lançamento (#788)
+- feat(finance): fornecedor direto no título de contas a pagar, sem exigir Pedido de Compra (#785)
+
+### Fixed
+- fix(finance): rotas GET estáticas engolidas por `@Get(':id')` — 404 em categorias/centros de custo/contas bancárias (#787)
+- fix(web): KPIs de Contas a Pagar refletem os filtros ativos (#784)
+- fix(api): criação de usuário cria automaticamente o vínculo RBAC v2 espelho do papel legado — usuário novo nasce com `legacyFallback: false` (#779, refs #738)
+
 ## [1.18.0] - 2026-07-18
 
 ### Added
@@ -230,7 +242,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.19.0...HEAD
+[1.19.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.15.0...v1.16.0
