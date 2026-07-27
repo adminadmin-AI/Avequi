@@ -40,6 +40,7 @@ const PUBLIC_ALLOWLIST = [
   'WhatsappController.verify', // handshake Meta WhatsApp
   'WhatsappController.webhook', // webhook WhatsApp (assinatura)
   'FiscalController.webhook', // Focus NFe (x-focus-token, timingSafeEqual)
+  'SupportController.updateDiagnosis', // write-back triagem (#768, HMAC x-triage-signature, fail-closed)
   'VersionController.version', // GET /version — público por design
 ].sort();
 

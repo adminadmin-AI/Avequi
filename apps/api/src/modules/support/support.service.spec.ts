@@ -20,6 +20,9 @@ describe('SupportService', () => {
           ),
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: 'inc1', protocol: 'AVQ-000042', githubIssueNumber: 7 }),
       },
     };
     events = { emit: jest.fn() };
@@ -80,6 +83,48 @@ describe('SupportService', () => {
     expect(prisma.supportIncident.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { companyId: 'c1', reportedById: 'u1' } }),
     );
+  });
+
+  it('listMine NÃO expõe diagnosis nem triagedAt (campos internos do épico)', async () => {
+    await service.listMine('c1', 'u1');
+    const args = prisma.supportIncident.findMany.mock.calls[0][0];
+    expect(args.select.diagnosis).toBeUndefined();
+    expect(args.select.triagedAt).toBeUndefined();
+    // sanity: campos internos do WP3 também seguem fora
+    expect(args.select.githubIssueNumber).toBeUndefined();
+    expect(args.select.stackSignature).toBeUndefined();
+    // severity É cliente-facing por design (preenchido pela triagem)
+    expect(args.select.severity).toBe(true);
+  });
+
+  it('applyDiagnosis grava diagnosis+triagedAt+severity e retorna o vínculo da issue', async () => {
+    const dto = {
+      probableCause: 'null deref',
+      files: [{ path: 'a.ts', line: 10, reason: 'x' }],
+      module: 'sales',
+      severity: 'P1',
+      isDuplicateOf: null,
+      confidence: 0.8,
+      suggestedFix: null,
+      safeSelfServiceStep: null,
+      needsHuman: false,
+    } as any;
+
+    const res = await service.applyDiagnosis('inc1', dto);
+
+    expect(prisma.supportIncident.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inc1' },
+        data: expect.objectContaining({
+          diagnosis: dto,
+          triagedAt: expect.any(Date),
+          severity: 'P1',
+        }),
+      }),
+    );
+    // Não toca em status (transição é fluxo separado, afeta dedup)
+    expect(prisma.supportIncident.update.mock.calls[0][0].data.status).toBeUndefined();
+    expect(res.githubIssueNumber).toBe(7);
   });
 
   it('captureAutoError cria incidente AUTO_ERROR quando nao ha duplicado', async () => {

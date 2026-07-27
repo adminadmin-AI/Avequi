@@ -110,6 +110,12 @@ export const envValidationSchema = Joi.object({
     .allow('')
     .optional(),
 
+  // ─── Suporte — write-back assinado da triagem (#768) ───
+  // Segredo HMAC-SHA256 do PATCH /support/incidents/:id/diagnosis (runner→API).
+  // Opcional no boot, mas o endpoint é FAIL-CLOSED: sem ele configurado, toda
+  // requisição é rejeitada com 401 (nada de diagnóstico não-assinado entra).
+  SUPPORT_TRIAGE_HMAC_SECRET: Joi.string().allow('').optional(),
+
   // ─── Criptografia de credenciais bancárias (AES-256-GCM) ───
   // 32 bytes = 64 chars hex. Opcional enquanto o EncryptionService não
   // está no main; o formato já é validado para evitar chave inválida.

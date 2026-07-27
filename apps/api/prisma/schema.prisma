@@ -4354,6 +4354,7 @@ model SupportIncident {
   status            SupportIncidentStatus    @default(NEW)
   severity          SupportIncidentSeverity? // preenchido pela triagem (WP4)
   diagnosis         Json? // saída do agente — INTERNO, nunca cliente (WP4)
+  triagedAt         DateTime? // quando o runner gravou o diagnóstico — INTERNO (WP4)
   githubIssueNumber Int? // vínculo com a issue do time (WP3)
   duplicateOfId     String? // dedup
   createdAt         DateTime                 @default(now())
