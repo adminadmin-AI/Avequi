@@ -27,9 +27,11 @@ jobs:
       - name: Checkout (raso, na versão publicada quando disponível)
         uses: actions/checkout@v4
         with:
-          # appVersion do incidente pode trazer o gitSha publicado; se não for
-          # um ref válido, o checkout cai no default branch (fallback abaixo).
-          ref: ${{ github.event.client_payload.appVersion || github.ref }}
+          # appVersion do incidente é a versão SemVer publicada (ex.: 1.19.0);
+          # as releases são taggeadas como vX.Y.Z, então montamos a tag. Sem
+          # appVersion, cai no default branch. (checkout NÃO tem fallback para
+          # ref inválida — por isso a tag tem que existir para toda release.)
+          ref: ${{ github.event.client_payload.appVersion && format('v{0}', github.event.client_payload.appVersion) || github.ref }}
           fetch-depth: 1
 
       - name: Setup Node 20
