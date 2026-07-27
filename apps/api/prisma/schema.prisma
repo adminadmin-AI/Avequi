@@ -144,13 +144,13 @@ model Company {
   renaveEnabled         Boolean                @default(false) @map("renave_enabled")
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
+  collectionRules       CollectionRule[] // régua de cobrança (#384)
+  provisionRules        ProvisionRule[] // PDD (#389)
+  supplierAdvances      SupplierAdvance[] // adiantamentos (#393)
+  debts                 Debt[] // dívidas/financiamentos (#392)
+  discountPolicies      DiscountPolicy[] // alçadas de desconto (#391)
 
   @@map("gdr_companies")
-  collectionRules CollectionRule[] // régua de cobrança (#384)
-  provisionRules ProvisionRule[] // PDD (#389)
-  supplierAdvances SupplierAdvance[] // adiantamentos (#393)
-  debts Debt[] // dívidas/financiamentos (#392)
-  discountPolicies DiscountPolicy[] // alçadas de desconto (#391)
 }
 
 enum CompanyType {
@@ -323,15 +323,15 @@ model User {
   // IAM v2 — F4.1 (#344): MFA/2FA TOTP do usuário (opcional).
   mfa                       UserMFA?
   // IAM v2 — F4.2 (#345) — password policy (campos ADITIVOS)
-  passwordChangedAt  DateTime? // null = nunca trocou (rotação usa createdAt como base)
-  mustChangePassword Boolean   @default(false) // primeiro acesso / reset por admin
-  passwordHistory    PasswordHistory[]
+  passwordChangedAt         DateTime? // null = nunca trocou (rotação usa createdAt como base)
+  mustChangePassword        Boolean                @default(false) // primeiro acesso / reset por admin
+  passwordHistory           PasswordHistory[]
   defaultForCustomersSeller Customer[]             @relation("CustomerDefaultSeller") // padrão comercial do cliente (#475)
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
+  creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
 
   @@map("gdr_users")
-  creditApprovals Customer[] @relation("CustomerCreditApprover") // aprovador de limite (#388)
 }
 
 enum UserRole {
@@ -507,10 +507,10 @@ model Supplier {
   rfqQuotes            RfqQuote[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+  advances             SupplierAdvance[] // adiantamentos (#393)
 
   @@unique([companyId, cnpj])
   @@map("gdr_suppliers")
-  advances SupplierAdvance[] // adiantamentos (#393)
 }
 
 // ─── Cliente ──────────────────────────────────────────────────────────────────
@@ -528,51 +528,51 @@ enum IcmsIndicator {
 }
 
 model Customer {
-  id                  String            @id @default(cuid())
+  id                  String               @id @default(cuid())
   companyId           String
-  company             Company           @relation(fields: [companyId], references: [id])
-  type                CustomerType      @default(COMPANY)
+  company             Company              @relation(fields: [companyId], references: [id])
+  type                CustomerType         @default(COMPANY)
   name                String // nome fantasia / apelido comercial
-  razaoSocial         String?           @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
+  razaoSocial         String?              @map("razao_social") // razão social (PJ) — DANFE usa quando presente (#474)
   document            String?
   email               String?
-  fiscalEmail         String?           @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
+  fiscalEmail         String?              @map("fiscal_email") // e-mail p/ NF-e/boleto (fallback: email) (#474)
   phone               String?
   phone2              String?
-  contactName         String?           @map("contact_name")
+  contactName         String?              @map("contact_name")
   address             String? // logradouro (rua, av, etc.)
-  number              String?           @db.VarChar(10)
-  complement          String?           @db.VarChar(60)
-  neighborhood        String?           @db.VarChar(60) // bairro
+  number              String?              @db.VarChar(10)
+  complement          String?              @db.VarChar(60)
+  neighborhood        String?              @db.VarChar(60) // bairro
   city                String?
-  state               String?           @db.VarChar(2)
-  zipCode             String?           @map("zip_code") @db.VarChar(8) // CEP sem máscara
-  ibgeCode            String?           @map("ibge_code") @db.VarChar(7) // código município IBGE
-  ie                  String?           @db.VarChar(14) // inscrição estadual
+  state               String?              @db.VarChar(2)
+  zipCode             String?              @map("zip_code") @db.VarChar(8) // CEP sem máscara
+  ibgeCode            String?              @map("ibge_code") @db.VarChar(7) // código município IBGE
+  ie                  String?              @db.VarChar(14) // inscrição estadual
   // Fiscal (#474) — indIeDest null = inferir por IE/CPF (cadastros antigos)
-  indIeDest           IcmsIndicator?    @map("ind_ie_dest")
-  isRuralProducer     Boolean           @default(false) @map("is_rural_producer") // IE de produtor no campo ie
-  isSimplesNacional   Boolean           @default(false) @map("is_simples_nacional")
+  indIeDest           IcmsIndicator?       @map("ind_ie_dest")
+  isRuralProducer     Boolean              @default(false) @map("is_rural_producer") // IE de produtor no campo ie
+  isSimplesNacional   Boolean              @default(false) @map("is_simples_nacional")
   // Crédito e cobrança (#475) — casa com Receivable (em aberto é query, não campo)
-  creditLimit         Decimal?          @map("credit_limit") @db.Decimal(14, 2)
-  billingBlocked      Boolean           @default(false) @map("billing_blocked")
-  billingBlockReason  String?           @map("billing_block_reason")
+  creditLimit         Decimal?             @map("credit_limit") @db.Decimal(14, 2)
+  billingBlocked      Boolean              @default(false) @map("billing_blocked")
+  billingBlockReason  String?              @map("billing_block_reason")
   // Padrões comerciais (#475) — pré-preenchem a OV
-  defaultSellerId     String?           @map("default_seller_id")
-  defaultSeller       User?             @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
-  defaultPaymentTerms String?           @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
-  defaultCarrierId    String?           @map("default_carrier_id")
-  defaultCarrier      Carrier?          @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
-  internalNotes       String?           @map("internal_notes") // nunca vai para documentos fiscais
+  defaultSellerId     String?              @map("default_seller_id")
+  defaultSeller       User?                @relation("CustomerDefaultSeller", fields: [defaultSellerId], references: [id])
+  defaultPaymentTerms String?              @map("default_payment_terms") // ex: "30/60/90" ou "à vista"
+  defaultCarrierId    String?              @map("default_carrier_id")
+  defaultCarrier      Carrier?             @relation("CustomerDefaultCarrier", fields: [defaultCarrierId], references: [id])
+  internalNotes       String?              @map("internal_notes") // nunca vai para documentos fiscais
   // Política de crédito (#388) — complementa o #475
-  creditScore         String?           @map("credit_score") @db.VarChar(1) // A-E (classificação interna)
-  creditApprovedById  String?           @map("credit_approved_by_id")
-  creditApprovedBy    User?             @relation("CustomerCreditApprover", fields: [creditApprovedById], references: [id])
-  creditApprovedAt    DateTime?         @map("credit_approved_at")
-  creditNotes         String?           @map("credit_notes") // observações do analista
-  lastCreditReview    DateTime?         @map("last_credit_review")
-  isActive            Boolean           @default(true)
-  birthDate           DateTime?         @map("birth_date") // PF — pós-venda/CRM (#476)
+  creditScore         String?              @map("credit_score") @db.VarChar(1) // A-E (classificação interna)
+  creditApprovedById  String?              @map("credit_approved_by_id")
+  creditApprovedBy    User?                @relation("CustomerCreditApprover", fields: [creditApprovedById], references: [id])
+  creditApprovedAt    DateTime?            @map("credit_approved_at")
+  creditNotes         String?              @map("credit_notes") // observações do analista
+  lastCreditReview    DateTime?            @map("last_credit_review")
+  isActive            Boolean              @default(true)
+  birthDate           DateTime?            @map("birth_date") // PF — pós-venda/CRM (#476)
   tagLinks            CustomerTagLink[] // segmentação (#476)
   attachments         CustomerAttachment[] // docs de emplacamento (CNH etc.) (#476)
   leads               Lead[] // CRM F1.1 (#507) — preenchido na conversão lead→cliente (F2.2)
@@ -581,8 +581,8 @@ model Customer {
   quotations          Quotation[]
   receivables         Receivable[]
   priceTables         PriceTable[]
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@unique([companyId, document])
   @@map("gdr_customers")
@@ -1113,8 +1113,8 @@ model FiscalDocument {
   referencedDocumentId      String?              @map("referenced_document_id")
   referencedDocument        FiscalDocument?      @relation("FiscalDocumentReference", fields: [referencedDocumentId], references: [id])
   referencingDocuments      FiscalDocument[]     @relation("FiscalDocumentReference")
-  tipoNotaDebito            String?              @db.VarChar(2) @map("tipo_nota_debito") // tpNFDebito 01-08 (SINIEF 49/2025)
-  tipoNotaCredito           String?              @db.VarChar(2) @map("tipo_nota_credito") // tpNFCredito 01-06
+  tipoNotaDebito            String?              @map("tipo_nota_debito") @db.VarChar(2) // tpNFDebito 01-08 (SINIEF 49/2025)
+  tipoNotaCredito           String?              @map("tipo_nota_credito") @db.VarChar(2) // tpNFCredito 01-06
   status                    FiscalStatus         @default(PENDING)
   focusRef                  String?
   chave                     String?
@@ -1303,13 +1303,13 @@ enum PaymentGateway {
 /// Adquirente/credenciadora de cartão (Cielo, Rede, Stone...) — devedora dos
 /// recebíveis de cartão (#585). CNPJ alimenta o grupo card da NF-e (#587).
 model Acquirer {
-  id            String         @id @default(cuid())
-  companyId     String
-  company       Company        @relation(fields: [companyId], references: [id])
-  name          String
-  cnpj          String?        @db.VarChar(14) // sem máscara — CNPJ da credenciadora no grupo card
+  id               String           @id @default(cuid())
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  name             String
+  cnpj             String?          @db.VarChar(14) // sem máscara — CNPJ da credenciadora no grupo card
   /// Qual TEF/gateway autoriza as transações desta adquirente (#596)
-  gateway       PaymentGateway @default(MOCK)
+  gateway          PaymentGateway   @default(MOCK)
   isActive         Boolean          @default(true)
   fees             AcquirerFee[]
   salesPayments    SalesPayment[]
@@ -1346,29 +1346,29 @@ model AcquirerFee {
 /// Plano de pagamento da venda — 1+ formas por OV (detPag da NF-e é lista) (#584).
 /// Taxa/prazo são CONGELADOS no momento da venda (fonte: AcquirerFee vigente).
 model SalesPayment {
-  id             String            @id @default(cuid())
-  salesOrderId   String            @map("sales_order_id")
-  salesOrder     SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  method         PaymentMethod
-  amount         Decimal           @db.Decimal(14, 2)
-  installments   Int               @default(1)
-  acquirerId     String?           @map("acquirer_id")
-  acquirer       Acquirer?         @relation(fields: [acquirerId], references: [id])
-  brand          String?           @db.VarChar(20)
-  mdrRate        Decimal?          @map("mdr_rate") @db.Decimal(5, 2) // congelada na venda
-  mdrAmount      Decimal?          @map("mdr_amount") @db.Decimal(14, 2)
-  settlementDays Int?              @map("settlement_days") // congelado na venda
-  authStatus     PaymentAuthStatus @default(PENDING) @map("auth_status")
-  authCode       String?           @map("auth_code") @db.VarChar(20) // cAut do grupo card (#587)
-  nsu            String?           @db.VarChar(20)
-  authorizedAt   DateTime?         @map("authorized_at")
+  id               String            @id @default(cuid())
+  salesOrderId     String            @map("sales_order_id")
+  salesOrder       SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  method           PaymentMethod
+  amount           Decimal           @db.Decimal(14, 2)
+  installments     Int               @default(1)
+  acquirerId       String?           @map("acquirer_id")
+  acquirer         Acquirer?         @relation(fields: [acquirerId], references: [id])
+  brand            String?           @db.VarChar(20)
+  mdrRate          Decimal?          @map("mdr_rate") @db.Decimal(5, 2) // congelada na venda
+  mdrAmount        Decimal?          @map("mdr_amount") @db.Decimal(14, 2)
+  settlementDays   Int?              @map("settlement_days") // congelado na venda
+  authStatus       PaymentAuthStatus @default(PENDING) @map("auth_status")
+  authCode         String?           @map("auth_code") @db.VarChar(20) // cAut do grupo card (#587)
+  nsu              String?           @db.VarChar(20)
+  authorizedAt     DateTime?         @map("authorized_at")
   /// Id da transação no provider (para void/estorno) — #596
-  providerRef    String?           @map("provider_ref") @db.VarChar(80)
+  providerRef      String?           @map("provider_ref") @db.VarChar(80)
   /// Gateway que AUTORIZOU (estorno roteia por aqui, mesmo se a adquirente trocar de gateway depois)
-  authGateway    PaymentGateway?   @map("auth_gateway")
+  authGateway      PaymentGateway?   @map("auth_gateway")
   financialEntries FinancialEntry[] // títulos gerados por esta forma (#586)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([salesOrderId])
   @@map("gdr_sales_payments")
@@ -1387,53 +1387,53 @@ enum DebtorType {
 }
 
 model FinancialEntry {
-  id                 String                 @id @default(cuid())
-  companyId          String
-  company            Company                @relation(fields: [companyId], references: [id])
-  type               FinancialEntryType
-  status             FinancialEntryStatus   @default(OPEN)
-  amount             Decimal                @db.Decimal(14, 4)
-  dueDate            DateTime
+  id                  String                 @id @default(cuid())
+  companyId           String
+  company             Company                @relation(fields: [companyId], references: [id])
+  type                FinancialEntryType
+  status              FinancialEntryStatus   @default(OPEN)
+  amount              Decimal                @db.Decimal(14, 4)
+  dueDate             DateTime
   // #788 — previsão de pagamento: data de planejamento editável, distinta do
   // vencimento (equivalente ao `data_previsao` do Omie). Default = vencimento.
-  expectedPaymentDate DateTime?             @map("expected_payment_date")
-  description        String?
-  source             EntrySource            @default(AUTO_SALES)
-  attachmentUrl      String?
+  expectedPaymentDate DateTime?              @map("expected_payment_date")
+  description         String?
+  source              EntrySource            @default(AUTO_SALES)
+  attachmentUrl       String?
   // #586 — devedor do título: cliente OU adquirente de cartão. Régua de
   // cobrança/limite/PDD/PMR filtram CUSTOMER (risco-Cielo ≠ risco-cliente).
-  debtorType         DebtorType             @default(CUSTOMER) @map("debtor_type")
-  acquirerId         String?                @map("acquirer_id")
-  acquirer           Acquirer?              @relation(fields: [acquirerId], references: [id])
-  installmentNumber  Int?                   @map("installment_number") // nº da parcela no plano (#586)
-  salesPaymentId     String?                @map("sales_payment_id") // forma do plano que originou o título (#586)
-  salesPayment       SalesPayment?          @relation(fields: [salesPaymentId], references: [id])
-  salesOrderId       String? // 1:N desde #586 — uma venda gera N títulos (parcelas/formas)
-  salesOrder         SalesOrder?            @relation(fields: [salesOrderId], references: [id])
-  purchaseOrderId    String?
-  purchaseOrder      PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
+  debtorType          DebtorType             @default(CUSTOMER) @map("debtor_type")
+  acquirerId          String?                @map("acquirer_id")
+  acquirer            Acquirer?              @relation(fields: [acquirerId], references: [id])
+  installmentNumber   Int?                   @map("installment_number") // nº da parcela no plano (#586)
+  salesPaymentId      String?                @map("sales_payment_id") // forma do plano que originou o título (#586)
+  salesPayment        SalesPayment?          @relation(fields: [salesPaymentId], references: [id])
+  salesOrderId        String? // 1:N desde #586 — uma venda gera N títulos (parcelas/formas)
+  salesOrder          SalesOrder?            @relation(fields: [salesOrderId], references: [id])
+  purchaseOrderId     String?
+  purchaseOrder       PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
   // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie).
   // Complementa purchaseOrder.supplier: a tela usa este quando não há PO vinculada.
-  supplierId         String?
-  supplier           Supplier?              @relation(fields: [supplierId], references: [id])
-  goodsReceiptId     String?                @unique
-  goodsReceipt       GoodsReceipt?          @relation(fields: [goodsReceiptId], references: [id])
-  fiscalDocumentId   String?                @unique
-  fiscalDocument     FiscalDocument?        @relation(fields: [fiscalDocumentId], references: [id])
-  categoryId         String?
-  category           FinancialCategory?     @relation(fields: [categoryId], references: [id])
-  paidAt             DateTime?
-  paidAmount         Decimal?               @db.Decimal(14, 4)
-  paymentNote        String?
-  parentEntryId      String?
-  parentEntry        FinancialEntry?        @relation("Installments", fields: [parentEntryId], references: [id])
-  installments       FinancialEntry[]       @relation("Installments")
-  payments           Payment[]
-  costCenterSplits   EntryCostCenterSplit[]
-  scheduledPayments  ScheduledPayment[]
-  collectionAttempts CollectionAttempt[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  supplierId          String?
+  supplier            Supplier?              @relation(fields: [supplierId], references: [id])
+  goodsReceiptId      String?                @unique
+  goodsReceipt        GoodsReceipt?          @relation(fields: [goodsReceiptId], references: [id])
+  fiscalDocumentId    String?                @unique
+  fiscalDocument      FiscalDocument?        @relation(fields: [fiscalDocumentId], references: [id])
+  categoryId          String?
+  category            FinancialCategory?     @relation(fields: [categoryId], references: [id])
+  paidAt              DateTime?
+  paidAmount          Decimal?               @db.Decimal(14, 4)
+  paymentNote         String?
+  parentEntryId       String?
+  parentEntry         FinancialEntry?        @relation("Installments", fields: [parentEntryId], references: [id])
+  installments        FinancialEntry[]       @relation("Installments")
+  payments            Payment[]
+  costCenterSplits    EntryCostCenterSplit[]
+  scheduledPayments   ScheduledPayment[]
+  collectionAttempts  CollectionAttempt[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@index([companyId])
   @@index([type, status])
@@ -1547,7 +1547,7 @@ model DiscountPolicy {
   id             String   @id @default(cuid())
   companyId      String
   company        Company  @relation(fields: [companyId], references: [id])
-  role           String   // papel do usuário (UserRole)
+  role           String // papel do usuário (UserRole)
   maxDiscountPct Decimal  @map("max_discount_pct") @db.Decimal(5, 2) // teto %
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -1559,22 +1559,22 @@ model DiscountPolicy {
 
 /// Gestão de dívida (#392): FINAME, leasing, capital de giro — cronograma de amortização
 model Debt {
-  id                String   @id @default(cuid())
+  id                String            @id @default(cuid())
   companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  type              String   // FINAME | LEASING | CAPITAL_GIRO | CHEQUE_ESPECIAL | OUTROS
+  company           Company           @relation(fields: [companyId], references: [id])
+  type              String // FINAME | LEASING | CAPITAL_GIRO | CHEQUE_ESPECIAL | OUTROS
   bank              String
   description       String?
-  principal         Decimal  @db.Decimal(14, 2) // valor original
-  interestRate      Decimal  @map("interest_rate") @db.Decimal(7, 4) // % a.m.
-  amortizationType  String   @default("PRICE") @map("amortization_type") // PRICE | SAC
-  installmentsCount Int      @map("installments_count")
-  contractedAt      DateTime @map("contracted_at")
-  firstDueDate      DateTime @map("first_due_date")
-  status            String   @default("ACTIVE") // ACTIVE | SETTLED | CANCELLED
+  principal         Decimal           @db.Decimal(14, 2) // valor original
+  interestRate      Decimal           @map("interest_rate") @db.Decimal(7, 4) // % a.m.
+  amortizationType  String            @default("PRICE") @map("amortization_type") // PRICE | SAC
+  installmentsCount Int               @map("installments_count")
+  contractedAt      DateTime          @map("contracted_at")
+  firstDueDate      DateTime          @map("first_due_date")
+  status            String            @default("ACTIVE") // ACTIVE | SETTLED | CANCELLED
   installments      DebtInstallment[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([companyId, status])
   @@map("gdr_debts")
@@ -1600,19 +1600,19 @@ model DebtInstallment {
 
 /// Adiantamento a fornecedor (#393): pago antecipado, abatido do payable quando a NF chega
 model SupplierAdvance {
-  id            String    @id @default(cuid())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
-  supplierId    String
-  supplier      Supplier  @relation(fields: [supplierId], references: [id])
-  amount        Decimal   @db.Decimal(14, 2)
-  appliedAmount Decimal   @default(0) @map("applied_amount") @db.Decimal(14, 2)
-  status        String    @default("OPEN") // OPEN | PARTIALLY_APPLIED | APPLIED | CANCELLED
-  paidAt        DateTime? @map("paid_at")
-  purchaseOrderId String? @map("purchase_order_id") // vínculo opcional com a PO
-  note          String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  supplierId      String
+  supplier        Supplier  @relation(fields: [supplierId], references: [id])
+  amount          Decimal   @db.Decimal(14, 2)
+  appliedAmount   Decimal   @default(0) @map("applied_amount") @db.Decimal(14, 2)
+  status          String    @default("OPEN") // OPEN | PARTIALLY_APPLIED | APPLIED | CANCELLED
+  paidAt          DateTime? @map("paid_at")
+  purchaseOrderId String?   @map("purchase_order_id") // vínculo opcional com a PO
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([companyId, supplierId])
   @@map("gdr_supplier_advances")
@@ -1624,7 +1624,7 @@ model ProvisionRule {
   companyId  String
   company    Company  @relation(fields: [companyId], references: [id])
   daysFrom   Int
-  daysTo     Int      // 99999 = sem teto (última faixa)
+  daysTo     Int // 99999 = sem teto (última faixa)
   percentage Decimal  @db.Decimal(5, 2) // 1.00 = 1%
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
@@ -1637,18 +1637,18 @@ model ProvisionRule {
 /// Régua de cobrança (#384) — escalonamento automático por faixa de atraso.
 /// PRE_DUE usa dias negativos (ex.: -3 a -1 = lembrete antes do vencimento).
 model CollectionRule {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  stage       String   // PRE_DUE | OVERDUE_7 | OVERDUE_30 | OVERDUE_60 | OVERDUE_90 | LEGAL
-  daysFrom    Int      // início da faixa (relativo ao vencimento)
-  daysTo      Int      // fim da faixa (9999 = sem teto, estágio LEGAL)
-  channels    String[] // EMAIL, WHATSAPP, PHONE, SYSTEM
-  autoBlock   Boolean  @default(false) // bloqueia faturamento do cliente (#475)
-  escalate    Boolean  @default(false) // notificação de escalonamento (gerente/diretoria)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  stage     String // PRE_DUE | OVERDUE_7 | OVERDUE_30 | OVERDUE_60 | OVERDUE_90 | LEGAL
+  daysFrom  Int // início da faixa (relativo ao vencimento)
+  daysTo    Int // fim da faixa (9999 = sem teto, estágio LEGAL)
+  channels  String[] // EMAIL, WHATSAPP, PHONE, SYSTEM
+  autoBlock Boolean  @default(false) // bloqueia faturamento do cliente (#475)
+  escalate  Boolean  @default(false) // notificação de escalonamento (gerente/diretoria)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([companyId, stage])
   @@map("gdr_collection_rules")
@@ -3011,18 +3011,18 @@ enum InvestmentStatus {
 }
 
 model InvestmentProject {
-  id              String               @id @default(cuid())
+  id              String           @id @default(cuid())
   companyId       String
-  company         Company              @relation(fields: [companyId], references: [id])
+  company         Company          @relation(fields: [companyId], references: [id])
   name            String
   description     String?
   // Taxa de desconto por período (WACC), coerente com a granularidade dos fluxos
-  discountRatePct Decimal              @default(0) @db.Decimal(9, 4)
-  status          InvestmentStatus     @default(DRAFT)
+  discountRatePct Decimal          @default(0) @db.Decimal(9, 4)
+  status          InvestmentStatus @default(DRAFT)
   approvedById    String? // alçada DIRECTOR (scalar, sem relação)
   approvedAt      DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   cashflows InvestmentCashflow[]
 
@@ -3434,28 +3434,28 @@ model Permission {
 /// não editável. companyId null = perfil global; preenchido = perfil
 /// customizado da empresa. Herança via parentId (Supervisor herda Operador).
 model Role {
-  id          String   @id @default(cuid())
-  code        String // ex: "GERENTE_INDUSTRIAL"
-  name        String // ex: "Gerente Industrial"
-  description String?
-  isSystem    Boolean  @default(false)
-  parentId    String?
-  parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
-  children    Role[]   @relation("RoleHierarchy")
-  companyId   String? // null = global
-  company     Company? @relation(fields: [companyId], references: [id])
-  isActive    Boolean  @default(true)
+  id                 String   @id @default(cuid())
+  code               String // ex: "GERENTE_INDUSTRIAL"
+  name               String // ex: "Gerente Industrial"
+  description        String?
+  isSystem           Boolean  @default(false)
+  parentId           String?
+  parent             Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
+  children           Role[]   @relation("RoleHierarchy")
+  companyId          String? // null = global
+  company            Company? @relation(fields: [companyId], references: [id])
+  isActive           Boolean  @default(true)
   // IAM v2 — F4.1 (#344): enforcement de MFA por perfil. true = usuários com
   // este perfil DEVEM ter MFA habilitado. Enforcement SUAVE por ora: o login
   // responde mfaSetupRequired=true mas NÃO bloqueia — o enforcement duro
   // (bloquear login sem MFA após grace period) é decisão pendente do Rafael.
-  requireMfa  Boolean  @default(false)
+  requireMfa         Boolean  @default(false)
   // IAM v2 — F4.2 (#345): rotação de senha OPCIONAL por perfil. null = SEM
   // rotação (DEFAULT — NIST SP 800-63B recomenda CONTRA rotação periódica;
   // ligar é decisão do Rafael). Ex.: 90 = senha expira após 90 dias.
   passwordMaxAgeDays Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   rolePermissions      RolePermission[]
   userAssignments      UserRoleAssignment[]
@@ -3977,57 +3977,57 @@ model PipelineStage {
 /// Lead do CRM. TODO caminho de criação passa pelo LeadIntakeService (#513) —
 /// dedup por telefone garantido pela constraint (companyId, phone), não só por código.
 model Lead {
-  id                String                @id @default(cuid())
-  companyId         String                @map("company_id") // loja dona do lead
-  company           Company               @relation(fields: [companyId], references: [id])
-  name              String?
+  id                 String                @id @default(cuid())
+  companyId          String                @map("company_id") // loja dona do lead
+  company            Company               @relation(fields: [companyId], references: [id])
+  name               String?
   /// E.164 sem máscara (ex: 5545999998888). Null só p/ origem sem telefone (pergunta ML) —
   /// nesses casos o dedup usa externalRef.
-  phone             String?               @db.VarChar(15)
-  email             String?
-  source            LeadSource
+  phone              String?               @db.VarChar(15)
+  email              String?
+  source             LeadSource
   /// Ref externa da origem: id da conta ML, leadgen_id Meta etc. Dedup secundário (F1.4/F1.5)
-  externalRef       String?               @map("external_ref")
+  externalRef        String?               @map("external_ref")
   /// Metadados da captação (campanha/adset/ad do Meta, link do anúncio ML...) p/ dashboard F3.1
-  sourceMeta        Json?                 @map("source_meta")
-  interest          String? // modelo/categoria de reboque de interesse (texto livre na F1)
-  estimatedValue    Decimal?              @map("estimated_value") @db.Decimal(12, 2)
-  stageId           String?               @map("stage_id")
-  stage             PipelineStage?        @relation(fields: [stageId], references: [id])
+  sourceMeta         Json?                 @map("source_meta")
+  interest           String? // modelo/categoria de reboque de interesse (texto livre na F1)
+  estimatedValue     Decimal?              @map("estimated_value") @db.Decimal(12, 2)
+  stageId            String?               @map("stage_id")
+  stage              PipelineStage?        @relation(fields: [stageId], references: [id])
   /// Ordenação drag&drop dentro da coluna (padrão Twenty): novo card recebe a média
   /// das posições vizinhas — sem reindexar a coluna
-  position          Decimal               @default(0) @db.Decimal(30, 15)
-  assignedToId      String?               @map("assigned_to_id")
-  assignedTo        User?                 @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  position           Decimal               @default(0) @db.Decimal(30, 15)
+  assignedToId       String?               @map("assigned_to_id")
+  assignedTo         User?                 @relation("LeadAssignee", fields: [assignedToId], references: [id])
   /// Última atribuição (rodízio/manual) — base da contagem diária do round-robin (#513)
-  assignedAt        DateTime?             @map("assigned_at")
+  assignedAt         DateTime?             @map("assigned_at")
   /// Preenchido na conversão lead→cliente (F2.2 #515)
-  customerId        String?               @map("customer_id")
-  customer          Customer?             @relation(fields: [customerId], references: [id])
+  customerId         String?               @map("customer_id")
+  customer           Customer?             @relation(fields: [customerId], references: [id])
   /// OV gerada na conversão (F2.2 #515) — vínculo lead→receita; listener
   /// SALE_INVOICED fecha o lead quando a NF-e sai
-  salesOrderId      String?               @unique @map("sales_order_id")
-  salesOrder        SalesOrder?           @relation(fields: [salesOrderId], references: [id])
-  lostReason        String?               @map("lost_reason") // texto livre opcional (#570) — a categoria é o obrigatório
+  salesOrderId       String?               @unique @map("sales_order_id")
+  salesOrder         SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  lostReason         String?               @map("lost_reason") // texto livre opcional (#570) — a categoria é o obrigatório
   /// Categoria da perda (#570) — obrigatória (via código) ao mover p/ LOST; null = lead antigo "não categorizado"
-  lostReasonCategory LostReasonCategory?  @map("lost_reason_category")
+  lostReasonCategory LostReasonCategory?   @map("lost_reason_category")
   /// Primeira MESSAGE_OUT após criação — métrica de SLA (F2.3 #516)
-  firstRespondedAt  DateTime?             @map("first_responded_at")
+  firstRespondedAt   DateTime?             @map("first_responded_at")
   /// Escalonamento de SLA (#569) — cada nível dispara 1x só
-  slaWarnedAt       DateTime?             @map("sla_warned_at") // nível 1: push+alert pro vendedor
-  slaEscalatedAt    DateTime?             @map("sla_escalated_at") // nível 2: realocado no rodízio
-  lastInteractionAt DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
+  slaWarnedAt        DateTime?             @map("sla_warned_at") // nível 1: push+alert pro vendedor
+  slaEscalatedAt     DateTime?             @map("sla_escalated_at") // nível 2: realocado no rodízio
+  lastInteractionAt  DateTime?             @map("last_interaction_at") // qualquer atividade — alimenta "lead esfriando"
   /// LGPD (#558): anonimizado a pedido do titular ou por retenção — nome/telefone/
   /// email/conversa apagados; source/stage/OV preservados p/ métricas agregadas
-  anonymizedAt      DateTime?             @map("anonymized_at")
+  anonymizedAt       DateTime?             @map("anonymized_at")
   /// F4 SDR IA (#521): null = nunca atendido pela IA
-  sdrStatus         SdrLeadStatus?        @map("sdr_status")
-  sdrUsages         SdrUsage[]
-  activities        LeadActivity[]
-  reminders         LeadReminder[]
-  conversation      WhatsappConversation?
-  createdAt         DateTime              @default(now()) @map("created_at")
-  updatedAt         DateTime              @updatedAt @map("updated_at")
+  sdrStatus          SdrLeadStatus?        @map("sdr_status")
+  sdrUsages          SdrUsage[]
+  activities         LeadActivity[]
+  reminders          LeadReminder[]
+  conversation       WhatsappConversation?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
 
   @@unique([companyId, phone])
   @@index([companyId, stageId, position])
@@ -4311,7 +4311,6 @@ model VehicleDocumentDelivery {
   @@map("gdr_vehicle_document_deliveries")
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Suporte — intake & triagem de bugs (épico #764, WP1 #765)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4378,4 +4377,104 @@ model SupportIncidentUpdate {
 
   @@index([incidentId])
   @@map("gdr_support_incident_updates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Marcadora de Chassi (#782) — tabelas da ferramenta local do chão de fábrica.
+// Contrato EXTERNO: a ferramenta (psycopg2) lê/escreve estas tabelas direto no
+// Postgres, por isso as colunas seguem o snake_case do spec do Rafael (via
+// @map) e NÃO o camelCase do restante do schema. Sem companyId de propósito
+// (decisão Opção A da issue): dados de fábrica, fora da API do ERP na fase 1.
+// Ano 2027 = novas linhas em gdr_chassi_series (prefixo com V), não schema.
+
+/// Série de VIN por ano (ex.: CARRETINHA_A 2026, prefixo 92UPRTA75TS00).
+model GdrChassiSerie {
+  id        BigInt              @id @default(autoincrement())
+  codigo    String // ex.: CARRETINHA_A (estável)
+  nome      String // ex.: Carretinha A
+  prefixo   String // 13 chars do VIN (ex.: 92UPRTA75TS00)
+  eixos     String // "1 eixo" / "Trucado"
+  ano       Int // ex.: 2026
+  faixaMin  Int                 @map("faixa_min") // início da faixa (ex.: 5000)
+  faixaMax  Int                 @map("faixa_max") // fim (ex.: 9999)
+  ativo     Boolean             @default(true)
+  quadros   GdrChassiQuadro[]
+  numeros   GdrChassiNumero[]
+  gravacoes GdrChassiGravacao[]
+
+  @@unique([codigo, ano])
+  @@unique([prefixo]) // 1 prefixo = 1 série/ano
+  @@map("gdr_chassi_series")
+}
+
+/// Quadro (modelo de chassi) vinculado a uma série. CON-CHA-xxx.
+model GdrChassiQuadro {
+  id        BigInt              @id @default(autoincrement())
+  codigo    String              @unique // CON-CHA-xxx
+  nome      String
+  serieId   BigInt              @map("serie_id")
+  serie     GdrChassiSerie      @relation(fields: [serieId], references: [id])
+  ativo     Boolean             @default(true)
+  gravacoes GdrChassiGravacao[]
+
+  @@map("gdr_chassi_quadros")
+}
+
+/// Pool "nunca repetir" + reserva atômica do sufixo numérico do VIN.
+model GdrChassiNumero {
+  id           BigInt             @id @default(autoincrement())
+  serieId      BigInt             @map("serie_id")
+  serie        GdrChassiSerie     @relation(fields: [serieId], references: [id])
+  ano          Int
+  numero       Int // sufixo de 4 dígitos (5000-9999 / 3500-3999)
+  status       String             @default("reservado") // reservado | usado
+  reservadoPor String?            @map("reservado_por")
+  reservadoEm  DateTime           @default(now()) @map("reservado_em")
+  usadoEm      DateTime?          @map("usado_em")
+  gravacaoId   BigInt?            @map("gravacao_id")
+  gravacao     GdrChassiGravacao? @relation(fields: [gravacaoId], references: [id])
+
+  @@unique([serieId, numero]) // ⭐ o "nunca repetir" é garantido AQUI
+  @@map("gdr_chassi_numeros")
+}
+
+/// Cabeçalho de cada chassi gravado. vin UNIQUE = trava dura anti-duplicata.
+model GdrChassiGravacao {
+  id          BigInt            @id @default(autoincrement())
+  vin         String            @unique // ⭐ VIN de 17 chars — TRAVA DURA anti-duplicata
+  serieId     BigInt            @map("serie_id")
+  serie       GdrChassiSerie    @relation(fields: [serieId], references: [id])
+  quadroId    BigInt?           @map("quadro_id") // NULO no Modelo Especial
+  quadro      GdrChassiQuadro?  @relation(fields: [quadroId], references: [id])
+  tipo        String            @default("padrao") // padrao | especial
+  observacao  String? // Modelo Especial: texto que o gerente digitou
+  numero      Int
+  ano         Int
+  operador    String // texto por ora; vira FK p/ gdr_users com login
+  status      String            @default("em_andamento") // em_andamento | concluida | cancelada
+  criadoEm    DateTime          @default(now()) @map("criado_em")
+  concluidoEm DateTime?         @map("concluido_em")
+  eventos     GdrChassiEvento[]
+  numeros     GdrChassiNumero[]
+
+  @@index([operador])
+  @@index([quadroId])
+  @@index([criadoEm])
+  @@index([tipo])
+  @@map("gdr_chassi_gravacoes")
+}
+
+/// Trilha de auditoria da gravação (iniciada, etapa_gravada, concluída…).
+model GdrChassiEvento {
+  id         BigInt            @id @default(autoincrement())
+  gravacaoId BigInt            @map("gravacao_id")
+  gravacao   GdrChassiGravacao @relation(fields: [gravacaoId], references: [id], onDelete: Cascade)
+  evento     String // iniciada|etapa_gravada|etapa_refeita|interrompida|concluida|cancelada
+  etapa      String? // plaqueta | esquerdo | direito
+  operador   String?
+  detalhe    Json?
+  criadoEm   DateTime          @default(now()) @map("criado_em")
+
+  @@index([gravacaoId])
+  @@map("gdr_chassi_eventos")
 }
