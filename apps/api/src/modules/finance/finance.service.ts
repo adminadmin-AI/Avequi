@@ -308,9 +308,16 @@ export class FinanceService {
   // ─── Editar título EM ABERTO (OPEN/OVERDUE) ───────────────────────────────
   // Só campos de cadastro. Pago/cancelado/parcial NÃO podem ser editados —
   // esses têm fluxo próprio (pay/cancel) e mexer neles corromperia o histórico.
-  async updateEntry(id: string, companyId: string, dto: UpdateFinancialEntryDto) {
+  // `costCenterId`: undefined = mantém rateio atual; null = remove todo o
+  // rateio; id = substitui por um único split a 100% (semântica de 3 vias).
+  async updateEntry(
+    id: string,
+    companyId: string,
+    dto: UpdateFinancialEntryDto,
+    actorId?: string,
+  ) {
     const entry = await this.prisma.financialEntry.findFirst({
-      where: { id, companyId },
+      where: { id, companyId }, // escopo de empresa: título de outra empresa = 404
     });
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
 
@@ -324,25 +331,98 @@ export class FinanceService {
       );
     }
 
-    // Monta o update SOMENTE com os campos enviados (PATCH parcial).
-    // `undefined` = campo não veio; `null`/'' em relações = desvincular.
+    // Ponto 4 — vínculo financeiro vivo: agendamento PENDING guarda snapshot do
+    // valor e reserva saldo da conta. Editar valor/vencimento/fornecedor deixaria
+    // a instrução de pagamento divergente. Bloqueio conservador: exige cancelar o
+    // agendamento antes (mesma filosofia do cancel() com PARTIALLY_PAID).
+    const pendingScheduled = await this.prisma.scheduledPayment.count({
+      where: { financialEntryId: id, companyId, status: ScheduledPaymentStatus.PENDING },
+    });
+    if (pendingScheduled > 0) {
+      throw new BadRequestException(
+        'Título com pagamento agendado pendente não pode ser editado. Cancele o agendamento primeiro.',
+      );
+    }
+
+    // Ponto 5 — isolamento entre empresas: fornecedor/categoria/centro têm que
+    // pertencer à MESMA empresa do usuário. Não achou na empresa = 404 (não
+    // revela existência em outra empresa).
+    if (dto.supplierId) {
+      const ok = await this.prisma.supplier.findFirst({
+        where: { id: dto.supplierId, companyId }, select: { id: true },
+      });
+      if (!ok) throw new NotFoundException(`Fornecedor ${dto.supplierId} não encontrado`);
+    }
+    if (dto.categoryId) {
+      const ok = await this.prisma.financialCategory.findFirst({
+        where: { id: dto.categoryId, companyId }, select: { id: true },
+      });
+      if (!ok) throw new NotFoundException(`Categoria ${dto.categoryId} não encontrada`);
+    }
+    if (dto.costCenterId) {
+      const ok = await this.prisma.costCenter.findFirst({
+        where: { id: dto.costCenterId, companyId }, select: { id: true },
+      });
+      if (!ok) throw new NotFoundException(`Centro de custo ${dto.costCenterId} não encontrado`);
+    }
+
+    // Monta o update SOMENTE com os campos enviados (PATCH parcial) e registra
+    // antes→depois só do que realmente muda (Ponto 9 — auditoria útil).
     const data: Prisma.FinancialEntryUncheckedUpdateInput = {};
-    if (dto.description !== undefined) data.description = dto.description;
-    if (dto.amount !== undefined) data.amount = dto.amount;
-    if (dto.dueDate !== undefined) data.dueDate = new Date(dto.dueDate);
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    const track = (field: string, from: unknown, to: unknown) => {
+      changes[field] = { from, to };
+    };
+
+    if (dto.description !== undefined && dto.description !== entry.description) {
+      data.description = dto.description;
+      track('description', entry.description, dto.description);
+    }
+    if (dto.amount !== undefined && dto.amount !== Number(entry.amount)) {
+      data.amount = dto.amount;
+      track('amount', Number(entry.amount), dto.amount);
+    }
+    if (dto.dueDate !== undefined) {
+      const newDue = new Date(dto.dueDate);
+      if (newDue.getTime() !== entry.dueDate.getTime()) {
+        data.dueDate = newDue;
+        track('dueDate', entry.dueDate, newDue);
+      }
+      // Ponto 6 — status é PERSISTIDO (cron markOverdue). Ao mudar o vencimento,
+      // reconcilia OPEN/OVERDUE pela regra oficial (vencido = dueDate < hoje 00h).
+      const today0 = new Date();
+      today0.setHours(0, 0, 0, 0);
+      const reconciled =
+        newDue < today0 ? FinancialEntryStatus.OVERDUE : FinancialEntryStatus.OPEN;
+      if (reconciled !== entry.status) {
+        data.status = reconciled;
+        track('status', entry.status, reconciled);
+      }
+    }
     if (dto.expectedPaymentDate !== undefined) {
-      data.expectedPaymentDate = new Date(dto.expectedPaymentDate);
+      const newExp = new Date(dto.expectedPaymentDate);
+      if (newExp.getTime() !== entry.expectedPaymentDate?.getTime()) {
+        data.expectedPaymentDate = newExp;
+        track('expectedPaymentDate', entry.expectedPaymentDate, newExp);
+      }
     }
     // Escalares (igual createManualEntry): '' / null desvincula.
-    if (dto.supplierId !== undefined) data.supplierId = dto.supplierId || null;
-    if (dto.categoryId !== undefined) data.categoryId = dto.categoryId || null;
+    if (dto.supplierId !== undefined) {
+      const to = dto.supplierId || null;
+      if (to !== entry.supplierId) { data.supplierId = to; track('supplierId', entry.supplierId, to); }
+    }
+    if (dto.categoryId !== undefined) {
+      const to = dto.categoryId || null;
+      if (to !== entry.categoryId) { data.categoryId = to; track('categoryId', entry.categoryId, to); }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.financialEntry.update({ where: { id }, data });
 
-      // Centro de custo: só mexe se o campo veio no payload. Ausente preserva
-      // o rateio atual (títulos migrados do Omie podem ter multi-centro; a UI
-      // simples não deve destruí-lo sem intenção explícita).
+      // Centro de custo (Ponto 7, semântica de 3 vias):
+      //   undefined → não toca (preserva rateio multi-centro da migração Omie);
+      //   null      → remove TODO o rateio;
+      //   id        → substitui por um único split a 100%.
       if (dto.costCenterId !== undefined) {
         await tx.entryCostCenterSplit.deleteMany({ where: { entryId: id } });
         if (dto.costCenterId) {
@@ -356,19 +436,23 @@ export class FinanceService {
             },
           });
         }
+        track('costCenter', '(rateio anterior)', dto.costCenterId ?? '(removido)');
       }
 
       await tx.auditLog.create({
         data: {
+          userId: actorId ?? null, // ator (Ponto 9)
           companyId,
           entity: 'FinancialEntry',
           action: 'UPDATE',
-          payload: { id, changes: dto as Prisma.InputJsonValue },
+          payload: { id, changes } as Prisma.InputJsonValue,
         },
       });
     });
 
-    this.logger.log(`FinancialEntry ${id} editado (em aberto)`);
+    this.logger.log(
+      `FinancialEntry ${id} editado (em aberto) por ${actorId ?? '?'} — campos: ${Object.keys(changes).join(', ') || 'nenhum'}`,
+    );
     return this.findOne(id, companyId);
   }
 

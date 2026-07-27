@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, CalendarClock, ExternalLink, Ban, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { usePermission } from '@/hooks/use-permission';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
+import { canEditEntry } from './editable';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -34,10 +36,6 @@ function remainingOf(e: FinancialEntry): number {
 }
 function isOpen(e: FinancialEntry): boolean {
   return OPEN_STATUSES.includes(e.status);
-}
-/** Editável só em aberto sem baixa (OPEN/OVERDUE) — espelha a trava do backend. */
-function isEditable(e: FinancialEntry): boolean {
-  return e.status === 'OPEN' || e.status === 'OVERDUE';
 }
 function daysOverdue(e: FinancialEntry, today: Date): number {
   const due = new Date(e.dueDate);
@@ -100,6 +98,8 @@ export default function PayablesPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  const { can } = usePermission();
+  const canUpdate = can('finance.entries.update'); // gate do lápis (UX; backend valida de verdade)
 
   const { data: entries = [], isLoading } = useList<FinancialEntry>(RESOURCE, {
     type: 'PAYABLE',
@@ -276,7 +276,7 @@ export default function PayablesPage() {
         const canCancel = e.status !== 'PAID' && e.status !== 'CANCELLED';
         return (
           <div className="flex items-center justify-end gap-1">
-            {isEditable(e) && (
+            {canEditEntry(e.status, canUpdate) && (
               <button
                 onClick={(ev) => {
                   ev.stopPropagation();

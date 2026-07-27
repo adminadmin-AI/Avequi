@@ -89,9 +89,9 @@ export class FinanceController {
   updateEntry(
     @Param('id') id: string,
     @Body() dto: UpdateFinancialEntryDto,
-    @Request() req: { user: { companyId: string } },
+    @Request() req: { user: { id?: string; companyId: string } },
   ) {
-    return this.financeService.updateEntry(id, req.user.companyId, dto);
+    return this.financeService.updateEntry(id, req.user.companyId, dto, req.user.id);
   }
 
   @Get('kpis')

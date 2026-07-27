@@ -43,6 +43,10 @@ function flattenOptions<T extends { id: string; name: string; children?: T[] }>(
 
 const toDateInput = (v?: string | null) => (v ? v.slice(0, 10) : '');
 
+// Centro de custo — semântica de 3 vias (nunca reusar '' para dois sentidos):
+const CC_KEEP = '__keep__'; // não envia costCenterId → mantém o rateio atual
+const CC_NONE = '__none__'; // envia null → remove todo o rateio
+
 /**
  * Edição de um título financeiro EM ABERTO. Dialog controlado pela página
  * (aberto quando `entry` != null). Envia só os campos alterados via
@@ -82,7 +86,7 @@ export function EditEntryDialog({
       expectedPaymentDate: toDateInput(entry.expectedPaymentDate),
       supplierId: entry.supplierId ?? '',
       categoryId: entry.categoryId ?? '',
-      costCenterId: '',
+      costCenterId: CC_KEEP, // começa em "manter rateio atual"
     });
   }, [entry, reset]);
 
@@ -96,8 +100,11 @@ export function EditEntryDialog({
         supplierId: data.supplierId || null,
         categoryId: data.categoryId || null,
       };
-      // Centro de custo: só envia quando escolhido — em branco preserva o rateio.
-      if (data.costCenterId) payload.costCenterId = data.costCenterId;
+      // Centro de custo (3 vias): manter → não envia; sem centro → null; id → id.
+      if (data.costCenterId === CC_NONE) payload.costCenterId = null;
+      else if (data.costCenterId && data.costCenterId !== CC_KEEP) {
+        payload.costCenterId = data.costCenterId;
+      }
       return apiClient.patch(`/finance/entries/${entry!.id}`, payload);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/finance'] }),
@@ -166,7 +173,8 @@ export function EditEntryDialog({
           </Field>
           <Field label="Centro de custo" error={errors.costCenterId?.message}>
             <Select {...register('costCenterId')}>
-              <option value="">— Manter atual —</option>
+              <option value={CC_KEEP}>Manter rateio atual</option>
+              <option value={CC_NONE}>Sem centro de custo (remover rateio)</option>
               {costCenters.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}

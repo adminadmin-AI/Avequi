@@ -226,6 +226,7 @@ describe('#341 parte 2 (PR E1) — matriz financeiro/banking/billing/FP&A (issue
   describe('FINANCEIRO opera o dia a dia, sem configurar nem write-off', () => {
     it('lança, paga, parcela, concilia, emite boleto/PIX, adianta e paga dívida', async () => {
       expect(await canAccess(FinanceController, 'createManualEntry', 'FINANCEIRO')).toBe(true);
+      expect(await canAccess(FinanceController, 'updateEntry', 'FINANCEIRO')).toBe(true);
       expect(await canAccess(FinanceController, 'pay', 'FINANCEIRO')).toBe(true);
       expect(await canAccess(FinanceController, 'createInstallments', 'FINANCEIRO')).toBe(true);
       expect(await canAccess(BankingController, 'importOfx', 'FINANCEIRO')).toBe(true);
@@ -276,6 +277,7 @@ describe('#341 parte 2 (PR E1) — matriz financeiro/banking/billing/FP&A (issue
       expect(await canAccess(AcquirerController, 'updateFee', 'GERENTE_FINANCEIRO')).toBe(true);
       expect(await canAccess(FinanceController, 'managementBook', 'GERENTE_FINANCEIRO')).toBe(true);
       expect(await canAccess(FinanceController, 'cancelAdvance', 'GERENTE_FINANCEIRO')).toBe(true);
+      expect(await canAccess(FinanceController, 'updateEntry', 'GERENTE_FINANCEIRO')).toBe(true);
       expect(await canAccess(InvestmentController, 'create', 'GERENTE_FINANCEIRO')).toBe(true);
       expect(await canAccess(BudgetPlanController, 'create', 'GERENTE_FINANCEIRO')).toBe(true);
     });
@@ -299,6 +301,7 @@ describe('#341 parte 2 (PR E1) — matriz financeiro/banking/billing/FP&A (issue
     it('NÃO paga, NÃO faz write-off, NÃO concilia, NÃO configura, NÃO gerencia investimento', async () => {
       expect(await canAccess(FinanceController, 'pay', 'DIRETOR')).toBe(false);
       expect(await canAccess(FinanceController, 'createManualEntry', 'DIRETOR')).toBe(false);
+      expect(await canAccess(FinanceController, 'updateEntry', 'DIRETOR')).toBe(false);
       expect(await canAccess(FinanceController, 'writeOff', 'DIRETOR')).toBe(false);
       expect(await canAccess(BankingController, 'importOfx', 'DIRETOR')).toBe(false);
       expect(await canAccess(BankingController, 'configureAccount', 'DIRETOR')).toBe(false);

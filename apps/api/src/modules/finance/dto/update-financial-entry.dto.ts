@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 /**
  * Edição de um lançamento financeiro JÁ existente e EM ABERTO (OPEN/OVERDUE).
@@ -9,10 +9,14 @@ import { IsDateString, IsNumber, IsOptional, IsString, Min } from 'class-validat
  * parcial). `null`/'' em supplierId/categoryId/costCenterId = desvincular.
  */
 export class UpdateFinancialEntryDto {
+  // Paridade com a criação: se vier, não pode ser vazia (evita apagar a
+  // descrição sem querer). Ausente = mantém a atual.
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   description?: string;
 
+  // Paridade com a criação: valor > 0 (o DB é Decimal(14,4)).
   @IsOptional()
   @IsNumber()
   @Min(0.01)
