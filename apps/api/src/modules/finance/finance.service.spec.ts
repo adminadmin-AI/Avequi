@@ -24,6 +24,10 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  entryCostCenterSplit: {
+    deleteMany: jest.fn(),
+    create: jest.fn(),
+  },
   financialCategory: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
@@ -415,6 +419,98 @@ describe('FinanceService', () => {
         status: FinancialEntryStatus.PARTIALLY_PAID,
       });
       await expect(service.cancel('fe-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── Edição de título em aberto ───────────────────────────────────────────
+
+  describe('updateEntry', () => {
+    /** Faz o mock de $transaction executar o callback com um tx instrumentado. */
+    function stubTransaction() {
+      const tx = {
+        financialEntry: { update: jest.fn().mockResolvedValue({}) },
+        entryCostCenterSplit: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          create: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: { create: jest.fn().mockResolvedValue({}) },
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
+      return tx;
+    }
+
+    it('deve editar título OPEN sem tocar no rateio quando costCenterId não vem', async () => {
+      mockPrisma.financialEntry.findFirst
+        .mockResolvedValueOnce({ ...baseEntry, status: FinancialEntryStatus.OPEN })
+        .mockResolvedValueOnce({ ...baseEntry, description: 'Novo texto' }); // findOne final
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { description: 'Novo texto', amount: 500 });
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'fe-1' },
+          data: expect.objectContaining({ description: 'Novo texto', amount: 500 }),
+        }),
+      );
+      // rateio preservado: sem costCenterId no payload, não mexe nos splits
+      expect(tx.entryCostCenterSplit.deleteMany).not.toHaveBeenCalled();
+      expect(tx.entryCostCenterSplit.create).not.toHaveBeenCalled();
+      expect(tx.auditLog.create).toHaveBeenCalled();
+    });
+
+    it('deve substituir o rateio por 100% quando costCenterId é informado', async () => {
+      mockPrisma.financialEntry.findFirst
+        .mockResolvedValueOnce({ ...baseEntry, status: FinancialEntryStatus.OVERDUE })
+        .mockResolvedValueOnce(baseEntry);
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { costCenterId: 'cc-9', amount: 400 });
+
+      expect(tx.entryCostCenterSplit.deleteMany).toHaveBeenCalledWith({ where: { entryId: 'fe-1' } });
+      expect(tx.entryCostCenterSplit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ costCenterId: 'cc-9', percentage: 100, amount: 400 }),
+        }),
+      );
+    });
+
+    it('deve rejeitar edição de título PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.PAID,
+      });
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { description: 'x' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('deve rejeitar edição de título CANCELLED', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.CANCELLED,
+      });
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { amount: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve rejeitar edição de título PARTIALLY_PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        ...baseEntry,
+        status: FinancialEntryStatus.PARTIALLY_PAID,
+      });
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { amount: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deve lançar NotFoundException para título inexistente', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      await expect(
+        service.updateEntry('nope', 'co-1', { amount: 1 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

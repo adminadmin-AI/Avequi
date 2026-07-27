@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, CalendarClock, ExternalLink, Ban } from 'lucide-react';
+import { DollarSign, CalendarClock, ExternalLink, Ban, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
+import { EditEntryDialog } from '../edit-entry-dialog';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -33,6 +34,10 @@ function remainingOf(e: FinancialEntry): number {
 }
 function isOpen(e: FinancialEntry): boolean {
   return OPEN_STATUSES.includes(e.status);
+}
+/** Editável só em aberto sem baixa (OPEN/OVERDUE) — espelha a trava do backend. */
+function isEditable(e: FinancialEntry): boolean {
+  return e.status === 'OPEN' || e.status === 'OVERDUE';
 }
 function daysOverdue(e: FinancialEntry, today: Date): number {
   const due = new Date(e.dueDate);
@@ -162,6 +167,7 @@ export default function PayablesPage() {
 
   // ── Ações ──
   const [payTarget, setPayTarget] = useState<FinancialEntry | null>(null);
+  const [editTarget, setEditTarget] = useState<FinancialEntry | null>(null);
 
   function handlePay(values: PayFormValues) {
     if (!payTarget) return;
@@ -270,6 +276,18 @@ export default function PayablesPage() {
         const canCancel = e.status !== 'PAID' && e.status !== 'CANCELLED';
         return (
           <div className="flex items-center justify-end gap-1">
+            {isEditable(e) && (
+              <button
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setEditTarget(e);
+                }}
+                title="Editar lançamento"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
+              >
+                <Pencil size={15} />
+              </button>
+            )}
             {canPay && (
               <button
                 onClick={(ev) => {
@@ -388,6 +406,8 @@ export default function PayablesPage() {
           />
         )}
       </FormDialog>
+
+      <EditEntryDialog entry={editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
     </div>
   );
 }

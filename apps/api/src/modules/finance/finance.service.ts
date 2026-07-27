@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, ScheduledPaymentStatus } from '@prisma/client';
+import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, Prisma, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { INSTALLMENT_METHODS, isCardMethod } from '../acquirer/payment-classification';
 
@@ -25,6 +25,7 @@ import { CreateInstallmentsDto } from './dto/create-installments.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
+import { UpdateFinancialEntryDto } from './dto/update-financial-entry.dto';
 import { ConfigureBankAccountDto } from './dto/configure-bank-account.dto';
 import { CreateScheduledPaymentDto } from './dto/create-scheduled-payment.dto';
 import { TriggerCollectionDto } from './dto/trigger-collection.dto';
@@ -302,6 +303,73 @@ export class FinanceService {
 
     this.logger.log(`Manual entries criados: ${created.length} — ${dto.description}`);
     return created;
+  }
+
+  // ─── Editar título EM ABERTO (OPEN/OVERDUE) ───────────────────────────────
+  // Só campos de cadastro. Pago/cancelado/parcial NÃO podem ser editados —
+  // esses têm fluxo próprio (pay/cancel) e mexer neles corromperia o histórico.
+  async updateEntry(id: string, companyId: string, dto: UpdateFinancialEntryDto) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId },
+    });
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
+
+    const editableStatuses: FinancialEntryStatus[] = [
+      FinancialEntryStatus.OPEN,
+      FinancialEntryStatus.OVERDUE,
+    ];
+    if (!editableStatuses.includes(entry.status)) {
+      throw new BadRequestException(
+        `Só é possível editar lançamentos em aberto. Status atual: ${entry.status}`,
+      );
+    }
+
+    // Monta o update SOMENTE com os campos enviados (PATCH parcial).
+    // `undefined` = campo não veio; `null`/'' em relações = desvincular.
+    const data: Prisma.FinancialEntryUncheckedUpdateInput = {};
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.amount !== undefined) data.amount = dto.amount;
+    if (dto.dueDate !== undefined) data.dueDate = new Date(dto.dueDate);
+    if (dto.expectedPaymentDate !== undefined) {
+      data.expectedPaymentDate = new Date(dto.expectedPaymentDate);
+    }
+    // Escalares (igual createManualEntry): '' / null desvincula.
+    if (dto.supplierId !== undefined) data.supplierId = dto.supplierId || null;
+    if (dto.categoryId !== undefined) data.categoryId = dto.categoryId || null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financialEntry.update({ where: { id }, data });
+
+      // Centro de custo: só mexe se o campo veio no payload. Ausente preserva
+      // o rateio atual (títulos migrados do Omie podem ter multi-centro; a UI
+      // simples não deve destruí-lo sem intenção explícita).
+      if (dto.costCenterId !== undefined) {
+        await tx.entryCostCenterSplit.deleteMany({ where: { entryId: id } });
+        if (dto.costCenterId) {
+          const effectiveAmount = dto.amount ?? Number(entry.amount);
+          await tx.entryCostCenterSplit.create({
+            data: {
+              entryId: id,
+              costCenterId: dto.costCenterId,
+              percentage: 100,
+              amount: effectiveAmount,
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entity: 'FinancialEntry',
+          action: 'UPDATE',
+          payload: { id, changes: dto as Prisma.InputJsonValue },
+        },
+      });
+    });
+
+    this.logger.log(`FinancialEntry ${id} editado (em aberto)`);
+    return this.findOne(id, companyId);
   }
 
   // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────

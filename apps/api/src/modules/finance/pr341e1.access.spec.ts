@@ -93,6 +93,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [FinanceController, 'finance', {
     findAll: 'finance.entries.view',
     createManualEntry: 'finance.entries.create',
+    updateEntry: 'finance.entries.update',
     getKpis: 'finance.reports.view',
     getMarginBySku: 'finance.reports.view',
     getPdd: 'finance.provisions.view',

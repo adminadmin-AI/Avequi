@@ -30,6 +30,7 @@ import { CreateInstallmentsDto } from './dto/create-installments.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCostCenterDto } from './dto/create-cost-center.dto';
 import { CreateManualEntryDto } from './dto/create-manual-entry.dto';
+import { UpdateFinancialEntryDto } from './dto/update-financial-entry.dto';
 
 /**
  * #341 parte 2 (PR E1): gate único RBAC v2 via @RequirePermission — o @Roles
@@ -78,6 +79,19 @@ export class FinanceController {
     @Request() req: { user: { companyId: string } },
   ) {
     return this.financeService.createManualEntry(req.user.companyId, dto);
+  }
+
+  // Rota com prefixo estático `entries/` — NÃO colide com `@Get(':id')` (método
+  // diferente) nem com `@Patch(':id/pay')`/`@Patch(':id/cancel')` (3 segmentos).
+  @Patch('entries/:id')
+  @RequirePermission('finance.entries.update')
+  @ApiOperation({ summary: 'Editar lançamento em aberto (OPEN/OVERDUE)' })
+  updateEntry(
+    @Param('id') id: string,
+    @Body() dto: UpdateFinancialEntryDto,
+    @Request() req: { user: { companyId: string } },
+  ) {
+    return this.financeService.updateEntry(id, req.user.companyId, dto);
   }
 
   @Get('kpis')

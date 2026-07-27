@@ -586,6 +586,7 @@ export interface FinancialEntry extends BaseEntity {
   salesOrderId?: string | null;
   purchaseOrderId?: string | null;
   supplierId?: string | null;
+  categoryId?: string | null;
   // Relações incluídas pelo GET /finance
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   purchaseOrder?: {

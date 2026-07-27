@@ -414,6 +414,9 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['pay', 'baixar/pagar', 'PATCH /finance/:id/pay'],
     ['installment', 'parcelar', 'POST /finance/:id/installments'],
     ['cancel', 'cancelar', 'PATCH /finance/:id/cancel'],
+    // Editar título em aberto (OPEN/OVERDUE): mesmos perfis de create/cancel
+    // (FINANCEIRO + GERENTE_FINANCEIRO via resourceCodes/moduleCodes).
+    ['update', 'editar lançamento em aberto', 'PATCH /finance/entries/:id'],
     // #623 (E1): baixa como perda some do contas a receber — restrita à gerência
     ['write-off', 'baixar como perda (write-off)', 'POST /finance/entries/:id/write-off'],
   ]),
