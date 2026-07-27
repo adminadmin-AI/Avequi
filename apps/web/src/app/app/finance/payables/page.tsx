@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, CalendarClock, ExternalLink, Ban } from 'lucide-react';
+import { DollarSign, CalendarClock, ExternalLink, Ban, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { usePermission } from '@/hooks/use-permission';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
+import { EditEntryDialog } from '../edit-entry-dialog';
+import { canEditEntry } from './editable';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -95,6 +98,8 @@ export default function PayablesPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  const { can } = usePermission();
+  const canUpdate = can('finance.entries.update'); // gate do lápis (UX; backend valida de verdade)
 
   const { data: entries = [], isLoading } = useList<FinancialEntry>(RESOURCE, {
     type: 'PAYABLE',
@@ -162,6 +167,7 @@ export default function PayablesPage() {
 
   // ── Ações ──
   const [payTarget, setPayTarget] = useState<FinancialEntry | null>(null);
+  const [editTarget, setEditTarget] = useState<FinancialEntry | null>(null);
 
   function handlePay(values: PayFormValues) {
     if (!payTarget) return;
@@ -270,6 +276,18 @@ export default function PayablesPage() {
         const canCancel = e.status !== 'PAID' && e.status !== 'CANCELLED';
         return (
           <div className="flex items-center justify-end gap-1">
+            {canEditEntry(e.status, canUpdate) && (
+              <button
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setEditTarget(e);
+                }}
+                title="Editar lançamento"
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
+              >
+                <Pencil size={15} />
+              </button>
+            )}
             {canPay && (
               <button
                 onClick={(ev) => {
@@ -388,6 +406,8 @@ export default function PayablesPage() {
           />
         )}
       </FormDialog>
+
+      <EditEntryDialog entry={editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
     </div>
   );
 }

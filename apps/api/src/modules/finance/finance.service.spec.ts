@@ -24,6 +24,18 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
+  entryCostCenterSplit: {
+    deleteMany: jest.fn(),
+    create: jest.fn(),
+  },
+  scheduledPayment: {
+    count: jest.fn(),
+    aggregate: jest.fn(),
+    create: jest.fn(),
+  },
+  supplier: {
+    findFirst: jest.fn(),
+  },
   financialCategory: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
@@ -415,6 +427,218 @@ describe('FinanceService', () => {
         status: FinancialEntryStatus.PARTIALLY_PAID,
       });
       await expect(service.cancel('fe-1', 'co-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── Edição de título em aberto ───────────────────────────────────────────
+
+  describe('updateEntry', () => {
+    // clearAllMocks NÃO limpa implementações (.mockResolvedValueOnce persiste);
+    // resetamos os finds de leitura p/ cada teste começar com a fila limpa.
+    beforeEach(() => {
+      mockPrisma.financialEntry.findFirst.mockReset();
+      mockPrisma.scheduledPayment.count.mockReset();
+      mockPrisma.supplier.findFirst.mockReset();
+      mockPrisma.financialCategory.findFirst.mockReset();
+      mockPrisma.costCenter.findFirst.mockReset();
+    });
+
+    /** tx instrumentado; opcionalmente força a criação de split a falhar. */
+    function stubTransaction(opts: { failSplit?: boolean } = {}) {
+      const tx = {
+        financialEntry: { update: jest.fn().mockResolvedValue({}) },
+        entryCostCenterSplit: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          create: opts.failSplit
+            ? jest.fn().mockRejectedValue(new Error('split falhou'))
+            : jest.fn().mockResolvedValue({}),
+        },
+        auditLog: { create: jest.fn().mockResolvedValue({}) },
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
+      return tx;
+    }
+
+    /** Prepara os finds felizes: entry editável + findOne final + sem agendamento
+     *  + relações válidas na empresa. `entry` sobrescreve campos do baseEntry. */
+    function arrange(entry: Partial<typeof baseEntry> = {}) {
+      const full = { ...baseEntry, status: FinancialEntryStatus.OPEN, ...entry };
+      mockPrisma.financialEntry.findFirst
+        .mockResolvedValueOnce(full) // lookup do updateEntry
+        .mockResolvedValueOnce(full); // findOne final
+      mockPrisma.scheduledPayment.count.mockResolvedValue(0);
+      mockPrisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      mockPrisma.financialCategory.findFirst.mockResolvedValue({ id: 'cat-1' });
+      mockPrisma.costCenter.findFirst.mockResolvedValue({ id: 'cc-9' });
+      return full;
+    }
+
+    it('edita título OPEN sem tocar no rateio quando costCenterId não vem', async () => {
+      arrange();
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { description: 'Novo texto', amount: 500 }, 'user-7');
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'fe-1' },
+          data: expect.objectContaining({ description: 'Novo texto', amount: 500 }),
+        }),
+      );
+      expect(tx.entryCostCenterSplit.deleteMany).not.toHaveBeenCalled();
+      expect(tx.entryCostCenterSplit.create).not.toHaveBeenCalled();
+    });
+
+    it('substitui o rateio por 100% quando costCenterId é informado', async () => {
+      arrange({ status: FinancialEntryStatus.OVERDUE });
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { costCenterId: 'cc-9', amount: 400 });
+
+      expect(tx.entryCostCenterSplit.deleteMany).toHaveBeenCalledWith({ where: { entryId: 'fe-1' } });
+      expect(tx.entryCostCenterSplit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ costCenterId: 'cc-9', percentage: 100, amount: 400 }),
+        }),
+      );
+    });
+
+    // ── Ponto 7: remoção total do rateio (costCenterId null) ──
+    it('remove todo o rateio quando costCenterId é null', async () => {
+      arrange();
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { costCenterId: null });
+
+      expect(tx.entryCostCenterSplit.deleteMany).toHaveBeenCalledWith({ where: { entryId: 'fe-1' } });
+      expect(tx.entryCostCenterSplit.create).not.toHaveBeenCalled();
+    });
+
+    // ── Ponto 7: atomicidade — falha no split faz rollback (rejeita tudo) ──
+    it('propaga erro (rollback) se a gravação do split falhar', async () => {
+      arrange();
+      stubTransaction({ failSplit: true });
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { costCenterId: 'cc-9' }),
+      ).rejects.toThrow('split falhou');
+    });
+
+    // ── Ponto 6: status reconciliado com o novo vencimento ──
+    it('OVERDUE volta para OPEN ao mover o vencimento para o futuro', async () => {
+      arrange({ status: FinancialEntryStatus.OVERDUE });
+      const tx = stubTransaction();
+      const future = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+
+      await service.updateEntry('fe-1', 'co-1', { dueDate: future });
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: FinancialEntryStatus.OPEN }) }),
+      );
+    });
+
+    it('OPEN vira OVERDUE ao mover o vencimento para o passado', async () => {
+      arrange({ status: FinancialEntryStatus.OPEN });
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { dueDate: '2020-01-01' });
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: FinancialEntryStatus.OVERDUE }) }),
+      );
+    });
+
+    // ── Ponto 9: auditoria com ator e antes→depois ──
+    it('registra AuditLog com ator (userId) e o diff antes→depois', async () => {
+      arrange({ description: 'antigo', amount: 300 });
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', { description: 'novo', amount: 999 }, 'user-42');
+
+      expect(tx.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'user-42',
+            entity: 'FinancialEntry',
+            action: 'UPDATE',
+            payload: expect.objectContaining({
+              changes: expect.objectContaining({
+                description: { from: 'antigo', to: 'novo' },
+                amount: { from: 300, to: 999 },
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    // ── Ponto 4: agendamento PENDING bloqueia a edição ──
+    it('rejeita edição se houver pagamento agendado PENDENTE', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.OPEN });
+      mockPrisma.scheduledPayment.count.mockResolvedValue(1);
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { amount: 1 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    // ── Ponto 5: isolamento entre empresas ──
+    it('rejeita fornecedor de outra empresa (404)', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.OPEN });
+      mockPrisma.scheduledPayment.count.mockResolvedValue(0);
+      mockPrisma.supplier.findFirst.mockResolvedValue(null); // não existe NA empresa
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { supplierId: 'sup-de-outra' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejeita categoria de outra empresa (404)', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.OPEN });
+      mockPrisma.scheduledPayment.count.mockResolvedValue(0);
+      mockPrisma.financialCategory.findFirst.mockResolvedValue(null);
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { categoryId: 'cat-de-outra' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejeita centro de custo de outra empresa (404)', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.OPEN });
+      mockPrisma.scheduledPayment.count.mockResolvedValue(0);
+      mockPrisma.costCenter.findFirst.mockResolvedValue(null);
+      await expect(
+        service.updateEntry('fe-1', 'co-1', { costCenterId: 'cc-de-outra' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('busca do título é escopada por empresa — outra empresa = 404', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null); // where {id, companyId} não achou
+      await expect(
+        service.updateEntry('fe-de-outra', 'co-1', { amount: 1 }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.financialEntry.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'fe-de-outra', companyId: 'co-1' } }),
+      );
+    });
+
+    it('rejeita edição de título PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.PAID });
+      await expect(service.updateEntry('fe-1', 'co-1', { description: 'x' })).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejeita edição de título CANCELLED', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.CANCELLED });
+      await expect(service.updateEntry('fe-1', 'co-1', { amount: 1 })).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejeita edição de título PARTIALLY_PAID', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.PARTIALLY_PAID });
+      await expect(service.updateEntry('fe-1', 'co-1', { amount: 1 })).rejects.toThrow(BadRequestException);
+    });
+
+    it('lança NotFoundException para título inexistente', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      await expect(service.updateEntry('nope', 'co-1', { amount: 1 })).rejects.toThrow(NotFoundException);
     });
   });
 
