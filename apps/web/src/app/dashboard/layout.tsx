@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-slate-200 flex flex-col">
         <div className="px-4 py-5 border-b border-slate-200">
-          <h1 className="text-lg font-bold text-slate-900">GDR ERP</h1>
+          <h1 className="text-lg font-bold text-slate-900">Avecchi</h1>
           <p className="text-xs text-slate-500 mt-0.5 truncate">{user?.name ?? '—'}</p>
         </div>
 

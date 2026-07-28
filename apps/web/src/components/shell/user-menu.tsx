@@ -74,7 +74,7 @@ export function UserMenu() {
             <span className="inline-flex items-center gap-1 rounded-md bg-surface-secondary px-2 py-1 text-helper text-content-secondary">
               <Building2 size={12} className="text-content-muted" />
               <span className="max-w-[120px] truncate" title={companyName ?? ''}>
-                {companyName ?? 'GDR'}
+                {companyName ?? '—'}
               </span>
             </span>
             <span className="rounded-md bg-brand-50 px-2 py-1 text-helper font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300">

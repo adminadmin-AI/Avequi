@@ -7,11 +7,15 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' });
 
 export const metadata: Metadata = {
-  title: 'Avequi ERP',
-  description: 'Sistema ERP integrado — GDR Reboques',
+  title: {
+    default: 'Avecchi — Industrial ERP',
+    template: '%s — Avecchi',
+  },
+  description:
+    'Produção, estoque, compras, PCP, fiscal e financeiro em uma única plataforma.',
   // PWA (CRM V2.1 #568) — instalável no celular do vendedor; iOS exige isso p/ push
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, title: 'Avequi', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Avecchi', statusBarStyle: 'default' },
   icons: { apple: '/icons/icon-192.png' },
 };
 

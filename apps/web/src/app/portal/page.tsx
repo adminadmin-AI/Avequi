@@ -234,7 +234,7 @@ function PortalDashboard({ onLogout }: { onLogout: () => void }) {
         {(summary?.overduePayments ?? 0) > 0 && (
           <div className="mt-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-warning">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>Você possui pagamentos vencidos. Em caso de dúvida, entre em contato com o setor financeiro da GDR.</span>
+            <span>Você possui pagamentos vencidos. Em caso de dúvida, entre em contato com o setor financeiro.</span>
           </div>
         )}
       </main>

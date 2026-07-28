@@ -2,32 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  AlertCircle,
-  Boxes,
-  CheckCircle2,
-  Eye,
-  EyeOff,
-  Factory,
-  Lock,
-  Mail,
-  ScrollText,
-  Wallet,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { clearPendingPasswordChange, storePendingPasswordChange } from '@/lib/password-change';
-import { BrandMark } from '@/components/brand-mark';
+import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const REMEMBER_KEY = 'avequi:remember-email';
 
-const FEATURES = [
-  { icon: Factory, label: 'Produção' },
-  { icon: Boxes, label: 'Estoque' },
-  { icon: ScrollText, label: 'Fiscal' },
-  { icon: Wallet, label: 'Financeiro' },
+/** Módulos exibidos no painel institucional — mesmo vocabulário do letreiro da landing. */
+const MODULES = [
+  'Produção',
+  'PCP',
+  'MRP',
+  'Compras',
+  'Estoque',
+  'Financeiro',
+  'Chassis',
+  'Fiscal',
 ] as const;
 
 export default function LoginPage() {
@@ -93,195 +87,205 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-surface-secondary">
-      {/* ─── Painel de branding (esquerda, 55%) — oculto no mobile ─── */}
-      <aside className="relative hidden w-[55%] flex-col justify-between overflow-hidden bg-brand-950 p-12 text-white md:flex lg:w-[55%]">
-        {/* Pattern sutil de grid */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.12]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-            backgroundSize: '44px 44px',
-          }}
-        />
-        {/* Glow do gradiente da marca */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full opacity-30 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #3D2CE6 0%, transparent 70%)' }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full opacity-20 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #00C2A8 0%, transparent 70%)' }}
-        />
-
-        {/* Topo: marca */}
-        <div className="relative flex items-center gap-3 duration-deliberate animate-in fade-in slide-in-from-top-2">
-          <BrandMark size={36} />
-          <span className="text-2xl font-semibold tracking-tight">Avequi</span>
+    <div className="flex min-h-screen">
+      {/* ─── Painel institucional (esquerda) — continuação da landing ─── */}
+      <aside className="relative hidden w-[52%] flex-col justify-between border-r border-white/[0.06] p-12 lg:flex xl:p-16">
+        {/* Topo: wordmark oficial (o A é o símbolo da marca, como na landing) */}
+        <div className="duration-deliberate animate-in fade-in slide-in-from-top-2">
+          <AvecchiWordmark className="text-[26px]" />
+          <p className="mt-2.5 font-mono text-[11px] font-medium uppercase tracking-[0.32em] text-white/40">
+            Industrial ERP
+          </p>
         </div>
 
-        {/* Centro: tagline + features */}
-        <div className="relative space-y-8">
-          <div className="space-y-3 duration-deliberate animate-in fade-in slide-in-from-bottom-3">
-            <h2 className="max-w-md text-display font-semibold leading-tight">
-              Gestão industrial inteligente
+        {/* Centro: assinatura da marca + módulos */}
+        <div className="space-y-9">
+          <div
+            className="space-y-4 duration-deliberate animate-in fade-in slide-in-from-bottom-3"
+            style={{ animationDelay: '120ms', animationFillMode: 'backwards' }}
+          >
+            <h2 className="max-w-md text-[32px] font-semibold leading-[1.15] tracking-tight text-white">
+              Controle total.
+              <br />
+              Decisões instantâneas.
             </h2>
-            <p className="max-w-sm text-subtitle text-white/70">
-              Do chão de fábrica ao fiscal, num só lugar. O ERP da GDR Reboques.
+            <p className="max-w-md text-[15px] font-light leading-relaxed text-white/55">
+              Conectando produção, estoque, compras, PCP, fiscal e financeiro em
+              uma única plataforma.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
-            {FEATURES.map(({ icon: Icon, label }, i) => (
-              <div
+          <ul className="grid max-w-sm grid-cols-2 gap-x-10 gap-y-3">
+            {MODULES.map((label, i) => (
+              <li
                 key={label}
-                className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-caption backdrop-blur duration-deliberate animate-in fade-in slide-in-from-bottom-2"
-                style={{ animationDelay: `${120 + i * 70}ms`, animationFillMode: 'backwards' }}
+                className="flex items-center gap-2.5 font-mono text-[12px] uppercase tracking-[0.1em] text-white/50 duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+                style={{ animationDelay: `${260 + i * 60}ms`, animationFillMode: 'backwards' }}
               >
-                <Icon size={15} className="text-accent" />
+                <span aria-hidden className="text-[13px] leading-none text-[#00C2A8]">
+                  ✓
+                </span>
                 {label}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
 
         {/* Rodapé */}
-        <p className="relative text-helper text-white/40">
-          © {new Date().getFullYear()} Avequi · GDR Reboques
+        <p className="text-[12px] font-light tracking-wide text-white/35">
+          © {new Date().getFullYear()} Avecchi ·{' '}
+          <a
+            href="https://avecchi.ai"
+            className="underline-offset-4 transition-colors hover:text-white/60 hover:underline"
+          >
+            avecchi.ai
+          </a>
         </p>
       </aside>
 
-      {/* ─── Painel de login (direita, 45%) ─── */}
-      <main className="flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-sm duration-deliberate animate-in fade-in slide-in-from-bottom-2">
-          {/* Marca (visível no mobile e como reforço no desktop) */}
-          <div className="mb-8 flex items-center gap-2.5">
-            <BrandMark size={28} />
-            <span className="text-title font-semibold tracking-tight text-content">Avequi</span>
-          </div>
-
-          <div className="mb-6">
-            <h1 className="text-heading text-content">Acesse sua conta</h1>
-            <p className="mt-1 text-body text-content-secondary">
-              Entre com suas credenciais para continuar.
+      {/* ─── Formulário (direita) ─── */}
+      <main className="flex flex-1 items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[400px]">
+          {/* Marca no mobile/tablet (o painel institucional está oculto) */}
+          <div className="mb-10 flex flex-col items-center gap-2.5 duration-deliberate animate-in fade-in slide-in-from-top-2 lg:hidden">
+            <AvecchiWordmark className="text-[24px]" />
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.32em] text-white/40">
+              Industrial ERP
             </p>
           </div>
 
-          {notice === 'password-changed' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2.5 text-caption text-success-700 dark:border-success-900 dark:bg-success-900/20 dark:text-success-400">
-              <CheckCircle2 size={16} className="mt-px shrink-0" />
-              <span>Senha definida com sucesso! Entre com a sua nova senha.</span>
+          <div
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+            style={{
+              boxShadow:
+                '0 0 40px rgba(61,44,230,0.10), 0 0 90px rgba(61,44,230,0.05), 0 12px 40px rgba(0,0,0,0.55)',
+            }}
+          >
+            <div className="mb-7">
+              <h1 className="text-[22px] font-semibold tracking-tight text-white">
+                Bem-vindo de volta
+              </h1>
+              <p className="mt-1.5 text-sm font-light text-white/55">
+                Acesse sua conta para continuar.
+              </p>
             </div>
-          )}
-          {notice === 'password-change-expired' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-caption text-warning-800 dark:border-warning-900 dark:bg-warning-900/20 dark:text-warning-300">
-              <AlertCircle size={16} className="mt-px shrink-0" />
-              <span>
-                O prazo para definir a nova senha expirou. Entre de novo com a senha provisória
-                para recomeçar.
-              </span>
-            </div>
-          )}
-          {notice === 'expired' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-caption text-warning-800 dark:border-warning-900 dark:bg-warning-900/20 dark:text-warning-300">
-              <AlertCircle size={16} className="mt-px shrink-0" />
-              <span>Sua sessão expirou. Faça login novamente para continuar.</span>
-            </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div>
-              <Label htmlFor="email" className="dark:text-content-secondary">
-                E-mail
-              </Label>
-              <div className="relative">
-                <Mail
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted"
-                />
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  error={!!error}
-                  required
-                  className="pl-9 dark:bg-surface-elevated dark:text-content dark:placeholder:text-content-muted"
-                />
+            {notice === 'password-changed' && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-[#00C2A8]/25 bg-[#00C2A8]/10 px-3 py-2.5 text-[13px] text-[#5eead4]">
+                <CheckCircle2 size={16} className="mt-px shrink-0" />
+                <span>Senha definida com sucesso! Entre com a sua nova senha.</span>
               </div>
-            </div>
-
-            <div>
-              <Label htmlFor="password" className="dark:text-content-secondary">
-                Senha
-              </Label>
-              <div className="relative">
-                <Lock
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted"
-                />
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  error={!!error}
-                  required
-                  className="px-9 dark:bg-surface-elevated dark:text-content dark:placeholder:text-content-muted"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-content-muted transition-colors hover:text-content"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+            )}
+            {notice === 'password-change-expired' && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-[13px] text-amber-200">
+                <AlertCircle size={16} className="mt-px shrink-0" />
+                <span>
+                  O prazo para definir a nova senha expirou. Entre de novo com a senha
+                  provisória para recomeçar.
+                </span>
               </div>
-            </div>
+            )}
+            {notice === 'expired' && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-[13px] text-amber-200">
+                <AlertCircle size={16} className="mt-px shrink-0" />
+                <span>Sua sessão expirou. Faça login novamente para continuar.</span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-between">
-              <label className="flex cursor-pointer items-center gap-2 text-caption text-content-secondary">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              <div>
+                <Label htmlFor="email" className="text-[13px] text-white/70">
+                  E-mail
+                </Label>
+                <div className="relative">
+                  <Mail
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-white/30"
+                  />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    error={!!error}
+                    required
+                    className="border-white/10 bg-white/[0.05] pl-9 text-white placeholder:text-white/25 hover:border-white/20 focus:border-[#818CF8]/60"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="password" className="text-[13px] text-white/70">
+                  Senha
+                </Label>
+                <div className="relative">
+                  <Lock
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-white/30"
+                  />
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    error={!!error}
+                    required
+                    className="border-white/10 bg-white/[0.05] px-9 text-white placeholder:text-white/25 hover:border-white/20 focus:border-[#818CF8]/60"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-md p-1.5 text-white/30 transition-colors hover:text-white"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-white/55 transition-colors hover:text-white/80">
                 <input
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-line text-brand-600 dark:text-brand-400 accent-brand-600 focus-ring"
+                  className="h-4 w-4 rounded border-white/20 accent-[#3D2CE6]"
                 />
                 Lembrar-me
               </label>
-              <a
-                href="#"
-                className="text-caption font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
-              >
-                Esqueci minha senha
-              </a>
-            </div>
 
-            {error && (
-              <div
-                key={errorKey}
-                role="alert"
-                className="flex animate-shake items-start gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2.5 text-caption text-danger-700 dark:border-danger-900 dark:bg-danger-900/20 dark:text-danger-300"
-              >
-                <AlertCircle size={16} className="mt-px shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+              {error && (
+                <div
+                  key={errorKey}
+                  role="alert"
+                  className="flex animate-shake items-start gap-2 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-[13px] text-red-300"
+                >
+                  <AlertCircle size={16} className="mt-px shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            <Button type="submit" size="lg" loading={loading} className="w-full">
-              {loading ? 'Entrando…' : 'Entrar'}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                size="lg"
+                loading={loading}
+                className="w-full transition-all duration-300 shadow-[0_0_20px_rgba(61,44,230,0.35)] hover:shadow-[0_0_32px_rgba(61,44,230,0.5),0_4px_24px_rgba(0,194,168,0.15)] focus-visible:ring-offset-black"
+              >
+                {loading ? 'Entrando…' : 'Entrar'}
+              </Button>
+            </form>
+          </div>
+
+          {/* Reset de senha é feito pelo administrador (#468) — sem fluxo self-service */}
+          <p className="mt-6 text-center text-[12px] font-light leading-relaxed text-white/35">
+            Esqueceu a senha ou precisa de acesso?
+            <br />
+            Fale com o administrador da sua empresa.
+          </p>
         </div>
       </main>
     </div>
