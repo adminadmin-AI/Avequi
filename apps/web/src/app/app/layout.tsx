@@ -138,7 +138,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
         {/* #versioning — versão do produto (injetada em build via next.config) */}
         <footer className="border-t px-4 py-2 text-center text-xs opacity-60 sm:px-6">
-          Avequi ERP v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
+          Avecchi ERP v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
         </footer>
       </div>
     </div>
