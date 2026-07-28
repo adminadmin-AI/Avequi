@@ -60,20 +60,30 @@ export default function ChangePasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-[400px]">
-        <div className="mb-10 flex flex-col items-center gap-2.5 duration-deliberate animate-in fade-in slide-in-from-top-2">
-          <AvecchiWordmark className="text-[24px]" />
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.32em] text-white/40">
-            Industrial ERP
-          </p>
+        <div className="relative mx-auto mb-10 w-fit duration-deliberate animate-in fade-in slide-in-from-top-2">
+          <div
+            aria-hidden
+            className="animate-avecchi-breathe absolute -inset-x-12 -inset-y-7 rounded-full blur-2xl"
+            style={{
+              background:
+                'radial-gradient(ellipse 70% 80% at 50% 50%, rgba(61,44,230,0.30) 0%, rgba(0,194,168,0.06) 60%, transparent 100%)',
+            }}
+          />
+          <AvecchiWordmark className="relative text-[24px]" />
         </div>
 
         <div
-          className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+          className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
           style={{
             boxShadow:
               '0 0 40px rgba(61,44,230,0.10), 0 0 90px rgba(61,44,230,0.05), 0 12px 40px rgba(0,0,0,0.55)',
           }}
         >
+          {/* fio de luz no topo do card — detalhe de profundidade */}
+          <div
+            aria-hidden
+            className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          />
           <div className="mb-6">
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#3D2CE6]/20 text-[#818CF8]">
               <KeyRound size={20} />

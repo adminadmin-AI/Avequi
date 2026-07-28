@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
-import { AuthBackdrop } from '@/components/auth/auth-backdrop';
+import { AuthScene } from '@/components/auth/auth-scene';
 
 export const metadata: Metadata = {
   // o template do layout raiz ('%s — Avecchi') já anexa a marca
   title: 'Entrar',
-  description:
-    'Acesse o Avecchi Industrial ERP — produção, estoque, compras, PCP, fiscal e financeiro em uma única plataforma.',
+  description: 'Conectando pessoas, processos e resultados.',
 };
 
 /**
@@ -17,7 +16,7 @@ export const metadata: Metadata = {
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="dark relative min-h-screen bg-black text-white">
-      <AuthBackdrop />
+      <AuthScene />
       <div className="relative z-10">{children}</div>
     </div>
   );
