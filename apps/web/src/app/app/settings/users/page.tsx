@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Power, ShieldAlert } from 'lucide-react';
+import { Plus, Pencil, Power, KeyRound, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { User } from '@/types/api';
@@ -13,9 +13,11 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { usePermission } from '@/hooks/use-permission';
-import { canShowStatusToggle } from './permissions';
+import { canShowStatusToggle, canShowPasswordReset } from './permissions';
+import { resolveApiError } from './resolve-api-error';
 import { roleLabel, roleVariant } from './roles';
 import { UserForm, type UserFormValues } from './user-form';
+import { ResetPasswordDialog } from './reset-password-dialog';
 
 const RESOURCE = '/users';
 const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
@@ -30,6 +32,7 @@ export default function UsersPage() {
   // (settings.users.update) — sem ela o botão nem aparece (fail-closed).
   const { can } = usePermission();
   const showStatusToggle = canShowStatusToggle(can);
+  const showPasswordReset = canShowPasswordReset(can);
 
   const { data: users = [], isLoading } = useList<User>(RESOURCE, undefined, {
     enabled: canManage,
@@ -39,6 +42,8 @@ export default function UsersPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -136,6 +141,24 @@ export default function UsersPage() {
           >
             <Pencil size={15} />
           </button>
+          {showPasswordReset && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setResetTarget(u);
+                setResetOpen(true);
+              }}
+              disabled={u.id === currentUser?.id}
+              title={
+                u.id === currentUser?.id
+                  ? 'Para a sua própria senha, use a troca voluntária (menu do perfil)'
+                  : 'Redefinir senha'
+              }
+              className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-content-muted"
+            >
+              <KeyRound size={15} />
+            </button>
+          )}
           {showStatusToggle && (
             <button
               onClick={(e) => {
@@ -221,15 +244,8 @@ export default function UsersPage() {
           onSubmit={handleSubmit}
         />
       </FormDialog>
+
+      <ResetPasswordDialog user={resetTarget} open={resetOpen} onOpenChange={setResetOpen} />
     </div>
   );
-}
-
-/** Extrai a mensagem real da API (string ou array do class-validator). */
-function resolveApiError(err: unknown, fallback: string): string {
-  const message = (err as { response?: { data?: { message?: string | string[] } } })?.response
-    ?.data?.message;
-  if (Array.isArray(message)) return message.join('\n');
-  if (typeof message === 'string' && message) return message;
-  return fallback;
 }
