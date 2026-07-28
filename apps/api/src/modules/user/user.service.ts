@@ -251,6 +251,28 @@ export class UserService {
     if (password) {
       // #345: registra a troca no histórico (best-effort).
       await this.passwordPolicy.recordPasswordChange(id, previousHash, data.passwordHash);
+
+      // Reset por admin corta o acesso VIGENTE do alvo: revoga TODAS as
+      // sessões dele (reason SECURITY → denylist mata os access tokens
+      // imediatamente, não só o refresh). Sem isso, uma sessão viva
+      // sobreviveria à troca renovando o refresh indefinidamente — o reset
+      // feito para cortar o acesso de alguém não cortaria. O alvo é `id`
+      // (usuário redefinido), nunca `actorId` (admin que redefiniu).
+      // Mesma política de falha da inativação acima (#744): a troca NÃO é
+      // desfeita nem a falha fica silenciosa; o refresh barrado por
+      // mustChangePassword limita o resíduo à vida do access token (15 min).
+      try {
+        await this.sessionService.revokeAllSessions(id, SessionRevokedReason.SECURITY);
+      } catch (err) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'user_password_reset_session_revoke_failed',
+            userId: id,
+            actorId,
+            message: (err as Error).message,
+          }),
+        );
+      }
     }
 
     return updated;

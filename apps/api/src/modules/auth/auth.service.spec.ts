@@ -38,6 +38,7 @@ const mockSessionService = {
   validateSessionForRefresh: jest.fn(),
   attachRefreshToSession: jest.fn(),
   revokeSessionByRefreshTokenId: jest.fn(),
+  revokeAllSessions: jest.fn(),
 };
 
 // #344: MfaService mockado — default SEM MFA (fluxo antigo intacto).
@@ -98,6 +99,7 @@ describe('AuthService', () => {
     });
     mockSessionService.attachRefreshToSession.mockResolvedValue(undefined);
     mockSessionService.revokeSessionByRefreshTokenId.mockResolvedValue(undefined);
+    mockSessionService.revokeAllSessions.mockResolvedValue(0);
     // Defaults #344: MFA desabilitado — login segue o fluxo de sempre.
     mockMfaService.isEnabled.mockResolvedValue(false);
     mockMfaService.roleRequiresMfa.mockResolvedValue(false);
@@ -346,6 +348,49 @@ describe('AuthService', () => {
 
       await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
       expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+    });
+
+    it('#750: refresh com mustChangePassword=true é NEGADO — revoga refresh + sessões e não emite token', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', iat: 1, exp: 2 });
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('t'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, mustChangePassword: true });
+      mockPrisma.refreshToken.update.mockResolvedValue({});
+
+      await expect(service.refresh('t')).rejects.toThrow(
+        'Troca de senha obrigatória. Faça login novamente.',
+      );
+      // O refresh apresentado morre (não pode ser reapresentado)...
+      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rt-1' }, data: { revokedAt: expect.any(Date) } }),
+      );
+      // ...as sessões restantes do ALVO caem (SECURITY → denylist)...
+      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith('user-1', 'SECURITY');
+      // ...e NENHUM token novo é emitido.
+      expect(mockJwt.sign).not.toHaveBeenCalled();
+      expect(mockPrisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('#750: falha na revogação de sessões não muda a resposta — refresh segue negado sem token novo', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', iat: 1, exp: 2 });
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('t'),
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, mustChangePassword: true });
+      mockPrisma.refreshToken.update.mockResolvedValue({});
+      mockSessionService.revokeAllSessions.mockRejectedValueOnce(new Error('redis fora'));
+
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      expect(mockJwt.sign).not.toHaveBeenCalled();
     });
 
     it('should accept legacy refresh token WITHOUT session (transição M4, #342)', async () => {

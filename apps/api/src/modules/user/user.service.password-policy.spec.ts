@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
@@ -27,6 +27,10 @@ const mockPasswordPolicy = {
   getPolicy: jest.fn(),
 };
 
+const mockSessionService = {
+  revokeAllSessions: jest.fn(),
+};
+
 const createdUser = {
   id: 'user-novo',
   name: 'João Silva',
@@ -48,12 +52,13 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         UserService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
-        { provide: SessionService, useValue: { revokeAllSessions: jest.fn().mockResolvedValue(0) } },
+        { provide: SessionService, useValue: mockSessionService },
       ],
     }).compile();
 
     service = module.get(UserService);
     jest.clearAllMocks();
+    mockSessionService.revokeAllSessions.mockResolvedValue(0);
     mockPasswordPolicy.validateComplexity.mockReturnValue(undefined);
     mockPasswordPolicy.assertNotReused.mockResolvedValue(undefined);
     mockPasswordPolicy.recordPasswordChange.mockResolvedValue(undefined);
@@ -213,6 +218,99 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       const data = mockPrisma.user.update.mock.calls[0][0].data;
       expect(data).not.toHaveProperty('passwordHash');
       expect(data).not.toHaveProperty('passwordChangedAt');
+    });
+  });
+
+  // ─── #750: reset por admin revoga as sessões do ALVO ─────────────────────
+  describe('update (reset de senha pelo admin) — revogação de sessões (#750)', () => {
+    it('revoga TODAS as sessões do usuário-alvo com reason SECURITY (nunca as do ator)', async () => {
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+
+      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledTimes(1);
+      // Alvo = usuário redefinido; SEM exceptSessionId (todas caem, denylist
+      // mata os access tokens). O ator ('admin-1') nunca entra aqui.
+      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith('user-novo', 'SECURITY');
+    });
+
+    it('update SEM senha não revoga sessão nenhuma', async () => {
+      await service.update('user-novo', { name: 'Novo Nome' } as any, 'company-1', 'admin-1');
+
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('senha fora da política → nada persiste e nada é revogado', async () => {
+      mockPasswordPolicy.validateComplexity.mockImplementation(() => {
+        throw new BadRequestException(['A senha deve ter no mínimo 10 caracteres.']);
+      });
+
+      await expect(
+        service.update('user-novo', { password: 'fraca' } as any, 'company-1', 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('usuário de outra empresa → NotFound, sem troca e sem revogação', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null); // findOne escopado por companyId
+
+      await expect(
+        service.update('user-outra-cia', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('falha na revogação segue a política do #744: troca NÃO desfeita, erro estruturado SEM a senha', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      mockSessionService.revokeAllSessions.mockRejectedValueOnce(new Error('redis fora'));
+
+      const result = await service.update(
+        'user-novo',
+        { password: 'NovaSenha#2026x' } as any,
+        'company-1',
+        'admin-1',
+      );
+
+      // A troca persiste e a chamada retorna sucesso (não há como "destrocar"
+      // com segurança; o refresh barrado por mustChangePassword limita o
+      // resíduo à vida do access token).
+      expect(result).toEqual(createdUser);
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+      // Log estruturado, nível error, com IDs técnicos — e NUNCA a senha.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = errorSpy.mock.calls[0][0] as string;
+      expect(logged).toContain('user_password_reset_session_revoke_failed');
+      expect(logged).toContain('user-novo');
+      expect(logged).toContain('admin-1');
+      expect(logged).not.toContain('NovaSenha#2026x');
+      errorSpy.mockRestore();
+    });
+
+    it('reset em usuário inativo não reativa (payload não toca isActive)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...createdUser, isActive: false });
+
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+
+      const data = mockPrisma.user.update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('isActive');
+    });
+
+    it('nenhuma senha em claro chega ao banco nem aos logs no caminho feliz', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+
+      // Banco recebe HASH (nunca o texto puro).
+      const data = mockPrisma.user.update.mock.calls[0][0].data;
+      expect(data.passwordHash).toBeDefined();
+      expect(data.passwordHash).not.toBe('NovaSenha#2026x');
+      expect(data).not.toHaveProperty('password');
+      // Nenhum log no caminho feliz — muito menos com a senha.
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 });
