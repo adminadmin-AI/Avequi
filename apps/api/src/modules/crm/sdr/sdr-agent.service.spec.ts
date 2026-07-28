@@ -127,6 +127,37 @@ describe('SdrAgentService (F4 #521/#523)', () => {
       await service.onLeadCreated({ leadId: LEAD, companyId: COMPANY, source: 'META_ADS' });
       expect(mockCreate).not.toHaveBeenCalled();
     });
+
+    it('voice note transcrita (F1 #506/#567) entra no histórico como texto do cliente', async () => {
+      prisma.lead.findFirst.mockResolvedValue(
+        leadRow({
+          conversation: {
+            id: 'conv-1',
+            windowExpiresAt: new Date(Date.now() + 3600_000),
+            messages: [
+              {
+                direction: 'IN',
+                type: 'AUDIO',
+                text: '[áudio transcrito] tem reboque pra 2 jet skis?',
+                sentById: null,
+              },
+            ],
+          },
+        }),
+      );
+      mockCreate.mockResolvedValue(apiText('Temos sim! De qual cidade você fala?'));
+
+      await service.onMessageReceived({ leadId: LEAD, companyId: COMPANY });
+
+      // o texto transcrito chega ao modelo como mensagem do cliente (role user)
+      const req = mockCreate.mock.calls[0][0];
+      const lastUser = req.messages[req.messages.length - 1];
+      const asText = JSON.stringify(lastUser.content);
+      expect(lastUser.role).toBe('user');
+      expect(asText).toContain('[áudio transcrito] tem reboque pra 2 jet skis?');
+      // e o SDR respondeu normalmente (não caiu no handoff de "não vejo áudio")
+      expect(whatsapp.send).toHaveBeenCalled();
+    });
   });
 
   describe('elegibilidade e kill switch (#523)', () => {

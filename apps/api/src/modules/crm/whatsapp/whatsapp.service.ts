@@ -177,8 +177,21 @@ export class WhatsappService {
     });
     if (!message?.waMediaId) throw new NotFoundException('Mensagem sem mídia');
 
+    const { data, mimeType } = await this.downloadMediaById(message.waMediaId);
+    return {
+      data,
+      mimeType: message.mediaMimeType ?? mimeType,
+    };
+  }
+
+  /**
+   * Baixa a mídia da Meta por media id (2 passos: metadata → URL assinada).
+   * Usado pelo proxy fetchMedia e pela transcrição de áudio inbound (F1 voz
+   * #506/#567), que ainda não tem registro de mensagem no momento do download.
+   */
+  async downloadMediaById(mediaId: string): Promise<{ data: Buffer; mimeType: string }> {
     const meta = await firstValueFrom(
-      this.http.get(`${this.graphBase()}/${message.waMediaId}`, {
+      this.http.get(`${this.graphBase()}/${mediaId}`, {
         headers: { Authorization: `Bearer ${this.accessToken()}` },
       }),
     );
@@ -190,7 +203,7 @@ export class WhatsappService {
     );
     return {
       data: Buffer.from(binary.data),
-      mimeType: message.mediaMimeType ?? meta.data.mime_type ?? 'application/octet-stream',
+      mimeType: meta.data.mime_type ?? 'application/octet-stream',
     };
   }
 

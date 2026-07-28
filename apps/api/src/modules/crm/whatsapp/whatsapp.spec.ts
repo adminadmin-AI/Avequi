@@ -11,6 +11,7 @@ import { LeadIntakeService } from '../lead-intake.service';
 import { WhatsappWebhookProcessor } from './whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp.controller';
 import { WhatsappService } from './whatsapp.service';
+import { TranscriptionService } from './transcription.service';
 import { WHATSAPP_QUEUE } from './whatsapp.types';
 import { getQueueToken } from '@nestjs/bull';
 import { webmOpusToOgg } from './audio.util';
@@ -69,6 +70,20 @@ describe('WhatsappWebhookProcessor', () => {
   let prisma: any;
   let intake: { intake: jest.Mock };
   let events: { emit: jest.Mock };
+  let whatsapp: { downloadMediaById: jest.Mock };
+  let transcription: { isEnabled: jest.Mock; transcribe: jest.Mock };
+
+  const audioBody = () =>
+    inboundBody({
+      messages: [
+        {
+          id: 'wamid.audio1',
+          from: '5545999998888',
+          type: 'audio',
+          audio: { id: 'media-123', mime_type: 'audio/ogg', voice: true },
+        },
+      ],
+    });
 
   beforeEach(async () => {
     prisma = {
@@ -90,6 +105,9 @@ describe('WhatsappWebhookProcessor', () => {
       }),
     };
     events = { emit: jest.fn() };
+    whatsapp = { downloadMediaById: jest.fn() };
+    // default DESLIGADO: mantém os testes que não são de voz com o fluxo antigo
+    transcription = { isEnabled: jest.fn().mockReturnValue(false), transcribe: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -97,6 +115,8 @@ describe('WhatsappWebhookProcessor', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: LeadIntakeService, useValue: intake },
         { provide: EventEmitter2, useValue: events },
+        { provide: WhatsappService, useValue: whatsapp },
+        { provide: TranscriptionService, useValue: transcription },
       ],
     }).compile();
     processor = module.get(WhatsappWebhookProcessor);
@@ -168,20 +188,74 @@ describe('WhatsappWebhookProcessor', () => {
   });
 
   it('mídia recebida guarda waMediaId p/ o proxy sob demanda', async () => {
-    const body = inboundBody({
-      messages: [
-        {
-          id: 'wamid.audio1',
-          from: '5545999998888',
-          type: 'audio',
-          audio: { id: 'media-123', mime_type: 'audio/ogg', voice: true },
-        },
-      ],
-    });
-    await processor.handleInbound({ data: { body } } as any);
+    await processor.handleInbound({ data: { body: audioBody() } } as any);
     const data = prisma.whatsappMessage.create.mock.calls[0][0].data;
     expect(data.waMediaId).toBe('media-123');
     expect(data.type).toBe('AUDIO');
+  });
+
+  describe('transcrição de áudio inbound (F1 voz #506/#567)', () => {
+    it('STT ativo → baixa a mídia, transcreve e persiste "[áudio transcrito] ..." no texto', async () => {
+      transcription.isEnabled.mockReturnValue(true);
+      whatsapp.downloadMediaById.mockResolvedValue({
+        data: Buffer.from('ogg-bytes'),
+        mimeType: 'audio/ogg',
+      });
+      transcription.transcribe.mockResolvedValue('quero um reboque pra jet ski');
+
+      await processor.handleInbound({ data: { body: audioBody() } } as any);
+
+      expect(whatsapp.downloadMediaById).toHaveBeenCalledWith('media-123');
+      expect(transcription.transcribe).toHaveBeenCalledWith(expect.any(Buffer), 'audio/ogg');
+      const data = prisma.whatsappMessage.create.mock.calls[0][0].data;
+      expect(data.text).toBe('[áudio transcrito] quero um reboque pra jet ski');
+      expect(data.type).toBe('AUDIO');
+      // o SDR (message_received) responde a partir da transcrição já persistida
+      expect(events.emit).toHaveBeenCalledWith(
+        'crm.whatsapp.message_received',
+        expect.objectContaining({ leadId: 'lead-1' }),
+      );
+    });
+
+    it('sem OPENAI_API_KEY (STT off) → nem baixa mídia; mensagem persiste sem transcript', async () => {
+      transcription.isEnabled.mockReturnValue(false);
+      await processor.handleInbound({ data: { body: audioBody() } } as any);
+
+      expect(whatsapp.downloadMediaById).not.toHaveBeenCalled();
+      expect(transcription.transcribe).not.toHaveBeenCalled();
+      const data = prisma.whatsappMessage.create.mock.calls[0][0].data;
+      expect(data.text).toBeNull();
+      expect(data.waMediaId).toBe('media-123');
+    });
+
+    it('transcrição retorna null (falha da API/limite) → mensagem persiste sem transcript', async () => {
+      transcription.isEnabled.mockReturnValue(true);
+      whatsapp.downloadMediaById.mockResolvedValue({ data: Buffer.from('x'), mimeType: 'audio/ogg' });
+      transcription.transcribe.mockResolvedValue(null);
+
+      await processor.handleInbound({ data: { body: audioBody() } } as any);
+
+      const data = prisma.whatsappMessage.create.mock.calls[0][0].data;
+      expect(data.text).toBeNull();
+      expect(data.waMediaId).toBe('media-123');
+      // fluxo do webhook segue: evento emitido normalmente (SDR faz o handoff)
+      expect(events.emit).toHaveBeenCalledWith(
+        'crm.whatsapp.message_received',
+        expect.objectContaining({ leadId: 'lead-1' }),
+      );
+    });
+
+    it('download da mídia falha → não quebra o webhook; mensagem persiste sem transcript', async () => {
+      transcription.isEnabled.mockReturnValue(true);
+      whatsapp.downloadMediaById.mockRejectedValue(new Error('Meta 404 media expired'));
+
+      await processor.handleInbound({ data: { body: audioBody() } } as any);
+
+      expect(transcription.transcribe).not.toHaveBeenCalled();
+      const data = prisma.whatsappMessage.create.mock.calls[0][0].data;
+      expect(data.text).toBeNull();
+      expect(prisma.whatsappMessage.create).toHaveBeenCalled();
+    });
   });
 });
 
