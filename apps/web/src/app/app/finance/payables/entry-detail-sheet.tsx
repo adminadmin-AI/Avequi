@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialCategory, FinancialEntry } from '@/types/api';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import {
   Sheet,
   SheetContent,
@@ -55,10 +56,33 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const DASH = <span className="text-content-muted">—</span>;
 
+/** Valor copiável (chave PIX, código de barras…): mostra + botão 📋. */
+function Copyable({ value, copied }: { value: string; copied: (v: string) => void }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5">
+      <span className="break-all font-mono text-xs">{value}</span>
+      <button
+        type="button"
+        title="Copiar"
+        onClick={() => copied(value)}
+        className="shrink-0 rounded-md p-1 text-content-muted transition-colors hover:bg-neutral-100 hover:text-brand-600 dark:hover:bg-neutral-800 dark:hover:text-brand-400"
+      >
+        <Copy size={13} />
+      </button>
+    </span>
+  );
+}
+
 export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
+  const toast = useToast();
   // Árvore de categorias p/ resolver o nome (o GET /finance não inclui a
   // relação; react-query deduplica com o fetch do Novo Lançamento).
   const { data: catRoots = [] } = useList<FinancialCategory>('/finance/categories');
+
+  function copy(v: string) {
+    navigator.clipboard?.writeText(v);
+    toast.success('Copiado');
+  }
 
   if (!entry) return null;
 
@@ -127,6 +151,37 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
                 DASH
               )}
             </Row>
+          </Section>
+
+          <Section title="Dados de pagamento">
+            <Row label="Chave PIX">
+              {supplier?.pixKey ? (
+                <Copyable value={supplier.pixKey} copied={copy} />
+              ) : supplier ? (
+                <Link
+                  href="/app/suppliers"
+                  className="text-xs text-brand-600 hover:underline dark:text-brand-400"
+                  title="A chave fica no cadastro do fornecedor e aparece em todas as contas dele"
+                >
+                  cadastrar no fornecedor
+                </Link>
+              ) : (
+                DASH
+              )}
+            </Row>
+            <Row label="Banco">
+              {supplier?.bankName ? (
+                <span>
+                  {supplier.bankName}
+                  {supplier.bankAgency && ` · ag. ${supplier.bankAgency}`}
+                  {supplier.bankAccount && ` · cc. ${supplier.bankAccount}`}
+                </span>
+              ) : (
+                DASH
+              )}
+            </Row>
+            <Row label="Boleto (código de barras)">{DASH /* Fase 2 — por conta */}</Row>
+            <Row label="PIX Copia e Cola desta conta">{DASH /* Fase 2 — por conta */}</Row>
           </Section>
 
           <Section title="Classificação">
