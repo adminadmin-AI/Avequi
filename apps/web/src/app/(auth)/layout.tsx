@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { AuthBackdrop } from '@/components/auth/auth-backdrop';
 
 export const metadata: Metadata = {
-  title: 'Entrar — Avecchi',
+  // o template do layout raiz ('%s — Avecchi') já anexa a marca
+  title: 'Entrar',
   description:
     'Acesse o Avecchi Industrial ERP — produção, estoque, compras, PCP, fiscal e financeiro em uma única plataforma.',
 };
