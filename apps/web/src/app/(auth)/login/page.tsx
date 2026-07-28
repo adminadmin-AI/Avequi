@@ -77,7 +77,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       {/* ─── Painel institucional (esquerda) — continuação da landing ─── */}
-      <aside className="relative hidden w-[52%] flex-col justify-between border-r border-white/[0.06] p-12 lg:flex xl:p-16">
+      <aside className="relative hidden w-[52%] flex-col justify-between p-12 lg:flex xl:p-16">
         {/* Topo: wordmark oficial com glow respirando atrás (o A é o símbolo da marca) */}
         <div className="relative w-fit duration-deliberate animate-in fade-in slide-in-from-top-2">
           <div
