@@ -13,7 +13,7 @@ export function AuthBackdrop() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-0 z-0 animate-in fade-in duration-deliberate"
+      className="pointer-events-none absolute inset-0"
     >
       {/* Glows do hero do brandbook, rebaixados para o preto absoluto */}
       <div

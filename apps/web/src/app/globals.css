@@ -167,3 +167,35 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Telas de auth: cena viva (continuação da landing) ───
+   Só transform + opacity — o bloco prefers-reduced-motion acima
+   já desliga tudo para quem pediu menos movimento. */
+@keyframes avecchi-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.9;
+  }
+}
+.animate-avecchi-breathe {
+  animation: avecchi-breathe 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes avecchi-shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.af-line {
+  animation: avecchi-shimmer 14s ease-in-out infinite;
+}

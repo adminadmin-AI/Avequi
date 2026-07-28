@@ -12,18 +12,6 @@ import { Label } from '@/components/ui/label';
 
 const REMEMBER_KEY = 'avequi:remember-email';
 
-/** Módulos exibidos no painel institucional — mesmo vocabulário do letreiro da landing. */
-const MODULES = [
-  'Produção',
-  'PCP',
-  'MRP',
-  'Compras',
-  'Estoque',
-  'Financeiro',
-  'Chassis',
-  'Fiscal',
-] as const;
-
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
@@ -90,45 +78,43 @@ export default function LoginPage() {
     <div className="flex min-h-screen">
       {/* ─── Painel institucional (esquerda) — continuação da landing ─── */}
       <aside className="relative hidden w-[52%] flex-col justify-between border-r border-white/[0.06] p-12 lg:flex xl:p-16">
-        {/* Topo: wordmark oficial (o A é o símbolo da marca, como na landing) */}
-        <div className="duration-deliberate animate-in fade-in slide-in-from-top-2">
-          <AvecchiWordmark className="text-[26px]" />
-          <p className="mt-2.5 font-mono text-[11px] font-medium uppercase tracking-[0.32em] text-white/40">
-            Industrial ERP
-          </p>
+        {/* Topo: wordmark oficial com glow respirando atrás (o A é o símbolo da marca) */}
+        <div className="relative w-fit duration-deliberate animate-in fade-in slide-in-from-top-2">
+          <div
+            aria-hidden
+            className="animate-avecchi-breathe absolute -inset-x-14 -inset-y-8 rounded-full blur-2xl"
+            style={{
+              background:
+                'radial-gradient(ellipse 70% 80% at 40% 50%, rgba(61,44,230,0.30) 0%, rgba(0,194,168,0.06) 60%, transparent 100%)',
+            }}
+          />
+          <AvecchiWordmark className="relative text-[26px]" />
         </div>
 
-        {/* Centro: assinatura da marca + módulos */}
-        <div className="space-y-9">
-          <div
-            className="space-y-4 duration-deliberate animate-in fade-in slide-in-from-bottom-3"
+        {/* Centro: a marca, não as features — hierarquia com bastante respiro */}
+        <div className="space-y-10">
+          <h2
+            className="max-w-[24rem] text-[34px] font-semibold leading-[1.18] tracking-tight text-white duration-deliberate animate-in fade-in slide-in-from-bottom-3"
             style={{ animationDelay: '120ms', animationFillMode: 'backwards' }}
           >
-            <h2 className="max-w-md text-[32px] font-semibold leading-[1.15] tracking-tight text-white">
-              Controle total.
-              <br />
-              Decisões instantâneas.
-            </h2>
-            <p className="max-w-md text-[15px] font-light leading-relaxed text-white/55">
-              Conectando produção, estoque, compras, PCP, fiscal e financeiro em
-              uma única plataforma.
-            </p>
-          </div>
+            Conectando pessoas, processos e resultados.
+          </h2>
 
-          <ul className="grid max-w-sm grid-cols-2 gap-x-10 gap-y-3">
-            {MODULES.map((label, i) => (
-              <li
-                key={label}
-                className="flex items-center gap-2.5 font-mono text-[12px] uppercase tracking-[0.1em] text-white/50 duration-deliberate animate-in fade-in slide-in-from-bottom-2"
-                style={{ animationDelay: `${260 + i * 60}ms`, animationFillMode: 'backwards' }}
+          <div className="space-y-2.5 text-[17px] font-light leading-snug">
+            {[
+              ['Mais controle.', 'text-white/45'],
+              ['Menos complexidade.', 'text-white/45'],
+              ['Mais crescimento.', 'text-white/85'],
+            ].map(([line, tone], i) => (
+              <p
+                key={line}
+                className={`${tone} duration-deliberate animate-in fade-in slide-in-from-bottom-2`}
+                style={{ animationDelay: `${340 + i * 140}ms`, animationFillMode: 'backwards' }}
               >
-                <span aria-hidden className="text-[13px] leading-none text-[#00C2A8]">
-                  ✓
-                </span>
-                {label}
-              </li>
+                {line}
+              </p>
             ))}
-          </ul>
+          </div>
         </div>
 
         {/* Rodapé */}
@@ -147,20 +133,30 @@ export default function LoginPage() {
       <main className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-[400px]">
           {/* Marca no mobile/tablet (o painel institucional está oculto) */}
-          <div className="mb-10 flex flex-col items-center gap-2.5 duration-deliberate animate-in fade-in slide-in-from-top-2 lg:hidden">
-            <AvecchiWordmark className="text-[24px]" />
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.32em] text-white/40">
-              Industrial ERP
-            </p>
+          <div className="relative mx-auto mb-10 w-fit duration-deliberate animate-in fade-in slide-in-from-top-2 lg:hidden">
+            <div
+              aria-hidden
+              className="animate-avecchi-breathe absolute -inset-x-12 -inset-y-7 rounded-full blur-2xl"
+              style={{
+                background:
+                  'radial-gradient(ellipse 70% 80% at 50% 50%, rgba(61,44,230,0.30) 0%, rgba(0,194,168,0.06) 60%, transparent 100%)',
+              }}
+            />
+            <AvecchiWordmark className="relative text-[24px]" />
           </div>
 
           <div
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+            className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
             style={{
               boxShadow:
                 '0 0 40px rgba(61,44,230,0.10), 0 0 90px rgba(61,44,230,0.05), 0 12px 40px rgba(0,0,0,0.55)',
             }}
           >
+            {/* fio de luz no topo do card — detalhe de profundidade */}
+            <div
+              aria-hidden
+              className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+            />
             <div className="mb-7">
               <h1 className="text-[22px] font-semibold tracking-tight text-white">
                 Bem-vindo de volta
