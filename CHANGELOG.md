@@ -8,7 +8,9 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [1.21.0] - 2026-07-28
 
-_Sem itens listados — edite antes de taggear._
+### Added
+- feat(crm): resumo IA da conversa no takeover — `POST /crm/leads/:id/summarize` (`claude-haiku-4-5`, prompt próprio), nota destacada `conversation_summary` na timeline com chips dos dados descobertos, custo em `SdrUsage`, botão "Resumir conversa" + disparo automático ao assumir a conversa; sem `ANTHROPIC_API_KEY` o botão some (#573 — PR #798)
+- feat(crm): transcrição de áudio inbound do WhatsApp (F1 voz do SDR) — voice note do lead vira `[áudio transcrito] ...` na conversa e o SDR responde normalmente; STT OpenAI (`gpt-4o-mini-transcribe`, override `CRM_STT_MODEL`), fail-safe sem `OPENAI_API_KEY` (comportamento atual preservado), cap 20MB, gate de evals do prompt #525 aprovado (27/30, críticos 100%) (PR #797 — refs #506/#567)
 
 ## [1.20.0] - 2026-07-27
 
