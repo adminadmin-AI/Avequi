@@ -9,7 +9,7 @@ import {
   readPendingPasswordChange,
   type PendingPasswordChange,
 } from '@/lib/password-change';
-import { BrandMark } from '@/components/brand-mark';
+import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { PasswordChangeForm } from '@/components/password/password-change-form';
 
 /**
@@ -58,43 +58,55 @@ export default function ChangePasswordPage() {
   if (!checked || !pending) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-secondary px-6 py-10">
-      <div className="w-full max-w-sm duration-deliberate animate-in fade-in slide-in-from-bottom-2">
-        <div className="mb-8 flex items-center gap-2.5">
-          <BrandMark size={28} />
-          <span className="text-title font-semibold tracking-tight text-content">Avequi</span>
-        </div>
-
-        <div className="mb-6">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-600/15 dark:text-brand-300">
-            <KeyRound size={20} />
-          </div>
-          <h1 className="text-heading text-content">Defina sua nova senha</h1>
-          <p className="mt-1 text-body text-content-secondary">
-            {pending.passwordExpired
-              ? 'Sua senha venceu. Escolha uma nova para continuar.'
-              : 'Este é seu primeiro acesso. Escolha uma senha só sua para continuar.'}
+    <div className="flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-10 flex flex-col items-center gap-2.5 duration-deliberate animate-in fade-in slide-in-from-top-2">
+          <AvecchiWordmark className="text-[24px]" />
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.32em] text-white/40">
+            Industrial ERP
           </p>
         </div>
 
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-caption text-warning-800 dark:border-warning-900 dark:bg-warning-900/20 dark:text-warning-300">
-          <AlertCircle size={16} className="mt-px shrink-0" />
-          <span>
-            Você tem 10 minutos para concluir. Se expirar, é só fazer login de novo com a senha
-            provisória.
-          </span>
-        </div>
-
-        <PasswordChangeForm
-          mode="forced"
-          passwordChangeToken={pending.passwordChangeToken}
-          submitLabel="Definir senha e entrar"
-          onSuccess={handleSuccess}
-          onRestrictedTokenRejected={() => {
-            clearPendingPasswordChange(window.sessionStorage);
-            router.replace('/login?reason=password-change-expired');
+        <div
+          className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+          style={{
+            boxShadow:
+              '0 0 40px rgba(61,44,230,0.10), 0 0 90px rgba(61,44,230,0.05), 0 12px 40px rgba(0,0,0,0.55)',
           }}
-        />
+        >
+          <div className="mb-6">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#3D2CE6]/20 text-[#818CF8]">
+              <KeyRound size={20} />
+            </div>
+            <h1 className="text-[22px] font-semibold tracking-tight text-white">
+              Defina sua nova senha
+            </h1>
+            <p className="mt-1.5 text-sm font-light text-white/55">
+              {pending.passwordExpired
+                ? 'Sua senha venceu. Escolha uma nova para continuar.'
+                : 'Este é seu primeiro acesso. Escolha uma senha só sua para continuar.'}
+            </p>
+          </div>
+
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-[13px] text-amber-200">
+            <AlertCircle size={16} className="mt-px shrink-0" />
+            <span>
+              Você tem 10 minutos para concluir. Se expirar, é só fazer login de novo com a senha
+              provisória.
+            </span>
+          </div>
+
+          <PasswordChangeForm
+            mode="forced"
+            passwordChangeToken={pending.passwordChangeToken}
+            submitLabel="Definir senha e entrar"
+            onSuccess={handleSuccess}
+            onRestrictedTokenRejected={() => {
+              clearPendingPasswordChange(window.sessionStorage);
+              router.replace('/login?reason=password-change-expired');
+            }}
+          />
+        </div>
       </div>
     </div>
   );

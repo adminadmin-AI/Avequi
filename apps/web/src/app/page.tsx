@@ -1,18 +1,22 @@
-import Link from 'next/link';
+'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/auth-store';
+
+/**
+ * Raiz do app (app.avecchi.ai/) — não existe home pública: quem já tem
+ * sessão segue para o app; quem não tem, para o login. A vitrine do
+ * produto é a landing (avecchi.ai).
+ */
 export default function HomePage() {
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-slate-900">GDR ERP</h1>
-        <p className="text-slate-500">Sistema de gestão integrada</p>
-        <Link
-          href="/login"
-          className="inline-block px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          Entrar no sistema
-        </Link>
-      </div>
-    </main>
-  );
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  useEffect(() => {
+    router.replace(isAuthenticated ? '/app' : '/login');
+  }, [router, isAuthenticated]);
+
+  // Fundo preto durante o replace — evita flash branco antes do login
+  return <div className="min-h-screen bg-black" aria-hidden />;
 }
