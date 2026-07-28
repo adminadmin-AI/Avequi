@@ -14,16 +14,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
 import { canEditEntry } from './editable';
-import { isPrevisaoOn, toDayStr } from './previsao';
+import { venceDate, previsaoDate, inRange, toDayStr } from './filters';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -123,26 +125,39 @@ export default function PayablesPage() {
   }, []);
 
   // ── Filtros ──
-  const [dueFrom, setDueFrom] = useState('');
-  const [dueTo, setDueTo] = useState('');
+  // Vencimento e Previsão como PERÍODO (um campo cada, calendário de 2 cliques).
+  const [dueRange, setDueRange] = useState<DateRange>();
+  const [prevRange, setPrevRange] = useState<DateRange>();
   const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
   const [supplierFilter, setSupplierFilter] = useState('');
-  const [previsaoFilter, setPrevisaoFilter] = useState<'' | 'today'>('');
 
   const todayStr = useMemo(() => toDayStr(today), [today]);
 
   const filtered = useMemo(() => {
+    const dueFrom = dateToISO(dueRange?.from);
+    const dueTo = dateToISO(dueRange?.to);
+    const prevFrom = dateToISO(prevRange?.from);
+    const prevTo = dateToISO(prevRange?.to);
     return entries.filter((e) => {
-      if (dueFrom && e.dueDate < dueFrom) return false;
-      if (dueTo && e.dueDate > dueTo + 'T23:59:59') return false;
+      if (!inRange(venceDate(e), dueFrom, dueTo)) return false;
+      if (!inRange(previsaoDate(e), prevFrom, prevTo)) return false;
       if (statusFilter && effectiveStatus(e, today) !== statusFilter) return false;
-      if (previsaoFilter === 'today' && !isPrevisaoOn(e, todayStr)) return false;
       if (supplierFilter) {
         if (!supplierName(e).toLowerCase().includes(supplierFilter.toLowerCase())) return false;
       }
       return true;
     });
-  }, [entries, dueFrom, dueTo, statusFilter, previsaoFilter, supplierFilter, today, todayStr]);
+  }, [entries, dueRange, prevRange, statusFilter, supplierFilter, today]);
+
+  // Atalhos "hoje": marcam o período do respectivo campo como [hoje, hoje].
+  const dueIsToday =
+    dateToISO(dueRange?.from) === todayStr && dateToISO(dueRange?.to) === todayStr;
+  const prevIsToday =
+    dateToISO(prevRange?.from) === todayStr && dateToISO(prevRange?.to) === todayStr;
+  const toggleDueToday = () =>
+    setDueRange(dueIsToday ? undefined : { from: today, to: today });
+  const togglePrevToday = () =>
+    setPrevRange(prevIsToday ? undefined : { from: today, to: today });
 
   // ── KPIs (refletem os filtros ativos; sem filtro = totais completos) ──
   const summary = useMemo(() => {
@@ -353,24 +368,24 @@ export default function PayablesPage() {
       </KpiGrid>
 
       {/* Filtros */}
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <Label>Vencimento de</Label>
-          <Input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} />
-        </div>
-        <div>
-          <Label>Vencimento até</Label>
-          <Input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} />
+          <Label>Vencimento</Label>
+          <DateRangePicker
+            value={dueRange}
+            onValueChange={setDueRange}
+            clearable
+            placeholder="Qualquer período"
+          />
         </div>
         <div>
           <Label>Previsão</Label>
-          <Select
-            value={previsaoFilter}
-            onChange={(e) => setPrevisaoFilter(e.target.value as '' | 'today')}
-          >
-            <option value="">Todas</option>
-            <option value="today">Previsão para hoje</option>
-          </Select>
+          <DateRangePicker
+            value={prevRange}
+            onValueChange={setPrevRange}
+            clearable
+            placeholder="Qualquer período"
+          />
         </div>
         <div>
           <Label>Status</Label>
@@ -394,6 +409,30 @@ export default function PayablesPage() {
             placeholder="Nome do fornecedor"
           />
         </div>
+      </div>
+
+      {/* Atalhos rápidos */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-content-muted">Atalhos:</span>
+        {[
+          { label: 'Vence hoje', active: dueIsToday, onClick: toggleDueToday },
+          { label: 'Previsão hoje', active: prevIsToday, onClick: togglePrevToday },
+        ].map((chip) => (
+          <button
+            key={chip.label}
+            type="button"
+            aria-pressed={chip.active}
+            onClick={chip.onClick}
+            className={cn(
+              'rounded-full border px-3 py-1 text-sm transition-colors',
+              chip.active
+                ? 'border-brand-600 bg-brand-600/10 text-brand-700 dark:border-brand-500 dark:text-brand-300'
+                : 'border-line text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
+            )}
+          >
+            {chip.label}
+          </button>
+        ))}
       </div>
 
       <DataTable
