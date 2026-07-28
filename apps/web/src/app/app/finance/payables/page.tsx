@@ -23,6 +23,7 @@ import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
 import { canEditEntry } from './editable';
+import { isPrevisaoOn, toDayStr } from './previsao';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
@@ -126,18 +127,22 @@ export default function PayablesPage() {
   const [dueTo, setDueTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
   const [supplierFilter, setSupplierFilter] = useState('');
+  const [previsaoFilter, setPrevisaoFilter] = useState<'' | 'today'>('');
+
+  const todayStr = useMemo(() => toDayStr(today), [today]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (dueFrom && e.dueDate < dueFrom) return false;
       if (dueTo && e.dueDate > dueTo + 'T23:59:59') return false;
       if (statusFilter && effectiveStatus(e, today) !== statusFilter) return false;
+      if (previsaoFilter === 'today' && !isPrevisaoOn(e, todayStr)) return false;
       if (supplierFilter) {
         if (!supplierName(e).toLowerCase().includes(supplierFilter.toLowerCase())) return false;
       }
       return true;
     });
-  }, [entries, dueFrom, dueTo, statusFilter, supplierFilter, today]);
+  }, [entries, dueFrom, dueTo, statusFilter, previsaoFilter, supplierFilter, today, todayStr]);
 
   // ── KPIs (refletem os filtros ativos; sem filtro = totais completos) ──
   const summary = useMemo(() => {
@@ -348,7 +353,7 @@ export default function PayablesPage() {
       </KpiGrid>
 
       {/* Filtros */}
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>Vencimento de</Label>
           <Input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} />
@@ -356,6 +361,16 @@ export default function PayablesPage() {
         <div>
           <Label>Vencimento até</Label>
           <Input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} />
+        </div>
+        <div>
+          <Label>Previsão</Label>
+          <Select
+            value={previsaoFilter}
+            onChange={(e) => setPrevisaoFilter(e.target.value as '' | 'today')}
+          >
+            <option value="">Todas</option>
+            <option value="today">Previsão para hoje</option>
+          </Select>
         </div>
         <div>
           <Label>Status</Label>
