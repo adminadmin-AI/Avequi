@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -23,6 +24,7 @@ describe('CrmService', () => {
         CrmService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: events },
+        { provide: ConfigService, useValue: { get: jest.fn(() => 'sk-ant-test') } },
       ],
     }).compile();
     service = module.get(CrmService);

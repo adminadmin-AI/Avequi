@@ -21,6 +21,7 @@ import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
 import { SdrDashboardService } from './sdr/sdr-dashboard.service';
 import { SdrToolsService } from './sdr/sdr-tools';
+import { LeadSummaryService } from './sdr/lead-summary.service';
 import { FollowupScheduler } from './followup.scheduler';
 import { SlaEscalationScheduler } from './sla-escalation.scheduler';
 import { LeadIntakeService } from './lead-intake.service';
@@ -67,6 +68,7 @@ import { SiteLeadController } from './connectors/site.controller';
     SdrAgentService,
     SdrDashboardService,
     SdrToolsService,
+    LeadSummaryService,
     FollowupScheduler,
     SlaEscalationScheduler,
     CrmListener,

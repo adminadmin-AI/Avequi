@@ -73,6 +73,8 @@ export interface LeadDetail {
   activities: LeadActivity[];
   /** #574 — nomes das lojas onde o mesmo telefone está em negociação */
   crossStoreStores?: string[];
+  /** #573 — IA de resumo disponível (ANTHROPIC_API_KEY configurada) */
+  aiSummaryAvailable?: boolean;
 }
 
 /** Lembrete de follow-up (F3.5-C5 #555) */
