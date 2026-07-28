@@ -72,16 +72,6 @@ export default function ChangePasswordPage() {
           <AvecchiWordmark className="relative text-[28px]" />
         </div>
 
-        <div className="relative">
-          {/* iluminação da região do formulário — destaca o card do fundo */}
-          <div
-            aria-hidden
-            className="absolute -inset-10 rounded-[40px] blur-2xl"
-            style={{
-              background:
-                'radial-gradient(ellipse at 50% 38%, rgba(129,140,248,0.13) 0%, rgba(61,44,230,0.05) 55%, transparent 78%)',
-            }}
-          />
         <div
           className="relative rounded-2xl border border-white/[0.12] bg-white/[0.055] p-8 backdrop-blur-xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
           style={{
@@ -126,7 +116,6 @@ export default function ChangePasswordPage() {
               router.replace('/login?reason=password-change-expired');
             }}
           />
-        </div>
         </div>
       </div>
     </div>
