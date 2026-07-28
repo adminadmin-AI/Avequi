@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, Star, X } from 'lucide-react';
 import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
-import { useNavAccess } from '@/hooks/use-permission';
+import { useNavAccess, usePermission } from '@/hooks/use-permission';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { useUiStore } from '@/stores/ui-store';
@@ -67,6 +68,7 @@ function SidebarInner({
 }) {
   const pathname = usePathname();
   const access = useNavAccess();
+  const { isLoading: permsLoading } = usePermission();
   const counts = useSidebarCounts();
   const companyName = useCurrentCompany();
 
@@ -220,8 +222,12 @@ function SidebarInner({
 
       {/* ─── Navegação ─── */}
       <nav className="avequi-scroll flex-1 space-y-4 overflow-y-auto px-3 py-3">
-        {/* Resultados de busca (agrupados por seção) */}
-        {searchResults ? (
+        {/* Esqueleto enquanto as permissões carregam — o nav é fail-closed
+            (#351) e sem isto o menu aparece "encolhido" por um instante */}
+        {permsLoading ? (
+          <NavSkeleton mini={mini} />
+        ) : /* Resultados de busca (agrupados por seção) */
+        searchResults ? (
           searchResults.length === 0 ? (
             <p className="px-3 py-2 text-caption text-content-muted">Nenhum item encontrado.</p>
           ) : (
@@ -427,5 +433,43 @@ function Highlighted({ text, term }: { text: string; term: string }) {
       </mark>
       {text.slice(idx + q.length)}
     </>
+  );
+}
+
+/**
+ * Esqueleto do menu durante o load de /auth/me/permissions — preserva o
+ * layout (sem CLS) e evita a impressão de "menu encolhido" do fail-closed.
+ * Larguras variadas imitam rótulos reais; o primitivo Skeleton já cuida de
+ * dark-mode e prefers-reduced-motion.
+ */
+function NavSkeleton({ mini }: { mini: boolean }) {
+  if (mini) {
+    return (
+      <div className="flex flex-col items-center gap-3 pt-1">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-6 w-6 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  const groups: string[][] = [
+    ['w-24', 'w-20', 'w-28', 'w-16'],
+    ['w-28', 'w-20', 'w-24'],
+    ['w-20', 'w-24', 'w-16', 'w-28'],
+  ];
+  return (
+    <div className="space-y-5 pt-1">
+      {groups.map((rows, g) => (
+        <div key={g} className="space-y-1.5">
+          <Skeleton className="ml-3 mb-2 h-3 w-20" />
+          {rows.map((w, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-3 py-1.5">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className={`h-3.5 ${w}`} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
