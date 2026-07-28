@@ -15,19 +15,29 @@ export function AuthBackdrop() {
       aria-hidden
       className="pointer-events-none absolute inset-0"
     >
-      {/* Glows do hero do brandbook, rebaixados para o preto absoluto */}
+      {/* Luz ambiente da esquerda — azul/violeta entrando pela lateral */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 80% 60% at 18% 42%, rgba(61,44,230,.13) 0%, transparent 55%)',
+            'radial-gradient(ellipse 75% 85% at 0% 45%, rgba(61,44,230,.20) 0%, rgba(129,140,248,.07) 45%, transparent 68%)',
         }}
       />
+      {/* Luz ambiente da direita — ciano/teal entrando pela lateral */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 70% 55% at 82% 82%, rgba(0,194,168,.06) 0%, transparent 50%)',
+            'radial-gradient(ellipse 65% 80% at 100% 55%, rgba(0,194,168,.13) 0%, rgba(0,194,168,.04) 45%, transparent 65%)',
+        }}
+      />
+      {/* Levantamento dos meios-tons — tira o preto absoluto do centro
+          sem fonte de luz identificável (violeta quase imperceptível) */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 70% at 52% 42%, rgba(129,140,248,.055) 0%, transparent 70%)',
         }}
       />
 
@@ -57,12 +67,13 @@ export function AuthBackdrop() {
         <line x1="860" y1="900" x2="1500" y2="260" stroke="rgba(0,194,168,0.045)" strokeWidth="1" />
       </svg>
 
-      {/* Vignette — mantém as bordas em preto absoluto */}
+      {/* Vignette suave — dá contraste centro↔borda sem voltar ao preto
+          absoluto (as luzes laterais continuam vazando por baixo) */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 90% 80% at 50% 50%, transparent 55%, rgba(0,0,0,.85) 100%)',
+            'radial-gradient(ellipse 95% 85% at 50% 48%, transparent 62%, rgba(0,0,0,.45) 100%)',
         }}
       />
     </div>
