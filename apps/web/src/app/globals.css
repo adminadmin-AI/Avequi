@@ -199,3 +199,78 @@ body {
 .af-line {
   animation: avecchi-shimmer 14s ease-in-out infinite;
 }
+
+/* ─── Wordmark animado do auth: revelação compacta da landing ───
+   A+I aparecem, VECCH nasce entre eles (grid 0fr→1fr + blur) e o A
+   cede o lugar ao símbolo oficial. Só a fila de auth usa. O bloco
+   global de reduced-motion zera as durações; os delays são zerados
+   logo abaixo para o estado final ser imediato. */
+.wm-anchor {
+  opacity: 0;
+  filter: blur(10px);
+  animation: wm-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+@keyframes wm-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.wm-letter {
+  display: inline-grid;
+  justify-items: center;
+  grid-template-columns: 0fr;
+  animation: wm-unfold 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes wm-unfold {
+  from {
+    grid-template-columns: 0fr;
+  }
+  to {
+    grid-template-columns: 1fr;
+  }
+}
+.wm-letter-inner {
+  min-width: 0;
+  white-space: nowrap;
+  opacity: 0;
+  filter: blur(8px);
+  animation: wm-reveal 0.55s ease-out forwards;
+}
+@keyframes wm-reveal {
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.wm-glyph {
+  animation: wm-fade-out 0.8s ease-out 1.9s forwards;
+}
+@keyframes wm-fade-out {
+  to {
+    opacity: 0;
+    filter: blur(7px);
+  }
+}
+.wm-mark {
+  opacity: 0;
+  filter: blur(7px);
+  transform: scale(0.96);
+  animation: wm-mark-in 0.8s ease-out 1.9s forwards;
+}
+@keyframes wm-mark-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wm-anchor,
+  .wm-letter,
+  .wm-letter-inner,
+  .wm-glyph,
+  .wm-mark {
+    animation-delay: 0ms !important;
+  }
+}
