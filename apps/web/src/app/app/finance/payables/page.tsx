@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, CalendarClock, ExternalLink, Ban, Pencil } from 'lucide-react';
+import { DollarSign, CalendarClock, Ban, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
@@ -26,17 +26,13 @@ import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
 import { canEditEntry } from './editable';
 import { venceDate, previsaoDate, inRange, toDayStr } from './filters';
+import { num, remainingOf } from './detail';
+import { EntryDetailSheet } from './entry-detail-sheet';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 const RESOURCE = '/finance';
 const OPEN_STATUSES: FinancialEntryStatus[] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
 
-function num(v: string | null | undefined): number {
-  return v ? Number(v) : 0;
-}
-function remainingOf(e: FinancialEntry): number {
-  return num(e.amount) - num(e.paidAmount);
-}
 function isOpen(e: FinancialEntry): boolean {
   return OPEN_STATUSES.includes(e.status);
 }
@@ -192,6 +188,7 @@ export default function PayablesPage() {
   // ── Ações ──
   const [payTarget, setPayTarget] = useState<FinancialEntry | null>(null);
   const [editTarget, setEditTarget] = useState<FinancialEntry | null>(null);
+  const [detailTarget, setDetailTarget] = useState<FinancialEntry | null>(null);
 
   function handlePay(values: PayFormValues) {
     if (!payTarget) return;
@@ -225,6 +222,9 @@ export default function PayablesPage() {
     {
       key: 'supplier',
       header: 'Fornecedor',
+      // Descrição e PO saíram da tabela (moram no painel de detalhe) — o
+      // accessor mantém a BUSCA cobrindo nome, CNPJ e descrição (OMIE#/doc).
+      accessor: (e) => `${supplierName(e)} ${supplierCnpj(e) ?? ''} ${e.description ?? ''}`,
       cell: (e) => {
         const cnpj = supplierCnpj(e);
         return (
@@ -243,11 +243,6 @@ export default function PayablesPage() {
           </div>
         );
       },
-    },
-    {
-      key: 'description',
-      header: 'Descrição',
-      cell: (e) => e.description || <span className="text-content-muted">—</span>,
     },
     {
       key: 'amount',
@@ -282,22 +277,6 @@ export default function PayablesPage() {
         const meta = STATUS_META[effectiveStatus(e, today)];
         return <Badge variant={meta.variant}>{meta.label}</Badge>;
       },
-    },
-    {
-      key: 'po',
-      header: 'PO vinculada',
-      cell: (e) =>
-        e.purchaseOrderId ? (
-          <Link
-            href={`/app/purchase/${e.purchaseOrderId}`}
-            onClick={(ev) => ev.stopPropagation()}
-            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
-          >
-            <ExternalLink size={13} /> Ver PO
-          </Link>
-        ) : (
-          <span className="text-content-muted">—</span>
-        ),
     },
     {
       key: 'actions',
@@ -451,6 +430,7 @@ export default function PayablesPage() {
         data={filtered}
         columns={columns}
         loading={isLoading}
+        onRowClick={setDetailTarget}
         searchPlaceholder="Buscar por descrição ou fornecedor..."
         emptyMessage="Nenhum pagável encontrado."
       />
@@ -474,6 +454,18 @@ export default function PayablesPage() {
       </FormDialog>
 
       <EditEntryDialog entry={editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
+
+      <EntryDetailSheet
+        entry={detailTarget}
+        onOpenChange={(o) => !o && setDetailTarget(null)}
+        statusBadge={
+          detailTarget &&
+          (() => {
+            const meta = STATUS_META[effectiveStatus(detailTarget, today)];
+            return <Badge variant={meta.variant}>{meta.label}</Badge>;
+          })()
+        }
+      />
     </div>
   );
 }

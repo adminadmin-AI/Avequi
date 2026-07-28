@@ -587,7 +587,9 @@ export interface FinancialEntry extends BaseEntity {
   purchaseOrderId?: string | null;
   supplierId?: string | null;
   categoryId?: string | null;
+  installmentNumber?: number | null; // nº da parcela no plano (#586)
   // Relações incluídas pelo GET /finance
+  fiscalDocument?: { id: string; chave?: string | null; status?: string } | null;
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   purchaseOrder?: {
     id: string;
