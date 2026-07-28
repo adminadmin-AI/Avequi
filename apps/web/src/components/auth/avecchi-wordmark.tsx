@@ -39,18 +39,22 @@ const markImg = (
 export function AvecchiWordmark({
   className,
   animated = false,
+  tone = 'dark',
 }: {
   className?: string;
   animated?: boolean;
+  /** 'dark': branco + glow (telas de auth). 'auto': segue o tema via text-content, sem glow (shell interno). */
+  tone?: 'dark' | 'auto';
 }) {
   const base = cn(
-    'inline-flex select-none font-bold leading-none tracking-[-0.02em] text-white',
+    'inline-flex select-none font-bold leading-none tracking-[-0.02em]',
+    tone === 'dark' ? 'text-white' : 'text-content',
     className,
   );
 
   if (!animated) {
     return (
-      <span role="img" aria-label="AVECCHI" className={base} style={{ textShadow: GLOW_SOFT }}>
+      <span role="img" aria-label="AVECCHI" className={base} style={tone === 'dark' ? { textShadow: GLOW_SOFT } : undefined}>
         <span aria-hidden className="relative inline-block">
           {/* o glifo invisível segura o layout; o símbolo ocupa o lugar do A */}
           <span className="opacity-0">A</span>
@@ -62,7 +66,7 @@ export function AvecchiWordmark({
   }
 
   return (
-    <span role="img" aria-label="AVECCHI" className={base} style={{ textShadow: GLOW_SOFT }}>
+    <span role="img" aria-label="AVECCHI" className={base} style={tone === 'dark' ? { textShadow: GLOW_SOFT } : undefined}>
       {/* O A encena como glifo e cede ao símbolo — o payoff da landing */}
       <span aria-hidden className="wm-anchor relative inline-block">
         <span className="wm-glyph inline-block">A</span>

@@ -9,12 +9,14 @@ import { useNavAccess } from '@/hooks/use-permission';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { useUiStore } from '@/stores/ui-store';
-import { BrandMark } from '@/components/brand-mark';
+import Image from 'next/image';
+import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { cn } from '@/lib/utils';
 
 const FAV_KEY = 'avequi:sidebar:favorites';
 const COLLAPSED_SECTIONS_KEY = 'avequi:sidebar:collapsed-sections';
-const APP_VERSION = 'v1.0';
+// #versioning — versão real do produto, injetada do package.json em build time
+const APP_VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}`;
 
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebarCollapsed, mobileNavOpen, setMobileNavOpen } =
@@ -139,9 +141,18 @@ function SidebarInner({
           mini ? 'justify-center px-2' : 'gap-2.5 px-4',
         )}
       >
-        <BrandMark size={26} />
-        {!mini && (
-          <span className="flex-1 text-base font-semibold tracking-tight text-content">Avequi</span>
+        {mini ? (
+          <Image
+            src="/brand/logo.png"
+            alt="Avecchi"
+            width={287}
+            height={299}
+            className="h-6 w-auto"
+          />
+        ) : (
+          <span className="flex flex-1 items-center">
+            <AvecchiWordmark tone="auto" className="text-[17px]" />
+          </span>
         )}
         {showClose ? (
           <button
@@ -316,7 +327,7 @@ function SidebarInner({
         ) : (
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-caption text-content-secondary" title={companyName ?? ''}>
-              {companyName ?? 'Avequi ERP'}
+              {companyName ?? 'Avecchi'}
             </span>
             <span className="shrink-0 text-helper text-content-muted">{APP_VERSION}</span>
           </div>
