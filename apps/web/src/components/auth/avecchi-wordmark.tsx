@@ -7,8 +7,11 @@ import { cn } from '@/lib/utils';
  * "assentado" (indigo carrega a luz, sopro de teal). O tamanho segue o
  * font-size do pai — dimensione com text-*.
  *
- * Números do posicionamento medidos do PNG na landing (o desenho ocupa
- * y 4–246 de 299px): h-[0.9em] + mt-[0.12em] apoiam a base na baseline.
+ * Posicionamento CALIBRADO POR MEDIÇÃO do render (Playwright dpr3 + PIL,
+ * corpo do símbolo vs cap/baseline do "V"): h-[0.9em] + mt-[0.36em] =
+ * base na baseline (delta 0px) e ápice no cap top. Os valores da landing
+ * (mt 0.12em) NÃO valem aqui — o contexto de linha difere. Se mexer,
+ * re-medir; não confiar em teoria de métricas de fonte.
  */
 const GLOW_SOFT =
   '0 0 22px rgba(255,255,255,0.12), 0 0 80px rgba(129,140,248,0.18), 0 0 150px rgba(61,44,230,0.12), 0 0 120px rgba(0,194,168,0.05)';
@@ -36,7 +39,7 @@ export function AvecchiWordmark({ className }: { className?: string }) {
             priority
             // max-w-none: o preflight põe max-width:100% em img e o container
             // flex tem a largura do "A" invisível — sem isto o símbolo espreme
-            className="mt-[0.12em] h-[0.9em] w-auto max-w-none shrink-0 translate-x-[0.03em]"
+            className="mt-[0.36em] h-[0.9em] w-auto max-w-none shrink-0 translate-x-[0.03em]"
           />
         </span>
       </span>

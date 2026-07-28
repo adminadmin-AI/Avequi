@@ -69,7 +69,7 @@ export default function ChangePasswordPage() {
                 'radial-gradient(ellipse 70% 80% at 50% 50%, rgba(61,44,230,0.30) 0%, rgba(0,194,168,0.06) 60%, transparent 100%)',
             }}
           />
-          <AvecchiWordmark className="relative text-[24px]" />
+          <AvecchiWordmark className="relative text-[28px]" />
         </div>
 
         <div
