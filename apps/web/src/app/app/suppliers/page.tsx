@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, Pencil, Power, Handshake } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
@@ -36,6 +37,21 @@ export default function SuppliersPage() {
     setEditing(s);
     setDialogOpen(true);
   }
+
+  // Deep-link `?edit=<id>`: abre direto a edição do fornecedor — usado pelo
+  // detalhe de Contas a Pagar ("cadastrar no fornecedor" da chave PIX), sem
+  // fazer o usuário procurar na lista. Dispara uma única vez por carga.
+  const searchParams = useSearchParams();
+  const editParam = searchParams.get('edit');
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (deepLinked.current || !editParam || !suppliers.length) return;
+    const target = suppliers.find((s) => s.id === editParam);
+    if (target) {
+      deepLinked.current = true;
+      openEdit(target);
+    }
+  }, [editParam, suppliers]);
 
   function handleSubmit(values: SupplierFormValues) {
     const payload = {
