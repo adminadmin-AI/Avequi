@@ -595,12 +595,19 @@ export interface FinancialEntry extends BaseEntity {
     id: string;
     status?: PurchaseOrderStatus;
     approvedAt?: string | null;
-    supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
+    supplier?: EntrySupplier | null;
   } | null;
   // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie)
-  // cnpj já vem do GET /finance (include supplier: true) — exibido na tela.
-  supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
+  // O GET /finance faz include supplier: true (objeto completo); o Pick lista o
+  // que a tela consome: cnpj na coluna, PIX/banco no painel de detalhe.
+  supplier?: EntrySupplier | null;
 }
+
+/** Fatia do Supplier consumida pela Carteira de Pagáveis. */
+export type EntrySupplier = Pick<
+  Supplier,
+  'id' | 'name' | 'cnpj' | 'pixKey' | 'bankName' | 'bankAgency' | 'bankAccount'
+>;
 
 export interface FinancialCategory extends BaseEntity {
   companyId: string;
