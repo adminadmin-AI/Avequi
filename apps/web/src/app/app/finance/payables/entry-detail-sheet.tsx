@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { Copy, ExternalLink } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
-import type { FinancialCategory, FinancialEntry } from '@/types/api';
+import type { EntryHistory, FinancialCategory, FinancialEntry } from '@/types/api';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -15,7 +17,15 @@ import {
   SheetBody,
 } from '@/components/ui/sheet';
 import { formatBRL, formatDate, formatDateTime, formatCpfCnpj, formatChaveNFe } from '@/lib/format';
-import { num, remainingOf, sourceLabel, findCategoryName } from './detail';
+import {
+  num,
+  remainingOf,
+  sourceLabel,
+  findCategoryName,
+  paymentMethodLabel,
+  actionLabel,
+  changedFieldsSummary,
+} from './detail';
 
 /**
  * Painel de detalhe do título (Fase 1 do mestre-detalhe da Carteira de
@@ -75,9 +85,19 @@ function Copyable({ value, copied }: { value: string; copied: (v: string) => voi
 
 export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
   const toast = useToast();
-  // Árvore de categorias p/ resolver o nome (o GET /finance não inclui a
-  // relação; react-query deduplica com o fetch do Novo Lançamento).
+  // Árvore de categorias: fallback p/ resolver o nome enquanto a API em prod
+  // não devolve a relação `category` (deploy da Fase 2).
   const { data: catRoots = [] } = useList<FinancialCategory>('/finance/categories');
+
+  // Fase 2 — timeline "quem fez o quê" (só busca com o painel aberto; 404 do
+  // backend antigo cai no catch do apiClient → seção degrada p/ "criado em").
+  const history = useQuery({
+    queryKey: ['/finance/entries', entry?.id, 'history'],
+    queryFn: async () =>
+      (await apiClient.get<EntryHistory>(`/finance/entries/${entry!.id}/history`)).data,
+    enabled: !!entry,
+    retry: false,
+  });
 
   function copy(v: string) {
     navigator.clipboard?.writeText(v);
@@ -87,7 +107,8 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
   if (!entry) return null;
 
   const supplier = entry.supplier ?? entry.purchaseOrder?.supplier ?? null;
-  const catName = findCategoryName(catRoots, entry.categoryId);
+  const catName = entry.category?.name ?? findCategoryName(catRoots, entry.categoryId);
+  const splits = entry.costCenterSplits ?? [];
   const remaining = remainingOf(entry);
   const paid = num(entry.paidAmount);
 
@@ -118,7 +139,7 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
           </Section>
 
           <Section title="Datas">
-            <Row label="Emissão">{DASH /* Fase 2 — campo ainda não existe no ERP */}</Row>
+            <Row label="Emissão">{entry.issueDate ? formatDate(entry.issueDate) : DASH}</Row>
             <Row label="Vencimento">{formatDate(entry.dueDate)}</Row>
             <Row label="Previsão de pagamento">
               {formatDate(entry.expectedPaymentDate ?? entry.dueDate)}
@@ -127,8 +148,10 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
           </Section>
 
           <Section title="Documento">
-            <Row label="Nº do documento">{DASH /* Fase 2 */}</Row>
-            <Row label="Forma de pagamento">{DASH /* Fase 2 */}</Row>
+            <Row label="Nº do documento">{entry.documentNumber ?? DASH}</Row>
+            <Row label="Forma de pagamento">
+              {paymentMethodLabel(entry.paymentMethod) ?? DASH}
+            </Row>
             <Row label="Parcela">{entry.installmentNumber ?? DASH}</Row>
             <Row label="NF-e">
               {entry.fiscalDocument?.chave ? (
@@ -180,13 +203,33 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
                 DASH
               )}
             </Row>
-            <Row label="Boleto (código de barras)">{DASH /* Fase 2 — por conta */}</Row>
-            <Row label="PIX Copia e Cola desta conta">{DASH /* Fase 2 — por conta */}</Row>
+            <Row label="Boleto (código de barras)">
+              {entry.boletoBarcode ? <Copyable value={entry.boletoBarcode} copied={copy} /> : DASH}
+            </Row>
+            <Row label="PIX Copia e Cola desta conta">
+              {entry.pixCopiaECola ? <Copyable value={entry.pixCopiaECola} copied={copy} /> : DASH}
+            </Row>
           </Section>
 
           <Section title="Classificação">
             <Row label="Categoria">{catName ?? DASH}</Row>
-            <Row label="Centro de custo">{DASH /* Fase 2 — rateio via splits */}</Row>
+            {splits.length === 0 ? (
+              <Row label="Centro de custo">{DASH}</Row>
+            ) : splits.length === 1 ? (
+              <Row label="Centro de custo">{splits[0].costCenter.name}</Row>
+            ) : (
+              // rateio multi-centro (migração Omie): nome · % · valor
+              <Row label="Centro de custo">
+                <span className="flex flex-col items-end gap-0.5">
+                  {splits.map((s) => (
+                    <span key={s.id} className="text-xs">
+                      {s.costCenter.name} · {Number(s.percentage)}% ·{' '}
+                      <span className="tabular-nums">{formatBRL(num(s.amount))}</span>
+                    </span>
+                  ))}
+                </span>
+              </Row>
+            )}
             <Row label="Origem">
               <Badge variant="neutral">{sourceLabel(entry.source)}</Badge>
             </Row>
@@ -210,11 +253,30 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
           )}
 
           <Section title="Histórico">
-            <Row label="Criado em">{formatDateTime(entry.createdAt)}</Row>
-            <p className="pt-1 text-xs text-content-muted">
-              A linha do tempo completa (quem criou, editou, baixou — e o que mudou) chega na
-              Fase 2 do detalhe.
-            </p>
+            <ol className="space-y-2 pt-1">
+              {/* eventos do AuditLog, mais recente primeiro */}
+              {[...(history.data?.events ?? [])].reverse().map((ev, i) => {
+                const fields = changedFieldsSummary(ev.changes);
+                return (
+                  <li key={i} className="text-sm">
+                    <span className="font-medium text-content">{actionLabel(ev.action)}</span>
+                    {ev.user && <span className="text-content-muted"> por {ev.user.name}</span>}
+                    <span className="text-content-muted"> — {formatDateTime(ev.at)}</span>
+                    {fields && <div className="text-xs text-content-muted">alterou: {fields}</div>}
+                  </li>
+                );
+              })}
+              {/* âncora: criação (títulos migrados não têm log de criação) */}
+              <li className="text-sm">
+                <span className="font-medium text-content">Criado</span>
+                <span className="text-content-muted"> — {formatDateTime(entry.createdAt)}</span>
+              </li>
+            </ol>
+            {history.isError && (
+              <p className="pt-2 text-xs text-content-muted">
+                Linha do tempo completa disponível após a próxima atualização do servidor.
+              </p>
+            )}
           </Section>
         </SheetBody>
       </SheetContent>

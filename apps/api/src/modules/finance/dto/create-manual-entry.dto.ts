@@ -1,4 +1,16 @@
-import { IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { PaymentMethod } from '@prisma/client';
 
 export class CreateManualEntryDto {
   @IsEnum(['PAYABLE', 'RECEIVABLE'])
@@ -50,4 +62,32 @@ export class CreateManualEntryDto {
   @IsOptional()
   @IsString()
   attachmentUrl?: string;
+
+  // ── Fase 2 do detalhe — campos de pagamento/documento (todos opcionais) ────
+
+  @IsOptional()
+  @IsDateString()
+  issueDate?: string; // emissão do documento
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  documentNumber?: string; // nº do documento (NF/fatura/duplicata)
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
+  // Linha digitável/código de barras do boleto (44/47/48 dígitos) — ver
+  // UpdateFinancialEntryDto para a semântica completa.
+  @ValidateIf((o) => o.boletoBarcode != null && o.boletoBarcode !== '')
+  @Matches(/^\d{44}$|^\d{47}$|^\d{48}$/, {
+    message: 'boletoBarcode deve ter 44, 47 ou 48 dígitos (somente números)',
+  })
+  boletoBarcode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  pixCopiaECola?: string; // BR Code (PIX Copia e Cola) da cobrança
 }

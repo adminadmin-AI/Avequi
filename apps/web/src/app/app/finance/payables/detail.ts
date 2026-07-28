@@ -1,4 +1,10 @@
-import type { EntrySource, FinancialCategory, FinancialEntry } from '@/types/api';
+import type {
+  EntryHistoryEvent,
+  EntrySource,
+  FinancialCategory,
+  FinancialEntry,
+  PaymentMethod,
+} from '@/types/api';
 
 /**
  * Helpers puros do painel de detalhe da Carteira de Pagáveis — isolados p/
@@ -43,4 +49,63 @@ export function findCategoryName(
     if (inChildren) return inChildren;
   }
   return null;
+}
+
+// ── Fase 2 — forma de pagamento e histórico ──────────────────────────────────
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  BOLETO: 'Boleto',
+  PIX: 'PIX',
+  TED: 'TED/Transferência',
+  DINHEIRO: 'Dinheiro',
+  CARTAO: 'Cartão',
+  CHEQUE: 'Cheque',
+  CARTAO_CREDITO: 'Cartão de crédito',
+  CARTAO_DEBITO: 'Cartão de débito',
+  DEBITO_AUTOMATICO: 'Débito automático',
+  OUTROS: 'Outros',
+};
+
+export function paymentMethodLabel(m: PaymentMethod | null | undefined): string | null {
+  return m ? (PAYMENT_METHOD_LABELS[m] ?? m) : null;
+}
+
+/** Ações do AuditLog em português (fallback = código cru). */
+export const ACTION_LABELS: Record<string, string> = {
+  UPDATE: 'Editado',
+  CREATE_PAYABLE: 'Criado (compra)',
+  CREATE_RECEIVABLE: 'Criado (venda)',
+  CREATE_RECEIVABLES_PLAN: 'Plano de recebimento criado',
+  PAY: 'Baixado',
+  CANCEL: 'Cancelado',
+  WRITE_OFF: 'Baixado como perda',
+};
+
+export function actionLabel(action: string): string {
+  return ACTION_LABELS[action] ?? action;
+}
+
+/** Nome pt dos campos que aparecem no diff do histórico. */
+const FIELD_LABELS: Record<string, string> = {
+  description: 'descrição',
+  amount: 'valor',
+  dueDate: 'vencimento',
+  expectedPaymentDate: 'previsão',
+  supplierId: 'fornecedor',
+  categoryId: 'categoria',
+  costCenter: 'centro de custo',
+  status: 'status',
+  issueDate: 'emissão',
+  documentNumber: 'nº do documento',
+  paymentMethod: 'forma de pagamento',
+  boletoBarcode: 'código de barras',
+  pixCopiaECola: 'PIX copia e cola',
+};
+
+/** "valor, vencimento, categoria" — resumo do que mudou num evento. */
+export function changedFieldsSummary(changes: EntryHistoryEvent['changes']): string | null {
+  if (!changes) return null;
+  const keys = Object.keys(changes);
+  if (!keys.length) return null;
+  return keys.map((k) => FIELD_LABELS[k] ?? k).join(', ');
 }

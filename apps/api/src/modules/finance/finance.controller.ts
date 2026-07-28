@@ -94,6 +94,17 @@ export class FinanceController {
     return this.financeService.updateEntry(id, req.user.companyId, dto, req.user.id);
   }
 
+  // Fase 2 do detalhe — timeline "quem fez o quê, quando" do título, a partir
+  // do AuditLog. Mesma permissão de leitura da carteira (sem código novo no
+  // catálogo → publicar não exige seed IAM). 3 segmentos: não colide com
+  // `@Get(':id')`.
+  @Get('entries/:id/history')
+  @RequirePermission('finance.entries.view')
+  @ApiOperation({ summary: 'Histórico de auditoria do lançamento' })
+  entryHistory(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
+    return this.financeService.entryHistory(id, req.user.companyId);
+  }
+
   @Get('kpis')
   @RequirePermission('finance.reports.view')
   @ApiOperation({ summary: 'KPIs financeiros: PMP, PMR, ciclo, cash runway, liquidez (#382/#387)' })

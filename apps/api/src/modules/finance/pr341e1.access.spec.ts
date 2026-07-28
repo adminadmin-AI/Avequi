@@ -94,6 +94,8 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findAll: 'finance.entries.view',
     createManualEntry: 'finance.entries.create',
     updateEntry: 'finance.entries.update',
+    entryHistory: 'finance.entries.view', // Fase 2 — timeline lê com a permissão de leitura
+
     getKpis: 'finance.reports.view',
     getMarginBySku: 'finance.reports.view',
     getPdd: 'finance.provisions.view',

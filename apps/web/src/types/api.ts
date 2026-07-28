@@ -43,7 +43,17 @@ export type FinancialEntryStatus =
   | 'PARTIALLY_PAID'
   | 'PAID'
   | 'CANCELLED';
-export type PaymentMethod = 'BOLETO' | 'PIX' | 'TED' | 'DINHEIRO' | 'CARTAO' | 'CHEQUE';
+export type PaymentMethod =
+  | 'BOLETO'
+  | 'PIX'
+  | 'TED'
+  | 'DINHEIRO'
+  | 'CARTAO'
+  | 'CHEQUE'
+  | 'CARTAO_CREDITO'
+  | 'CARTAO_DEBITO'
+  | 'DEBITO_AUTOMATICO' // Fase 2 contas a pagar (Omie DEBA)
+  | 'OUTROS'; // Fase 2 — forma não mapeada
 export type EntrySource = 'AUTO_SALES' | 'AUTO_PURCHASE' | 'MANUAL';
 export type FinancialCategoryType = 'REVENUE' | 'EXPENSE' | 'TRANSFER' | 'GROUP';
 export type SalesOrderStatus =
@@ -588,7 +598,15 @@ export interface FinancialEntry extends BaseEntity {
   supplierId?: string | null;
   categoryId?: string | null;
   installmentNumber?: number | null; // nº da parcela no plano (#586)
+  // Fase 2 do detalhe — pagamento/documento (campos de 1ª classe do título)
+  issueDate?: string | null; // emissão do documento
+  documentNumber?: string | null; // nº do documento (NF/fatura/duplicata)
+  paymentMethod?: PaymentMethod | null;
+  boletoBarcode?: string | null; // linha digitável — única POR conta
+  pixCopiaECola?: string | null; // BR Code da cobrança — único POR conta
   // Relações incluídas pelo GET /finance
+  category?: { id: string; name: string } | null;
+  costCenterSplits?: EntryCostCenterSplit[];
   fiscalDocument?: { id: string; chave?: string | null; status?: string } | null;
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   purchaseOrder?: {
@@ -608,6 +626,27 @@ export type EntrySupplier = Pick<
   Supplier,
   'id' | 'name' | 'cnpj' | 'pixKey' | 'bankName' | 'bankAgency' | 'bankAccount'
 >;
+
+/** Rateio de centro de custo de um título (Fase 2 do detalhe). */
+export interface EntryCostCenterSplit {
+  id: string;
+  percentage: string;
+  amount: string;
+  costCenter: { id: string; name: string };
+}
+
+/** Resposta de GET /finance/entries/:id/history (Fase 2 do detalhe). */
+export interface EntryHistory {
+  createdAt: string;
+  source: EntrySource;
+  events: EntryHistoryEvent[];
+}
+export interface EntryHistoryEvent {
+  at: string;
+  action: string;
+  user: { id: string; name: string } | null;
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+}
 
 export interface FinancialCategory extends BaseEntity {
   companyId: string;
