@@ -183,7 +183,7 @@ body {
   }
 }
 .animate-avecchi-breathe {
-  animation: avecchi-breathe 7s ease-in-out infinite;
+  animation: avecchi-breathe 8s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
