@@ -23,6 +23,7 @@ const mockPrisma = {
   },
   auditLog: {
     create: jest.fn(),
+    findMany: jest.fn(),
   },
   entryCostCenterSplit: {
     deleteMany: jest.fn(),
@@ -60,9 +61,20 @@ const baseEntry = {
   id: 'fe-1',
   companyId: 'co-1',
   type: FinancialEntryType.RECEIVABLE,
-  status: FinancialEntryStatus.OPEN,
+  // anotação alarga o literal p/ o enum: testes sobrescrevem com OVERDUE etc.
+  status: FinancialEntryStatus.OPEN as FinancialEntryStatus,
   amount: 300,
   dueDate: new Date('2026-05-28'),
+  expectedPaymentDate: null as Date | null,
+  description: null as string | null,
+  supplierId: null as string | null,
+  categoryId: null as string | null,
+  // Fase 2 do detalhe — pagamento/documento
+  issueDate: null as Date | null,
+  documentNumber: null as string | null,
+  paymentMethod: null as string | null,
+  boletoBarcode: null as string | null,
+  pixCopiaECola: null as string | null,
   salesOrderId: 'so-1',
   payments: [],
   paymentNote: null,
@@ -571,6 +583,72 @@ describe('FinanceService', () => {
       );
     });
 
+    // ── Fase 2: campos de pagamento/documento com diff auditado ──
+    it('edita forma de pagamento, boleto e PIX copia-e-cola rastreando o diff', async () => {
+      arrange();
+      const tx = stubTransaction();
+
+      await service.updateEntry(
+        'fe-1',
+        'co-1',
+        {
+          paymentMethod: 'BOLETO' as never,
+          boletoBarcode: '12345678901234567890123456789012345678901234567',
+          documentNumber: 'NF 1234',
+        },
+        'user-7',
+      );
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            paymentMethod: 'BOLETO',
+            boletoBarcode: '12345678901234567890123456789012345678901234567',
+            documentNumber: 'NF 1234',
+          }),
+        }),
+      );
+      expect(tx.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            payload: expect.objectContaining({
+              changes: expect.objectContaining({
+                paymentMethod: { from: null, to: 'BOLETO' },
+                documentNumber: { from: null, to: 'NF 1234' },
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("'' limpa boleto/PIX/nº doc (vira null) e emissão aceita data", async () => {
+      arrange({
+        boletoBarcode: '12345678901234567890123456789012345678901234567',
+        pixCopiaECola: '00020126...br.gov.bcb.pix...6304ABCD',
+        documentNumber: 'NF 1',
+      });
+      const tx = stubTransaction();
+
+      await service.updateEntry('fe-1', 'co-1', {
+        boletoBarcode: '',
+        pixCopiaECola: '',
+        documentNumber: '',
+        issueDate: '2026-07-01',
+      });
+
+      expect(tx.financialEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            boletoBarcode: null,
+            pixCopiaECola: null,
+            documentNumber: null,
+            issueDate: new Date('2026-07-01'),
+          }),
+        }),
+      );
+    });
+
     // ── Ponto 4: agendamento PENDING bloqueia a edição ──
     it('rejeita edição se houver pagamento agendado PENDENTE', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue({ ...baseEntry, status: FinancialEntryStatus.OPEN });
@@ -639,6 +717,76 @@ describe('FinanceService', () => {
     it('lança NotFoundException para título inexistente', async () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
       await expect(service.updateEntry('nope', 'co-1', { amount: 1 })).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── Fase 2 do detalhe: histórico do título ───────────────────────────────
+
+  describe('entryHistory', () => {
+    beforeEach(() => {
+      mockPrisma.financialEntry.findFirst.mockReset();
+      mockPrisma.auditLog.findMany.mockReset();
+    });
+
+    it('devolve timeline com ator, ação e diff, filtrada pelo título', async () => {
+      const created = new Date('2026-07-20T10:00:00Z');
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        id: 'fe-1',
+        createdAt: created,
+        source: 'MANUAL',
+      });
+      const at = new Date('2026-07-28T12:00:00Z');
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        {
+          createdAt: at,
+          action: 'UPDATE',
+          user: { id: 'user-7', name: 'Rafael' },
+          payload: { id: 'fe-1', changes: { amount: { from: 300, to: 999 } } },
+        },
+      ]);
+
+      const history = await service.entryHistory('fe-1', 'co-1');
+
+      // filtro: só logs de FinancialEntry cujo payload.id é o título pedido
+      expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            companyId: 'co-1',
+            entity: 'FinancialEntry',
+            payload: { path: ['id'], equals: 'fe-1' },
+          }),
+        }),
+      );
+      expect(history.createdAt).toEqual(created);
+      expect(history.events).toEqual([
+        {
+          at,
+          action: 'UPDATE',
+          user: { id: 'user-7', name: 'Rafael' },
+          changes: { amount: { from: 300, to: 999 } },
+        },
+      ]);
+    });
+
+    it('evento sem payload.changes vira changes: null (logs antigos)', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({
+        id: 'fe-1',
+        createdAt: new Date(),
+        source: 'MANUAL',
+      });
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        { createdAt: new Date(), action: 'CREATE_PAYABLE', user: null, payload: { id: 'fe-1' } },
+      ]);
+
+      const history = await service.entryHistory('fe-1', 'co-1');
+      expect(history.events[0].changes).toBeNull();
+      expect(history.events[0].user).toBeNull();
+    });
+
+    it('título de outra empresa (ou inexistente) = 404, sem consultar logs', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      await expect(service.entryHistory('fe-1', 'co-OUTRA')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.auditLog.findMany).not.toHaveBeenCalled();
     });
   });
 

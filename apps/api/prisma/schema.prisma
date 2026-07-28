@@ -1274,6 +1274,8 @@ enum PaymentMethod {
   CHEQUE
   CARTAO_CREDITO // tPag 03 (#584)
   CARTAO_DEBITO // tPag 04 (#584)
+  DEBITO_AUTOMATICO // débito em conta (Fase 2 contas a pagar; Omie DEBA)
+  OUTROS // forma não mapeada (Fase 2; legado Omie PROT/PROL/99999 etc.)
 }
 
 // ─── Meios de Pagamento (#583) ────────────────────────────────────────────────
@@ -1397,6 +1399,13 @@ model FinancialEntry {
   // #788 — previsão de pagamento: data de planejamento editável, distinta do
   // vencimento (equivalente ao `data_previsao` do Omie). Default = vencimento.
   expectedPaymentDate DateTime?              @map("expected_payment_date")
+  // Fase 2 do detalhe de Contas a Pagar — campos de 1ª classe do título
+  // (antes presos na description/Omie). Todos opcionais/aditivos.
+  issueDate           DateTime?              @map("issue_date") // emissão do documento
+  documentNumber      String?                @map("document_number") // nº do documento (NF/fatura/duplicata)
+  paymentMethod       PaymentMethod?         @map("payment_method") // forma de pagamento (Boleto/PIX/…)
+  boletoBarcode       String?                @map("boleto_barcode") // linha digitável — única POR conta
+  pixCopiaECola       String?                @map("pix_copia_e_cola") // BR Code da cobrança — único POR conta
   description         String?
   source              EntrySource            @default(AUTO_SALES)
   attachmentUrl       String?

@@ -1858,4 +1858,8 @@ const NFE_PAYMENT_CODES: Record<PaymentMethod, string> = {
   BOLETO: '15',
   PIX: '17',
   TED: '18',
+  // Fase 2 contas a pagar — valores usados no financeiro, não em emissão de
+  // NF-e de venda; mapeados por completude do Record (tabela 4.3.4.1).
+  DEBITO_AUTOMATICO: '19', // débito automático (NT 2023.004)
+  OUTROS: '99',
 };

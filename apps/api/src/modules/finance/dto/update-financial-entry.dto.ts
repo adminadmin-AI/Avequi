@@ -1,4 +1,16 @@
-import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { PaymentMethod } from '@prisma/client';
 
 /**
  * Edição de um lançamento financeiro JÁ existente e EM ABERTO (OPEN/OVERDUE).
@@ -43,4 +55,35 @@ export class UpdateFinancialEntryDto {
   @IsOptional()
   @IsString()
   costCenterId?: string | null;
+
+  // ── Fase 2 do detalhe — campos de pagamento/documento do título ────────────
+  // null/'' limpa o campo; ausente mantém.
+
+  @IsOptional()
+  @IsDateString()
+  issueDate?: string | null; // emissão do documento
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  documentNumber?: string | null; // nº do documento (NF/fatura/duplicata)
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod | null; // Boleto/PIX/Cheque/Débito Automático…
+
+  // Linha digitável/código de barras do boleto — ÚNICO por conta. Aceita só
+  // dígitos: 44 (código de barras), 47 (cobrança) ou 48 (arrecadação). O front
+  // remove pontos/espaços antes de enviar; '' limpa (ValidateIf pula a regex).
+  @ValidateIf((o) => o.boletoBarcode != null && o.boletoBarcode !== '')
+  @Matches(/^\d{44}$|^\d{47}$|^\d{48}$/, {
+    message: 'boletoBarcode deve ter 44, 47 ou 48 dígitos (somente números)',
+  })
+  boletoBarcode?: string | null;
+
+  // BR Code (PIX Copia e Cola) da cobrança — ÚNICO por conta.
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  pixCopiaECola?: string | null;
 }

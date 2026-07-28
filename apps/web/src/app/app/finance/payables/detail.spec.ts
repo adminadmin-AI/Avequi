@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { num, remainingOf, sourceLabel, findCategoryName } from './detail';
+import {
+  num,
+  remainingOf,
+  sourceLabel,
+  findCategoryName,
+  paymentMethodLabel,
+  actionLabel,
+  changedFieldsSummary,
+} from './detail';
 import type { FinancialCategory } from '@/types/api';
 
 describe('helpers do painel de detalhe da Carteira de Pagáveis', () => {
@@ -42,5 +50,33 @@ describe('helpers do painel de detalhe da Carteira de Pagáveis', () => {
       expect(findCategoryName(tree, null)).toBeNull();
       expect(findCategoryName([], 'c1')).toBeNull();
     });
+  });
+
+  it('paymentMethodLabel traduz e trata vazio', () => {
+    expect(paymentMethodLabel('BOLETO')).toBe('Boleto');
+    expect(paymentMethodLabel('PIX')).toBe('PIX');
+    expect(paymentMethodLabel('DEBITO_AUTOMATICO')).toBe('Débito automático');
+    expect(paymentMethodLabel('OUTROS')).toBe('Outros');
+    expect(paymentMethodLabel(null)).toBeNull();
+    expect(paymentMethodLabel(undefined)).toBeNull();
+  });
+
+  it('actionLabel traduz ações conhecidas e devolve o cru nas demais', () => {
+    expect(actionLabel('UPDATE')).toBe('Editado');
+    expect(actionLabel('CREATE_PAYABLE')).toBe('Criado (compra)');
+    expect(actionLabel('ALGO_NOVO')).toBe('ALGO_NOVO');
+  });
+
+  it('changedFieldsSummary resume os campos alterados em pt', () => {
+    expect(
+      changedFieldsSummary({
+        amount: { from: 1, to: 2 },
+        dueDate: { from: 'a', to: 'b' },
+        boletoBarcode: { from: null, to: 'x' },
+      }),
+    ).toBe('valor, vencimento, código de barras');
+    expect(changedFieldsSummary({ desconhecido: { from: 1, to: 2 } })).toBe('desconhecido');
+    expect(changedFieldsSummary(null)).toBeNull();
+    expect(changedFieldsSummary({})).toBeNull();
   });
 });

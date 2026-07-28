@@ -278,6 +278,12 @@ export class FinanceService {
         supplierId: dto.supplierId ?? null, // #785
         categoryId: dto.categoryId ?? null,
         attachmentUrl: dto.attachmentUrl ?? null,
+        // Fase 2 do detalhe — pagamento/documento
+        issueDate: dto.issueDate ? new Date(dto.issueDate) : null,
+        documentNumber: dto.documentNumber || null,
+        paymentMethod: dto.paymentMethod ?? null,
+        boletoBarcode: dto.boletoBarcode || null,
+        pixCopiaECola: dto.pixCopiaECola || null,
       };
     });
 
@@ -415,6 +421,42 @@ export class FinanceService {
       const to = dto.categoryId || null;
       if (to !== entry.categoryId) { data.categoryId = to; track('categoryId', entry.categoryId, to); }
     }
+    // Fase 2 do detalhe — pagamento/documento ('' / null limpa o campo).
+    if (dto.issueDate !== undefined) {
+      const to = dto.issueDate ? new Date(dto.issueDate) : null;
+      if (to?.getTime() !== entry.issueDate?.getTime()) {
+        data.issueDate = to;
+        track('issueDate', entry.issueDate, to);
+      }
+    }
+    if (dto.documentNumber !== undefined) {
+      const to = dto.documentNumber || null;
+      if (to !== entry.documentNumber) {
+        data.documentNumber = to;
+        track('documentNumber', entry.documentNumber, to);
+      }
+    }
+    if (dto.paymentMethod !== undefined) {
+      const to = dto.paymentMethod ?? null;
+      if (to !== entry.paymentMethod) {
+        data.paymentMethod = to;
+        track('paymentMethod', entry.paymentMethod, to);
+      }
+    }
+    if (dto.boletoBarcode !== undefined) {
+      const to = dto.boletoBarcode || null;
+      if (to !== entry.boletoBarcode) {
+        data.boletoBarcode = to;
+        track('boletoBarcode', entry.boletoBarcode, to);
+      }
+    }
+    if (dto.pixCopiaECola !== undefined) {
+      const to = dto.pixCopiaECola || null;
+      if (to !== entry.pixCopiaECola) {
+        data.pixCopiaECola = to;
+        track('pixCopiaECola', entry.pixCopiaECola, to);
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.financialEntry.update({ where: { id }, data });
@@ -454,6 +496,43 @@ export class FinanceService {
       `FinancialEntry ${id} editado (em aberto) por ${actorId ?? '?'} — campos: ${Object.keys(changes).join(', ') || 'nenhum'}`,
     );
     return this.findOne(id, companyId);
+  }
+
+  // ─── Fase 2 do detalhe: histórico do título (AuditLog → timeline) ──────────
+
+  /**
+   * Timeline "quem fez o quê, quando" do lançamento. Fonte = AuditLog v1
+   * (as ações do financeiro gravam `payload.id` do título — updateEntry inclui
+   * o diff antes→depois em `payload.changes`). Escopo de empresa: título de
+   * outra empresa = 404, sem revelar existência.
+   */
+  async entryHistory(id: string, companyId: string) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId },
+      select: { id: true, createdAt: true, source: true },
+    });
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        companyId,
+        entity: 'FinancialEntry',
+        payload: { path: ['id'], equals: id },
+      },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { id: true, name: true } } },
+    });
+
+    return {
+      createdAt: entry.createdAt, // âncora: títulos migrados não têm log de criação
+      source: entry.source,
+      events: logs.map((l) => ({
+        at: l.createdAt,
+        action: l.action,
+        user: l.user, // null = ação de sistema (cron/evento) ou pré-auditoria
+        changes: (l.payload as { changes?: unknown } | null)?.changes ?? null,
+      })),
+    };
   }
 
   // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
@@ -697,6 +776,16 @@ export class FinanceService {
         supplier: true, // #785 — fornecedor direto (títulos sem PO, ex.: migração Omie)
         goodsReceipt: true,
         fiscalDocument: { select: { id: true, chave: true, status: true } },
+        // Fase 2 do detalhe — categoria e rateio p/ o painel (nome, % e valor)
+        category: { select: { id: true, name: true } },
+        costCenterSplits: {
+          select: {
+            id: true,
+            percentage: true,
+            amount: true,
+            costCenter: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { dueDate: 'asc' },
     });
@@ -713,6 +802,16 @@ export class FinanceService {
         fiscalDocument: true,
         payments: { orderBy: { paidAt: 'asc' } },
         installments: { orderBy: { dueDate: 'asc' } },
+        // Fase 2 do detalhe — categoria e rateio
+        category: { select: { id: true, name: true } },
+        costCenterSplits: {
+          select: {
+            id: true,
+            percentage: true,
+            amount: true,
+            costCenter: { select: { id: true, name: true } },
+          },
+        },
       },
     });
     if (!entry) throw new NotFoundException(`Lançamento financeiro ${id} não encontrado`);

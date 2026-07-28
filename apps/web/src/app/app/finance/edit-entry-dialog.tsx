@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialCategory, CostCenter, FinancialEntry, Supplier } from '@/types/api';
+import { PAYMENT_METHOD_LABELS } from './payables/detail';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -22,6 +23,17 @@ const schema = z.object({
   supplierId: z.string().optional(),
   categoryId: z.string().optional(),
   costCenterId: z.string().optional(),
+  // Fase 2 — pagamento/documento
+  issueDate: z.string().optional(),
+  documentNumber: z.string().max(60, 'Máx. 60 caracteres').optional(),
+  paymentMethod: z.string().optional(),
+  boletoBarcode: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^\d{44}$|^\d{47}$|^\d{48}$/.test(v.replace(/\D/g, '')), {
+      message: 'Código de barras deve ter 44, 47 ou 48 dígitos',
+    }),
+  pixCopiaECola: z.string().max(512, 'Máx. 512 caracteres').optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -87,6 +99,11 @@ export function EditEntryDialog({
       supplierId: entry.supplierId ?? '',
       categoryId: entry.categoryId ?? '',
       costCenterId: CC_KEEP, // começa em "manter rateio atual"
+      issueDate: toDateInput(entry.issueDate),
+      documentNumber: entry.documentNumber ?? '',
+      paymentMethod: entry.paymentMethod ?? '',
+      boletoBarcode: entry.boletoBarcode ?? '',
+      pixCopiaECola: entry.pixCopiaECola ?? '',
     });
   }, [entry, reset]);
 
@@ -99,6 +116,12 @@ export function EditEntryDialog({
         expectedPaymentDate: data.expectedPaymentDate || undefined,
         supplierId: data.supplierId || null,
         categoryId: data.categoryId || null,
+        // Fase 2 — '' limpa o campo no backend; barcode vai só com dígitos
+        issueDate: data.issueDate || null,
+        documentNumber: data.documentNumber || null,
+        paymentMethod: data.paymentMethod || null,
+        boletoBarcode: data.boletoBarcode ? data.boletoBarcode.replace(/\D/g, '') : null,
+        pixCopiaECola: data.pixCopiaECola?.trim() || null,
       };
       // Centro de custo (3 vias): manter → não envia; sem centro → null; id → id.
       if (data.costCenterId === CC_NONE) payload.costCenterId = null;
@@ -183,6 +206,40 @@ export function EditEntryDialog({
             </Select>
           </Field>
         </div>
+
+        {/* Fase 2 — pagamento/documento */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Emissão" error={errors.issueDate?.message}>
+            <Input type="date" {...register('issueDate')} />
+          </Field>
+          <Field label="Nº do documento" error={errors.documentNumber?.message}>
+            <Input {...register('documentNumber')} placeholder="NF / fatura / duplicata" />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Forma de pagamento" error={errors.paymentMethod?.message}>
+            <Select {...register('paymentMethod')}>
+              <option value="">— Não informada —</option>
+              {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Boleto (código de barras)" error={errors.boletoBarcode?.message}>
+            <Input
+              {...register('boletoBarcode')}
+              placeholder="Cole a linha digitável"
+              inputMode="numeric"
+            />
+          </Field>
+        </div>
+
+        <Field label="PIX Copia e Cola desta conta" error={errors.pixCopiaECola?.message}>
+          <Input {...register('pixCopiaECola')} placeholder="Cole o código PIX da cobrança" />
+        </Field>
       </form>
     </FormDialog>
   );
