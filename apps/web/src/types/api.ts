@@ -587,16 +587,19 @@ export interface FinancialEntry extends BaseEntity {
   purchaseOrderId?: string | null;
   supplierId?: string | null;
   categoryId?: string | null;
+  installmentNumber?: number | null; // nº da parcela no plano (#586)
   // Relações incluídas pelo GET /finance
+  fiscalDocument?: { id: string; chave?: string | null; status?: string } | null;
   salesOrder?: { id: string; customer?: Pick<Customer, 'id' | 'name'> | null } | null;
   purchaseOrder?: {
     id: string;
     status?: PurchaseOrderStatus;
     approvedAt?: string | null;
-    supplier?: Pick<Supplier, 'id' | 'name'> | null;
+    supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
   } | null;
   // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie)
-  supplier?: Pick<Supplier, 'id' | 'name'> | null;
+  // cnpj já vem do GET /finance (include supplier: true) — exibido na tela.
+  supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
 }
 
 export interface FinancialCategory extends BaseEntity {
