@@ -34,6 +34,7 @@ describe('PATCH /crm/settings — retenção LGPD condicional (Bloco F #624)', (
       undefined as any, // leadLgpd
       undefined as any, // sdr
       undefined as any, // sdrDashboard
+      undefined as any, // leadSummary (#573)
       undefined as any, // proposals
       permissions as any, // permissions (IAM v2)
     );

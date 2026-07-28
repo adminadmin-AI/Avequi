@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { FileText, Loader2, ShoppingCart, UserRound, X } from 'lucide-react';
+import { FileText, Loader2, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,14 @@ import {
 } from './inbox-types';
 import { LeadNotesReminders } from './lead-notes-reminders';
 import { LOST_REASON_OPTIONS, lostReasonLabel, type LostReasonCategory } from '@/lib/crm-lost-reasons';
+
+/** #573 — rótulos dos dados descobertos pela IA no resumo da conversa */
+const DISCOVERED_LABEL: Record<string, string> = {
+  cidade: 'Cidade',
+  necessidade: 'Necessidade',
+  prazo: 'Prazo',
+  pagamento: 'Pagamento',
+};
 
 /**
  * Painel lateral do lead (F1.3 #509): dados, troca rápida de estágio,
@@ -54,6 +62,16 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
     staleTime: 5 * 60_000,
   });
 
+  // #573 — resumo IA da conversa: condensa o histórico numa nota da timeline
+  const summarize = useMutation({
+    mutationFn: () => apiClient.post(`/crm/leads/${leadId}/summarize`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] }); // timeline
+      toast.success('Resumo da conversa gerado na timeline');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao resumir a conversa'),
+  });
+
   // takeover explícito do SDR IA (F4.4 #524) — IA silencia em 1 clique
   const takeover = useMutation({
     mutationFn: () => apiClient.post(`/crm/leads/${leadId}/sdr/takeover`),
@@ -61,6 +79,9 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
       toast.success('Você assumiu a conversa — IA silenciada');
+      // #573 — disparo automático do resumo no takeover explícito: quem assume
+      // já recebe o contexto condensado sem precisar reler a conversa.
+      if (lead?.aiSummaryAvailable && !summarize.isPending) summarize.mutate();
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no takeover'),
   });
@@ -287,36 +308,96 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           </div>
         )}
 
+        {/* #573 — resumo IA da conversa (oculto sem ANTHROPIC_API_KEY) */}
+        {lead.aiSummaryAvailable && (
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={summarize.isPending}
+            onClick={() => summarize.mutate()}
+            title="Gera um resumo da conversa por IA e salva na timeline"
+          >
+            {summarize.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            Resumir conversa
+          </Button>
+        )}
+
         <LeadNotesReminders leadId={leadId} />
 
         <div>
           <h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Timeline</h3>
           <ul className="space-y-2">
-            {lead.activities.map((a) => (
-              <li key={a.id} className="rounded-md border p-2">
-                <div className="flex items-center justify-between">
-                  <Badge variant="neutral">{ACTIVITY_LABEL[a.type] ?? a.type}</Badge>
-                  <span className="text-[11px] text-muted-foreground">
-                    {new Date(a.happensAt).toLocaleString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-                {typeof a.properties?.preview === 'string' && (
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {a.properties.preview as string}
-                  </p>
-                )}
-                {typeof a.properties?.toName === 'string' && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    → {a.properties.toName as string}
-                  </p>
-                )}
-              </li>
-            ))}
+            {lead.activities.map((a) => {
+              const isSummary = a.properties?.kind === 'conversation_summary';
+              return (
+                <li
+                  key={a.id}
+                  className={`rounded-md border p-2 ${
+                    isSummary ? 'border-violet-500/40 bg-violet-500/5' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    {isSummary ? (
+                      <Badge variant="neutral" className="gap-1">
+                        <Sparkles className="h-3 w-3" /> Resumo IA
+                      </Badge>
+                    ) : (
+                      <Badge variant="neutral">{ACTIVITY_LABEL[a.type] ?? a.type}</Badge>
+                    )}
+                    <span className="text-[11px] text-muted-foreground">
+                      {new Date(a.happensAt).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  {isSummary ? (
+                    <>
+                      {typeof a.properties?.summary === 'string' && (
+                        <p className="mt-1 whitespace-pre-line text-xs">
+                          {a.properties.summary as string}
+                        </p>
+                      )}
+                      {a.properties?.discovered &&
+                        Object.keys(a.properties.discovered as Record<string, string>).length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {Object.entries(a.properties.discovered as Record<string, string>).map(
+                              ([k, v]) => (
+                                <span
+                                  key={k}
+                                  className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[11px] text-violet-700 dark:text-violet-300"
+                                >
+                                  <span className="capitalize opacity-70">{DISCOVERED_LABEL[k] ?? k}:</span>{' '}
+                                  {v}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        )}
+                    </>
+                  ) : (
+                    <>
+                      {typeof a.properties?.preview === 'string' && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {a.properties.preview as string}
+                        </p>
+                      )}
+                      {typeof a.properties?.toName === 'string' && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          → {a.properties.toName as string}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>

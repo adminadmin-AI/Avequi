@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LeadActivityType, LostReasonCategory, PipelineStageType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,6 +21,7 @@ export class CrmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly config: ConfigService,
   ) {}
 
   /** Conversas da loja, mais recentes primeiro (inbox) */
@@ -106,7 +108,11 @@ export class CrmService {
       ? ((dup!.properties as any).stores as string[])
       : [];
 
-    return { ...lead, crossStoreStores };
+    // #573: sem ANTHROPIC_API_KEY o botão "Resumir conversa" fica oculto no
+    // painel — mesma guarda do SDR (sem chave, a feature de IA não existe).
+    const aiSummaryAvailable = !!this.config.get<string>('ANTHROPIC_API_KEY');
+
+    return { ...lead, crossStoreStores, aiSummaryAvailable };
   }
 
   /** Estágios do funil da loja (select de troca rápida / kanban F2.1) */

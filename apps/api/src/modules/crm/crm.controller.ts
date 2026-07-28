@@ -36,6 +36,7 @@ import { LeadListService, LeadListFilters } from './lead-list.service';
 import { LeadLgpdService } from './lead-lgpd.service';
 import { SdrAgentService } from './sdr/sdr-agent.service';
 import { SdrDashboardService } from './sdr/sdr-dashboard.service';
+import { LeadSummaryService } from './sdr/lead-summary.service';
 import { LeadProposalService } from './lead-proposal.service';
 import { PermissionService } from '../iam/permission.service';
 import { Res } from '@nestjs/common';
@@ -269,6 +270,7 @@ export class CrmController {
     private readonly leadLgpd: LeadLgpdService,
     private readonly sdr: SdrAgentService,
     private readonly sdrDashboard: SdrDashboardService,
+    private readonly leadSummary: LeadSummaryService,
     private readonly proposals: LeadProposalService,
     private readonly permissions: PermissionService,
   ) {}
@@ -281,6 +283,16 @@ export class CrmController {
   async sdrTakeover(@Param('id') id: string, @CurrentUser() user: any) {
     const taken = await this.sdr.takeover(id, user.id);
     return { taken };
+  }
+
+  @Post('leads/:id/summarize')
+  @RequirePermission('crm.leads.annotate')
+  @ApiOperation({
+    summary:
+      'Resumir a conversa por IA (modelo barato) — gera nota na timeline pro takeover humano (#573)',
+  })
+  summarizeLead(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.leadSummary.summarize(user.companyId, id, user.id);
   }
 
   @Get('sdr/overview')
