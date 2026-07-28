@@ -28,6 +28,7 @@ import { LeadProposalService } from './lead-proposal.service';
 import { WhatsappWebhookProcessor } from './whatsapp/whatsapp-webhook.processor';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
 import { WhatsappService } from './whatsapp/whatsapp.service';
+import { TranscriptionService } from './whatsapp/transcription.service';
 import { WHATSAPP_QUEUE } from './whatsapp/whatsapp.types';
 import { ConnectorsController } from './connectors/connectors.controller';
 import { ConnectorsProcessor } from './connectors/connectors.processor';
@@ -72,6 +73,7 @@ import { SiteLeadController } from './connectors/site.controller';
     CrmListener,
     CrmPushListener,
     WhatsappService,
+    TranscriptionService,
     WhatsappWebhookProcessor,
     StoreResolver,
     MetaLeadsService,

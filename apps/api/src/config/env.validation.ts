@@ -139,4 +139,12 @@ export const envValidationSchema = Joi.object({
   // SoD (#160/#350): trava de segregação de funções nas aprovações.
   // DESLIGADA por padrão — regra vigente permite criar e aprovar.
   SOD_ENFORCE: Joi.boolean().default(false),
+
+  // ─── Transcrição de áudio inbound do WhatsApp (F1 voz do SDR #506/#567) ───
+  // OPENAI_API_KEY opcional: sem ela o TranscriptionService devolve null e o
+  // SDR mantém o comportamento atual (avisa que vai passar pro vendedor). Com
+  // ela, voice notes do lead são transcritas e entram no histórico do SDR.
+  OPENAI_API_KEY: Joi.string().allow('').optional(),
+  // Modelo de STT da OpenAI. Default barato; fallback documentado: 'whisper-1'.
+  CRM_STT_MODEL: Joi.string().allow('').optional(),
 });

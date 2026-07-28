@@ -12,13 +12,17 @@ import {
 import { Job } from 'bull';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { LeadIntakeService } from '../lead-intake.service';
-import { WA_WINDOW_MS } from './whatsapp.service';
+import { WA_WINDOW_MS, WhatsappService } from './whatsapp.service';
+import { TranscriptionService } from './transcription.service';
 import {
   WHATSAPP_QUEUE,
   WhatsappChangeValue,
   WhatsappInboundMessage,
   WhatsappWebhookJobData,
 } from './whatsapp.types';
+
+/** prefixo que marca, na conversa e no histórico do SDR, um áudio transcrito */
+export const AUDIO_TRANSCRIPT_PREFIX = '[áudio transcrito]';
 
 const STATUS_MAP: Record<string, WaMessageStatus> = {
   sent: WaMessageStatus.SENT,
@@ -63,6 +67,8 @@ export class WhatsappWebhookProcessor {
     private readonly prisma: PrismaService,
     private readonly leadIntake: LeadIntakeService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly whatsapp: WhatsappService,
+    private readonly transcription: TranscriptionService,
   ) {}
 
   @Process('inbound')
@@ -145,7 +151,7 @@ export class WhatsappWebhookProcessor {
     });
 
     const media = message.audio ?? message.image ?? message.video ?? message.document ?? message.sticker;
-    const text =
+    let text =
       message.text?.body ??
       message.image?.caption ??
       message.video?.caption ??
@@ -153,6 +159,19 @@ export class WhatsappWebhookProcessor {
       (message.location
         ? `[localização] ${message.location.name ?? ''} ${message.location.latitude},${message.location.longitude}`
         : null);
+
+    // F1 voz (#506/#567): voice note do lead → transcreve e persiste no texto
+    // da mensagem, marcado com o prefixo. Assim o histórico que o SDR monta
+    // (sdr-agent.service) já enxerga o áudio como texto e responde normalmente.
+    // Sem OPENAI_API_KEY, limite estourado ou falha → text segue null e o SDR
+    // mantém o comportamento atual (avisa que vai passar pro vendedor).
+    if (TYPE_MAP[message.type ?? ''] === WaMessageType.AUDIO && message.audio?.id) {
+      const transcript = await this.transcribeInboundAudio(
+        message.audio.id,
+        message.audio.mime_type,
+      );
+      if (transcript) text = `${AUDIO_TRANSCRIPT_PREFIX} ${transcript}`;
+    }
 
     try {
       await this.prisma.whatsappMessage.create({
@@ -195,6 +214,27 @@ export class WhatsappWebhookProcessor {
       companyId,
       waMessageId: message.id,
     });
+  }
+
+  /**
+   * Baixa a mídia de áudio da Meta e transcreve (F1 voz). Blindado: qualquer
+   * erro (download, rede, STT) vira null — o processamento do webhook nunca
+   * pode falhar por causa da transcrição.
+   */
+  private async transcribeInboundAudio(
+    mediaId: string,
+    mimeType?: string,
+  ): Promise<string | null> {
+    if (!this.transcription.isEnabled()) return null; // sem key: nem baixa a mídia
+    try {
+      const { data, mimeType: fetchedMime } = await this.whatsapp.downloadMediaById(mediaId);
+      return await this.transcription.transcribe(data, mimeType ?? fetchedMime);
+    } catch (err) {
+      this.logger.warn(
+        `Transcrição de áudio inbound falhou (media ${mediaId}): ${(err as Error).message}`,
+      );
+      return null;
+    }
   }
 
   private async applyStatus(status: {
