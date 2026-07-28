@@ -593,10 +593,11 @@ export interface FinancialEntry extends BaseEntity {
     id: string;
     status?: PurchaseOrderStatus;
     approvedAt?: string | null;
-    supplier?: Pick<Supplier, 'id' | 'name'> | null;
+    supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
   } | null;
   // #785 — fornecedor direto do título (contas a pagar sem PO, ex.: migração Omie)
-  supplier?: Pick<Supplier, 'id' | 'name'> | null;
+  // cnpj já vem do GET /finance (include supplier: true) — exibido na tela.
+  supplier?: Pick<Supplier, 'id' | 'name' | 'cnpj'> | null;
 }
 
 export interface FinancialCategory extends BaseEntity {

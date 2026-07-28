@@ -20,7 +20,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
-import { formatBRL, formatDate } from '@/lib/format';
+import { formatBRL, formatDate, formatCpfCnpj } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
@@ -55,6 +55,10 @@ function pendingApproval(e: FinancialEntry): boolean {
 /** Fornecedor do título: vínculo direto (#785) tem precedência; senão, o da PO. */
 function supplierName(e: FinancialEntry): string {
   return e.supplier?.name ?? e.purchaseOrder?.supplier?.name ?? '';
+}
+/** CNPJ/CPF do fornecedor (mesma precedência do nome); null quando não houver. */
+function supplierCnpj(e: FinancialEntry): string | null {
+  return e.supplier?.cnpj ?? e.purchaseOrder?.supplier?.cnpj ?? null;
 }
 
 const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }> = {
@@ -221,16 +225,24 @@ export default function PayablesPage() {
     {
       key: 'supplier',
       header: 'Fornecedor',
-      cell: (e) => (
-        <div className="flex items-center gap-2">
-          <span>{supplierName(e) || <span className="text-content-muted">—</span>}</span>
-          {pendingApproval(e) && (
-            <Badge variant="warning" className="whitespace-nowrap">
-              Aprovação pendente
-            </Badge>
-          )}
-        </div>
-      ),
+      cell: (e) => {
+        const cnpj = supplierCnpj(e);
+        return (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span>{supplierName(e) || <span className="text-content-muted">—</span>}</span>
+              {pendingApproval(e) && (
+                <Badge variant="warning" className="whitespace-nowrap">
+                  Aprovação pendente
+                </Badge>
+              )}
+            </div>
+            {cnpj && (
+              <span className="text-xs tabular-nums text-content-muted">{formatCpfCnpj(cnpj)}</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'description',
