@@ -16,7 +16,9 @@ export const metadata: Metadata = {
   // PWA (CRM V2.1 #568) — instalável no celular do vendedor; iOS exige isso p/ push
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'Avecchi', statusBarStyle: 'default' },
-  icons: { apple: '/icons/icon-192.png' },
+  // icon explícito: com `icons` manual o Next 14 NÃO injeta o link do
+  // icon.png por convenção de arquivo — sem esta linha a aba fica genérica
+  icons: { icon: '/icon.png', apple: '/icons/icon-192.png' },
 };
 
 export const viewport: Viewport = {
