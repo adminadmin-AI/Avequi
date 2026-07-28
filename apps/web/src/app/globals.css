@@ -200,69 +200,115 @@ body {
   animation: avecchi-shimmer 14s ease-in-out infinite;
 }
 
-/* ─── Wordmark animado do auth: revelação compacta da landing ───
-   A+I aparecem, VECCH nasce entre eles (grid 0fr→1fr + blur) e o A
-   cede o lugar ao símbolo oficial. Só a fila de auth usa. O bloco
-   global de reduced-motion zera as durações; os delays são zerados
-   logo abaixo para o estado final ser imediato. */
+/* ─── Wordmark animado do auth: revelação da landing em LOOP ───
+   Ciclo de 12s: revela (~2,7s) → segura assentado (~7s) → desfaz
+   suave → recomeça. Os delays por letra (inline no componente)
+   preservam o escalonamento em todos os ciclos (mesmo período).
+   IMPORTANTE: o estado BASE das classes é o wordmark COMPLETO —
+   com reduced-motion a animação é desligada (media query abaixo)
+   e a marca fica visível no estado final. */
 .wm-anchor {
-  opacity: 0;
-  filter: blur(10px);
-  animation: wm-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+  animation: wm-anchor-loop 12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s infinite;
 }
-@keyframes wm-in {
-  to {
+@keyframes wm-anchor-loop {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  6%,
+  88% {
     opacity: 1;
     filter: blur(0);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    filter: blur(10px);
   }
 }
 .wm-letter {
   display: inline-grid;
   justify-items: center;
-  grid-template-columns: 0fr;
-  animation: wm-unfold 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  grid-template-columns: 1fr;
+  animation: wm-letter-loop 12s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
-@keyframes wm-unfold {
-  from {
+@keyframes wm-letter-loop {
+  0% {
     grid-template-columns: 0fr;
   }
-  to {
+  5.4%,
+  84% {
     grid-template-columns: 1fr;
+  }
+  92%,
+  100% {
+    grid-template-columns: 0fr;
   }
 }
 .wm-letter-inner {
   min-width: 0;
   white-space: nowrap;
-  opacity: 0;
-  filter: blur(8px);
-  animation: wm-reveal 0.55s ease-out forwards;
+  animation: wm-inner-loop 12s ease-out infinite;
 }
-@keyframes wm-reveal {
-  to {
+@keyframes wm-inner-loop {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  4.6%,
+  83% {
     opacity: 1;
     filter: blur(0);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    filter: blur(8px);
   }
 }
 .wm-glyph {
-  animation: wm-fade-out 0.8s ease-out 1.9s forwards;
+  opacity: 0;
+  filter: blur(7px);
+  animation: wm-glyph-loop 12s ease-out 0.1s infinite;
 }
-@keyframes wm-fade-out {
-  to {
+@keyframes wm-glyph-loop {
+  0%,
+  15% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  22%,
+  88% {
     opacity: 0;
     filter: blur(7px);
   }
+  96%,
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 .wm-mark {
-  opacity: 0;
-  filter: blur(7px);
-  transform: scale(0.96);
-  animation: wm-mark-in 0.8s ease-out 1.9s forwards;
+  animation: wm-mark-loop 12s ease-out 0.1s infinite;
 }
-@keyframes wm-mark-in {
-  to {
+@keyframes wm-mark-loop {
+  0%,
+  15% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: scale(0.96);
+  }
+  22%,
+  88% {
     opacity: 1;
     filter: blur(0);
     transform: scale(1);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: scale(0.96);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -271,6 +317,6 @@ body {
   .wm-letter-inner,
   .wm-glyph,
   .wm-mark {
-    animation-delay: 0ms !important;
+    animation: none !important;
   }
 }
