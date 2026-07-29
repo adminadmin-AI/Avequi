@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { chartTooltipProps } from '@/lib/chart-theme';
 
 // Cores do brandbook v2.0 (hex p/ recharts): brand 600, danger 600, accent 500.
 const C = { revenue: '#3D2CE6', expenses: '#DC2626', result: '#00C2A8', axis: '#64748b', grid: '#e2e8f0' };
@@ -153,7 +154,7 @@ export default function ForecastPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 12, fill: C.axis }} />
                     <YAxis tick={{ fontSize: 12, fill: C.axis }} tickFormatter={compact} width={56} />
-                    <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                    <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                     <Legend />
                     <Bar dataKey="Receita" fill={C.revenue} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Despesa" fill={C.expenses} radius={[4, 4, 0, 0]} />

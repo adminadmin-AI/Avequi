@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { formatBRL, formatNumber } from '@/lib/format';
+import { chartTooltipProps } from '@/lib/chart-theme';
 
 // ─── Shapes reais do backend (módulo analytics) ──────────────────────────────
 interface OlapSummary {
@@ -239,7 +240,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="period" tick={{ fontSize: 12, fill: '#64748b' }} />
                       <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
-                      <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                      <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Line type="monotone" dataKey="revenue" name="Receita" stroke="#3D2CE6" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -258,7 +259,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={brlCompact} />
                       <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
-                      <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                      <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Bar dataKey="revenue" name="Receita" fill="#00C2A8" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -287,7 +288,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
                       <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
-                      <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                      <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Bar dataKey="valor" name="Valor" radius={[4, 4, 0, 0]}>
                         {dreChart.map((d) => (
                           <Cell key={d.label} fill={d.valor >= 0 ? '#16a34a' : '#dc2626'} />
@@ -314,7 +315,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
                       <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
-                      <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                      <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Legend />
                       <Bar dataKey="material" stackId="c" name="Material" fill="#3D2CE6" radius={[0, 0, 0, 0]} />
                       <Bar dataKey="mao" stackId="c" name="Mão de obra" fill="#f59e0b" radius={[4, 4, 0, 0]} />
@@ -333,7 +334,7 @@ export default function AnalyticsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="bucket" tick={{ fontSize: 12, fill: '#64748b' }} />
                     <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
-                    <Tooltip formatter={(v) => formatBRL(Number(v))} />
+                    <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                     <Bar dataKey="valor" name="Valor em estoque" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
