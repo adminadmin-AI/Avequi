@@ -376,7 +376,7 @@ function NavLink({
     >
       {/* left border accent quando ativo */}
       {active && (
-        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-600 dark:bg-brand-400" />
+        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-600 duration-flow animate-in fade-in slide-in-from-left-1 dark:bg-brand-400" />
       )}
       <Icon
         size={17}

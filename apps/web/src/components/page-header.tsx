@@ -36,7 +36,7 @@ export function PageHeader({
             <Link
               href={backHref}
               aria-label="Voltar"
-              className="mt-1 rounded-md p-1 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
+              className="mt-1 rounded-lg p-1 text-content-muted transition-colors duration-micro hover:bg-neutral-500/[0.08] hover:text-content"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>

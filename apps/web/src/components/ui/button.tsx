@@ -10,16 +10,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Sólidos: luz interna de topo + lift de 1px no hover + glow da própria
+        // cor — o botão "sobe em direção à luz" (transform não desloca layout)
         primary:
-          'bg-brand-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(16_24_40/0.18)] hover:bg-brand-700 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_2px_10px_rgb(61_44_230/0.30)]',
+          'bg-brand-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(16_24_40/0.18)] hover:-translate-y-px hover:bg-brand-700 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_2px_10px_rgb(61_44_230/0.30)] active:translate-y-0',
         secondary:
-          'bg-surface text-content border border-line hover:bg-surface-secondary shadow-xs',
+          'bg-surface text-content border border-line shadow-xs hover:border-line-strong hover:bg-surface-secondary hover:shadow-sm',
         outline:
-          'border border-line bg-transparent text-content hover:bg-neutral-100 dark:hover:bg-neutral-800',
-        ghost: 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
-        link: 'text-brand-600 dark:text-brand-400 underline-offset-4 hover:underline dark:text-brand-400',
-        danger: 'bg-danger text-white hover:bg-danger-700 shadow-xs',
-        accent: 'bg-accent text-white hover:brightness-95 shadow-xs',
+          'border border-line bg-transparent text-content hover:border-line-strong hover:bg-neutral-500/[0.06]',
+        ghost: 'text-content-secondary hover:bg-neutral-500/[0.08] hover:text-content',
+        link: 'text-brand-600 dark:text-brand-400 underline-offset-4 hover:underline',
+        danger:
+          'bg-danger text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(16_24_40/0.18)] hover:-translate-y-px hover:bg-danger-700 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.16),0_2px_10px_rgb(220_38_38/0.28)] active:translate-y-0',
+        accent:
+          'bg-accent text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.16),0_1px_2px_rgb(16_24_40/0.18)] hover:-translate-y-px hover:bg-accent-600 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.20),0_2px_10px_rgb(0_194_168/0.30)] active:translate-y-0',
       },
       size: {
         xs: 'h-7 gap-1.5 px-2 text-xs',

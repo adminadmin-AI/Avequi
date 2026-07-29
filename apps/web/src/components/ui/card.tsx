@@ -3,14 +3,16 @@ import { cn } from '@/lib/utils';
 
 const cardVariants = cva('rounded-xl bg-surface text-content', {
   variants: {
-    // Soft Surfaces: profundidade por sombra suave; a borda é um sussurro
+    // Soft Surfaces: profundidade por sombra suave; a borda é um sussurro.
+    // surface-sheen = luz de topo quase imperceptível — container vira superfície.
     variant: {
-      default: 'border border-line shadow-soft',
-      elevated: 'border border-line shadow-soft transition-shadow duration-flow hover:shadow-lg',
+      default: 'surface-sheen border border-line shadow-soft',
+      elevated:
+        'surface-sheen border border-line shadow-soft transition-shadow duration-flow hover:shadow-lg',
       outlined: 'border border-line',
       ghost: 'bg-transparent',
       interactive:
-        'border border-line shadow-soft transition-[box-shadow,border-color,transform] duration-fast hover:border-line-strong hover:shadow-md active:scale-[0.99] cursor-pointer',
+        'surface-sheen border border-line shadow-soft transition-[box-shadow,border-color,transform] duration-fast hover:border-line-strong hover:shadow-md active:scale-[0.99] cursor-pointer',
     },
     accent: {
       none: '',
@@ -38,12 +40,18 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn('text-lg font-medium leading-snug text-content', className)} {...props} />
+    <h3
+      className={cn(
+        'text-lg font-semibold leading-snug tracking-[-0.01em] text-content',
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-6 py-4', className)} {...props} />;
+  return <div className={cn('px-6 py-5', className)} {...props} />;
 }
 
 export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
