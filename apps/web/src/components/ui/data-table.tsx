@@ -515,7 +515,7 @@ export function DataTable<T>({
               {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface" />}
             </tr>
           </thead>
-          <tbody>
+          <tbody className={loading ? undefined : 'duration-flow animate-in fade-in'}>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`skeleton-${i}`} className="border-quiet border-b last:border-0">
