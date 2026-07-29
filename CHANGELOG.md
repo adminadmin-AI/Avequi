@@ -6,6 +6,19 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-07-29
+
+### Added
+- feat(web): telas de auth com a identidade da landing (avecchi.ai) — backdrop oficial (mesh/glows), wordmark com o símbolo no A, card glass; copy "Bem-vindo de volta"; rota `/` vira redirect auth-aware (PRs #802/#803/#805)
+- feat(web): login v2 100% marca — copy "Conectando pessoas, processos e resultados.", fundo vivo (linhas convergindo ao wordmark + pulsos SMIL + glow respirando 8s + parallax sutil), iluminação ambiente violeta/ciano e revelação do wordmark em loop de 12s (PRs #804/#808/#809/#811/#812)
+- feat(web): shell interno rebrandado — wordmark Avecchi na sidebar (tone auto claro/escuro), versão real do produto no rodapé da sidebar (era v1.0 hardcoded), skeleton no menu durante o load de permissões (PRs #813/#825)
+- feat(crm): Inbox WhatsApp com experiência do WhatsApp — papel de parede fixo com doodle industrial próprio, balões clássicos com ticks, 3 temas + automático (segue o tema do app), persistência por dispositivo (2 PRs + ajustes)
+- feat(web): Soft Surfaces — linguagem visual premium: tokens de borda em alpha, sombras suaves em 2 camadas, tabelas sem grade (zebra ~3%, hover por tinta), inputs com glow de foco, botões com brilho interno, seleção da sidebar por tinta (PR do épico + fixes)
+
+### Fixed
+- fix(web): favicon da aba (Next 14 suprime icon.png com `metadata.icons` manual) + ícone quadrado e favicon.ico multi-size (#806)
+- fix(web): modificador de opacidade em token var() não é gerado pelo Tailwind — bordas caíam no gray-200 do preflight (risco branco no dark); `borderColor/divideColor DEFAULT` agora herdam o token soft em todo o app
+
 ## [1.21.0] - 2026-07-28
 
 ### Added
@@ -255,7 +268,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.21.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...HEAD
+[1.22.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.18.0...v1.19.0
