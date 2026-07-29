@@ -30,7 +30,7 @@ import {
   windowRemaining,
 } from './inbox-types';
 import { AudioRecorder } from './audio-recorder';
-import { CHAT_THEMES, useChatTheme } from './chat-themes';
+import { AUTO_THEME_OPTION, CHAT_THEMES, useChatTheme } from './chat-themes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +59,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
-  const [chatTheme, setChatTheme] = useChatTheme();
+  const { theme: chatTheme, activeKey: chatThemeKey, setTheme: setChatTheme } = useChatTheme();
   const [draft, setDraft] = useState('');
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [pickerIndex, setPickerIndex] = useState(0);
@@ -215,9 +215,7 @@ export default function InboxPage() {
   const windowLeft = selected ? windowRemaining(selected.windowExpiresAt) : null;
 
   return (
-    // Full-bleed: o inbox ocupa a área útil inteira, colado nas bordas
-    // (margens negativas anulam o padding do layout) — como o WhatsApp.
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] overflow-hidden sm:-m-6">
+    <div className="flex h-[calc(100vh-6.5rem)] overflow-hidden rounded-lg border">
       {/* Lista de conversas */}
       <aside
         className={`flex w-full flex-col border-r lg:w-80 lg:shrink-0 ${
@@ -352,7 +350,7 @@ export default function InboxPage() {
               />
             )}
             <div className="absolute right-2 top-2">
-              <ThemePicker activeKey={chatTheme.key} onPick={setChatTheme} />
+              <ThemePicker activeKey={chatThemeKey} onPick={setChatTheme} />
             </div>
             <div className="relative flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
               <MessageCircle
@@ -385,7 +383,7 @@ export default function InboxPage() {
                 </div>
               </div>
               {/* Tema da conversa — papel de parede, igual WhatsApp */}
-              <ThemePicker activeKey={chatTheme.key} onPick={setChatTheme} />
+              <ThemePicker activeKey={chatThemeKey} onPick={setChatTheme} />
               <Button variant="ghost" size="sm" onClick={() => setShowPanel((v) => !v)}>
                 <Info className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Lead</span>
@@ -542,7 +540,7 @@ function ThemePicker({ activeKey, onPick }: { activeKey: string; onPick: (k: str
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {CHAT_THEMES.map((t) => (
+        {[AUTO_THEME_OPTION, ...CHAT_THEMES].map((t) => (
           <DropdownMenuItem key={t.key} onSelect={() => onPick(t.key)}>
             <span
               aria-hidden

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
 
 /**
  * Temas de conversa do Inbox WhatsApp — a experiência do vendedor deve ser
@@ -102,16 +103,32 @@ export const CHAT_THEMES: ChatTheme[] = [
   },
 ];
 
-const STORAGE_KEY = 'avequi:crm:chat-theme';
-const DEFAULT_KEY = 'wa-dark';
+/** Opção "automático" do seletor — segue o tema claro/escuro do app. */
+export const AUTO_THEME_OPTION = {
+  key: 'auto',
+  label: 'Automático (segue o app)',
+  swatch: 'linear-gradient(135deg, #efeae2 50%, #0b141a 50%)',
+} as const;
 
-/** Tema atual + setter persistido. SSR-safe (default até hidratar). */
-export function useChatTheme(): [ChatTheme, (key: string) => void] {
+const STORAGE_KEY = 'avequi:crm:chat-theme';
+const DEFAULT_KEY = 'auto';
+
+/**
+ * Tema atual + chave escolhida + setter persistido. SSR-safe.
+ * 'auto' (default) resolve para WhatsApp claro/escuro conforme o tema do
+ * app (next-themes) — papel de parede preto em app claro causa estranheza.
+ */
+export function useChatTheme(): {
+  theme: ChatTheme;
+  activeKey: string;
+  setTheme: (key: string) => void;
+} {
+  const { resolvedTheme } = useTheme();
   const [key, setKey] = useState<string>(DEFAULT_KEY);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && CHAT_THEMES.some((t) => t.key === saved)) setKey(saved);
+    if (saved && (saved === 'auto' || CHAT_THEMES.some((t) => t.key === saved))) setKey(saved);
   }, []);
 
   const set = useCallback((next: string) => {
@@ -119,6 +136,7 @@ export function useChatTheme(): [ChatTheme, (key: string) => void] {
     localStorage.setItem(STORAGE_KEY, next);
   }, []);
 
-  const theme = CHAT_THEMES.find((t) => t.key === key) ?? CHAT_THEMES[0];
-  return [theme, set];
+  const resolvedKey = key === 'auto' ? (resolvedTheme === 'light' ? 'wa-light' : 'wa-dark') : key;
+  const theme = CHAT_THEMES.find((t) => t.key === resolvedKey) ?? CHAT_THEMES[0];
+  return { theme, activeKey: key, setTheme: set };
 }
