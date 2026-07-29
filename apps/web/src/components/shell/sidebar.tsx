@@ -371,7 +371,7 @@ function NavLink({
         // Soft Surfaces: seleção por tinta alpha (não bloco sólido)
         active
           ? 'bg-brand-600/[0.08] font-medium text-brand-700 dark:bg-brand-400/[0.10] dark:text-brand-300'
-          : 'text-content-secondary hover:bg-content/[0.045]',
+          : 'text-content-secondary hover:bg-neutral-500/[0.08]',
       )}
     >
       {/* left border accent quando ativo */}

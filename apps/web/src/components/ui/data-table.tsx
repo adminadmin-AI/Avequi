@@ -450,7 +450,7 @@ export function DataTable<T>({
                 </dl>
                 {footerCols.length > 0 && (
                   <div
-                    className="mt-2 flex justify-end border-t border-line/60 pt-2"
+                    className="mt-2 flex justify-end border-t border-line pt-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {footerCols.map((col) => (
@@ -518,7 +518,7 @@ export function DataTable<T>({
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skeleton-${i}`} className="border-b border-line/40 last:border-0">
+                <tr key={`skeleton-${i}`} className="border-b border-line last:border-0">
                   {selectable && (
                     <td className="px-5 py-3.5">
                       <Skeleton className="h-4 w-4" />
@@ -577,7 +577,7 @@ export function DataTable<T>({
                     className={cn(
                       // Soft Surfaces: linha quase invisível + zebra de ~3% —
                       // o dado é o protagonista, a grade desaparece
-                      'border-b border-line/40 transition-colors duration-micro last:border-0',
+                      'border-b border-line transition-colors duration-micro last:border-0',
                       'even:bg-neutral-500/[0.03]',
                       onRowClick &&
                         'cursor-pointer hover:bg-brand-600/[0.05] dark:hover:bg-brand-400/[0.07]',
