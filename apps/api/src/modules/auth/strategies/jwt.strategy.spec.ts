@@ -1,6 +1,10 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
-import { MFA_PENDING_SCOPE } from '../auth.service';
+import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
+
+const mockDenylist = {
+  isSessionDenylisted: jest.fn(),
+};
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -9,7 +13,9 @@ describe('JwtStrategy', () => {
     const mockConfig = {
       get: jest.fn().mockReturnValue('test-secret-key-for-jwt-at-least-32-chars'),
     };
-    strategy = new JwtStrategy(mockConfig as any);
+    jest.clearAllMocks();
+    mockDenylist.isSessionDenylisted.mockResolvedValue(false);
+    strategy = new JwtStrategy(mockConfig as any, mockDenylist as any);
   });
 
   it('should extract user from valid payload', async () => {
@@ -27,6 +33,7 @@ describe('JwtStrategy', () => {
       email: 'admin@gdr.com.br',
       role: 'SUPER_ADMIN',
       companyId: 'company-1',
+      sessionId: undefined,
     });
   });
 
@@ -49,5 +56,64 @@ describe('JwtStrategy', () => {
     await expect(
       strategy.validate({ sub: 'user-1', scope: MFA_PENDING_SCOPE }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('should REJECT the passwordChangeToken as access token (escopo restrito, #345)', async () => {
+    await expect(
+      strategy.validate({ sub: 'user-1', scope: PASSWORD_CHANGE_SCOPE }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  // ─── #823: denylist de sessão na validação do access token ────────────────
+
+  describe('denylist de sessão (#823)', () => {
+    const payload = {
+      sub: 'user-1',
+      email: 'a@b.c',
+      role: 'READER',
+      companyId: 'company-1',
+      sessionId: 'sess-1',
+    };
+
+    it('sessão NÃO denylistada → autentica; consulta feita UMA única vez', async () => {
+      const result = await strategy.validate(payload);
+
+      expect(result.id).toBe('user-1');
+      expect(result.sessionId).toBe('sess-1');
+      expect(mockDenylist.isSessionDenylisted).toHaveBeenCalledTimes(1);
+      expect(mockDenylist.isSessionDenylisted).toHaveBeenCalledWith('sess-1');
+    });
+
+    it('sessão denylistada → 401 UnauthorizedException com mensagem GENÉRICA (não revela o motivo)', async () => {
+      mockDenylist.isSessionDenylisted.mockResolvedValue(true);
+
+      const rejection = expect(strategy.validate(payload)).rejects;
+      await rejection.toThrow(UnauthorizedException);
+      await expect(strategy.validate(payload)).rejects.toThrow(
+        'Sessão inválida ou expirada. Faça login novamente.',
+      );
+    });
+
+    it('token legado SEM sessionId (transição M4, #342) → não consulta e segue valendo', async () => {
+      const result = await strategy.validate({ sub: 'user-1', email: 'a@b.c' });
+
+      expect(result.id).toBe('user-1');
+      expect(mockDenylist.isSessionDenylisted).not.toHaveBeenCalled();
+    });
+
+    it('token restrito é rejeitado ANTES da denylist (nem consulta)', async () => {
+      await expect(
+        strategy.validate({ sub: 'user-1', scope: PASSWORD_CHANGE_SCOPE, sessionId: 'sess-1' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockDenylist.isSessionDenylisted).not.toHaveBeenCalled();
+    });
+
+    it('fail-open do serviço (Redis fora → false, contrato testado no spec dele) mantém o token até expirar', async () => {
+      mockDenylist.isSessionDenylisted.mockResolvedValue(false);
+
+      const result = await strategy.validate(payload);
+
+      expect(result.id).toBe('user-1');
+    });
   });
 });

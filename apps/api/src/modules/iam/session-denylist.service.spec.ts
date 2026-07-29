@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   SessionDenylistService,
   SESSION_DENYLIST_TTL_SECONDS,
+  parseExpiryToSeconds,
 } from './session-denylist.service';
 
 /**
@@ -55,7 +56,64 @@ describe('SessionDenylistService', () => {
     });
   });
 
-  describe('isSessionDenylisted — consulta do JwtAuthGuard (#341)', () => {
+  describe('TTL cobre a vida do access token (#823)', () => {
+    it('parseExpiryToSeconds entende os formatos do JWT_EXPIRY', () => {
+      expect(parseExpiryToSeconds('15m')).toBe(900);
+      expect(parseExpiryToSeconds('1h')).toBe(3600);
+      expect(parseExpiryToSeconds('900s')).toBe(900);
+      expect(parseExpiryToSeconds('900')).toBe(900);
+      expect(parseExpiryToSeconds('1d')).toBe(86400);
+    });
+
+    it('formato desconhecido/ausente cai no fallback de 15 min (nunca zero)', () => {
+      expect(parseExpiryToSeconds(undefined)).toBe(SESSION_DENYLIST_TTL_SECONDS);
+      expect(parseExpiryToSeconds('banana')).toBe(SESSION_DENYLIST_TTL_SECONDS);
+      expect(parseExpiryToSeconds('')).toBe(SESSION_DENYLIST_TTL_SECONDS);
+    });
+
+    it('JWT_EXPIRY maior que 15 min → TTL acompanha (entrada nunca expira antes do token)', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SessionDenylistService,
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn((k: string) => (k === 'JWT_EXPIRY' ? '1h' : undefined)) },
+          },
+        ],
+      }).compile();
+      const svc = module.get(SessionDenylistService);
+      (svc as any).client = mockRedis;
+
+      await svc.deny('sess-1');
+
+      expect(mockRedis.set).toHaveBeenCalledWith('iam:session-denylist:sess-1', '1', 'EX', 3600);
+    });
+
+    it('JWT_EXPIRY menor que 15 min → TTL não desce do piso de 15 min', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SessionDenylistService,
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn((k: string) => (k === 'JWT_EXPIRY' ? '5m' : undefined)) },
+          },
+        ],
+      }).compile();
+      const svc = module.get(SessionDenylistService);
+      (svc as any).client = mockRedis;
+
+      await svc.deny('sess-1');
+
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        'iam:session-denylist:sess-1',
+        '1',
+        'EX',
+        SESSION_DENYLIST_TTL_SECONDS,
+      );
+    });
+  });
+
+  describe('isSessionDenylisted — consulta da JwtStrategy (#823)', () => {
     it('true quando a sessão está na denylist', async () => {
       mockRedis.get.mockResolvedValue('1');
 
@@ -86,6 +144,21 @@ describe('SessionDenylistService', () => {
       mockRedis.get.mockRejectedValue(new Error('ECONNREFUSED'));
 
       await expect(service.isSessionDenylisted('sess-1')).resolves.toBe(false);
+    });
+
+    it('falha na consulta emite log estruturado ERROR uma vez, sem token/sessionId (#823)', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      mockRedis.get.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      await service.isSessionDenylisted('sess-1');
+      await service.isSessionDenylisted('sess-2'); // segunda falha na MESMA indisponibilidade
+
+      expect(errorSpy).toHaveBeenCalledTimes(1); // uma vez por indisponibilidade
+      const logged = errorSpy.mock.calls[0][0] as string;
+      expect(logged).toContain('session_denylist_unavailable');
+      expect(logged).toContain('fail-open');
+      expect(logged).not.toContain('sess-1'); // nunca loga sessionId/JWT
+      errorSpy.mockRestore();
     });
 
     it('sem client (Redis nunca subiu) devolve false / no-op', async () => {
