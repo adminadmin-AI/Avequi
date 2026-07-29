@@ -181,8 +181,9 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
               {supplier?.pixKey ? (
                 <Copyable value={supplier.pixKey} copied={copy} />
               ) : supplier ? (
+                // deep-link: abre a tela de fornecedores já com ESTE fornecedor em edição
                 <Link
-                  href="/app/suppliers"
+                  href={`/app/suppliers?edit=${supplier.id}`}
                   className="text-xs text-brand-600 hover:underline dark:text-brand-400"
                   title="A chave fica no cadastro do fornecedor e aparece em todas as contas dele"
                 >

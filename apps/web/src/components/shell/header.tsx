@@ -10,7 +10,7 @@ export function Header() {
   const { setMobileNavOpen, setCommandOpen } = useUiStore();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-surface/80 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-surface-secondary/70 px-4 backdrop-blur-md sm:px-6">
       {/* Hamburger (mobile) */}
       <button
         onClick={() => setMobileNavOpen(true)}
@@ -34,7 +34,7 @@ export function Header() {
       >
         <Search size={15} />
         <span className="hidden md:inline">Buscar…</span>
-        <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium md:inline">
+        <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium shadow-[0_1px_0_var(--border-default)] md:inline">
           Ctrl K
         </kbd>
       </button>

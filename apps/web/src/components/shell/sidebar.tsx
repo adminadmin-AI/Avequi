@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, Star, X } from 'lucide-react';
 import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
-import { useNavAccess } from '@/hooks/use-permission';
+import { useNavAccess, usePermission } from '@/hooks/use-permission';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
-import { useCurrentCompany } from '@/hooks/use-current-company';
 import { useUiStore } from '@/stores/ui-store';
 import Image from 'next/image';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
@@ -27,7 +27,7 @@ export function Sidebar() {
       {/* Desktop — fixa */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-line bg-surface transition-[width] duration-flow ease-precise lg:flex',
+          'fixed inset-y-0 left-0 z-20 hidden flex-col bg-surface-secondary transition-[width] duration-flow ease-precise lg:flex',
           sidebarCollapsed ? 'w-16' : 'w-60',
         )}
       >
@@ -45,7 +45,7 @@ export function Sidebar() {
             className="absolute inset-0 bg-surface-overlay backdrop-blur-sm duration-fast animate-in fade-in"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r border-line bg-surface duration-flow animate-in slide-in-from-left">
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-surface shadow-elevation-4 duration-flow animate-in slide-in-from-left">
             <SidebarInner mini={false} onClose={() => setMobileNavOpen(false)} showClose />
           </aside>
         </div>
@@ -67,8 +67,8 @@ function SidebarInner({
 }) {
   const pathname = usePathname();
   const access = useNavAccess();
+  const { isLoading: permsLoading } = usePermission();
   const counts = useSidebarCounts();
-  const companyName = useCurrentCompany();
 
   const [hydrated, setHydrated] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -203,7 +203,7 @@ function SidebarInner({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar no menu…"
-              className="h-9 w-full rounded-lg border border-line bg-surface-secondary pl-8 pr-7 text-sm text-content placeholder:text-content-muted focus-ring"
+              className="h-9 w-full rounded-lg bg-neutral-500/[0.06] pl-8 pr-7 text-sm text-content transition-colors duration-micro placeholder:text-content-muted hover:bg-neutral-500/[0.09] focus-ring"
             />
             {search && (
               <button
@@ -220,8 +220,12 @@ function SidebarInner({
 
       {/* ─── Navegação ─── */}
       <nav className="avequi-scroll flex-1 space-y-4 overflow-y-auto px-3 py-3">
-        {/* Resultados de busca (agrupados por seção) */}
-        {searchResults ? (
+        {/* Esqueleto enquanto as permissões carregam — o nav é fail-closed
+            (#351) e sem isto o menu aparece "encolhido" por um instante */}
+        {permsLoading ? (
+          <NavSkeleton mini={mini} />
+        ) : /* Resultados de busca (agrupados por seção) */
+        searchResults ? (
           searchResults.length === 0 ? (
             <p className="px-3 py-2 text-caption text-content-muted">Nenhum item encontrado.</p>
           ) : (
@@ -326,9 +330,8 @@ function SidebarInner({
           <p className="text-helper text-content-muted">{APP_VERSION}</p>
         ) : (
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-caption text-content-secondary" title={companyName ?? ''}>
-              {companyName ?? 'Avecchi'}
-            </span>
+            {/* nome do PRODUTO (a empresa logada aparece no menu do usuário) */}
+            <span className="truncate text-caption text-content-secondary">Avecchi</span>
             <span className="shrink-0 text-helper text-content-muted">{APP_VERSION}</span>
           </div>
         )}
@@ -365,14 +368,15 @@ function NavLink({
       className={cn(
         'group relative flex items-center rounded-lg text-sm transition-colors duration-fast',
         mini ? 'h-10 justify-center' : 'gap-2.5 px-3 py-2',
+        // Soft Surfaces: seleção por tinta alpha (não bloco sólido)
         active
-          ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
-          : 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
+          ? 'bg-brand-600/[0.08] font-medium text-brand-700 dark:bg-brand-400/[0.10] dark:text-brand-300'
+          : 'text-content-secondary hover:bg-neutral-500/[0.08]',
       )}
     >
       {/* left border accent quando ativo */}
       {active && (
-        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-600 dark:bg-brand-400" />
+        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-600 duration-flow animate-in fade-in slide-in-from-left-1 dark:bg-brand-400" />
       )}
       <Icon
         size={17}
@@ -427,5 +431,43 @@ function Highlighted({ text, term }: { text: string; term: string }) {
       </mark>
       {text.slice(idx + q.length)}
     </>
+  );
+}
+
+/**
+ * Esqueleto do menu durante o load de /auth/me/permissions — preserva o
+ * layout (sem CLS) e evita a impressão de "menu encolhido" do fail-closed.
+ * Larguras variadas imitam rótulos reais; o primitivo Skeleton já cuida de
+ * dark-mode e prefers-reduced-motion.
+ */
+function NavSkeleton({ mini }: { mini: boolean }) {
+  if (mini) {
+    return (
+      <div className="flex flex-col items-center gap-3 pt-1">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-6 w-6 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  const groups: string[][] = [
+    ['w-24', 'w-20', 'w-28', 'w-16'],
+    ['w-28', 'w-20', 'w-24'],
+    ['w-20', 'w-24', 'w-16', 'w-28'],
+  ];
+  return (
+    <div className="space-y-5 pt-1">
+      {groups.map((rows, g) => (
+        <div key={g} className="space-y-1.5">
+          <Skeleton className="ml-3 mb-2 h-3 w-20" />
+          {rows.map((w, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-3 py-1.5">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className={`h-3.5 ${w}`} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }

@@ -91,7 +91,7 @@ export default function CrmDashboardPage() {
                   key={p.days}
                   onClick={() => setDays(p.days)}
                   className={`rounded-full px-3 py-1 text-xs ${
-                    days === p.days ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                    days === p.days ? 'bg-brand-600 text-white' : 'bg-neutral-500/[0.08] text-content-muted'
                   }`}
                 >
                   {p.label}
@@ -110,7 +110,7 @@ export default function CrmDashboardPage() {
 
       {isLoading || !data ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
         <>
@@ -133,7 +133,7 @@ export default function CrmDashboardPage() {
               <h2 className="border-b p-3 text-sm font-medium">Conversão por origem</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-muted-foreground">
+                  <thead className="text-left text-xs text-content-muted">
                     <tr>
                       <th className="p-2">Origem</th>
                       <th className="p-2 text-right">Leads</th>
@@ -156,7 +156,7 @@ export default function CrmDashboardPage() {
                     ))}
                     {data.bySource.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                        <td colSpan={4} className="p-4 text-center text-content-muted">
                           Sem leads no período
                         </td>
                       </tr>
@@ -171,7 +171,7 @@ export default function CrmDashboardPage() {
               <h2 className="border-b p-3 text-sm font-medium">Ranking por vendedor</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-muted-foreground">
+                  <thead className="text-left text-xs text-content-muted">
                     <tr>
                       <th className="p-2">Vendedor</th>
                       <th className="p-2 text-right">Leads</th>
@@ -185,7 +185,7 @@ export default function CrmDashboardPage() {
                         <td className="p-2 font-medium">{s.name}</td>
                         <td className="p-2 text-right">{s.leads}</td>
                         <td className="p-2 text-right">
-                          {s.won} <span className="text-xs text-muted-foreground">({s.winRate}%)</span>
+                          {s.won} <span className="text-xs text-content-muted">({s.winRate}%)</span>
                         </td>
                         <td className="p-2 text-right">
                           {s.avgFirstResponseMin != null ? `${s.avgFirstResponseMin}min` : '—'}
@@ -194,7 +194,7 @@ export default function CrmDashboardPage() {
                     ))}
                     {data.bySeller.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                        <td colSpan={4} className="p-4 text-center text-content-muted">
                           Sem dados
                         </td>
                       </tr>
@@ -239,7 +239,7 @@ function LostByCategory({ lost }: { lost: Dashboard['lostReasons'] }) {
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-medium">Por que perdemos? ({total} leads)</h2>
         <select
-          className="rounded-md border bg-background px-2 py-1 text-xs"
+          className="rounded-md border bg-surface px-2 py-1 text-xs"
           value={dim}
           onChange={(e) => setDim(e.target.value as 'seller' | 'source')}
         >
@@ -292,10 +292,10 @@ function Stat({
   highlight?: boolean;
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${highlight ? 'border-primary/40 bg-primary/5' : ''}`}>
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className={`rounded-lg border p-3 ${highlight ? 'border-brand-600/40 bg-brand-600/5' : ''}`}>
+      <div className="text-xs text-content-muted">{label}</div>
       <div className="text-2xl font-semibold">{value}</div>
-      {pct != null && <div className="text-xs text-muted-foreground">{pct}% do total</div>}
+      {pct != null && <div className="text-xs text-content-muted">{pct}% do total</div>}
     </div>
   );
 }

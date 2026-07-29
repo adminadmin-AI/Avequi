@@ -91,11 +91,11 @@ export default function QuickRepliesPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
             <label className="block">
-              <span className="mb-1 block text-xs text-muted-foreground">Atalho</span>
+              <span className="mb-1 block text-xs text-content-muted">Atalho</span>
               <div className="flex items-center gap-1">
-                <span className="text-sm text-muted-foreground">/</span>
+                <span className="text-sm text-content-muted">/</span>
                 <input
-                  className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+                  className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
                   placeholder="pix"
                   maxLength={30}
                   value={form.shortcut}
@@ -105,9 +105,9 @@ export default function QuickRepliesPage() {
             </label>
             {!form.id && (
               <label className="block">
-                <span className="mb-1 block text-xs text-muted-foreground">Escopo</span>
+                <span className="mb-1 block text-xs text-content-muted">Escopo</span>
                 <select
-                  className="w-full rounded-md border bg-background px-2 py-2 text-sm sm:w-64"
+                  className="w-full rounded-md border bg-surface px-2 py-2 text-sm sm:w-64"
                   value={form.scope}
                   onChange={(e) => setForm({ ...form, scope: e.target.value as FormState['scope'] })}
                 >
@@ -118,9 +118,9 @@ export default function QuickRepliesPage() {
             )}
           </div>
           <label className="block">
-            <span className="mb-1 block text-xs text-muted-foreground">Texto</span>
+            <span className="mb-1 block text-xs text-content-muted">Texto</span>
             <textarea
-              className="min-h-24 w-full rounded-md border bg-background p-2 text-sm"
+              className="min-h-24 w-full rounded-md border bg-surface p-2 text-sm"
               placeholder="Olá {nome}! Nossa chave PIX é o CNPJ 00.000.000/0001-00"
               maxLength={4000}
               value={form.text}
@@ -139,7 +139,7 @@ export default function QuickRepliesPage() {
 
       {isLoading && (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       )}
 
@@ -203,8 +203,8 @@ function ReplySection({
       <ul className="divide-y">
         {replies.map((r) => (
           <li key={r.id} className="flex items-start gap-3 p-3">
-            <code className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">/{r.shortcut}</code>
-            <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+            <code className="shrink-0 rounded bg-neutral-500/[0.08] px-1.5 py-0.5 text-xs">/{r.shortcut}</code>
+            <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-muted">
               {r.text}
             </p>
             {canEdit(r) && (

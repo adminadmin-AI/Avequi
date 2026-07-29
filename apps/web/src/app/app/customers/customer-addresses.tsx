@@ -161,7 +161,7 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
   }
 
   return (
-    <div className="border-t border-border pt-4 space-y-3">
+    <div className="border-t border-line pt-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-content-secondary">
           Endereços de entrega (grupo entrega da NF-e)
@@ -185,7 +185,7 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
           {addresses.map((a) => (
             <li
               key={a.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
+              className="flex items-start justify-between gap-3 rounded-lg border border-line p-3"
             >
               <div className="flex min-w-0 items-start gap-2.5">
                 <MapPin size={16} className="mt-0.5 shrink-0 text-content-muted" />
@@ -227,7 +227,7 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
             e.stopPropagation();
             handleSubmit((values) => save.mutate(values))(e);
           }}
-          className="space-y-3 rounded-lg border border-border bg-surface-secondary p-3"
+          className="space-y-3 rounded-lg border border-line bg-surface-secondary p-3"
         >
           <Field label="Rótulo" required error={errors.label?.message}>
             <Input {...register('label')} placeholder='Ex.: "Obra Fazenda Santa Fé"' autoFocus />

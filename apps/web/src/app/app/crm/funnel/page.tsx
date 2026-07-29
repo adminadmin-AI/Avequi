@@ -92,7 +92,7 @@ export default function FunnelPage() {
                     key={s}
                     onClick={() => setScope(s)}
                     className={`rounded-full px-3 py-1 text-xs ${
-                      scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      scope === s ? 'bg-brand-600/[0.10] font-medium text-brand-700 dark:text-brand-300' : 'text-content-secondary hover:bg-neutral-500/[0.06]'
                     }`}
                   >
                     {s === 'mine' ? 'Meus' : 'Todas as lojas'}
@@ -100,7 +100,7 @@ export default function FunnelPage() {
                 ))}
               </div>
             )}
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-content-muted">
               Pipeline aberto: <b>{formatBRL(grandTotal)}</b>
             </span>
           </div>
@@ -109,18 +109,18 @@ export default function FunnelPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {columns.map((column) => (
             <div
               key={column.stage.id}
-              className="flex w-72 shrink-0 flex-col rounded-lg border bg-muted/30"
+              className="flex w-72 shrink-0 flex-col rounded-xl bg-neutral-500/[0.04]"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
             >
-              <div className="flex items-center justify-between border-b p-3">
+              <div className="flex items-center justify-between p-3 pb-2">
                 <div className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -132,7 +132,7 @@ export default function FunnelPage() {
                   </Badge>
                 </div>
                 {column.totalValue > 0 && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-content-muted">
                     {formatBRL(column.totalValue)}
                   </span>
                 )}
@@ -150,43 +150,43 @@ export default function FunnelPage() {
                       e.stopPropagation();
                       onDrop(column, index);
                     }}
-                    className={`group rounded-md border bg-background p-2 text-sm shadow-sm ${
+                    className={`group surface-sheen rounded-lg bg-surface p-2.5 text-sm shadow-soft ${
                       dragged?.id === lead.id ? 'opacity-40' : ''
                     }`}
                   >
                     <div className="flex items-start gap-1">
-                      <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100" />
+                      <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-grab text-content-muted opacity-0 group-hover:opacity-100" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="truncate font-medium">
                             {lead.name ?? lead.phone ?? 'Sem nome'}
                           </span>
                           {lead.unreadCount > 0 && (
-                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] text-white">
                               {lead.unreadCount}
                             </span>
                           )}
                         </div>
                         {lead.interest && (
-                          <p className="truncate text-xs text-muted-foreground">{lead.interest}</p>
+                          <p className="truncate text-xs text-content-muted">{lead.interest}</p>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           <Badge variant="info" className="text-[10px]">
                             {SOURCE_LABEL[lead.source] ?? lead.source}
                           </Badge>
                           {Number(lead.estimatedValue ?? 0) > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-content-muted">
                               {formatBRL(Number(lead.estimatedValue))}
                             </span>
                           )}
                           {scope === 'all' && lead.assignedTo && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-content-muted">
                               {lead.assignedTo.name}
                             </span>
                           )}
                           <Link
                             href="/app/crm/inbox"
-                            className="ml-auto text-muted-foreground hover:text-foreground"
+                            className="ml-auto text-content-muted hover:text-content"
                             title="Abrir no inbox"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
@@ -197,7 +197,7 @@ export default function FunnelPage() {
                   </div>
                 ))}
                 {column.leads.length === 0 && (
-                  <p className="p-4 text-center text-xs text-muted-foreground">arraste leads aqui</p>
+                  <p className="p-4 text-center text-xs text-content-muted">arraste leads aqui</p>
                 )}
               </div>
             </div>
@@ -207,13 +207,13 @@ export default function FunnelPage() {
 
       {lostPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm space-y-3 rounded-lg border bg-background p-4 shadow-lg">
+          <div className="w-full max-w-sm space-y-3 rounded-xl bg-surface-elevated p-4 shadow-elevation-4">
             <h2 className="font-medium">Motivo da perda</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-content-muted">
               Marcando <b>{lostPrompt.lead.name ?? lostPrompt.lead.phone}</b> como perdido.
             </p>
             <select
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-content"
               value={lostCategory}
               onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
             >
@@ -225,7 +225,7 @@ export default function FunnelPage() {
               ))}
             </select>
             <input
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-content"
               placeholder="Detalhe opcional (ex.: achou R$ 2 mil mais barato na X)"
               value={lostReason}
               maxLength={300}
@@ -233,7 +233,7 @@ export default function FunnelPage() {
             />
             <div className="flex justify-end gap-2">
               <button
-                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground"
+                className="rounded-lg px-3 py-1.5 text-sm text-content-secondary transition-colors duration-micro hover:bg-neutral-500/[0.06]"
                 onClick={() => {
                   setLostPrompt(null);
                   setLostReason('');

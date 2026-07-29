@@ -66,7 +66,7 @@ export default function SlaPage() {
                   key={s}
                   onClick={() => setScope(s)}
                   className={`rounded-full px-3 py-1 text-xs ${
-                    scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                    scope === s ? 'bg-brand-600 text-white' : 'bg-neutral-500/[0.08] text-content-muted'
                   }`}
                 >
                   {s === 'mine' ? 'Meus' : 'Todas as lojas'}
@@ -79,7 +79,7 @@ export default function SlaPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -95,7 +95,7 @@ export default function SlaPage() {
             </header>
             <ul className="divide-y">
               {data?.breaching.length === 0 && (
-                <li className="p-6 text-center text-sm text-muted-foreground">
+                <li className="p-6 text-center text-sm text-content-muted">
                   Tudo respondido no prazo 🎉
                 </li>
               )}
@@ -103,7 +103,7 @@ export default function SlaPage() {
                 <li key={l.id} className="flex items-center justify-between gap-2 p-3 text-sm">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{l.name ?? l.phone}</div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs text-content-muted">
                       <Badge variant="info" className="text-[10px]">
                         {SOURCE_LABEL[l.source] ?? l.source}
                       </Badge>
@@ -141,7 +141,7 @@ export default function SlaPage() {
             </header>
             <ul className="divide-y">
               {data?.cooling.length === 0 && (
-                <li className="p-6 text-center text-sm text-muted-foreground">
+                <li className="p-6 text-center text-sm text-content-muted">
                   Nenhum lead parado
                 </li>
               )}
@@ -149,7 +149,7 @@ export default function SlaPage() {
                 <li key={l.id} className="flex items-center justify-between gap-2 p-3 text-sm">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{l.name ?? l.phone}</div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs text-content-muted">
                       {l.stage?.name && (
                         <Badge variant="neutral" className="text-[10px]">
                           {l.stage.name}
@@ -159,7 +159,7 @@ export default function SlaPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-content-muted">
                       {l.idleHours != null ? `${l.idleHours}h parado` : ''}
                     </span>
                     <Link href="/app/crm/inbox" className="text-xs underline">

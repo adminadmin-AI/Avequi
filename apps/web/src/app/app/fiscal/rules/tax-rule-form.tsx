@@ -133,7 +133,7 @@ export function TaxRuleForm({
       </div>
 
       {/* ─── ICMS ─── */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">ICMS</p>
         <div className="grid grid-cols-3 gap-4">
           <Field label="CST" required error={errors.icmsCst?.message}>
@@ -149,7 +149,7 @@ export function TaxRuleForm({
       </div>
 
       {/* ─── IPI / PIS / COFINS ─── */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">IPI · PIS · COFINS</p>
         <div className="grid grid-cols-3 gap-4">
           <Field label="IPI CST">
@@ -174,7 +174,7 @@ export function TaxRuleForm({
       </div>
 
       {/* ─── DIFAL / FCP ─── */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
           DIFAL / FCP — vendas interestaduais a consumidor final
         </p>
@@ -189,7 +189,7 @@ export function TaxRuleForm({
       </div>
 
       {/* ─── IBS/CBS — reforma tributária ─── */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
           IBS/CBS — reforma tributária (NT 2025.002). Vazio = não emite grupo UB.
         </p>
@@ -216,7 +216,7 @@ export function TaxRuleForm({
       </div>
 
       {/* ─── Vigência (#500) e meta ─── */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
           Vigência — NT nova ou fase da reforma = regra nova com início futuro
         </p>

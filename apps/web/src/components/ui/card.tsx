@@ -3,13 +3,16 @@ import { cn } from '@/lib/utils';
 
 const cardVariants = cva('rounded-xl bg-surface text-content', {
   variants: {
+    // Soft Surfaces: profundidade por sombra suave; a borda é um sussurro.
+    // surface-sheen = luz de topo quase imperceptível — container vira superfície.
     variant: {
-      default: 'border border-line shadow-sm',
-      elevated: 'border border-line shadow-md transition-shadow duration-flow hover:shadow-lg',
+      default: 'surface-sheen shadow-soft',
+      elevated:
+        'surface-sheen shadow-soft transition-shadow duration-flow hover:shadow-lg',
       outlined: 'border border-line',
       ghost: 'bg-transparent',
       interactive:
-        'border border-line shadow-sm transition-[box-shadow,border-color,transform] duration-fast hover:border-line-strong hover:shadow-md active:scale-[0.99] cursor-pointer',
+        'surface-sheen shadow-soft transition-[box-shadow,transform] duration-fast hover:shadow-md active:scale-[0.99] cursor-pointer',
     },
     accent: {
       none: '',
@@ -32,23 +35,29 @@ export function Card({ className, variant, accent, ...props }: CardProps) {
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-line px-6 py-4', className)} {...props} />;
+  return <div className={cn('px-6 pb-1 pt-5', className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn('text-lg font-medium leading-snug text-content', className)} {...props} />
+    <h3
+      className={cn(
+        'text-lg font-semibold leading-snug tracking-[-0.01em] text-content',
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-6 py-4', className)} {...props} />;
+  return <div className={cn('px-6 py-5', className)} {...props} />;
 }
 
 export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex items-center gap-3 border-t border-line px-6 py-4', className)}
+      className={cn('flex items-center gap-3 px-6 pb-5 pt-1', className)}
       {...props}
     />
   );

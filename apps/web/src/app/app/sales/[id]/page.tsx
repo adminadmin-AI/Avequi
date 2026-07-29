@@ -289,7 +289,7 @@ export default function SalesDetailPage() {
             </p>
             <ul className="space-y-1.5">
               {(order.items ?? []).map((it) => (
-                <li key={it.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                <li key={it.id} className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-sm">
                   <span>
                     {Number(it.quantity)}× {it.product?.name ?? it.productId}
                   </span>

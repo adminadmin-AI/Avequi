@@ -35,8 +35,8 @@ import { UserAccessService } from './user-access.service';
  * segue disponível para os endpoints que só têm @Roles. O SessionService já
  * é CONSUMIDO pelo AuthModule (login cria sessão, refresh mantém, logout
  * revoga); a consulta de denylist
- * (SessionDenylistService.isSessionDenylisted) fica exposta para o
- * JwtAuthGuard (pendência da #341).
+ * (SessionDenylistService.isSessionDenylisted) é CONSUMIDA pela JwtStrategy
+ * em toda request autenticada com sessionId (#823).
  *
  * O AuditService é exportado para o AuditInterceptor global (app.module) e
  * para services que adotarem logWithDiff() gradualmente (Decisão 5).

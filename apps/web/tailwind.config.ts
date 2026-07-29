@@ -9,6 +9,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // Soft Surfaces: `border`/`divide-y` SEM cor explícita herdam o token
+      // suave (antes caíam no gray-200 do preflight — risco branco no dark).
+      // Vale pra todo o app, telas atuais e futuras.
+      borderColor: { DEFAULT: 'var(--border-default)' },
+      divideColor: { DEFAULT: 'var(--border-default)' },
       colors: {
         // ─── Avequi brand (Indigo) — brandbook v2.0 · escala 50-950 ───
         brand: {

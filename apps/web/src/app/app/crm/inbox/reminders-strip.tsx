@@ -49,10 +49,10 @@ export function RemindersStrip({ onOpenLead }: { onOpenLead: (leadId: string) =>
   return (
     <div className="border-b">
       <button
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/50"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-neutral-500/[0.05]"
         onClick={() => setOpen((v) => !v)}
       >
-        <AlarmClock className={`h-3.5 w-3.5 ${due.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
+        <AlarmClock className={`h-3.5 w-3.5 ${due.length > 0 ? 'text-danger' : 'text-content-muted'}`} />
         <span className="flex-1">
           Meus lembretes
           {due.length > 0 && (
@@ -61,11 +61,11 @@ export function RemindersStrip({ onOpenLead }: { onOpenLead: (leadId: string) =>
             </Badge>
           )}
         </span>
-        <span className="text-muted-foreground">{reminders.length}</span>
+        <span className="text-content-muted">{reminders.length}</span>
         {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
       </button>
       {open && (
-        <ul className="max-h-48 divide-y overflow-y-auto border-t bg-muted/20">
+        <ul className="max-h-48 divide-y overflow-y-auto border-t bg-neutral-500/[0.05]">
           {reminders.map((r) => {
             const overdue = new Date(r.dueAt).getTime() <= now;
             return (
@@ -76,7 +76,7 @@ export function RemindersStrip({ onOpenLead }: { onOpenLead: (leadId: string) =>
                   title="Abrir conversa"
                 >
                   <p className="truncate">{r.text}</p>
-                  <p className={overdue ? 'text-destructive' : 'text-muted-foreground'}>
+                  <p className={overdue ? 'text-danger' : 'text-content-muted'}>
                     {new Date(r.dueAt).toLocaleString('pt-BR', {
                       day: '2-digit',
                       month: '2-digit',
@@ -88,7 +88,7 @@ export function RemindersStrip({ onOpenLead }: { onOpenLead: (leadId: string) =>
                   </p>
                 </button>
                 <button
-                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+                  className="shrink-0 rounded p-1 text-content-muted hover:bg-neutral-500/[0.06]"
                   aria-label="Concluir lembrete"
                   title="Concluir"
                   onClick={() => done.mutate(r.id)}

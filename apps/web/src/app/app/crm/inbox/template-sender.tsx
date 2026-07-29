@@ -59,7 +59,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
 
   if (templates.length === 0) {
     return (
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-content-muted">
         Janela de 24h expirada. Nenhum template aprovado — sincronize no menu do funil (gerente).
       </p>
     );
@@ -67,11 +67,11 @@ export function TemplateSender({ leadId }: { leadId: string }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-content-muted">
         Janela de 24h expirada — reengaje com um template aprovado (custo Meta).
       </p>
       <select
-        className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+        className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
         value={templateName}
         onChange={(e) => {
           setTemplateName(e.target.value);
@@ -91,7 +91,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
           {Array.from({ length: selected.variableCount }).map((_, i) => (
             <input
               key={i}
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-1.5 text-sm"
               placeholder={`Variável {{${i + 1}}}`}
               value={variables[i] ?? ''}
               onChange={(e) => {
@@ -105,7 +105,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
       )}
 
       {preview && (
-        <p className="rounded-md bg-muted p-2 text-xs italic text-muted-foreground">{preview}</p>
+        <p className="rounded-md bg-surface-secondary p-2 text-xs italic text-content-muted">{preview}</p>
       )}
 
       <Button

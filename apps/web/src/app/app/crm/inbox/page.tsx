@@ -9,6 +9,7 @@ import {
   Clock,
   Info,
   Loader2,
+  Paintbrush,
   Paperclip,
   MessageCircle,
   Plus,
@@ -29,6 +30,13 @@ import {
   windowRemaining,
 } from './inbox-types';
 import { AudioRecorder } from './audio-recorder';
+import { AUTO_THEME_OPTION, CHAT_THEMES, useChatTheme } from './chat-themes';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
@@ -51,6 +59,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
+  const { theme: chatTheme, activeKey: chatThemeKey, setTheme: setChatTheme } = useChatTheme();
   const [draft, setDraft] = useState('');
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [pickerIndex, setPickerIndex] = useState(0);
@@ -206,7 +215,7 @@ export default function InboxPage() {
   const windowLeft = selected ? windowRemaining(selected.windowExpiresAt) : null;
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-lg border">
+    <div className="flex h-[calc(100vh-6.5rem)] overflow-hidden rounded-lg border">
       {/* Lista de conversas */}
       <aside
         className={`flex w-full flex-col border-r lg:w-80 lg:shrink-0 ${
@@ -225,9 +234,9 @@ export default function InboxPage() {
             </Button>
           </div>
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-content-muted" />
             <input
-              className="w-full rounded-md border bg-background py-2 pl-8 pr-2 text-sm"
+              className="w-full rounded-md border bg-surface py-2 pl-8 pr-2 text-sm"
               placeholder="Buscar nome ou telefone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -239,7 +248,7 @@ export default function InboxPage() {
                 key={s}
                 onClick={() => setScope(s)}
                 className={`rounded-full px-3 py-1 text-xs ${
-                  scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  scope === s ? 'bg-brand-600 text-white' : 'bg-neutral-500/[0.08] text-content-muted'
                 }`}
               >
                 {s === 'mine' ? 'Meus' : s === 'all' ? 'Todos' : '🤖 IA'}
@@ -254,7 +263,7 @@ export default function InboxPage() {
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="p-6 text-center">
-              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-content-muted" />
             </div>
           )}
           {!isLoading && conversations.length === 0 && (
@@ -268,8 +277,8 @@ export default function InboxPage() {
             <button
               key={c.id}
               onClick={() => setSelectedLeadId(c.leadId)}
-              className={`flex w-full items-start gap-2 border-b p-3 text-left hover:bg-muted/50 ${
-                c.leadId === selectedLeadId ? 'bg-muted' : ''
+              className={`flex w-full items-start gap-2 border-b p-3 text-left hover:bg-neutral-500/[0.05] ${
+                c.leadId === selectedLeadId ? 'bg-neutral-500/[0.08]' : ''
               }`}
             >
               <div className="min-w-0 flex-1">
@@ -278,14 +287,14 @@ export default function InboxPage() {
                     {c.lead.name ?? c.lead.phone ?? 'Sem nome'}
                   </span>
                   {c.lastMessageAt && (
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                    <span className="shrink-0 text-[11px] text-content-muted">
                       {timeAgo(c.lastMessageAt)}
                     </span>
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1">
                   {c.lastMessage && (
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-content-muted">
                       {c.lastMessage.direction === 'OUT' ? '→ ' : ''}
                       {c.lastMessage.preview}
                     </p>
@@ -303,7 +312,7 @@ export default function InboxPage() {
                     </Badge>
                   )}
                   {scope === 'all' && c.lead.assignedTo && (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-content-muted">
                       {c.lead.assignedTo.id === user?.id ? 'você' : c.lead.assignedTo.name}
                     </span>
                   )}
@@ -315,7 +324,7 @@ export default function InboxPage() {
                 </div>
               </div>
               {c.unreadCount > 0 && (
-                <span className="mt-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground">
+                <span className="mt-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-medium text-white">
                   {c.unreadCount}
                 </span>
               )}
@@ -327,8 +336,32 @@ export default function InboxPage() {
       {/* Chat */}
       <section className={`min-w-0 flex-1 flex-col ${selectedLeadId ? 'flex' : 'hidden lg:flex'}`}>
         {!selected ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione uma conversa
+          /* Sem conversa aberta: o papel de parede do tema já dá o clima */
+          <div className="relative h-full" style={{ background: chatTheme.bg }}>
+            {chatTheme.doodle && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage: chatTheme.doodle,
+                  backgroundSize: '180px 180px',
+                  opacity: chatTheme.doodleOpacity,
+                }}
+              />
+            )}
+            <div className="absolute right-2 top-2">
+              <ThemePicker activeKey={chatThemeKey} onPick={setChatTheme} />
+            </div>
+            <div className="relative flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+              <MessageCircle
+                className="h-12 w-12"
+                style={{ color: chatTheme.timeIn }}
+                strokeWidth={1.2}
+              />
+              <p className="text-sm" style={{ color: chatTheme.timeIn }}>
+                Selecione uma conversa para começar
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -344,55 +377,76 @@ export default function InboxPage() {
                 <div className="truncate font-medium">
                   {selected.lead.name ?? selected.lead.phone}
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs text-content-muted">
                   <Clock className="h-3 w-3" />
                   {windowLeft ? `janela: ${windowLeft} restantes` : 'janela de 24h expirada'}
                 </div>
               </div>
+              {/* Tema da conversa — papel de parede, igual WhatsApp */}
+              <ThemePicker activeKey={chatThemeKey} onPick={setChatTheme} />
               <Button variant="ghost" size="sm" onClick={() => setShowPanel((v) => !v)}>
                 <Info className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Lead</span>
               </Button>
             </header>
 
-            <div className="flex-1 space-y-2 overflow-y-auto bg-muted/20 p-3">
-              {(chat?.messages ?? []).map((m) => (
+            {/* Área de conversa — papel de parede FIXO atrás (não rola com
+                as mensagens), igual WhatsApp; cores vêm do tema escolhido */}
+            <div className="relative flex-1 overflow-hidden" style={{ background: chatTheme.bg }}>
+              {chatTheme.doodle && (
                 <div
-                  key={m.id}
-                  className={`flex ${m.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}
-                >
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    backgroundImage: chatTheme.doodle,
+                    backgroundSize: '180px 180px',
+                    opacity: chatTheme.doodleOpacity,
+                  }}
+                />
+              )}
+              <div className="relative h-full space-y-2 overflow-y-auto p-3">
+                {(chat?.messages ?? []).map((m) => (
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm sm:max-w-[70%] ${
-                      m.direction === 'OUT'
-                        ? 'rounded-br-sm bg-primary text-primary-foreground'
-                        : 'rounded-bl-sm border bg-background'
-                    }`}
+                    key={m.id}
+                    className={`flex ${m.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {m.waMediaId && (
-                      <div className="mb-1">
-                        <MediaAttachment
-                          messageId={m.id}
-                          type={m.type}
-                          mimeType={m.mediaMimeType}
-                        />
-                      </div>
-                    )}
-                    {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                     <div
-                      className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                        m.direction === 'OUT' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm sm:max-w-[70%] ${
+                        m.direction === 'OUT' ? 'rounded-tr-none' : 'rounded-tl-none'
                       }`}
+                      style={
+                        m.direction === 'OUT'
+                          ? { background: chatTheme.bubbleOut.background, color: chatTheme.bubbleOut.color }
+                          : { background: chatTheme.bubbleIn.background, color: chatTheme.bubbleIn.color }
+                      }
                     >
-                      {new Date(m.createdAt).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {m.direction === 'OUT' && <StatusTicks status={m.status} />}
+                      {m.waMediaId && (
+                        <div className="mb-1">
+                          <MediaAttachment
+                            messageId={m.id}
+                            type={m.type}
+                            mimeType={m.mediaMimeType}
+                          />
+                        </div>
+                      )}
+                      {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                      <div
+                        className="mt-0.5 flex items-center justify-end gap-1 text-[10px]"
+                        style={{
+                          color: m.direction === 'OUT' ? chatTheme.timeOut : chatTheme.timeIn,
+                        }}
+                      >
+                        {new Date(m.createdAt).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {m.direction === 'OUT' && <StatusTicks status={m.status} />}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
+                ))}
+                <div ref={bottomRef} />
+              </div>
             </div>
 
             <footer className="border-t p-3">
@@ -405,7 +459,7 @@ export default function InboxPage() {
                   />
                   {!recordingAudio && (
                     <label
-                      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
+                      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-content-muted hover:bg-neutral-500/[0.06]"
                       title="Anexar foto/PDF"
                     >
                       {sendMedia.isPending ? (
@@ -434,7 +488,7 @@ export default function InboxPage() {
                   {!recordingAudio && (
                     <>
                       <textarea
-                        className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
+                        className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-surface p-2 text-sm"
                         placeholder='Escreva livremente... ("/" abre respostas rápidas, Enter envia)'
                         rows={1}
                         value={draft}
@@ -461,7 +515,7 @@ export default function InboxPage() {
 
       {/* Painel do lead */}
       {selected && showPanel && (
-        <aside className="absolute inset-0 z-10 flex w-full flex-col border-l bg-background lg:static lg:z-auto lg:w-80 lg:shrink-0">
+        <aside className="absolute inset-0 z-10 flex w-full flex-col border-l bg-surface lg:static lg:z-auto lg:w-80 lg:shrink-0">
           <LeadPanel leadId={selected.leadId} onClose={() => setShowPanel(false)} />
         </aside>
       )}
@@ -472,6 +526,33 @@ export default function InboxPage() {
         onOpenLead={(leadId) => setSelectedLeadId(leadId)}
       />
     </div>
+  );
+}
+
+/** Seletor de tema da conversa (papel de parede) — usado no cabeçalho da
+ *  conversa e na área vazia, para o tema ser trocável mesmo sem conversa. */
+function ThemePicker({ activeKey, onPick }: { activeKey: string; onPick: (k: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" aria-label="Tema da conversa">
+          <Paintbrush className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {[AUTO_THEME_OPTION, ...CHAT_THEMES].map((t) => (
+          <DropdownMenuItem key={t.key} onSelect={() => onPick(t.key)}>
+            <span
+              aria-hidden
+              className="mr-2 inline-block h-4 w-4 rounded-full border border-line"
+              style={{ background: t.swatch }}
+            />
+            {t.label}
+            {t.key === activeKey && <Check className="ml-auto h-3.5 w-3.5" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

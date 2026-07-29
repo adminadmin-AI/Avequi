@@ -73,10 +73,11 @@ export interface RowAction<T> {
 
 type Density = 'compact' | 'comfortable' | 'spacious';
 
+// Soft Surfaces: separação por espaço, não por linha — mais respiro
 const DENSITY_PAD: Record<Density, string> = {
-  compact: 'py-1.5',
-  comfortable: 'py-3',
-  spacious: 'py-4',
+  compact: 'py-2',
+  comfortable: 'py-3.5',
+  spacious: 'py-5',
 };
 
 const DENSITY_LABEL: Record<Density, string> = {
@@ -357,7 +358,7 @@ export function DataTable<T>({
             </div>
           ))
         ) : paged.length === 0 ? (
-          <div className="rounded-xl border border-line bg-surface px-4">
+          <div className="shadow-soft rounded-xl border border-line bg-surface px-5">
             {data.length > 0 && search.trim() ? (
               <EmptyState
                 compact
@@ -385,7 +386,7 @@ export function DataTable<T>({
                 key={key}
                 onClick={() => onRowClick?.(row)}
                 className={cn(
-                  'rounded-xl border border-line bg-surface p-4 shadow-xs',
+                  'shadow-soft rounded-xl border border-line bg-surface p-5',
                   onRowClick && 'cursor-pointer active:bg-brand-50/60 dark:active:bg-brand-600/10',
                   isSelected && 'border-brand-600/40 bg-brand-600/10',
                 )}
@@ -406,7 +407,7 @@ export function DataTable<T>({
                     {titleCol &&
                       (titleCol.cell
                         ? titleCol.cell(row)
-                        : String(accessorFor(titleCol)(row) ?? '—'))}
+                        : String(accessorFor(titleCol)(row) ?? ''))}
                   </div>
                   {rowActions && (
                     <span onClick={(e) => e.stopPropagation()}>
@@ -442,14 +443,14 @@ export function DataTable<T>({
                         {col.header}
                       </dt>
                       <dd className="truncate text-sm text-content-secondary">
-                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '')}
                       </dd>
                     </div>
                   ))}
                 </dl>
                 {footerCols.length > 0 && (
                   <div
-                    className="mt-2 flex justify-end border-t border-line/60 pt-2"
+                    className="mt-2 flex justify-end border-t border-line pt-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {footerCols.map((col) => (
@@ -464,12 +465,12 @@ export function DataTable<T>({
       </div>
 
       {/* desktop (>= sm): tabela */}
-      <div className="avequi-scroll hidden max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface shadow-sm sm:block">
+      <div className="avequi-scroll surface-sheen shadow-soft hidden max-h-[70vh] overflow-auto rounded-xl bg-surface sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line">
               {selectable && (
-                <th className="sticky top-0 z-10 w-10 bg-surface-secondary px-4 py-3">
+                <th className="sticky top-0 z-10 w-10 bg-surface px-5 py-3.5">
                   <input
                     ref={headerCheckRef}
                     type="checkbox"
@@ -485,11 +486,11 @@ export function DataTable<T>({
                   key={col.key}
                   onClick={() => toggleSort(col)}
                   className={cn(
-                    'sticky top-0 z-10 bg-surface-secondary px-4 py-3 text-xs font-semibold uppercase tracking-wide text-content-muted',
+                    'sticky top-0 z-10 bg-surface px-5 py-3 text-xs font-medium text-content-muted',
                     col.align === 'right' && 'text-right',
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
-                    col.sortable && 'cursor-pointer select-none hover:text-content-secondary',
+                    col.sortable && 'group/th cursor-pointer select-none hover:text-content-secondary',
                     sortKey === col.key && 'text-brand-600 dark:text-brand-400',
                   )}
                 >
@@ -502,7 +503,7 @@ export function DataTable<T>({
                     {col.header}
                     {col.sortable &&
                       (sortKey !== col.key ? (
-                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity duration-micro group-hover/th:opacity-40" />
                       ) : sortDir === 'asc' ? (
                         <ChevronUp className="h-3.5 w-3.5" />
                       ) : (
@@ -511,15 +512,15 @@ export function DataTable<T>({
                   </span>
                 </th>
               ))}
-              {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface-secondary" />}
+              {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface" />}
             </tr>
           </thead>
-          <tbody>
+          <tbody className={loading ? undefined : 'duration-flow animate-in fade-in'}>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skeleton-${i}`} className="border-b border-line/60 last:border-0">
+                <tr key={`skeleton-${i}`} className="border-quiet border-b last:border-0">
                   {selectable && (
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       <Skeleton className="h-4 w-4" />
                     </td>
                   )}
@@ -527,7 +528,7 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        'px-4 py-3',
+                        'px-5 py-3.5',
                         col.align === 'right' && 'text-right',
                         col.align === 'center' && 'text-center',
                       )}
@@ -549,7 +550,7 @@ export function DataTable<T>({
               ))
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} className="px-4">
+                <td colSpan={colSpan} className="px-5">
                   {data.length > 0 && search.trim() ? (
                     <EmptyState
                       compact
@@ -574,11 +575,13 @@ export function DataTable<T>({
                     key={key}
                     onClick={() => onRowClick?.(row)}
                     className={cn(
-                      'border-b border-line/60 transition-colors duration-micro last:border-0',
-                      // zebra sutil
-                      'even:bg-neutral-500/[0.04]',
-                      onRowClick && 'cursor-pointer hover:bg-brand-50/60 dark:hover:bg-brand-600/10',
-                      isSelected && 'bg-brand-600/10 even:bg-brand-600/10',
+                      // Soft Surfaces: linha quase invisível + zebra de ~3% —
+                      // o dado é o protagonista, a grade desaparece
+                      'border-quiet border-b transition-colors duration-micro last:border-0',
+                      'group/row hover:bg-neutral-500/[0.04]',
+                      onRowClick &&
+                        'cursor-pointer hover:bg-brand-600/[0.05] dark:hover:bg-brand-400/[0.07]',
+                      isSelected && 'bg-brand-600/10',
                     )}
                   >
                     {selectable && (
@@ -603,7 +606,7 @@ export function DataTable<T>({
                           col.className,
                         )}
                       >
-                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '')}
                       </td>
                     ))}
                     {rowActions && (
@@ -612,7 +615,7 @@ export function DataTable<T>({
                           <DropdownMenuTrigger asChild>
                             <button
                               aria-label="Ações da linha"
-                              className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
+                              className="rounded-md p-1.5 text-content-muted opacity-0 transition-[color,background-color,opacity] duration-micro focus-visible:opacity-100 group-hover/row:opacity-100 hover:bg-neutral-500/[0.08] hover:text-content"
                             >
                               <MoreVertical size={16} />
                             </button>

@@ -24,7 +24,9 @@ import { SessionDenylistService } from './session-denylist.service';
  * RefreshToken vigente. A rotação de refresh MANTÉM a mesma sessão (só troca
  * o refreshTokenId). Revogar a sessão mata o refresh → o usuário cai em no
  * máximo 15 min (vida do access token) ou IMEDIATAMENTE quando a revogação é
- * crítica (denylist Redis consultada pelo JwtAuthGuard a partir da #341).
+ * crítica (denylist Redis consultada pela JwtStrategy em toda request
+ * autenticada — #823; Redis indisponível = fail-open, o token expira
+ * naturalmente e o refresh segue bloqueado pelos mecanismos persistentes).
  * Limite de sessões simultâneas: 5 (a mais antiga é derrubada).
  *
  * ── Lockout (usa BANCO, nunca Redis — segurança não pode ser best-effort) ─

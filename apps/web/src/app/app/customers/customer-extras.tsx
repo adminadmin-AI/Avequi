@@ -125,7 +125,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
   }
 
   return (
-    <div className="mt-4 space-y-4 border-t border-border pt-4">
+    <div className="mt-4 space-y-4 border-t border-line pt-4">
       {/* Tags */}
       <div>
         <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-content-secondary">

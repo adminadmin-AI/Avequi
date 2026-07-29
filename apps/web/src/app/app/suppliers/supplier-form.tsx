@@ -152,7 +152,7 @@ export function SupplierForm({
               onClick={fillFromCnpj}
               disabled={cnpjLoading}
               title="Buscar dados na Receita (preenche razão social, endereço e regime)"
-              className="flex shrink-0 items-center justify-center rounded-md border border-border px-2.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50"
+              className="flex shrink-0 items-center justify-center rounded-md border border-line px-2.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50"
             >
               {cnpjLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
             </button>
@@ -266,7 +266,7 @@ export function SupplierForm({
       </div>
 
       {/* ─── Comercial e pagamento ─── */}
-      <div className="border-t border-border pt-4 space-y-4">
+      <div className="border-t border-line pt-4 space-y-4">
         <p className="text-sm font-medium text-content-secondary">Comercial e pagamento</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Condição de pagamento padrão" error={errors.defaultPaymentTerms?.message}>

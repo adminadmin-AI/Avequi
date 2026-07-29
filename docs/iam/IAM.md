@@ -117,8 +117,12 @@ grant individual → deny individual. Lista vazia de perfis = conjunto vazio
    Fase F3.x da proposta, não implementada.*
 5. **Sessão** registrada (`UserSession`, máx. **5 simultâneas** — a mais antiga cai).
    Revogação individual/total em `/auth/sessions`; a **denylist Redis** corta access
-   tokens vivos da sessão revogada (best-effort: Redis fora → fail-open por
-   disponibilidade, comportamento pré-denylist).
+   tokens vivos da sessão revogada criticamente — consultada pela **JwtStrategy** em
+   toda request autenticada com claim `sessionId` (#823; 401 antes dos guards de
+   empresa/papel/permissão). Best-effort: Redis fora → **fail-open** por
+   disponibilidade (log ERROR estruturado; o token expira naturalmente em até
+   `JWT_EXPIRY` = 15 min e o refresh segue bloqueado pelos mecanismos persistentes).
+   Tokens legados sem `sessionId` (transição M4) não consultam.
 
 ### MFA (`/auth/mfa/*` — self-service, autenticado)
 - `setup` → segredo TOTP (criptografado via `EncryptionService`/`ENCRYPTION_KEY`;

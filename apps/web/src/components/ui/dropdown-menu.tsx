@@ -27,7 +27,7 @@ export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 /** Classes compartilhadas entre DropdownMenu e ContextMenu (mesmo visual). */
 export const menuContentClass = cn(
-  'z-50 min-w-[200px] overflow-hidden rounded-lg border border-line bg-surface-elevated p-1 text-content shadow-elevation-3',
+  'z-50 min-w-[200px] overflow-hidden rounded-xl border border-line bg-surface-elevated p-1.5 text-content shadow-elevation-4',
   'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
   'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
   'data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1',
@@ -35,8 +35,8 @@ export const menuContentClass = cn(
 );
 
 export const menuItemClass = cn(
-  'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none transition-colors duration-micro',
-  'focus:bg-neutral-100 dark:focus:bg-neutral-800',
+  'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors duration-micro',
+  'focus:bg-neutral-500/[0.08]',
   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
 );
 

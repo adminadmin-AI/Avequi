@@ -9,7 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
+import { Badge, StatusDot } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
-import { formatBRL, formatDate, formatCpfCnpj } from '@/lib/format';
+import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
@@ -77,23 +77,24 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? 'border-danger/30 bg-danger/10' : undefined}>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p
-          className={`mt-1 text-2xl font-semibold tracking-tight ${
-            highlight ? 'text-danger' : 'text-content'
-          }`}
-        >
-          {formatBRL(value)}
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-caption text-content-muted">
+        {highlight && <span className="h-1.5 w-1.5 rounded-full bg-danger" />}
+        {label}
+      </p>
+      <p
+        className={`mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums ${
+          highlight ? 'text-danger' : 'text-content'
+        }`}
+      >
+        {formatBRL(value)}
+      </p>
+      {count != null && (
+        <p className="mt-0.5 text-helper text-content-muted">
+          {count} {count === 1 ? 'lançamento' : 'lançamentos'}
         </p>
-        {count != null && (
-          <p className="mt-0.5 text-xs text-content-muted">
-            {count} {count === 1 ? 'lançamento' : 'lançamentos'}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -230,7 +231,7 @@ export default function PayablesPage() {
         return (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
-              <span>{supplierName(e) || <span className="text-content-muted">—</span>}</span>
+              <span>{prettyName(supplierName(e)) || <span className="text-content-muted">—</span>}</span>
               {pendingApproval(e) && (
                 <Badge variant="warning" className="whitespace-nowrap">
                   Aprovação pendente
@@ -275,7 +276,7 @@ export default function PayablesPage() {
       accessor: (e) => effectiveStatus(e, today),
       cell: (e) => {
         const meta = STATUS_META[effectiveStatus(e, today)];
-        return <Badge variant={meta.variant}>{meta.label}</Badge>;
+        return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
       },
     },
     {
@@ -462,7 +463,7 @@ export default function PayablesPage() {
           detailTarget &&
           (() => {
             const meta = STATUS_META[effectiveStatus(detailTarget, today)];
-            return <Badge variant={meta.variant}>{meta.label}</Badge>;
+            return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
           })()
         }
       />

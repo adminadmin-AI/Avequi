@@ -19,9 +19,10 @@
   --text-secondary: #475569;
   --text-muted: #64748b;
 
-  /* Bordas */
-  --border-default: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* Bordas — Soft Surfaces: alpha em vez de sólido; nenhuma borda pode
+     chamar mais atenção que o conteúdo (hierarquia = espaço, não linha) */
+  --border-default: rgb(15 23 42 / 0.08);
+  --border-strong: rgb(15 23 42 / 0.16);
 
   /* Compat shadcn (legado) */
   --background: 0 0% 100%;
@@ -40,9 +41,9 @@
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
 
-  /* Bordas */
-  --border-default: #1e293b;
-  --border-strong: #334155;
+  /* Bordas — Soft Surfaces (ver nota no :root) */
+  --border-default: rgb(148 163 184 / 0.11);
+  --border-strong: rgb(148 163 184 / 0.22);
 
   /* Compat shadcn (legado) */
   --background: 222 47% 6%;
@@ -54,6 +55,27 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Premium Polish: tracking editorial no corpo (Inter em 14px pede ~-0.6%;
+     display/heading já têm o próprio tracking na type scale) */
+  letter-spacing: -0.006em;
+  text-rendering: optimizeLegibility;
+}
+
+/* Premium Polish: seleção de texto com tinta da marca — detalhe que ninguém
+   nota conscientemente, mas todo produto premium acerta */
+::selection {
+  background-color: rgb(61 44 230 / 0.14);
+  color: var(--text-primary);
+}
+.dark ::selection {
+  background-color: rgb(129 140 248 / 0.32);
+}
+
+/* Premium Polish: peso óptico uniforme em TODOS os ícones lucide — traço 1.75
+   (o default 2 pesa demais ao lado de texto 14px; 1.75 é o ponto Linear/Attio).
+   CSS vence o presentation attribute do SVG, então vale pro app inteiro. */
+.lucide {
+  stroke-width: 1.75px;
 }
 
 /* Tabular numerals for data/money columns */
@@ -71,6 +93,38 @@ body {
 .focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
   --tw-ring-offset-color: var(--bg-primary);
+}
+
+/* Soft Surfaces — profundidade no lugar de linhas: sombra em três camadas
+   (luz de topo + contato + ambiente), discreta o bastante pra não virar
+   "borda de sombra". A 1ª camada é o highlight interno que dá sensação
+   FÍSICA à superfície — imperceptível no claro, essencial no escuro. */
+:root {
+  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.8);
+  --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0) 56px);
+}
+.dark {
+  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.02), rgb(255 255 255 / 0) 56px);
+}
+.shadow-soft {
+  box-shadow:
+    var(--surface-highlight),
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 12px 32px -16px rgb(16 24 40 / 0.12);
+}
+/* gradiente de iluminação quase imperceptível no topo da superfície */
+.surface-sheen {
+  background-image: var(--surface-sheen);
+}
+
+/* Borda "quieta" — 60% da borda padrão, para linhas INTERNAS (divisores de
+   linha de tabela, barras de shell). A moldura externa continua com o token
+   cheio: hierarquia = a moldura segura a forma, o interior quase some.
+   (o token é var() completo, então o modificador /60 do Tailwind não se
+   aplica — daí o color-mix) */
+.border-quiet {
+  border-color: color-mix(in srgb, var(--border-default) 60%, transparent);
 }
 
 /* Scrollbar fina e discreta (sidebar, listas) */
@@ -154,18 +208,6 @@ body {
 }
 .animate-shake {
   animation: shake 0.4s var(--ease-precise, cubic-bezier(0.4, 0, 0.2, 1));
-}
-
-/* Motion tokens respeitam preferência de redução de movimento */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
 }
 
 /* ─── Telas de auth: cena viva (continuação da landing) ───
