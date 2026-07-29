@@ -124,7 +124,7 @@ export function AudioRecorder({
     return (
       <Button
         variant="ghost"
-        className="h-9 w-9 shrink-0 p-0 text-muted-foreground"
+        className="h-9 w-9 shrink-0 p-0 text-content-muted"
         aria-label="Gravar áudio"
         title="Gravar áudio"
         disabled={sending}
@@ -136,19 +136,19 @@ export function AudioRecorder({
   }
 
   return (
-    <div className="flex h-9 flex-1 items-center gap-2 rounded-md border border-destructive/50 bg-destructive/5 px-2">
-      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+    <div className="flex h-9 flex-1 items-center gap-2 rounded-md border border-danger/50 bg-danger/5 px-2">
+      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
       <span className="text-xs tabular-nums">
         {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
       </span>
-      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-500/[0.08]">
         <div
-          className="h-full rounded-full bg-destructive transition-[width] duration-100"
+          className="h-full rounded-full bg-danger transition-[width] duration-100"
           style={{ width: `${Math.round(level * 100)}%` }}
         />
       </div>
       <button
-        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+        className="shrink-0 rounded p-1 text-content-muted hover:bg-neutral-500/[0.06]"
         aria-label="Descartar gravação"
         title="Descartar"
         onClick={() => stop(true)}
@@ -156,7 +156,7 @@ export function AudioRecorder({
         <Trash2 className="h-4 w-4" />
       </button>
       <button
-        className="shrink-0 rounded bg-primary p-1.5 text-primary-foreground"
+        className="shrink-0 rounded bg-brand-600 p-1.5 text-white"
         aria-label="Enviar áudio"
         title="Enviar"
         onClick={() => stop(false)}

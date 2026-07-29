@@ -162,7 +162,7 @@ export function ProductForm({ formId, defaultValues, onSubmit, onDirtyChange }: 
       </div>
 
       {/* ─── Fiscal e logística (#480/#484) ─── */}
-      <div className="border-t border-border pt-4 space-y-4">
+      <div className="border-t border-line pt-4 space-y-4">
         <p className="text-sm font-medium text-content-secondary">Fiscal e logística (NF-e)</p>
         <Field label="Origem da mercadoria" error={errors.origem?.message}>
           <Select {...register('origem')}>

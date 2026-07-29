@@ -64,9 +64,9 @@ export function PushSettings() {
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium">🔔 Notificações push (este dispositivo)</h2>
         {state === 'loading' ? (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-content-muted" />
         ) : state === 'unsupported' ? (
-          <span className="text-xs text-muted-foreground">indisponível neste navegador</span>
+          <span className="text-xs text-content-muted">indisponível neste navegador</span>
         ) : (
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -79,13 +79,13 @@ export function PushSettings() {
           </label>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-content-muted">
         Lead novo, lead quente da IA, lembrete vencido e cliente sem resposta chegam no
         celular mesmo com o app fechado. O opt-in é por dispositivo — ative em cada
         aparelho que usar.
       </p>
-      <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">
+      <details className="text-xs text-content-muted">
+        <summary className="cursor-pointer font-medium text-content">
           📱 Como instalar o app no celular (recomendado)
         </summary>
         <div className="mt-2 space-y-2">

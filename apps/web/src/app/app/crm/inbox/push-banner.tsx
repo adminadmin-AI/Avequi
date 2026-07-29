@@ -75,7 +75,7 @@ export function PushBanner() {
           localStorage.setItem(DISMISS_KEY, '1');
           setVisible(false);
         }}
-        className="shrink-0 text-muted-foreground"
+        className="shrink-0 text-content-muted"
       >
         <X className="h-4 w-4" />
       </button>

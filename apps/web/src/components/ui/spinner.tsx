@@ -18,7 +18,7 @@ export function Spinner({
       role="status"
       aria-label="Carregando"
       className={cn(
-        'inline-block animate-spin rounded-full border-slate-200 border-t-brand-600',
+        'inline-block animate-spin rounded-full border-neutral-500/25 border-t-brand-600',
         sizes[size],
         className,
       )}

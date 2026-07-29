@@ -37,19 +37,21 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center text-center',
+        'flex flex-col items-center justify-center text-center duration-deliberate animate-in fade-in',
         compact ? 'px-4 py-10' : 'px-6 py-16',
         className,
       )}
     >
       {Icon && (
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-secondary text-content-muted">
-          <Icon size={28} />
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-500/[0.04]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-neutral-500/[0.06] text-content-muted ring-1 ring-inset ring-neutral-500/[0.08]">
+            <Icon size={26} strokeWidth={1.5} />
+          </div>
         </div>
       )}
-      <h3 className="mt-4 text-base font-semibold text-content">{title}</h3>
+      <h3 className="mt-5 text-base font-semibold tracking-[-0.01em] text-content">{title}</h3>
       {description && (
-        <p className="mt-1 max-w-xs text-sm text-content-secondary">{description}</p>
+        <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-content-muted">{description}</p>
       )}
       {(action || secondaryAction) && (
         <div className="mt-5 flex items-center gap-2">

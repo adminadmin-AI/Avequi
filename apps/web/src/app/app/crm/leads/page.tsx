@@ -203,13 +203,13 @@ export default function LeadListPage() {
       {/* Filtros */}
       <div className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3 lg:grid-cols-6">
         <input
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
           placeholder="Buscar nome/telefone/email..."
           value={filters.search}
           onChange={(e) => setFilter('search', e.target.value)}
         />
         <select
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
           value={filters.source}
           onChange={(e) => setFilter('source', e.target.value)}
         >
@@ -221,7 +221,7 @@ export default function LeadListPage() {
           ))}
         </select>
         <select
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
           value={filters.stageId}
           onChange={(e) => setFilter('stageId', e.target.value)}
         >
@@ -233,7 +233,7 @@ export default function LeadListPage() {
           ))}
         </select>
         <select
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
           value={filters.assignedToId}
           onChange={(e) => setFilter('assignedToId', e.target.value)}
         >
@@ -246,14 +246,14 @@ export default function LeadListPage() {
         </select>
         <input
           type="date"
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
           value={filters.from}
           onChange={(e) => setFilter('from', e.target.value)}
         />
         <div className="flex gap-1">
           <input
             type="date"
-            className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded-md border bg-surface px-2 py-1.5 text-sm"
             value={filters.to}
             onChange={(e) => setFilter('to', e.target.value)}
           />
@@ -265,10 +265,10 @@ export default function LeadListPage() {
 
       {/* Barra de ações em lote */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-neutral-500/[0.05] p-2 text-sm">
           <Badge variant="neutral">{selected.size} selecionado(s)</Badge>
           <select
-            className="rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="rounded-md border bg-surface px-2 py-1.5 text-sm"
             value={bulkSeller}
             onChange={(e) => setBulkSeller(e.target.value)}
           >
@@ -284,7 +284,7 @@ export default function LeadListPage() {
             Reatribuir
           </Button>
           <select
-            className="rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="rounded-md border bg-surface px-2 py-1.5 text-sm"
             value={bulkStage}
             onChange={(e) => setBulkStage(e.target.value)}
           >
@@ -298,7 +298,7 @@ export default function LeadListPage() {
           {bulkStageIsLost && (
             <>
               <select
-                className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                className="rounded-md border bg-surface px-2 py-1.5 text-sm"
                 value={lostCategory}
                 onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
               >
@@ -310,7 +310,7 @@ export default function LeadListPage() {
                 ))}
               </select>
               <input
-                className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                className="rounded-md border bg-surface px-2 py-1.5 text-sm"
                 placeholder="Detalhe opcional"
                 value={lostReason}
                 maxLength={300}
@@ -354,7 +354,7 @@ export default function LeadListPage() {
       {/* Tabela */}
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+          <thead className="bg-neutral-500/[0.05] text-left text-xs text-content-muted">
             <tr>
               <th className="p-2">
                 <input
@@ -382,7 +382,7 @@ export default function LeadListPage() {
           </thead>
           <tbody className="divide-y">
             {items.map((l) => (
-              <tr key={l.id} className={`hover:bg-muted/30 ${selected.has(l.id) ? 'bg-muted/40' : ''}`}>
+              <tr key={l.id} className={`transition-colors duration-micro hover:bg-neutral-500/[0.05] ${selected.has(l.id) ? 'bg-brand-600/[0.08]' : ''}`}>
                 <td className="p-2">
                   <input
                     type="checkbox"
@@ -407,10 +407,10 @@ export default function LeadListPage() {
                     ? Number(l.estimatedValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                     : '—'}
                 </td>
-                <td className="p-2 text-xs text-muted-foreground">
+                <td className="p-2 text-xs text-content-muted">
                   {new Date(l.createdAt).toLocaleDateString('pt-BR')}
                 </td>
-                <td className="p-2 text-xs text-muted-foreground">
+                <td className="p-2 text-xs text-content-muted">
                   {l.lastInteractionAt ? new Date(l.lastInteractionAt).toLocaleDateString('pt-BR') : '—'}
                 </td>
               </tr>
@@ -419,7 +419,7 @@ export default function LeadListPage() {
         </table>
         {isLoading && (
           <div className="flex justify-center p-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Loader2 className="h-5 w-5 animate-spin text-content-muted" />
           </div>
         )}
         {!isLoading && items.length === 0 && (
@@ -428,7 +428,7 @@ export default function LeadListPage() {
       </div>
 
       {/* Paginação */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center justify-between text-sm text-content-muted">
         <span>
           {total} lead(s) · página {page} de {pages}
         </span>
@@ -459,7 +459,7 @@ function SortableTh({
   onSort: (col: SortBy) => void;
 }) {
   return (
-    <th className="cursor-pointer select-none p-2 hover:text-foreground" onClick={() => onSort(col)}>
+    <th className="cursor-pointer select-none p-2 hover:text-content" onClick={() => onSort(col)}>
       <span className="inline-flex items-center gap-1">
         {label}
         {sortBy === col &&

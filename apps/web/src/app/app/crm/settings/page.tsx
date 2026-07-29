@@ -102,7 +102,7 @@ export default function CrmSettingsPage() {
         </Field>
         <Field label="Número WhatsApp da loja (phone_number_id)">
           <input
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
             value={form.waPhoneNumberId ?? ''}
             onChange={(e) => setForm({ ...form, waPhoneNumberId: e.target.value })}
           />
@@ -117,12 +117,12 @@ export default function CrmSettingsPage() {
                 ? undefined
                 : 'Alterar a retenção LGPD é restrito à alta gestão (crm.lgpd.retention-update)'
             }
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-md border bg-surface px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             value={form.leadRetentionDays ?? 0}
             onChange={(e) => setForm({ ...form, leadRetentionDays: parseInt(e.target.value, 10) || 0 })}
           />
           {!canEditRetention && (
-            <span className="mt-1 block text-xs text-muted-foreground">
+            <span className="mt-1 block text-xs text-content-muted">
               🔒 Restrito à alta gestão — o expurgo por retenção é irreversível.
             </span>
           )}
@@ -147,13 +147,13 @@ export default function CrmSettingsPage() {
             <input
               type="number"
               min={2}
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
               value={form.slaEscalationFactor ?? 2}
               onChange={(e) => setForm({ ...form, slaEscalationFactor: parseInt(e.target.value, 10) || 2 })}
             />
           </Field>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-content-muted">
           Estourou o SLA → vendedor recebe push + alerta (1x). Continuou sem resposta até{' '}
           {form.slaEscalationFactor ?? 2}× o SLA → o lead troca de vendedor pelo rodízio e o
           gerente é avisado. Não vale para leads com a IA atendendo nem para a triagem da matriz.
@@ -178,7 +178,7 @@ export default function CrmSettingsPage() {
           </Field>
           <Field label="Template (fora da janela 24h)">
             <input
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
               placeholder="nome do template aprovado"
               value={form.autoFollowupTemplate ?? ''}
               onChange={(e) => setForm({ ...form, autoFollowupTemplate: e.target.value })}
@@ -203,7 +203,7 @@ export default function CrmSettingsPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Modelo (A/B)">
             <select
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
               value={form.sdrModel ?? 'claude-opus-4-8'}
               onChange={(e) => setForm({ ...form, sdrModel: e.target.value })}
             >
@@ -217,7 +217,7 @@ export default function CrmSettingsPage() {
           </Field>
           <Field label="Horário de atuação">
             <select
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
               value={form.sdrSchedule ?? '24_7'}
               onChange={(e) => setForm({ ...form, sdrSchedule: e.target.value as Settings['sdrSchedule'] })}
             >
@@ -226,7 +226,7 @@ export default function CrmSettingsPage() {
             </select>
           </Field>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-content-muted">
           Requer ANTHROPIC_API_KEY no servidor. Métricas e fila de revisão no painel SDR IA.
         </p>
       </section>
@@ -248,7 +248,7 @@ export default function CrmSettingsPage() {
           {sellers.map((s) => (
             <li key={s.id} className="flex items-center justify-between p-3 text-sm">
               <span>
-                {s.name} <span className="text-xs text-muted-foreground">({s.role})</span>
+                {s.name} <span className="text-xs text-content-muted">({s.role})</span>
               </span>
               <label className="flex items-center gap-2 text-xs">
                 <input
@@ -269,7 +269,7 @@ export default function CrmSettingsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-xs text-content-muted">{label}</span>
       {children}
     </label>
   );
@@ -279,7 +279,7 @@ function NumInput({ value, onChange }: { value?: number; onChange: (v: number) =
     <input
       type="number"
       min={1}
-      className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+      className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
       value={value ?? ''}
       onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
     />
