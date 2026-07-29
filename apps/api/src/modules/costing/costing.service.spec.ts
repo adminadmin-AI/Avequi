@@ -99,6 +99,80 @@ describe('CostingService', () => {
       expect(r.labor.breakdown[1]).toMatchObject({ step: 'Solda', hours: 1, cost: 40 });
     });
 
+    // ─── #815: custo/hora resolvido pela FK ────────────────────────────────
+    it('#815: usa o costPerHour vindo da FK, sem consultar por código', async () => {
+      mockPrisma.routingStep.findMany.mockResolvedValue([
+        {
+          name: 'Corte',
+          stepOrder: 1,
+          workCenterId: 'wc-1',
+          workCenter: null,
+          workCenterRef: { id: 'wc-1', code: 'WC1', costPerHour: '50' },
+          setupTimeMin: 30,
+          runTimeMin: 90,
+        },
+      ]);
+      mockPrisma.workCenter.findMany.mockClear();
+
+      const r = await service.computeProductCost('co-1', 'p-1');
+
+      // 2h × 50 = 100
+      expect(r.labor.total).toBe(100);
+      expect(r.labor.breakdown[0]).toMatchObject({ workCenter: 'WC1', costPerHour: 50 });
+      // Não precisou do fallback por código
+      expect(mockPrisma.workCenter.findMany).not.toHaveBeenCalled();
+    });
+
+    it('#815: fallback por texto continua funcionando para passo sem FK', async () => {
+      mockPrisma.routingStep.findMany.mockResolvedValue([
+        {
+          name: 'Corte',
+          stepOrder: 1,
+          workCenterId: null,
+          workCenter: 'WC1',
+          workCenterRef: null,
+          setupTimeMin: 30,
+          runTimeMin: 90,
+        },
+      ]);
+      mockPrisma.workCenter.findMany.mockResolvedValue([{ code: 'WC1', costPerHour: '50' }]);
+
+      const r = await service.computeProductCost('co-1', 'p-1');
+
+      expect(r.labor.total).toBe(100);
+      expect(r.labor.breakdown[0]).toMatchObject({ workCenter: 'WC1', costPerHour: 50 });
+    });
+
+    it('#815: FK e texto convivem — cada passo resolve pelo seu caminho', async () => {
+      mockPrisma.routingStep.findMany.mockResolvedValue([
+        {
+          name: 'Corte',
+          stepOrder: 1,
+          workCenterId: 'wc-1',
+          workCenter: null,
+          workCenterRef: { id: 'wc-1', code: 'WC1', costPerHour: '50' },
+          setupTimeMin: 30,
+          runTimeMin: 90,
+        },
+        {
+          name: 'Solda',
+          stepOrder: 2,
+          workCenterId: null,
+          workCenter: 'WC2',
+          workCenterRef: null,
+          setupTimeMin: 0,
+          runTimeMin: 60,
+        },
+      ]);
+      mockPrisma.workCenter.findMany.mockResolvedValue([{ code: 'WC2', costPerHour: '40' }]);
+
+      const r = await service.computeProductCost('co-1', 'p-1');
+
+      // 2h×50 (FK) + 1h×40 (texto) = 140 — mesmo total do cenário original
+      expect(r.labor.total).toBe(140);
+      expect(r.labor.hours).toBe(3);
+    });
+
     it('passo sem WorkCenter conta horas para CIF mas não gera MOD', async () => {
       mockPrisma.routingStep.findMany.mockResolvedValue([
         { name: 'Inspeção', stepOrder: 1, workCenter: null, setupTimeMin: 0, runTimeMin: 60 },

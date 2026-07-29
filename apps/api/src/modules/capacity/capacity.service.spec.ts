@@ -13,6 +13,8 @@ const mockPrisma = {
     delete: jest.fn(),
   },
   productionOrder: { findMany: jest.fn() },
+  // #815 — guard de exclusão: nenhum roteiro pode ficar vinculado
+  routingStep: { count: jest.fn() },
 };
 
 describe('CapacityService', () => {
@@ -109,6 +111,56 @@ describe('CapacityService', () => {
 
   // ─── getCapacityPlan ───────────────────────────────────────────────────────
 
+  // ─── #815: guard de exclusão de WorkCenter ─────────────────────────────────
+
+  describe('deleteWorkCenter (#815)', () => {
+    const WC = { id: 'wc-solda', code: 'SOLDA', companyId: 'c1' };
+
+    beforeEach(() => {
+      // mockReset e não mockClear: o teste de updateWorkCenter enfileira
+      // mockResolvedValueOnce(null) e jest.clearAllMocks() não descarta
+      // implementações "once" pendentes — elas vazariam para cá.
+      mockPrisma.workCenter.findFirst.mockReset().mockResolvedValue(WC);
+      mockPrisma.productionOrder.findMany.mockReset().mockResolvedValue([]);
+      mockPrisma.routingStep.count.mockReset().mockResolvedValue(0);
+      mockPrisma.workCenter.delete.mockReset().mockResolvedValue(WC);
+    });
+
+    it('bloqueia exclusão quando há OP ativa usando o centro', async () => {
+      mockPrisma.productionOrder.findMany.mockResolvedValue([{ id: 'op-1' }]);
+
+      await expect(service.deleteWorkCenter('wc-solda', 'c1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mockPrisma.workCenter.delete).not.toHaveBeenCalled();
+    });
+
+    it('busca OP ativa pela FK, com fallback só para etapa sem FK', async () => {
+      await service.deleteWorkCenter('wc-solda', 'c1');
+
+      const where = mockPrisma.productionOrder.findMany.mock.calls[0][0].where;
+      expect(where.product.routingSteps.some.OR).toEqual([
+        { workCenterId: 'wc-solda' },
+        { workCenterId: null, workCenter: 'SOLDA' },
+      ]);
+    });
+
+    it('bloqueia exclusão quando algum roteiro ainda referencia o centro', async () => {
+      mockPrisma.routingStep.count.mockResolvedValue(4);
+
+      await expect(service.deleteWorkCenter('wc-solda', 'c1')).rejects.toThrow(/4 etapa/);
+      expect(mockPrisma.workCenter.delete).not.toHaveBeenCalled();
+    });
+
+    it('permite exclusão quando não há OP ativa nem roteiro vinculado', async () => {
+      await service.deleteWorkCenter('wc-solda', 'c1');
+
+      expect(mockPrisma.workCenter.delete).toHaveBeenCalledWith({ where: { id: 'wc-solda' } });
+    });
+  });
+
+  // ─── getCapacityPlan ───────────────────────────────────────────────────────
+
   describe('getCapacityPlan', () => {
     const wcSolda = {
       id: 'wc1',
@@ -119,6 +171,56 @@ describe('CapacityService', () => {
       efficiencyPct: 100,
       isActive: true,
     };
+
+    // ─── #815: resolução por FK ────────────────────────────────────────────
+    it('#815: casa a etapa pela FK workCenterId, sem depender do texto', async () => {
+      mockPrisma.workCenter.findMany.mockResolvedValue([{ ...wcSolda, id: 'wc-solda' }]);
+      mockPrisma.productionOrder.findMany.mockResolvedValue([
+        {
+          id: 'op1',
+          plannedQty: 10,
+          product: {
+            sku: 'PROD-A',
+            routingSteps: [
+              // Sem texto nenhum — só a FK
+              { workCenterId: 'wc-solda', workCenter: null, setupTimeMin: 30, runTimeMin: 6 },
+            ],
+          },
+        },
+      ]);
+
+      const result = await service.getCapacityPlan('c1', {
+        startDate: '2026-06-01',
+        endDate: '2026-06-05',
+      });
+
+      expect(result.workCenters[0].loadHours).toBe(1.5);
+    });
+
+    it('#815: FK tem prioridade — texto divergente não gera carga no centro errado', async () => {
+      mockPrisma.workCenter.findMany.mockResolvedValue([{ ...wcSolda, id: 'wc-solda' }]);
+      mockPrisma.productionOrder.findMany.mockResolvedValue([
+        {
+          id: 'op1',
+          plannedQty: 10,
+          product: {
+            sku: 'PROD-A',
+            routingSteps: [
+              // FK aponta para OUTRO centro, mas o texto diz 'SOLDA'
+              { workCenterId: 'wc-corte', workCenter: 'SOLDA', setupTimeMin: 30, runTimeMin: 6 },
+            ],
+          },
+        },
+      ]);
+
+      const result = await service.getCapacityPlan('c1', {
+        startDate: '2026-06-01',
+        endDate: '2026-06-05',
+      });
+
+      // Não pode contar carga: a etapa é do Corte, não da Solda
+      expect(result.workCenters[0].loadHours).toBe(0);
+    });
 
     it('should calculate load hours correctly when orders match', async () => {
       mockPrisma.workCenter.findMany.mockResolvedValue([wcSolda]);

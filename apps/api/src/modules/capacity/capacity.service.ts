@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { codigoDoCentro, stepEhDoCentro } from '../../common/production/work-center-ref';
 import { CreateWorkCenterDto } from './dto/create-work-center.dto';
 import { UpdateWorkCenterDto } from './dto/update-work-center.dto';
 import { QueryCapacityDto } from './dto/query-capacity.dto';
@@ -79,12 +80,23 @@ export class CapacityService {
   async deleteWorkCenter(id: string, companyId: string) {
     const wc = await this.getWorkCenter(id, companyId);
     // Check if any active production orders reference this work center code
+    // #815 — a referência oficial é a FK. O OR com o texto é o fallback
+    // controlado: enquanto houver RoutingStep com workCenterId nulo (roteiro
+    // antigo, anterior ao backfill), ele continua sendo protegido pelo código.
     const orders = await this.prisma.productionOrder.findMany({
       where: {
         companyId,
         status: { in: ['RELEASED', 'IN_PROGRESS'] },
         product: {
-          routingSteps: { some: { companyId, workCenter: wc.code } },
+          routingSteps: {
+            some: {
+              companyId,
+              OR: [
+                { workCenterId: wc.id },
+                { workCenterId: null, workCenter: wc.code },
+              ],
+            },
+          },
         },
       },
       take: 1,
@@ -94,6 +106,20 @@ export class CapacityService {
         `Centro de trabalho '${wc.code}' está em uso por ordens de produção ativas`,
       );
     }
+
+    // #815 — proteção adicional: mesmo sem OP ativa, não apagar centro que
+    // ainda seja referenciado por algum roteiro. A FK é ON DELETE SET NULL,
+    // então sem esta checagem o vínculo sumiria em silêncio.
+    const roteirosVinculados = await this.prisma.routingStep.count({
+      where: { companyId, workCenterId: wc.id },
+    });
+    if (roteirosVinculados > 0) {
+      throw new BadRequestException(
+        `Centro de trabalho '${wc.code}' não pode ser excluído: ${roteirosVinculados} ` +
+          `etapa(s) de roteiro ainda o referenciam.`,
+      );
+    }
+
     return this.prisma.workCenter.delete({ where: { id } });
   }
 
@@ -124,7 +150,12 @@ export class CapacityService {
       include: {
         product: {
           include: {
-            routingSteps: { where: { companyId }, orderBy: { stepOrder: 'asc' } },
+            // #815 — carrega o centro pela FK; o texto segue disponível como fallback
+            routingSteps: {
+              where: { companyId },
+              orderBy: { stepOrder: 'asc' },
+              include: { workCenterRef: { select: { id: true, code: true } } },
+            },
           },
         },
       },
@@ -141,7 +172,7 @@ export class CapacityService {
       const contributingOrders: { orderId: string; productSku: string; loadHours: number }[] = [];
 
       for (const order of orders) {
-        const steps = order.product.routingSteps.filter((s) => s.workCenter === wc.code);
+        const steps = order.product.routingSteps.filter((s) => stepEhDoCentro(s, wc));
         for (const step of steps) {
           const hours = (step.setupTimeMin + step.runTimeMin * Number(order.plannedQty)) / 60;
           loadHours += hours;
@@ -203,7 +234,12 @@ export class CapacityService {
       include: {
         product: {
           include: {
-            routingSteps: { where: { companyId }, orderBy: { stepOrder: 'asc' } },
+            // #815 — carrega o centro pela FK; o texto segue disponível como fallback
+            routingSteps: {
+              where: { companyId },
+              orderBy: { stepOrder: 'asc' },
+              include: { workCenterRef: { select: { id: true, code: true } } },
+            },
           },
         },
       },
@@ -224,7 +260,8 @@ export class CapacityService {
         };
       }
       for (const step of order.product.routingSteps) {
-        const wc = step.workCenter ?? 'UNKNOWN';
+        // #815 — agrupa pelo code vindo da FK; texto legado como fallback
+        const wc = codigoDoCentro(step) ?? 'UNKNOWN';
         const hours = (step.setupTimeMin + step.runTimeMin * Number(order.plannedQty)) / 60;
         byProduct[key].loadByWorkCenter[wc] =
           Math.round(((byProduct[key].loadByWorkCenter[wc] ?? 0) + hours) * 100) / 100;

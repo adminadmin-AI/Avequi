@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBomDto } from './dto/create-bom.dto';
 
@@ -24,6 +24,38 @@ export class BomService {
       );
     }
 
+    // 1b. #815 — valida as operações alocadas (routingStepId).
+    // Três regras: existir, ser da MESMA empresa e ser do MESMO produto da BOM.
+    // Alocar componente a operação de outro produto produziria uma OC fantasma
+    // no despacho por setor (#817), então é rejeitado aqui.
+    const stepIds = Array.from(
+      new Set(dto.items.map((i) => i.routingStepId).filter((s): s is string => !!s)),
+    );
+    if (stepIds.length > 0) {
+      const steps = await this.prisma.routingStep.findMany({
+        where: { id: { in: stepIds }, companyId },
+        select: { id: true, productId: true, name: true },
+      });
+
+      const encontrados = new Map(steps.map((s) => [s.id, s]));
+      const ausentes = stepIds.filter((id) => !encontrados.has(id));
+      if (ausentes.length > 0) {
+        // Cobre tanto "não existe" quanto "é de outra empresa" — a busca é
+        // escopada por companyId, então não revelamos dado de outro tenant.
+        throw new NotFoundException(
+          `Operação(ões) de roteiro não encontrada(s) nesta empresa: ${ausentes.join(', ')}`,
+        );
+      }
+
+      const deOutroProduto = steps.filter((s) => s.productId !== dto.productId);
+      if (deOutroProduto.length > 0) {
+        throw new BadRequestException(
+          `Operação(ões) de roteiro pertencem a outro produto e não podem receber ` +
+            `componentes desta BOM: ${deOutroProduto.map((s) => `${s.id} (${s.name})`).join(', ')}`,
+        );
+      }
+    }
+
     // 2. Get current max version for productId
     const maxVersion = await this.prisma.bomVersion.findFirst({
       where: { productId: dto.productId },
@@ -45,6 +77,8 @@ export class BomService {
             componentId: item.componentId,
             quantity: item.quantity,
             scrapPct: item.scrapPct ?? 0,
+            // #815 — null quando não alocado: compatível com BOM já existente
+            routingStepId: item.routingStepId ?? null,
           })),
         },
       },
