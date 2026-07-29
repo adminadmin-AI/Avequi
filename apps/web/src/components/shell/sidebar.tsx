@@ -8,7 +8,6 @@ import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@
 import { useNavAccess, usePermission } from '@/hooks/use-permission';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
-import { useCurrentCompany } from '@/hooks/use-current-company';
 import { useUiStore } from '@/stores/ui-store';
 import Image from 'next/image';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
@@ -70,7 +69,6 @@ function SidebarInner({
   const access = useNavAccess();
   const { isLoading: permsLoading } = usePermission();
   const counts = useSidebarCounts();
-  const companyName = useCurrentCompany();
 
   const [hydrated, setHydrated] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -332,9 +330,8 @@ function SidebarInner({
           <p className="text-helper text-content-muted">{APP_VERSION}</p>
         ) : (
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-caption text-content-secondary" title={companyName ?? ''}>
-              {companyName ?? 'Avecchi'}
-            </span>
+            {/* nome do PRODUTO (a empresa logada aparece no menu do usuário) */}
+            <span className="truncate text-caption text-content-secondary">Avecchi</span>
             <span className="shrink-0 text-helper text-content-muted">{APP_VERSION}</span>
           </div>
         )}
