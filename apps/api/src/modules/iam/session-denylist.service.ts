@@ -35,21 +35,26 @@ export const SESSION_DENYLIST_TTL_SECONDS = 15 * 60;
 const KEY_PREFIX = 'iam:session-denylist:';
 
 /**
- * Converte JWT_EXPIRY ('15m', '1h', '900s', '900') em segundos. Formato
- * desconhecido → fallback de 15 min. Exportada para o teste que trava a
- * invariante TTL ≥ vida do access token.
+ * Converte JWT_EXPIRY em segundos, cobrindo EXATAMENTE os formatos que o
+ * Joi do boot permite (env.validation.ts: /^\d+(ms|s|m|h|d|w|y)?$/) — se o
+ * parser cobrisse menos que o Joi, um formato válido (ex.: '2w') cairia no
+ * fallback e o TTL subcobriria o token. Sem unidade = segundos (superset
+ * seguro do ms() do jsonwebtoken, que lê número puro como milissegundos —
+ * errar para MAIS nunca subcobre). Formato fora do Joi → fallback de 15 min
+ * (inalcançável em produção: o boot rejeita). Exportada para o teste que
+ * trava a invariante TTL ≥ vida do access token.
  */
 export function parseExpiryToSeconds(
   expiry: string | undefined,
   fallback: number = SESSION_DENYLIST_TTL_SECONDS,
 ): number {
   if (!expiry) return fallback;
-  const match = /^(\d+)\s*(s|m|h|d)?$/.exec(String(expiry).trim());
+  const match = /^(\d+)\s*(ms|s|m|h|d|w|y)?$/.exec(String(expiry).trim());
   if (!match) return fallback;
   const value = parseInt(match[1], 10);
-  const unit = match[2] ?? 's';
-  const factor = { s: 1, m: 60, h: 3600, d: 86400 }[unit as 's' | 'm' | 'h' | 'd'];
-  return value * factor;
+  const unit = (match[2] ?? 's') as 'ms' | 's' | 'm' | 'h' | 'd' | 'w' | 'y';
+  const factor = { ms: 1 / 1000, s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31536000 }[unit];
+  return Math.ceil(value * factor);
 }
 
 @Injectable()

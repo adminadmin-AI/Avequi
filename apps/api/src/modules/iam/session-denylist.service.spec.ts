@@ -57,12 +57,16 @@ describe('SessionDenylistService', () => {
   });
 
   describe('TTL cobre a vida do access token (#823)', () => {
-    it('parseExpiryToSeconds entende os formatos do JWT_EXPIRY', () => {
+    it('parseExpiryToSeconds cobre TODOS os formatos que o Joi do boot permite', () => {
+      // env.validation.ts: JWT_EXPIRY_PATTERN = /^\d+(ms|s|m|h|d|w|y)?$/
       expect(parseExpiryToSeconds('15m')).toBe(900);
       expect(parseExpiryToSeconds('1h')).toBe(3600);
       expect(parseExpiryToSeconds('900s')).toBe(900);
       expect(parseExpiryToSeconds('900')).toBe(900);
       expect(parseExpiryToSeconds('1d')).toBe(86400);
+      expect(parseExpiryToSeconds('2w')).toBe(1209600);
+      expect(parseExpiryToSeconds('1y')).toBe(31536000);
+      expect(parseExpiryToSeconds('500ms')).toBe(1); // arredonda p/ cima, nunca 0
     });
 
     it('formato desconhecido/ausente cai no fallback de 15 min (nunca zero)', () => {
