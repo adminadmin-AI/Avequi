@@ -84,9 +84,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           SIZE_CLASSES[inputSize],
           leftIcon && 'pl-9',
           (rightIcon || showClear) && 'pr-9',
+          // profundidade física: leve rebaixo interno em repouso; o glow do
+          // foco substitui a sombra inteira (composição única, sem somar)
+          'shadow-[inset_0_1px_2px_rgb(15_23_42/0.03)]',
           error
             ? 'border-danger focus-visible:shadow-[0_0_0_3px_rgb(220_38_38/0.15)]'
-            : 'border-line focus-visible:border-brand-500/50 focus-visible:shadow-[0_0_0_3px_rgb(61_44_230/0.12),0_0_16px_rgb(61_44_230/0.08)]',
+            : 'border-line hover:border-line-strong focus-visible:border-brand-500/50 focus-visible:shadow-[0_0_0_3px_rgb(61_44_230/0.12),0_0_16px_rgb(61_44_230/0.08)]',
           className,
         )}
         onChange={trackChange}

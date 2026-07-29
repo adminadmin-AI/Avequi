@@ -15,11 +15,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         ref={ref}
         className={cn(
           'h-10 w-full appearance-none rounded-lg border bg-surface pl-3 pr-9 text-sm text-content',
-          'transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-surface',
+          // mesmo tratamento de foco do Input (glow suave, não anel duro) —
+          // um formulário premium fala UMA língua em todos os campos
+          'shadow-[inset_0_1px_2px_rgb(15_23_42/0.03)]',
+          'transition-[border-color,box-shadow] duration-fast focus-visible:outline-none',
           'disabled:cursor-not-allowed disabled:bg-surface-secondary disabled:text-content-muted',
           error
-            ? 'border-danger focus-visible:ring-danger'
-            : 'border-line focus-visible:ring-brand-600',
+            ? 'border-danger focus-visible:shadow-[0_0_0_3px_rgb(220_38_38/0.15)]'
+            : 'border-line hover:border-line-strong focus-visible:border-brand-500/50 focus-visible:shadow-[0_0_0_3px_rgb(61_44_230/0.12),0_0_16px_rgb(61_44_230/0.08)]',
           className,
         )}
         {...props}

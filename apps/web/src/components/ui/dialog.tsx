@@ -61,7 +61,7 @@ export function DialogContent({
           'data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:max-sm:slide-in-from-bottom-8',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out',
           // desktop (>= sm): centralizado com zoom-in
-          'sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl',
+          'sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl',
           'sm:data-[state=open]:zoom-in-95',
           sizeClass[size],
           className,
@@ -80,7 +80,7 @@ export function DialogContent({
       >
         {children}
         {showClose && (
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md text-content-muted transition-colors hover:text-content focus:outline-none">
+          <DialogPrimitive.Close className="absolute right-4 top-4 -m-1.5 rounded-lg p-1.5 text-content-muted transition-colors duration-micro hover:bg-neutral-500/[0.08] hover:text-content focus:outline-none">
             <X className="h-5 w-5" />
             <span className="sr-only">Fechar</span>
           </DialogPrimitive.Close>
