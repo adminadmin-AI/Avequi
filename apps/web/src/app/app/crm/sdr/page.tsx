@@ -110,7 +110,7 @@ export default function SdrPanelPage() {
               key={d}
               onClick={() => setDays(d)}
               className={`rounded-full px-3 py-1 text-xs ${
-                days === d ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                days === d ? 'bg-brand-600 text-white' : 'bg-neutral-500/[0.08] text-content-muted'
               }`}
             >
               {d}d
@@ -156,14 +156,14 @@ export default function SdrPanelPage() {
           Descartes da IA — últimos 7 dias ({discards.length})
         </h2>
         {discards.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">Nenhum descarte pra revisar. 👌</p>
+          <p className="p-4 text-sm text-content-muted">Nenhum descarte pra revisar. 👌</p>
         ) : (
           <ul className="divide-y">
             {discards.map((d) => (
               <li key={d.id} className="flex items-center gap-3 p-3 text-sm">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{d.name ?? d.phone ?? 'Lead'}</p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="truncate text-xs text-content-muted">
                     {d.lostReason ?? 'sem motivo'} ·{' '}
                     {new Date(d.updatedAt).toLocaleString('pt-BR', {
                       day: '2-digit',
@@ -195,7 +195,7 @@ export default function SdrPanelPage() {
           Incidentes de guardrail ({incidents.length})
         </h2>
         {incidents.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
+          <p className="p-4 text-sm text-content-muted">
             Nenhum bloqueio no período — a IA não tentou inventar preço.
           </p>
         ) : (
@@ -204,7 +204,7 @@ export default function SdrPanelPage() {
               <li key={i.id} className="p-3 text-sm">
                 <p className="font-medium">
                   {i.lead.name ?? i.lead.phone ?? 'Lead'}{' '}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-content-muted">
                     {new Date(i.happensAt).toLocaleString('pt-BR', {
                       day: '2-digit',
                       month: '2-digit',
@@ -213,7 +213,7 @@ export default function SdrPanelPage() {
                     })}
                   </span>
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-content-muted">
                   Resposta bloqueada: “{String((i.properties as any)?.blockedText ?? '').slice(0, 160)}”
                 </p>
               </li>
@@ -236,9 +236,9 @@ export default function SdrPanelPage() {
 function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs text-content-muted">{label}</p>
       <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-[10px] text-content-muted">{hint}</p>}
     </div>
   );
 }

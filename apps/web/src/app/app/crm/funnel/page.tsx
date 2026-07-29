@@ -100,7 +100,7 @@ export default function FunnelPage() {
                 ))}
               </div>
             )}
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-content-muted">
               Pipeline aberto: <b>{formatBRL(grandTotal)}</b>
             </span>
           </div>
@@ -109,7 +109,7 @@ export default function FunnelPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
@@ -132,7 +132,7 @@ export default function FunnelPage() {
                   </Badge>
                 </div>
                 {column.totalValue > 0 && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-content-muted">
                     {formatBRL(column.totalValue)}
                   </span>
                 )}
@@ -155,7 +155,7 @@ export default function FunnelPage() {
                     }`}
                   >
                     <div className="flex items-start gap-1">
-                      <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100" />
+                      <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-grab text-content-muted opacity-0 group-hover:opacity-100" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="truncate font-medium">
@@ -168,25 +168,25 @@ export default function FunnelPage() {
                           )}
                         </div>
                         {lead.interest && (
-                          <p className="truncate text-xs text-muted-foreground">{lead.interest}</p>
+                          <p className="truncate text-xs text-content-muted">{lead.interest}</p>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           <Badge variant="info" className="text-[10px]">
                             {SOURCE_LABEL[lead.source] ?? lead.source}
                           </Badge>
                           {Number(lead.estimatedValue ?? 0) > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-content-muted">
                               {formatBRL(Number(lead.estimatedValue))}
                             </span>
                           )}
                           {scope === 'all' && lead.assignedTo && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-content-muted">
                               {lead.assignedTo.name}
                             </span>
                           )}
                           <Link
                             href="/app/crm/inbox"
-                            className="ml-auto text-muted-foreground hover:text-foreground"
+                            className="ml-auto text-content-muted hover:text-content"
                             title="Abrir no inbox"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
@@ -197,7 +197,7 @@ export default function FunnelPage() {
                   </div>
                 ))}
                 {column.leads.length === 0 && (
-                  <p className="p-4 text-center text-xs text-muted-foreground">arraste leads aqui</p>
+                  <p className="p-4 text-center text-xs text-content-muted">arraste leads aqui</p>
                 )}
               </div>
             </div>
@@ -209,7 +209,7 @@ export default function FunnelPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm space-y-3 rounded-xl bg-surface-elevated p-4 shadow-elevation-4">
             <h2 className="font-medium">Motivo da perda</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-content-muted">
               Marcando <b>{lostPrompt.lead.name ?? lostPrompt.lead.phone}</b> como perdido.
             </p>
             <select

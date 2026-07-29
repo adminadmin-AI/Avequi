@@ -39,10 +39,10 @@ export function MediaAttachment({
   }, [messageId]);
 
   if (error) {
-    return <span className="text-xs text-muted-foreground italic">mídia indisponível</span>;
+    return <span className="text-xs text-content-muted italic">mídia indisponível</span>;
   }
   if (!url) {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="carregando mídia" />;
+    return <Loader2 className="h-4 w-4 animate-spin text-content-muted" aria-label="carregando mídia" />;
   }
 
   if (type === 'IMAGE' || type === 'STICKER') {

@@ -143,7 +143,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           {lead.name ?? lead.phone ?? 'Lead'}
         </div>
         {onClose && (
-          <button onClick={onClose} aria-label="Fechar painel" className="text-muted-foreground">
+          <button onClick={onClose} aria-label="Fechar painel" className="text-content-muted">
             <X className="h-4 w-4" />
           </button>
         )}
@@ -173,9 +173,9 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Estágio</label>
+          <label className="mb-1 block text-xs text-content-muted">Estágio</label>
           <select
-            className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-1.5 text-sm"
             value={lead.stage?.id ?? ''}
             onChange={(e) => onStageSelect(e.target.value)}
             disabled={changeStage.isPending}
@@ -188,7 +188,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
             ))}
           </select>
           {(lead.lostReasonCategory || lead.lostReason) && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-content-muted">
               Perda: {lostReasonLabel(lead.lostReasonCategory)}
               {lead.lostReason ? ` — ${lead.lostReason}` : ''}
             </p>
@@ -196,12 +196,12 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         </div>
 
         {pendingLostStage && (
-          <div className="space-y-2 rounded-md border border-destructive/40 p-2">
+          <div className="space-y-2 rounded-md border border-danger/40 p-2">
             <p className="text-xs">
               Mover para <b>{pendingLostStage.name}</b> exige a categoria do motivo:
             </p>
             <select
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              className="w-full rounded-md border bg-surface px-2 py-1.5 text-sm"
               value={lostCategory}
               onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
             >
@@ -213,7 +213,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
               ))}
             </select>
             <textarea
-              className="w-full rounded-md border bg-background p-2 text-sm"
+              className="w-full rounded-md border bg-surface p-2 text-sm"
               rows={2}
               value={lostReason}
               maxLength={300}
@@ -255,7 +255,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           {lead.customer ? 'Nova venda' : 'Converter em orçamento'}
         </Button>
         {lead.customer && (
-          <p className="text-center text-[11px] text-muted-foreground">
+          <p className="text-center text-[11px] text-content-muted">
             Cliente: {lead.customer.name}
           </p>
         )}
@@ -278,9 +278,9 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         {showProposals && (
           <div className="space-y-2 rounded-md border p-2">
             {loadingProposals ? (
-              <p className="py-2 text-center text-xs text-muted-foreground">Carregando cotações…</p>
+              <p className="py-2 text-center text-xs text-content-muted">Carregando cotações…</p>
             ) : (proposalOptions?.quotations.length ?? 0) === 0 ? (
-              <p className="py-2 text-center text-xs text-muted-foreground">
+              <p className="py-2 text-center text-xs text-content-muted">
                 Nenhuma cotação deste cliente — crie uma em Comercial → Cotações.
               </p>
             ) : (
@@ -291,7 +291,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
                       #{qt.id.slice(-8).toUpperCase()} —{' '}
                       {qt.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </p>
-                    <p className="text-muted-foreground">
+                    <p className="text-content-muted">
                       {qt.status} · {new Date(qt.createdAt).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
@@ -329,7 +329,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         <LeadNotesReminders leadId={leadId} />
 
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Timeline</h3>
+          <h3 className="mb-2 text-xs font-medium uppercase text-content-muted">Timeline</h3>
           <ul className="space-y-2">
             {lead.activities.map((a) => {
               const isSummary = a.properties?.kind === 'conversation_summary';
@@ -348,7 +348,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
                     ) : (
                       <Badge variant="neutral">{ACTIVITY_LABEL[a.type] ?? a.type}</Badge>
                     )}
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-[11px] text-content-muted">
                       {new Date(a.happensAt).toLocaleString('pt-BR', {
                         day: '2-digit',
                         month: '2-digit',
@@ -384,12 +384,12 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
                   ) : (
                     <>
                       {typeof a.properties?.preview === 'string' && (
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                        <p className="mt-1 truncate text-xs text-content-muted">
                           {a.properties.preview as string}
                         </p>
                       )}
                       {typeof a.properties?.toName === 'string' && (
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs text-content-muted">
                           → {a.properties.toName as string}
                         </p>
                       )}
@@ -408,7 +408,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="text-[11px] text-content-muted">{label}</div>
       <div className="truncate">{value}</div>
     </div>
   );

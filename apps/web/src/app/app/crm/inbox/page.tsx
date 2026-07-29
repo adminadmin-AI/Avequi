@@ -234,9 +234,9 @@ export default function InboxPage() {
             </Button>
           </div>
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-content-muted" />
             <input
-              className="w-full rounded-md border bg-background py-2 pl-8 pr-2 text-sm"
+              className="w-full rounded-md border bg-surface py-2 pl-8 pr-2 text-sm"
               placeholder="Buscar nome ou telefone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -248,7 +248,7 @@ export default function InboxPage() {
                 key={s}
                 onClick={() => setScope(s)}
                 className={`rounded-full px-3 py-1 text-xs ${
-                  scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  scope === s ? 'bg-brand-600 text-white' : 'bg-neutral-500/[0.08] text-content-muted'
                 }`}
               >
                 {s === 'mine' ? 'Meus' : s === 'all' ? 'Todos' : '🤖 IA'}
@@ -263,7 +263,7 @@ export default function InboxPage() {
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="p-6 text-center">
-              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-content-muted" />
             </div>
           )}
           {!isLoading && conversations.length === 0 && (
@@ -277,8 +277,8 @@ export default function InboxPage() {
             <button
               key={c.id}
               onClick={() => setSelectedLeadId(c.leadId)}
-              className={`flex w-full items-start gap-2 border-b p-3 text-left hover:bg-muted/50 ${
-                c.leadId === selectedLeadId ? 'bg-muted' : ''
+              className={`flex w-full items-start gap-2 border-b p-3 text-left hover:bg-neutral-500/[0.05] ${
+                c.leadId === selectedLeadId ? 'bg-neutral-500/[0.08]' : ''
               }`}
             >
               <div className="min-w-0 flex-1">
@@ -287,14 +287,14 @@ export default function InboxPage() {
                     {c.lead.name ?? c.lead.phone ?? 'Sem nome'}
                   </span>
                   {c.lastMessageAt && (
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                    <span className="shrink-0 text-[11px] text-content-muted">
                       {timeAgo(c.lastMessageAt)}
                     </span>
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1">
                   {c.lastMessage && (
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-content-muted">
                       {c.lastMessage.direction === 'OUT' ? '→ ' : ''}
                       {c.lastMessage.preview}
                     </p>
@@ -312,7 +312,7 @@ export default function InboxPage() {
                     </Badge>
                   )}
                   {scope === 'all' && c.lead.assignedTo && (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-content-muted">
                       {c.lead.assignedTo.id === user?.id ? 'você' : c.lead.assignedTo.name}
                     </span>
                   )}
@@ -324,7 +324,7 @@ export default function InboxPage() {
                 </div>
               </div>
               {c.unreadCount > 0 && (
-                <span className="mt-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground">
+                <span className="mt-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-medium text-white">
                   {c.unreadCount}
                 </span>
               )}
@@ -377,7 +377,7 @@ export default function InboxPage() {
                 <div className="truncate font-medium">
                   {selected.lead.name ?? selected.lead.phone}
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs text-content-muted">
                   <Clock className="h-3 w-3" />
                   {windowLeft ? `janela: ${windowLeft} restantes` : 'janela de 24h expirada'}
                 </div>
@@ -459,7 +459,7 @@ export default function InboxPage() {
                   />
                   {!recordingAudio && (
                     <label
-                      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
+                      className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border text-content-muted hover:bg-neutral-500/[0.06]"
                       title="Anexar foto/PDF"
                     >
                       {sendMedia.isPending ? (
@@ -488,7 +488,7 @@ export default function InboxPage() {
                   {!recordingAudio && (
                     <>
                       <textarea
-                        className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-background p-2 text-sm"
+                        className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-md border bg-surface p-2 text-sm"
                         placeholder='Escreva livremente... ("/" abre respostas rápidas, Enter envia)'
                         rows={1}
                         value={draft}
@@ -515,7 +515,7 @@ export default function InboxPage() {
 
       {/* Painel do lead */}
       {selected && showPanel && (
-        <aside className="absolute inset-0 z-10 flex w-full flex-col border-l bg-background lg:static lg:z-auto lg:w-80 lg:shrink-0">
+        <aside className="absolute inset-0 z-10 flex w-full flex-col border-l bg-surface lg:static lg:z-auto lg:w-80 lg:shrink-0">
           <LeadPanel leadId={selected.leadId} onClose={() => setShowPanel(false)} />
         </aside>
       )}

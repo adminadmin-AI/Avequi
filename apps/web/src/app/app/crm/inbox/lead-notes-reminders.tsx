@@ -63,12 +63,12 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="mb-1 flex items-center gap-1 text-xs font-medium uppercase text-muted-foreground">
+        <h3 className="mb-1 flex items-center gap-1 text-xs font-medium uppercase text-content-muted">
           <StickyNote className="h-3.5 w-3.5" />
           Nota manual
         </h3>
         <textarea
-          className="w-full rounded-md border bg-background p-2 text-sm"
+          className="w-full rounded-md border bg-surface p-2 text-sm"
           rows={2}
           placeholder="ex: prefere basculante, orçamento até 15k..."
           value={note}
@@ -87,7 +87,7 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
       </div>
 
       <div>
-        <h3 className="mb-1 flex items-center gap-1 text-xs font-medium uppercase text-muted-foreground">
+        <h3 className="mb-1 flex items-center gap-1 text-xs font-medium uppercase text-content-muted">
           <AlarmClock className="h-3.5 w-3.5" />
           Lembretes
         </h3>
@@ -99,12 +99,12 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
                 <li
                   key={r.id}
                   className={`flex items-center gap-2 rounded-md border p-2 text-xs ${
-                    overdue ? 'border-destructive/50' : ''
+                    overdue ? 'border-danger/50' : ''
                   }`}
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{r.text}</p>
-                    <p className={overdue ? 'text-destructive' : 'text-muted-foreground'}>
+                    <p className={overdue ? 'text-danger' : 'text-content-muted'}>
                       {new Date(r.dueAt).toLocaleString('pt-BR', {
                         day: '2-digit',
                         month: '2-digit',
@@ -131,7 +131,7 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
         )}
         <div className="space-y-1">
           <input
-            className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-1.5 text-sm"
             placeholder='ex: "ligar amanhã 14h"'
             value={reminderText}
             onChange={(e) => setReminderText(e.target.value)}
@@ -139,7 +139,7 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
           <div className="flex gap-1">
             <input
               type="datetime-local"
-              className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
+              className="flex-1 rounded-md border bg-surface px-2 py-1.5 text-sm"
               value={reminderAt}
               onChange={(e) => setReminderAt(e.target.value)}
             />

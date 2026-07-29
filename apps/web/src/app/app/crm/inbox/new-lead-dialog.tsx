@@ -93,7 +93,7 @@ export function NewLeadDialog({
       <form id="new-lead-form" onSubmit={handleSubmit} className="space-y-3">
         <Field label="Telefone *">
           <input
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
             placeholder="(45) 99999-8888"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -117,14 +117,14 @@ export function NewLeadDialog({
         )}
         <Field label="Nome">
           <input
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
         <Field label="Interesse">
           <input
-            className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+            className="w-full rounded-md border bg-surface px-2 py-2 text-sm"
             placeholder="modelo de reboque..."
             value={interest}
             onChange={(e) => setInterest(e.target.value)}
@@ -138,7 +138,7 @@ export function NewLeadDialog({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-xs text-content-muted">{label}</span>
       {children}
     </label>
   );
