@@ -23,6 +23,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
+import { chartTooltipProps } from '@/lib/chart-theme';
 
 interface CashFlowEntry {
   id: string;
@@ -271,6 +272,7 @@ export default function CashFlowPage() {
                   width={70}
                 />
                 <Tooltip
+                  {...chartTooltipProps}
                   formatter={(v) => formatBRL(Number(v))}
                   labelFormatter={(l) => `Semana de ${l}`}
                 />
