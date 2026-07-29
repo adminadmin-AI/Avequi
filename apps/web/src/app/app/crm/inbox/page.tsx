@@ -9,6 +9,7 @@ import {
   Clock,
   Info,
   Loader2,
+  Paintbrush,
   Paperclip,
   MessageCircle,
   Plus,
@@ -29,6 +30,13 @@ import {
   windowRemaining,
 } from './inbox-types';
 import { AudioRecorder } from './audio-recorder';
+import { CHAT_THEMES, useChatTheme } from './chat-themes';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { LeadPanel } from './lead-panel';
 import { MediaAttachment } from './media-attachment';
 import { NewLeadDialog } from './new-lead-dialog';
@@ -51,6 +59,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
+  const [chatTheme, setChatTheme] = useChatTheme();
   const [draft, setDraft] = useState('');
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [pickerIndex, setPickerIndex] = useState(0);
@@ -349,50 +358,90 @@ export default function InboxPage() {
                   {windowLeft ? `janela: ${windowLeft} restantes` : 'janela de 24h expirada'}
                 </div>
               </div>
+              {/* Tema da conversa — papel de parede, igual WhatsApp */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label="Tema da conversa">
+                    <Paintbrush className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {CHAT_THEMES.map((t) => (
+                    <DropdownMenuItem key={t.key} onSelect={() => setChatTheme(t.key)}>
+                      <span
+                        aria-hidden
+                        className="mr-2 inline-block h-4 w-4 rounded-full border border-line"
+                        style={{ background: t.swatch }}
+                      />
+                      {t.label}
+                      {t.key === chatTheme.key && <Check className="ml-auto h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="ghost" size="sm" onClick={() => setShowPanel((v) => !v)}>
                 <Info className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Lead</span>
               </Button>
             </header>
 
-            <div className="flex-1 space-y-2 overflow-y-auto bg-muted/20 p-3">
-              {(chat?.messages ?? []).map((m) => (
+            {/* Área de conversa — papel de parede FIXO atrás (não rola com
+                as mensagens), igual WhatsApp; cores vêm do tema escolhido */}
+            <div className="relative flex-1 overflow-hidden" style={{ background: chatTheme.bg }}>
+              {chatTheme.doodle && (
                 <div
-                  key={m.id}
-                  className={`flex ${m.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}
-                >
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    backgroundImage: chatTheme.doodle,
+                    backgroundSize: '180px 180px',
+                    opacity: chatTheme.doodleOpacity,
+                  }}
+                />
+              )}
+              <div className="relative h-full space-y-2 overflow-y-auto p-3">
+                {(chat?.messages ?? []).map((m) => (
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm sm:max-w-[70%] ${
-                      m.direction === 'OUT'
-                        ? 'rounded-br-sm bg-primary text-primary-foreground'
-                        : 'rounded-bl-sm border bg-background'
-                    }`}
+                    key={m.id}
+                    className={`flex ${m.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {m.waMediaId && (
-                      <div className="mb-1">
-                        <MediaAttachment
-                          messageId={m.id}
-                          type={m.type}
-                          mimeType={m.mediaMimeType}
-                        />
-                      </div>
-                    )}
-                    {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                     <div
-                      className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                        m.direction === 'OUT' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm sm:max-w-[70%] ${
+                        m.direction === 'OUT' ? 'rounded-tr-none' : 'rounded-tl-none'
                       }`}
+                      style={
+                        m.direction === 'OUT'
+                          ? { background: chatTheme.bubbleOut.background, color: chatTheme.bubbleOut.color }
+                          : { background: chatTheme.bubbleIn.background, color: chatTheme.bubbleIn.color }
+                      }
                     >
-                      {new Date(m.createdAt).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {m.direction === 'OUT' && <StatusTicks status={m.status} />}
+                      {m.waMediaId && (
+                        <div className="mb-1">
+                          <MediaAttachment
+                            messageId={m.id}
+                            type={m.type}
+                            mimeType={m.mediaMimeType}
+                          />
+                        </div>
+                      )}
+                      {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                      <div
+                        className="mt-0.5 flex items-center justify-end gap-1 text-[10px]"
+                        style={{
+                          color: m.direction === 'OUT' ? chatTheme.timeOut : chatTheme.timeIn,
+                        }}
+                      >
+                        {new Date(m.createdAt).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {m.direction === 'OUT' && <StatusTicks status={m.status} />}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
+                ))}
+                <div ref={bottomRef} />
+              </div>
             </div>
 
             <footer className="border-t p-3">
