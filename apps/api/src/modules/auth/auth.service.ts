@@ -312,10 +312,37 @@ export class AuthService {
     // #221: check isActive on refresh
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      select: { isActive: true },
+      select: { isActive: true, mustChangePassword: true },
     });
     if (!user?.isActive) {
       throw new UnauthorizedException('Usuário desativado');
+    }
+
+    // #750 (defesa em profundidade): troca obrigatória pendente = refresh
+    // NEGADO. O reset por admin já revoga as sessões do alvo; este bloqueio
+    // garante que uma sessão que tenha escapado (falha parcial da revogação,
+    // refresh legado sem sessão) não continue renovando tokens. Revoga o
+    // refresh apresentado e as sessões restantes (SECURITY → denylist) e
+    // exige novo login — que devolve o token restrito da tela de troca
+    // (#743). O fluxo do token restrito não passa por aqui.
+    if (user.mustChangePassword) {
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() },
+      });
+      try {
+        await this.sessionService.revokeAllSessions(
+          stored.userId,
+          SessionRevokedReason.SECURITY,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Falha ao revogar sessões no refresh com troca pendente (best-effort): ${(err as Error).message}`,
+        );
+      }
+      throw new UnauthorizedException(
+        'Troca de senha obrigatória. Faça login novamente.',
+      );
     }
 
     // #342: sessão vinculada ainda ativa? (revogada/inativa 60min+ → 401).
