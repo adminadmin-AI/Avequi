@@ -9,7 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
+import { Badge, StatusDot } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { KpiGrid } from '@/components/ui/layout';
-import { formatBRL, formatDate, formatCpfCnpj } from '@/lib/format';
+import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
@@ -231,7 +231,7 @@ export default function PayablesPage() {
         return (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
-              <span>{supplierName(e) || <span className="text-content-muted">—</span>}</span>
+              <span>{prettyName(supplierName(e)) || <span className="text-content-muted">—</span>}</span>
               {pendingApproval(e) && (
                 <Badge variant="warning" className="whitespace-nowrap">
                   Aprovação pendente
@@ -276,7 +276,7 @@ export default function PayablesPage() {
       accessor: (e) => effectiveStatus(e, today),
       cell: (e) => {
         const meta = STATUS_META[effectiveStatus(e, today)];
-        return <Badge variant={meta.variant}>{meta.label}</Badge>;
+        return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
       },
     },
     {
@@ -463,7 +463,7 @@ export default function PayablesPage() {
           detailTarget &&
           (() => {
             const meta = STATUS_META[effectiveStatus(detailTarget, today)];
-            return <Badge variant={meta.variant}>{meta.label}</Badge>;
+            return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
           })()
         }
       />

@@ -132,3 +132,31 @@ export function parseBRL(value: string): number {
   const n = Number(normalized);
   return Number.isNaN(n) ? 0 : n;
 }
+
+
+/**
+ * Exibição de razão social vinda em CAIXA ALTA (dados migrados do Omie):
+ * Title Case pragmático — conectivos ficam minúsculos, siglas curtas sem
+ * vogal (FLX, ZL) e sufixos societários usuais preservam a forma esperada.
+ * NÃO altera o dado — é só apresentação.
+ */
+const NAME_LOWER = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para']);
+const NAME_UPPER = new Set(['me', 'sa', 's/a', 'epp', 'eireli', 'cnpj']);
+export function prettyName(raw: string): string {
+  if (!raw) return raw;
+  // se não está (quase) todo em caixa alta, respeita como veio
+  const letters = raw.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  if (!letters || letters !== letters.toUpperCase()) return raw;
+  return raw
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w, i) => {
+      const bare = w.replace(/[.,()]/g, '');
+      if (NAME_UPPER.has(bare)) return w.toUpperCase();
+      // sigla curta sem vogal (zl, flx, j.) mantém caixa alta
+      if (bare.length <= 3 && !/[aeiouáéíóúà]/.test(bare)) return w.toUpperCase();
+      if (i > 0 && NAME_LOWER.has(bare)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join(' ');
+}

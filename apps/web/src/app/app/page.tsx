@@ -34,6 +34,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatBRL, formatNumber } from '@/lib/format';
 import { colors } from '@/lib/design-tokens';
 import { cn } from '@/lib/utils';
+import { ALERT_TYPE_LABEL } from '@/app/app/alerts/alert-meta';
 import type {
   BankAccount,
   FinancialEntry,
@@ -226,9 +227,33 @@ export default function DashboardPage() {
 
   const pendencias = useMemo(() => {
     const order = { CRITICAL: 0, WARNING: 1, INFO: 2 } as const;
-    return [...(alertsQ.data ?? [])]
-      .sort((a, b) => order[a.severity] - order[b.severity])
-      .slice(0, 8);
+    const all = [...(alertsQ.data ?? [])].sort((a, b) => order[a.severity] - order[b.severity]);
+    // De-box: 3+ alertas do MESMO tipo viram UMA linha-resumo — nove dots
+    // vermelhos idênticos são textura, não informação. O detalhe mora em /alerts.
+    const byType = new Map<string, Alert[]>();
+    for (const a of all) {
+      const list = byType.get(a.type) ?? [];
+      list.push(a);
+      byType.set(a.type, list);
+    }
+    const rows: Alert[] = [];
+    const summarized = new Set<string>();
+    for (const a of all) {
+      if (summarized.has(a.type)) continue;
+      const group = byType.get(a.type)!;
+      if (group.length >= 3) {
+        summarized.add(a.type);
+        rows.push({
+          ...a,
+          id: `group-${a.type}`,
+          title: `${group.length}× ${ALERT_TYPE_LABEL[a.type as keyof typeof ALERT_TYPE_LABEL] ?? a.title}`,
+          body: 'Toque para ver todos em Alertas.',
+        });
+      } else {
+        rows.push(a);
+      }
+    }
+    return rows.slice(0, 8);
   }, [alertsQ.data]);
 
   const anyLoading =
