@@ -77,23 +77,24 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? 'border-danger/30 bg-danger/10' : undefined}>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p
-          className={`mt-1 text-2xl font-semibold tracking-tight ${
-            highlight ? 'text-danger' : 'text-content'
-          }`}
-        >
-          {formatBRL(value)}
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-caption text-content-muted">
+        {highlight && <span className="h-1.5 w-1.5 rounded-full bg-danger" />}
+        {label}
+      </p>
+      <p
+        className={`mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums ${
+          highlight ? 'text-danger' : 'text-content'
+        }`}
+      >
+        {formatBRL(value)}
+      </p>
+      {count != null && (
+        <p className="mt-0.5 text-helper text-content-muted">
+          {count} {count === 1 ? 'lançamento' : 'lançamentos'}
         </p>
-        {count != null && (
-          <p className="mt-0.5 text-xs text-content-muted">
-            {count} {count === 1 ? 'lançamento' : 'lançamentos'}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 

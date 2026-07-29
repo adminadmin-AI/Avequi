@@ -264,7 +264,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ─── KPIs ─── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-5 py-1 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           label="Faturamento"
           value={formatBRL(revenue)}
@@ -345,12 +345,12 @@ export default function DashboardPage() {
             ) : pendencias.length === 0 ? (
               <EmptyChart label="Nenhuma pendência. Tudo em dia! 🎉" />
             ) : (
-              <ul className="divide-y divide-line">
+              <ul className="-mx-2 space-y-0.5">
                 {pendencias.map((a) => (
                   <li key={a.id}>
                     <button
                       onClick={() => router.push('/app/alerts')}
-                      className="flex w-full items-start gap-3 py-2.5 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                      className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors duration-micro hover:bg-neutral-500/[0.05]"
                     >
                       <span
                         className={cn(
@@ -366,7 +366,7 @@ export default function DashboardPage() {
                         <span className="block truncate text-sm text-content">{a.title}</span>
                         <span className="block truncate text-caption text-content-muted">{a.body}</span>
                       </span>
-                      <ArrowRight size={14} className="mt-1 shrink-0 text-content-muted" />
+                      <ArrowRight size={14} className="mt-1 shrink-0 text-content-muted opacity-0 transition-opacity duration-micro group-hover:opacity-60" />
                     </button>
                   </li>
                 ))}
@@ -396,13 +396,14 @@ export default function DashboardPage() {
                 <Link
                   key={href}
                   href={href}
-                  className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-600/10"
+                  className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-micro hover:bg-neutral-500/[0.06]"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-600/15 dark:text-brand-300">
-                    <Plus size={16} />
-                  </span>
+                  <Plus size={16} className="text-brand-600 dark:text-brand-400" />
                   <span className="flex-1 text-sm font-medium text-content">{label}</span>
-                  <Icon size={16} className="text-content-muted transition-transform group-hover:translate-x-0.5" />
+                  <Icon
+                    size={16}
+                    className="text-content-muted opacity-60 transition-transform group-hover:translate-x-0.5"
+                  />
                 </Link>
               ))}
             </div>
@@ -424,30 +425,32 @@ export default function DashboardPage() {
 // do Card é a #309). Assim o dashboard já fica 100% dark-mode correto.
 function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('rounded-xl border border-line bg-surface shadow-elevation-1', className)}>
+    <div className={cn('surface-sheen rounded-xl bg-surface shadow-soft', className)}>
       {children}
     </div>
   );
 }
 function PanelHeader({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+    <div className="flex items-center justify-between gap-2 px-5 pb-1 pt-5">
       <h3 className="text-title text-content">{children}</h3>
       {action}
     </div>
   );
 }
 function PanelBody({ children }: { children: React.ReactNode }) {
-  return <div className="p-5">{children}</div>;
+  return <div className="px-5 pb-5 pt-3">{children}</div>;
 }
 
+// De-box: o KPI é TIPOGRAFIA sobre o canvas, não uma caixa. A cor semântica
+// só aparece quando é alarme de verdade (danger/warning) — e só no ícone.
 const TONE: Record<string, string> = {
-  brand: 'bg-brand-50 text-brand-600 dark:bg-brand-600/15 dark:text-brand-300',
-  success: 'bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400',
-  warning: 'bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400',
-  danger: 'bg-danger-50 text-danger-700 dark:bg-danger-900/20 dark:text-danger-400',
-  info: 'bg-info-50 text-info-700 dark:bg-info-900/20 dark:text-info-400',
-  neutral: 'bg-neutral-100 text-content-secondary dark:bg-neutral-800',
+  brand: 'text-content-muted',
+  success: 'text-content-muted',
+  warning: 'text-warning',
+  danger: 'text-danger',
+  info: 'text-content-muted',
+  neutral: 'text-content-muted',
 };
 
 function KpiCard({
@@ -466,17 +469,18 @@ function KpiCard({
   loading?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-elevation-1">
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-caption text-content-secondary">{label}</span>
-        <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg', TONE[tone])}>
-          <Icon size={15} />
-        </span>
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <Icon size={14} className={cn('shrink-0', TONE[tone])} />
+        <span className="truncate text-caption text-content-muted">{label}</span>
       </div>
       {loading ? (
-        <div className="mt-2 h-7 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
+        <div className="mt-1.5 h-8 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
       ) : (
-        <p className="mt-2 truncate text-title font-semibold tabular-nums text-content" title={value}>
+        <p
+          className="mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums text-content"
+          title={value}
+        >
           {value}
         </p>
       )}

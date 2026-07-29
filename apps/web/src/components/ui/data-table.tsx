@@ -407,7 +407,7 @@ export function DataTable<T>({
                     {titleCol &&
                       (titleCol.cell
                         ? titleCol.cell(row)
-                        : String(accessorFor(titleCol)(row) ?? '—'))}
+                        : String(accessorFor(titleCol)(row) ?? ''))}
                   </div>
                   {rowActions && (
                     <span onClick={(e) => e.stopPropagation()}>
@@ -443,7 +443,7 @@ export function DataTable<T>({
                         {col.header}
                       </dt>
                       <dd className="truncate text-sm text-content-secondary">
-                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '')}
                       </dd>
                     </div>
                   ))}
@@ -465,7 +465,7 @@ export function DataTable<T>({
       </div>
 
       {/* desktop (>= sm): tabela */}
-      <div className="avequi-scroll shadow-soft hidden max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface sm:block">
+      <div className="avequi-scroll surface-sheen shadow-soft hidden max-h-[70vh] overflow-auto rounded-xl bg-surface sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line">
@@ -486,11 +486,11 @@ export function DataTable<T>({
                   key={col.key}
                   onClick={() => toggleSort(col)}
                   className={cn(
-                    'sticky top-0 z-10 bg-surface px-5 py-3.5 text-[11px] font-medium uppercase tracking-wider text-content-muted',
+                    'sticky top-0 z-10 bg-surface px-5 py-3 text-xs font-medium text-content-muted',
                     col.align === 'right' && 'text-right',
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
-                    col.sortable && 'cursor-pointer select-none hover:text-content-secondary',
+                    col.sortable && 'group/th cursor-pointer select-none hover:text-content-secondary',
                     sortKey === col.key && 'text-brand-600 dark:text-brand-400',
                   )}
                 >
@@ -503,7 +503,7 @@ export function DataTable<T>({
                     {col.header}
                     {col.sortable &&
                       (sortKey !== col.key ? (
-                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity duration-micro group-hover/th:opacity-40" />
                       ) : sortDir === 'asc' ? (
                         <ChevronUp className="h-3.5 w-3.5" />
                       ) : (
@@ -578,10 +578,10 @@ export function DataTable<T>({
                       // Soft Surfaces: linha quase invisível + zebra de ~3% —
                       // o dado é o protagonista, a grade desaparece
                       'border-quiet border-b transition-colors duration-micro last:border-0',
-                      'even:bg-neutral-500/[0.03]',
+                      'group/row hover:bg-neutral-500/[0.04]',
                       onRowClick &&
                         'cursor-pointer hover:bg-brand-600/[0.05] dark:hover:bg-brand-400/[0.07]',
-                      isSelected && 'bg-brand-600/10 even:bg-brand-600/10',
+                      isSelected && 'bg-brand-600/10',
                     )}
                   >
                     {selectable && (
@@ -606,7 +606,7 @@ export function DataTable<T>({
                           col.className,
                         )}
                       >
-                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '—')}
+                        {col.cell ? col.cell(row) : String(accessorFor(col)(row) ?? '')}
                       </td>
                     ))}
                     {rowActions && (
@@ -615,7 +615,7 @@ export function DataTable<T>({
                           <DropdownMenuTrigger asChild>
                             <button
                               aria-label="Ações da linha"
-                              className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-neutral-100 hover:text-content dark:hover:bg-neutral-800"
+                              className="rounded-md p-1.5 text-content-muted opacity-0 transition-[color,background-color,opacity] duration-micro focus-visible:opacity-100 group-hover/row:opacity-100 hover:bg-neutral-500/[0.08] hover:text-content"
                             >
                               <MoreVertical size={16} />
                             </button>

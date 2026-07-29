@@ -27,7 +27,7 @@ export function Sidebar() {
       {/* Desktop — fixa */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-line bg-surface transition-[width] duration-flow ease-precise lg:flex',
+          'fixed inset-y-0 left-0 z-20 hidden flex-col bg-surface-secondary transition-[width] duration-flow ease-precise lg:flex',
           sidebarCollapsed ? 'w-16' : 'w-60',
         )}
       >
@@ -45,7 +45,7 @@ export function Sidebar() {
             className="absolute inset-0 bg-surface-overlay backdrop-blur-sm duration-fast animate-in fade-in"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r border-line bg-surface duration-flow animate-in slide-in-from-left">
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-surface shadow-elevation-4 duration-flow animate-in slide-in-from-left">
             <SidebarInner mini={false} onClose={() => setMobileNavOpen(false)} showClose />
           </aside>
         </div>
@@ -203,7 +203,7 @@ function SidebarInner({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar no menu…"
-              className="h-9 w-full rounded-lg border border-line bg-surface-secondary pl-8 pr-7 text-sm text-content placeholder:text-content-muted focus-ring"
+              className="h-9 w-full rounded-lg bg-neutral-500/[0.06] pl-8 pr-7 text-sm text-content transition-colors duration-micro placeholder:text-content-muted hover:bg-neutral-500/[0.09] focus-ring"
             />
             {search && (
               <button

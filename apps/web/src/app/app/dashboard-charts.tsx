@@ -33,10 +33,10 @@ export function RevenueLineChart({ data }: { data: { period: string; value: numb
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} vertical={false} />
-        <XAxis dataKey="period" tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} />
+        <CartesianGrid stroke="var(--border-default)" vertical={false} />
+        <XAxis dataKey="period" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
         <YAxis
-          tick={{ fontSize: 11, fill: colors.neutral[400] }}
+          tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
           tickLine={false}
           axisLine={false}
           width={64}
@@ -60,10 +60,10 @@ export function ProductionBarChart({ data }: { data: { status: string; count: nu
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={colors.neutral[200]} vertical={false} />
-        <XAxis dataKey="status" tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} />
-        <YAxis tick={{ fontSize: 11, fill: colors.neutral[400] }} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
-        <Tooltip formatter={(v) => [Number(v), 'OPs']} contentStyle={tooltipStyle} cursor={{ fill: colors.neutral[100] }} />
+        <CartesianGrid stroke="var(--border-default)" vertical={false} />
+        <XAxis dataKey="status" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+        <Tooltip formatter={(v) => [Number(v), 'OPs']} contentStyle={tooltipStyle} cursor={{ fill: 'rgb(148 163 184 / 0.08)' }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {data.map((_, i) => (
             <Cell key={i} fill={colors.brand[500]} />

@@ -10,7 +10,7 @@ export function Header() {
   const { setMobileNavOpen, setCommandOpen } = useUiStore();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-quiet border-b bg-surface/70 px-4 backdrop-blur-md sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-surface-secondary/70 px-4 backdrop-blur-md sm:px-6">
       {/* Hamburger (mobile) */}
       <button
         onClick={() => setMobileNavOpen(true)}
