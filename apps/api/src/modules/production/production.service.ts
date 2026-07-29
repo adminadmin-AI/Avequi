@@ -632,7 +632,19 @@ export class ProductionService {
       },
       include: {
         user: { select: { id: true, name: true } },
-        routingStep: { select: { id: true, stepOrder: true, name: true, workCenter: true } },
+        // #815 — mantém `workCenter` (texto) no contrato de resposta e acrescenta
+        // a FK + o centro resolvido. Nada foi removido: consumidores atuais
+        // continuam lendo o mesmo campo.
+        routingStep: {
+          select: {
+            id: true,
+            stepOrder: true,
+            name: true,
+            workCenter: true,
+            workCenterId: true,
+            workCenterRef: { select: { id: true, code: true, name: true } },
+          },
+        },
       },
     });
 
@@ -731,7 +743,19 @@ export class ProductionService {
       where: { productionOrderId: id },
       include: {
         user: { select: { id: true, name: true } },
-        routingStep: { select: { id: true, stepOrder: true, name: true, workCenter: true } },
+        // #815 — mantém `workCenter` (texto) no contrato de resposta e acrescenta
+        // a FK + o centro resolvido. Nada foi removido: consumidores atuais
+        // continuam lendo o mesmo campo.
+        routingStep: {
+          select: {
+            id: true,
+            stepOrder: true,
+            name: true,
+            workCenter: true,
+            workCenterId: true,
+            workCenterRef: { select: { id: true, code: true, name: true } },
+          },
+        },
       },
       orderBy: { loggedAt: 'asc' },
     });

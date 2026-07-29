@@ -698,15 +698,21 @@ model BomVersion {
 }
 
 model BomItem {
-  id           String        @id @default(cuid())
-  bomVersionId String
-  bomVersion   BomVersion    @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
-  componentId  String
-  component    Product       @relation("ComponentOf", fields: [componentId], references: [id])
-  quantity     Decimal       @db.Decimal(14, 4)
-  scrapPct     Decimal       @default(0) @db.Decimal(5, 2)
-  unit         UnitOfMeasure @default(UN)
+  id            String        @id @default(cuid())
+  bomVersionId  String
+  bomVersion    BomVersion    @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
+  componentId   String
+  component     Product       @relation("ComponentOf", fields: [componentId], references: [id])
+  quantity      Decimal       @db.Decimal(14, 4)
+  scrapPct      Decimal       @default(0) @db.Decimal(5, 2)
+  unit          UnitOfMeasure @default(UN)
+  // #815 — operação do roteiro onde este componente é consumido.
+  // Opcional: item sem operação alocada continua válido (compatibilidade).
+  // Restrict de propósito: apagar um passo NUNCA pode desassociar alocação em silêncio.
+  routingStepId String?
+  routingStep   RoutingStep?  @relation("BomItemRoutingStep", fields: [routingStepId], references: [id], onDelete: Restrict)
 
+  @@index([routingStepId])
   @@map("gdr_bom_items")
 }
 
@@ -720,15 +726,26 @@ model RoutingStep {
   product        Product         @relation("ProductRouting", fields: [productId], references: [id])
   stepOrder      Int
   name           String
+  // #815 — workCenterId é a referência OFICIAL. O campo textual `workCenter`
+  // fica temporariamente para os consumidores legados (capacity, costing e as
+  // respostas de production) e é mantido em sincronia com WorkCenter.code no
+  // create/update. Sua remoção fica para issue posterior.
+  // Restrict de propósito: a integridade não pode depender só do guard do
+  // serviço. Exclusão que não passe pelo CapacityService (script, console,
+  // futuro endpoint) também tem de esbarrar no banco.
+  workCenterId   String?
+  workCenterRef  WorkCenter?     @relation("WorkCenterRoutingSteps", fields: [workCenterId], references: [id], onDelete: Restrict)
   workCenter     String?
   setupTimeMin   Int             @default(0)
   runTimeMin     Int             @default(0)
   notes          String?
   productionLogs ProductionLog[]
+  bomItems       BomItem[]       @relation("BomItemRoutingStep")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@unique([productId, stepOrder])
+  @@index([companyId, workCenterId])
   @@map("gdr_routing_steps")
 }
 
@@ -2830,19 +2847,21 @@ model ProductionSchedule {
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
 
 model WorkCenter {
-  id                  String   @id @default(cuid())
+  id                  String        @id @default(cuid())
   companyId           String
-  company             Company  @relation(fields: [companyId], references: [id])
+  company             Company       @relation(fields: [companyId], references: [id])
   code                String
   name                String
   description         String?
-  capacityHoursPerDay Decimal  @default(8) @db.Decimal(5, 2)
-  costPerHour         Decimal  @default(0) @db.Decimal(14, 4)
-  operatorsCount      Int      @default(1)
-  efficiencyPct       Decimal  @default(85) @db.Decimal(5, 2)
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  capacityHoursPerDay Decimal       @default(8) @db.Decimal(5, 2)
+  costPerHour         Decimal       @default(0) @db.Decimal(14, 4)
+  operatorsCount      Int           @default(1)
+  efficiencyPct       Decimal       @default(85) @db.Decimal(5, 2)
+  isActive            Boolean       @default(true)
+  // #815 — back-reference da FK oficial em RoutingStep.
+  routingSteps        RoutingStep[] @relation("WorkCenterRoutingSteps")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@unique([companyId, code])
   @@index([companyId])

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { codigoDoCentro } from '../../common/production/work-center-ref';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -125,18 +126,26 @@ export class CostingService {
 
   /** MOD = Σ horas de Routing (setup+run) × custo/hora do WorkCenter. */
   private async computeLabor(companyId: string, productId: string) {
+    // #815 — o custo/hora vem do centro resolvido pela FK. O texto legado só é
+    // consultado para etapas que ainda estão com workCenterId nulo.
     const steps = await this.prisma.routingStep.findMany({
       where: { productId, companyId },
       orderBy: { stepOrder: 'asc' },
+      include: { workCenterRef: { select: { id: true, code: true, costPerHour: true } } },
     });
 
-    // Custo/hora dos WorkCenters usados no roteiro
-    const codes = Array.from(
-      new Set(steps.map((s) => s.workCenter).filter((c): c is string => !!c)),
+    // Fallback: custo/hora por CODE, só para as etapas sem FK.
+    const codesSemFk = Array.from(
+      new Set(
+        steps
+          .filter((s) => !s.workCenterId)
+          .map((s) => s.workCenter)
+          .filter((c): c is string => !!c),
+      ),
     );
-    const workCenters = codes.length
+    const workCenters = codesSemFk.length
       ? await this.prisma.workCenter.findMany({
-          where: { companyId, code: { in: codes } },
+          where: { companyId, code: { in: codesSemFk } },
           select: { code: true, costPerHour: true },
         })
       : [];
@@ -146,13 +155,18 @@ export class CostingService {
     let hours = 0;
     const breakdown = steps.map((step) => {
       const stepHours = (step.setupTimeMin + step.runTimeMin) / 60;
-      const costPerHour = step.workCenter ? cphByCode.get(step.workCenter) ?? 0 : 0;
+      const costPerHour = step.workCenterRef
+        ? Number(step.workCenterRef.costPerHour)
+        : step.workCenter
+          ? cphByCode.get(step.workCenter) ?? 0
+          : 0;
       const cost = round2(stepHours * costPerHour);
       total += cost;
       hours += stepHours;
       return {
         step: step.name,
-        workCenter: step.workCenter,
+        // Mantém o contrato de resposta: código do centro, agora vindo da FK
+        workCenter: codigoDoCentro(step),
         hours: round2(stepHours),
         costPerHour,
         cost,
