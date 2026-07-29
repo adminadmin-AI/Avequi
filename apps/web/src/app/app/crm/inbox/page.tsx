@@ -215,7 +215,9 @@ export default function InboxPage() {
   const windowLeft = selected ? windowRemaining(selected.windowExpiresAt) : null;
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-lg border">
+    // Full-bleed: o inbox ocupa a área útil inteira, colado nas bordas
+    // (margens negativas anulam o padding do layout) — como o WhatsApp.
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] overflow-hidden sm:-m-6">
       {/* Lista de conversas */}
       <aside
         className={`flex w-full flex-col border-r lg:w-80 lg:shrink-0 ${
@@ -336,8 +338,32 @@ export default function InboxPage() {
       {/* Chat */}
       <section className={`min-w-0 flex-1 flex-col ${selectedLeadId ? 'flex' : 'hidden lg:flex'}`}>
         {!selected ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione uma conversa
+          /* Sem conversa aberta: o papel de parede do tema já dá o clima */
+          <div className="relative h-full" style={{ background: chatTheme.bg }}>
+            {chatTheme.doodle && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage: chatTheme.doodle,
+                  backgroundSize: '180px 180px',
+                  opacity: chatTheme.doodleOpacity,
+                }}
+              />
+            )}
+            <div className="absolute right-2 top-2">
+              <ThemePicker activeKey={chatTheme.key} onPick={setChatTheme} />
+            </div>
+            <div className="relative flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+              <MessageCircle
+                className="h-12 w-12"
+                style={{ color: chatTheme.timeIn }}
+                strokeWidth={1.2}
+              />
+              <p className="text-sm" style={{ color: chatTheme.timeIn }}>
+                Selecione uma conversa para começar
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -359,26 +385,7 @@ export default function InboxPage() {
                 </div>
               </div>
               {/* Tema da conversa — papel de parede, igual WhatsApp */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" aria-label="Tema da conversa">
-                    <Paintbrush className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {CHAT_THEMES.map((t) => (
-                    <DropdownMenuItem key={t.key} onSelect={() => setChatTheme(t.key)}>
-                      <span
-                        aria-hidden
-                        className="mr-2 inline-block h-4 w-4 rounded-full border border-line"
-                        style={{ background: t.swatch }}
-                      />
-                      {t.label}
-                      {t.key === chatTheme.key && <Check className="ml-auto h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <ThemePicker activeKey={chatTheme.key} onPick={setChatTheme} />
               <Button variant="ghost" size="sm" onClick={() => setShowPanel((v) => !v)}>
                 <Info className="h-4 w-4" />
                 <span className="ml-1 hidden sm:inline">Lead</span>
@@ -521,6 +528,33 @@ export default function InboxPage() {
         onOpenLead={(leadId) => setSelectedLeadId(leadId)}
       />
     </div>
+  );
+}
+
+/** Seletor de tema da conversa (papel de parede) — usado no cabeçalho da
+ *  conversa e na área vazia, para o tema ser trocável mesmo sem conversa. */
+function ThemePicker({ activeKey, onPick }: { activeKey: string; onPick: (k: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" aria-label="Tema da conversa">
+          <Paintbrush className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {CHAT_THEMES.map((t) => (
+          <DropdownMenuItem key={t.key} onSelect={() => onPick(t.key)}>
+            <span
+              aria-hidden
+              className="mr-2 inline-block h-4 w-4 rounded-full border border-line"
+              style={{ background: t.swatch }}
+            />
+            {t.label}
+            {t.key === activeKey && <Check className="ml-auto h-3.5 w-3.5" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
