@@ -92,7 +92,7 @@ export default function FunnelPage() {
                     key={s}
                     onClick={() => setScope(s)}
                     className={`rounded-full px-3 py-1 text-xs ${
-                      scope === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      scope === s ? 'bg-brand-600/[0.10] font-medium text-brand-700 dark:text-brand-300' : 'text-content-secondary hover:bg-neutral-500/[0.06]'
                     }`}
                   >
                     {s === 'mine' ? 'Meus' : 'Todas as lojas'}
@@ -116,11 +116,11 @@ export default function FunnelPage() {
           {columns.map((column) => (
             <div
               key={column.stage.id}
-              className="flex w-72 shrink-0 flex-col rounded-lg border bg-muted/30"
+              className="flex w-72 shrink-0 flex-col rounded-xl bg-neutral-500/[0.04]"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
             >
-              <div className="flex items-center justify-between border-b p-3">
+              <div className="flex items-center justify-between p-3 pb-2">
                 <div className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -150,7 +150,7 @@ export default function FunnelPage() {
                       e.stopPropagation();
                       onDrop(column, index);
                     }}
-                    className={`group rounded-md border bg-background p-2 text-sm shadow-sm ${
+                    className={`group surface-sheen rounded-lg bg-surface p-2.5 text-sm shadow-soft ${
                       dragged?.id === lead.id ? 'opacity-40' : ''
                     }`}
                   >
@@ -162,7 +162,7 @@ export default function FunnelPage() {
                             {lead.name ?? lead.phone ?? 'Sem nome'}
                           </span>
                           {lead.unreadCount > 0 && (
-                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] text-white">
                               {lead.unreadCount}
                             </span>
                           )}
@@ -207,13 +207,13 @@ export default function FunnelPage() {
 
       {lostPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm space-y-3 rounded-lg border bg-background p-4 shadow-lg">
+          <div className="w-full max-w-sm space-y-3 rounded-xl bg-surface-elevated p-4 shadow-elevation-4">
             <h2 className="font-medium">Motivo da perda</h2>
             <p className="text-sm text-muted-foreground">
               Marcando <b>{lostPrompt.lead.name ?? lostPrompt.lead.phone}</b> como perdido.
             </p>
             <select
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-content"
               value={lostCategory}
               onChange={(e) => setLostCategory(e.target.value as LostReasonCategory | '')}
             >
@@ -225,7 +225,7 @@ export default function FunnelPage() {
               ))}
             </select>
             <input
-              className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+              className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-content"
               placeholder="Detalhe opcional (ex.: achou R$ 2 mil mais barato na X)"
               value={lostReason}
               maxLength={300}
@@ -233,7 +233,7 @@ export default function FunnelPage() {
             />
             <div className="flex justify-end gap-2">
               <button
-                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground"
+                className="rounded-lg px-3 py-1.5 text-sm text-content-secondary transition-colors duration-micro hover:bg-neutral-500/[0.06]"
                 onClick={() => {
                   setLostPrompt(null);
                   setLostReason('');

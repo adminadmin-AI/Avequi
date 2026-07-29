@@ -87,20 +87,18 @@ export function NotificationBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Notificações"
-        className="relative rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        className="relative rounded-lg p-2 text-content-muted transition-colors duration-micro hover:bg-neutral-500/[0.08] hover:text-content"
       >
         <Bell size={18} />
         {count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
-            {count > 99 ? '99+' : count}
-          </span>
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-[var(--bg-secondary)]" />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-30 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
-            <p className="text-sm font-semibold text-slate-800">Notificações</p>
+        <div className="absolute right-0 top-11 z-30 w-80 overflow-hidden rounded-xl bg-surface-elevated shadow-elevation-4">
+          <div className="flex items-center justify-between px-4 pb-1.5 pt-3">
+            <p className="text-sm font-semibold text-content">Notificações</p>
             {count > 0 && (
               <button
                 onClick={() => markAll.mutate()}
@@ -114,12 +112,12 @@ export function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {recent.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-slate-400">Nenhuma notificação nova. 🎉</p>
+              <p className="px-4 py-10 text-center text-sm text-content-muted">Nenhuma notificação nova. 🎉</p>
             ) : (
               recent.map((a) => (
                 <div
                   key={a.id}
-                  className="group flex items-start gap-2 border-b border-slate-50 px-4 py-3 last:border-0 hover:bg-slate-50"
+                  className="group flex items-start gap-2 px-4 py-3 transition-colors duration-micro hover:bg-neutral-500/[0.05]"
                 >
                   <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', {
                     'bg-danger': a.severity === 'CRITICAL',
@@ -127,16 +125,16 @@ export function NotificationBell() {
                     'bg-info': a.severity === 'INFO',
                   })} />
                   <button onClick={() => handleClick(a)} className="flex-1 text-left">
-                    <p className="text-xs font-medium text-slate-500">{ALERT_TYPE_LABEL[a.type] ?? a.type}</p>
-                    <p className="text-sm text-slate-800">{a.title}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
+                    <p className="text-xs font-medium text-content-muted">{ALERT_TYPE_LABEL[a.type] ?? a.type}</p>
+                    <p className="text-sm text-content">{a.title}</p>
+                    <p className="mt-0.5 text-[11px] text-content-muted">
                       {ALERT_SEVERITY[a.severity].label} · {relativeTime(a.createdAt)}
                     </p>
                   </button>
                   <button
                     onClick={() => markRead.mutate(a.id)}
                     title="Marcar como lida"
-                    className="mt-0.5 rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-success group-hover:opacity-100"
+                    className="mt-0.5 rounded-md p-1 text-content-muted opacity-0 transition-opacity hover:bg-neutral-500/[0.08] hover:text-success group-hover:opacity-100"
                   >
                     <Check size={14} />
                   </button>
@@ -147,7 +145,7 @@ export function NotificationBell() {
 
           <button
             onClick={() => { setOpen(false); router.push('/app/alerts'); }}
-            className="block w-full border-t border-slate-100 py-2.5 text-center text-xs font-medium text-brand-600 dark:text-brand-400 hover:bg-slate-50"
+            className="block w-full py-2.5 text-center text-xs font-medium text-brand-600 transition-colors duration-micro hover:bg-neutral-500/[0.05] dark:text-brand-400"
           >
             Ver todos os alertas
           </button>
