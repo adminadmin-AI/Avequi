@@ -204,7 +204,7 @@ export function CustomerForm({
                 onClick={fillFromCnpj}
                 disabled={cnpjLoading}
                 title="Buscar dados na Receita (preenche razão social e endereço)"
-                className="flex shrink-0 items-center justify-center rounded-md border border-border px-2.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50"
+                className="flex shrink-0 items-center justify-center rounded-md border border-line px-2.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50"
               >
                 {cnpjLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
               </button>
@@ -296,7 +296,7 @@ export function CustomerForm({
       </div>
 
       {/* ─── Dados fiscais (#474) ─── */}
-      <div className="border-t border-border pt-4 space-y-4">
+      <div className="border-t border-line pt-4 space-y-4">
         <p className="text-sm font-medium text-content-secondary">Dados fiscais (NF-e)</p>
         {!isPF && (
           <Field label="Razão social" error={errors.razaoSocial?.message}>
@@ -337,7 +337,7 @@ export function CustomerForm({
       </div>
 
       {/* ─── Crédito e cobrança (#475) ─── */}
-      <div className="border-t border-border pt-4 space-y-4">
+      <div className="border-t border-line pt-4 space-y-4">
         <p className="text-sm font-medium text-content-secondary">Crédito e cobrança</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Limite de crédito (R$)" error={errors.creditLimit?.message}>

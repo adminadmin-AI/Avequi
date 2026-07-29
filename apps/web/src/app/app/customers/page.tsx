@@ -309,7 +309,7 @@ export default function CustomersPage() {
             <CustomerExtras customerId={editing.id} />
           </>
         ) : (
-          <p className="mt-4 border-t border-border pt-4 text-sm text-content-muted">
+          <p className="mt-4 border-t border-line pt-4 text-sm text-content-muted">
             Salve o cliente para cadastrar endereços de entrega (grupo entrega da NF-e).
           </p>
         )}

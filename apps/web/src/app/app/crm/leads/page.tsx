@@ -382,7 +382,7 @@ export default function LeadListPage() {
           </thead>
           <tbody className="divide-y">
             {items.map((l) => (
-              <tr key={l.id} className={`hover:bg-neutral-500/[0.05] ${selected.has(l.id) ? 'bg-neutral-500/[0.05]' : ''}`}>
+              <tr key={l.id} className={`transition-colors duration-micro hover:bg-neutral-500/[0.05] ${selected.has(l.id) ? 'bg-brand-600/[0.08]' : ''}`}>
                 <td className="p-2">
                   <input
                     type="checkbox"
