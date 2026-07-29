@@ -368,9 +368,10 @@ function NavLink({
       className={cn(
         'group relative flex items-center rounded-lg text-sm transition-colors duration-fast',
         mini ? 'h-10 justify-center' : 'gap-2.5 px-3 py-2',
+        // Soft Surfaces: seleção por tinta alpha (não bloco sólido)
         active
-          ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
-          : 'text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
+          ? 'bg-brand-600/[0.08] font-medium text-brand-700 dark:bg-brand-400/[0.10] dark:text-brand-300'
+          : 'text-content-secondary hover:bg-content/[0.045]',
       )}
     >
       {/* left border accent quando ativo */}

@@ -19,9 +19,10 @@
   --text-secondary: #475569;
   --text-muted: #64748b;
 
-  /* Bordas */
-  --border-default: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* Bordas — Soft Surfaces: alpha em vez de sólido; nenhuma borda pode
+     chamar mais atenção que o conteúdo (hierarquia = espaço, não linha) */
+  --border-default: rgb(15 23 42 / 0.08);
+  --border-strong: rgb(15 23 42 / 0.16);
 
   /* Compat shadcn (legado) */
   --background: 0 0% 100%;
@@ -40,9 +41,9 @@
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
 
-  /* Bordas */
-  --border-default: #1e293b;
-  --border-strong: #334155;
+  /* Bordas — Soft Surfaces (ver nota no :root) */
+  --border-default: rgb(148 163 184 / 0.11);
+  --border-strong: rgb(148 163 184 / 0.22);
 
   /* Compat shadcn (legado) */
   --background: 222 47% 6%;
@@ -71,6 +72,14 @@ body {
 .focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
   --tw-ring-offset-color: var(--bg-primary);
+}
+
+/* Soft Surfaces — profundidade no lugar de linhas: sombra em duas camadas
+   (contato + ambiente), discreta o bastante pra não virar "borda de sombra" */
+.shadow-soft {
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 12px 32px -16px rgb(16 24 40 / 0.12);
 }
 
 /* Scrollbar fina e discreta (sidebar, listas) */

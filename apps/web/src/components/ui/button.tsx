@@ -6,11 +6,12 @@ import { cn } from '@/lib/utils';
 import { Spinner } from './spinner';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-lg transition-[colors,transform] duration-fast ease-precise active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-lg transition-[color,background-color,border-color,box-shadow,transform] duration-fast ease-precise active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-xs',
+        primary:
+          'bg-brand-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_1px_2px_rgb(16_24_40/0.18)] hover:bg-brand-700 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_2px_10px_rgb(61_44_230/0.30)]',
         secondary:
           'bg-surface text-content border border-line hover:bg-surface-secondary shadow-xs',
         outline:

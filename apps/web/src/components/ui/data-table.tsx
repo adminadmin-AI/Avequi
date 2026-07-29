@@ -73,10 +73,11 @@ export interface RowAction<T> {
 
 type Density = 'compact' | 'comfortable' | 'spacious';
 
+// Soft Surfaces: separação por espaço, não por linha — mais respiro
 const DENSITY_PAD: Record<Density, string> = {
-  compact: 'py-1.5',
-  comfortable: 'py-3',
-  spacious: 'py-4',
+  compact: 'py-2',
+  comfortable: 'py-3.5',
+  spacious: 'py-5',
 };
 
 const DENSITY_LABEL: Record<Density, string> = {
@@ -357,7 +358,7 @@ export function DataTable<T>({
             </div>
           ))
         ) : paged.length === 0 ? (
-          <div className="rounded-xl border border-line bg-surface px-4">
+          <div className="shadow-soft rounded-xl border border-line bg-surface px-5">
             {data.length > 0 && search.trim() ? (
               <EmptyState
                 compact
@@ -385,7 +386,7 @@ export function DataTable<T>({
                 key={key}
                 onClick={() => onRowClick?.(row)}
                 className={cn(
-                  'rounded-xl border border-line bg-surface p-4 shadow-xs',
+                  'shadow-soft rounded-xl border border-line bg-surface p-5',
                   onRowClick && 'cursor-pointer active:bg-brand-50/60 dark:active:bg-brand-600/10',
                   isSelected && 'border-brand-600/40 bg-brand-600/10',
                 )}
@@ -464,12 +465,12 @@ export function DataTable<T>({
       </div>
 
       {/* desktop (>= sm): tabela */}
-      <div className="avequi-scroll hidden max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface shadow-sm sm:block">
+      <div className="avequi-scroll shadow-soft hidden max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line">
               {selectable && (
-                <th className="sticky top-0 z-10 w-10 bg-surface-secondary px-4 py-3">
+                <th className="sticky top-0 z-10 w-10 bg-surface px-5 py-3.5">
                   <input
                     ref={headerCheckRef}
                     type="checkbox"
@@ -485,7 +486,7 @@ export function DataTable<T>({
                   key={col.key}
                   onClick={() => toggleSort(col)}
                   className={cn(
-                    'sticky top-0 z-10 bg-surface-secondary px-4 py-3 text-xs font-semibold uppercase tracking-wide text-content-muted',
+                    'sticky top-0 z-10 bg-surface px-5 py-3.5 text-[11px] font-medium uppercase tracking-wider text-content-muted',
                     col.align === 'right' && 'text-right',
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
@@ -511,15 +512,15 @@ export function DataTable<T>({
                   </span>
                 </th>
               ))}
-              {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface-secondary" />}
+              {rowActions && <th className="sticky top-0 z-10 w-12 bg-surface" />}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skeleton-${i}`} className="border-b border-line/60 last:border-0">
+                <tr key={`skeleton-${i}`} className="border-b border-line/40 last:border-0">
                   {selectable && (
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       <Skeleton className="h-4 w-4" />
                     </td>
                   )}
@@ -527,7 +528,7 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        'px-4 py-3',
+                        'px-5 py-3.5',
                         col.align === 'right' && 'text-right',
                         col.align === 'center' && 'text-center',
                       )}
@@ -549,7 +550,7 @@ export function DataTable<T>({
               ))
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} className="px-4">
+                <td colSpan={colSpan} className="px-5">
                   {data.length > 0 && search.trim() ? (
                     <EmptyState
                       compact
@@ -574,10 +575,12 @@ export function DataTable<T>({
                     key={key}
                     onClick={() => onRowClick?.(row)}
                     className={cn(
-                      'border-b border-line/60 transition-colors duration-micro last:border-0',
-                      // zebra sutil
-                      'even:bg-neutral-500/[0.04]',
-                      onRowClick && 'cursor-pointer hover:bg-brand-50/60 dark:hover:bg-brand-600/10',
+                      // Soft Surfaces: linha quase invisível + zebra de ~3% —
+                      // o dado é o protagonista, a grade desaparece
+                      'border-b border-line/40 transition-colors duration-micro last:border-0',
+                      'even:bg-neutral-500/[0.03]',
+                      onRowClick &&
+                        'cursor-pointer hover:bg-brand-600/[0.05] dark:hover:bg-brand-400/[0.07]',
                       isSelected && 'bg-brand-600/10 even:bg-brand-600/10',
                     )}
                   >
