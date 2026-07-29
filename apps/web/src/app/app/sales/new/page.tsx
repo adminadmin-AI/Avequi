@@ -471,7 +471,7 @@ export default function NewSalePage() {
                 {items.map((it, idx) => {
                   const p = productMap.get(it.productId);
                   return (
-                    <tr key={idx} className="border-b border-line/60 last:border-0">
+                    <tr key={idx} className="border-b border-line last:border-0">
                       <td className="py-2">
                         <p className="text-content">{p?.name ?? '—'}</p>
                         <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
