@@ -28,7 +28,8 @@ export function PageHeader({
   tabs?: React.ReactNode;
 }) {
   return (
-    <div className={cn('mb-6', tabs && 'mb-4')}>
+    // Soft Surfaces: o sistema respira — mais espaço entre título e conteúdo
+    <div className={cn('mb-8', tabs && 'mb-5')}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
           {backHref && (

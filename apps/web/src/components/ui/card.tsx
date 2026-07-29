@@ -3,13 +3,14 @@ import { cn } from '@/lib/utils';
 
 const cardVariants = cva('rounded-xl bg-surface text-content', {
   variants: {
+    // Soft Surfaces: profundidade por sombra suave; a borda é um sussurro
     variant: {
-      default: 'border border-line shadow-sm',
-      elevated: 'border border-line shadow-md transition-shadow duration-flow hover:shadow-lg',
+      default: 'border border-line shadow-soft',
+      elevated: 'border border-line shadow-soft transition-shadow duration-flow hover:shadow-lg',
       outlined: 'border border-line',
       ghost: 'bg-transparent',
       interactive:
-        'border border-line shadow-sm transition-[box-shadow,border-color,transform] duration-fast hover:border-line-strong hover:shadow-md active:scale-[0.99] cursor-pointer',
+        'border border-line shadow-soft transition-[box-shadow,border-color,transform] duration-fast hover:border-line-strong hover:shadow-md active:scale-[0.99] cursor-pointer',
     },
     accent: {
       none: '',

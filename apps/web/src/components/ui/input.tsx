@@ -77,14 +77,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         }}
         className={cn(
           'w-full rounded-lg border bg-surface px-3 text-content placeholder:text-content-muted',
-          'transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-surface',
+          // Soft Surfaces: foco = glow discreto (borda brand suave + halo),
+          // não um anel duro com offset
+          'transition-[border-color,box-shadow] duration-fast focus-visible:outline-none',
           'disabled:cursor-not-allowed disabled:bg-surface-secondary disabled:text-content-muted',
           SIZE_CLASSES[inputSize],
           leftIcon && 'pl-9',
           (rightIcon || showClear) && 'pr-9',
           error
-            ? 'border-danger focus-visible:ring-danger'
-            : 'border-line focus-visible:ring-brand-600',
+            ? 'border-danger focus-visible:shadow-[0_0_0_3px_rgb(220_38_38/0.15)]'
+            : 'border-line focus-visible:border-brand-500/50 focus-visible:shadow-[0_0_0_3px_rgb(61_44_230/0.12),0_0_16px_rgb(61_44_230/0.08)]',
           className,
         )}
         onChange={trackChange}
