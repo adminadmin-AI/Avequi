@@ -22,6 +22,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { formatBRL, formatNumber } from '@/lib/format';
 import { chartGridProps, chartTickFill, chartTooltipProps } from '@/lib/chart-theme';
+import { Can } from '@/components/can';
+import { usePermission } from '@/hooks/use-permission';
 
 // ─── Shapes reais do backend (módulo analytics) ──────────────────────────────
 interface OlapSummary {
@@ -96,10 +98,16 @@ function brlCompact(v: number) {
   return `R$ ${v.toFixed(0)}`;
 }
 
+/** #846 — GET /dashboard/executive expõe sales.revenueGrowthPct (mês a mês). */
+interface ExecutiveDashboard {
+  sales: { revenueThisMonth: number; revenueLastMonth: number; revenueGrowthPct: number | null };
+}
+
 export default function AnalyticsPage() {
   const [days, setDays] = useState(90);
   const startDate = useMemo(() => isoDaysAgo(days), [days]);
   const endDate = useMemo(() => new Date().toISOString(), [days]);
+  const { can } = usePermission();
 
   const summaryQ = useQuery({
     queryKey: ['/analytics/summary'],
@@ -123,6 +131,12 @@ export default function AnalyticsPage() {
     queryKey: ['/finance/reports/dre', startDate, endDate],
     queryFn: async () =>
       (await apiClient.get<DreReport>('/finance/reports/dre', { params: { from: startDate, to: endDate } })).data,
+  });
+  // #846 — crescimento de receita (só dispara com a permissão do dashboard executivo)
+  const executiveQ = useQuery({
+    queryKey: ['/dashboard/executive'],
+    queryFn: async () => (await apiClient.get<ExecutiveDashboard>('/dashboard/executive')).data,
+    enabled: can('dashboard.executive.view'),
   });
 
   const summary = summaryQ.data;
@@ -225,6 +239,21 @@ export default function AnalyticsPage() {
             <Kpi label="OPs concluídas" value={formatNumber(summary?.production.totalOrders ?? 0)} />
             <Kpi label="NCRs abertas" value={formatNumber(summary?.quality.openNcrs ?? 0)} tone={(summary?.quality.openNcrs ?? 0) > 0 ? 'warning' : 'neutral'} />
           </div>
+
+          {/* Crescimento de receita (#846) — mês a mês, do dashboard executivo */}
+          <Can permission="dashboard.executive.view">
+            {(() => {
+              const growth = executiveQ.data?.sales.revenueGrowthPct;
+              const value =
+                growth == null ? '—' : `${growth > 0 ? '+' : ''}${formatNumber(growth)}%`;
+              const tone = growth == null ? 'neutral' : growth < 0 ? 'danger' : 'success';
+              return (
+                <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <Kpi label="Crescimento de receita (mês)" value={value} tone={tone} />
+                </div>
+              );
+            })()}
+          </Can>
 
           {/* Comercial */}
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Comercial</h2>

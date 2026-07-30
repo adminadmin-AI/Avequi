@@ -6,9 +6,11 @@ import { Download, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Can } from '@/components/can';
 import { SOURCE_LABEL } from '../inbox/inbox-types';
 import { lostReasonLabel } from '@/lib/crm-lost-reasons';
 import { formatBRL } from '../funnel/funnel-types';
+import { formatDate } from '@/lib/format';
 
 interface Dashboard {
   funnel: {
@@ -46,6 +48,40 @@ interface Dashboard {
   slaEscalations: number;
   /** #574 — leads que chegaram já em negociação em outra loja */
   crossStoreDuplicates: number;
+  /** #846 — ciclo médio lead→faturamento (dias); null se ninguém faturou no período */
+  avgSalesCycleDays: number | null;
+  /** #846 — leads OPEN sem toque além do limite, por estágio */
+  coolingLeads: Array<{ stageId: string; stageName: string; count: number }>;
+}
+
+/** #846 — shape de GET /crm/portfolio */
+interface Portfolio {
+  newCustomers: { count: number; series: Array<{ month: string; count: number }> };
+  active: { count: number };
+  atRisk: {
+    count: number;
+    customers: Array<{
+      customerId: string;
+      name: string;
+      lastPurchaseAt: string | null;
+      lifetimeRevenue: number;
+    }>;
+  };
+  repurchase: {
+    totalCustomers: number;
+    customersWithRepeat: number;
+    rate: number;
+    avgIntervalDays: number | null;
+  };
+  topCustomers: Array<{
+    customerId: string;
+    name: string;
+    periodRevenue: number;
+    lifetimeRevenue: number;
+    purchaseCount: number;
+    avgTicket: number;
+    lastPurchaseAt: string | null;
+  }>;
 }
 
 const PERIODS = [
@@ -124,6 +160,30 @@ export default function CrmDashboardPage() {
               <Stat label="Fechados" value={f!.won} pct={f!.winRate} highlight />
               <Stat label="Realocados por SLA" value={data.slaEscalations} />
               <Stat label="Duplicados entre lojas" value={data.crossStoreDuplicates} />
+            </div>
+          </section>
+
+          {/* Indicadores de ciclo (#846): ciclo médio até faturar e leads esfriando */}
+          <section className="grid gap-4 sm:grid-cols-2">
+            <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
+              <div className="text-caption text-content-muted">Ciclo médio até faturar</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
+                {data.avgSalesCycleDays != null ? `${data.avgSalesCycleDays} dias` : '—'}
+              </div>
+              <div className="mt-0.5 text-helper text-content-muted">
+                do lead à emissão da NF-e (OVs faturadas no período)
+              </div>
+            </div>
+            <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
+              <div className="text-caption text-content-muted">Leads esfriando</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
+                {data.coolingLeads.reduce((s, c) => s + c.count, 0)}
+              </div>
+              <div className="mt-0.5 text-helper text-content-muted">
+                {data.coolingLeads.length > 0
+                  ? data.coolingLeads.map((c) => `${c.stageName} ${c.count}`).join(' · ')
+                  : 'sem leads parados além do limite'}
+              </div>
             </div>
           </section>
 
@@ -211,6 +271,154 @@ export default function CrmDashboardPage() {
           )}
         </>
       )}
+
+      {/* Carteira de clientes (#846) — some inteira sem crm.portfolio.view (fail-closed) */}
+      <Can permission="crm.portfolio.view">
+        <PortfolioSection days={days} />
+      </Can>
+    </div>
+  );
+}
+
+/**
+ * Carteira de clientes (#846): novos/ativos/em risco, recompra e top clientes.
+ * Query própria (independe do overview) — só monta sob crm.portfolio.view.
+ */
+function PortfolioSection({ days }: { days: number }) {
+  const { data, isLoading } = useQuery<Portfolio>({
+    queryKey: ['crm-portfolio', days],
+    queryFn: async () => (await apiClient.get('/crm/portfolio', { params: { days } })).data,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-content-muted" />
+      </div>
+    );
+  }
+
+  const { newCustomers, active, atRisk, repurchase, topCustomers } = data;
+  const maxMonth = Math.max(1, ...newCustomers.series.map((s) => s.count));
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-sm font-medium">Carteira de clientes</h2>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <PortfolioCard label="Novos no período" value={String(newCustomers.count)} />
+        <PortfolioCard label="Clientes ativos" value={String(active.count)} sub="≥1 compra na janela ativa" />
+        <PortfolioCard label="Em risco" value={String(atRisk.count)} sub="compraram antes, não agora" />
+        <PortfolioCard
+          label="Taxa de recompra"
+          value={`${repurchase.rate}%`}
+          sub={
+            repurchase.avgIntervalDays != null
+              ? `intervalo médio ${repurchase.avgIntervalDays} dias`
+              : 'sem recompra ainda'
+          }
+        />
+      </div>
+
+      {/* Série mensal de novos clientes (12 meses) — barras simples */}
+      <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
+        <h3 className="mb-3 text-sm font-medium">Novos clientes (12 meses)</h3>
+        <div className="flex h-28 items-end gap-1.5">
+          {newCustomers.series.map((s) => (
+            <div key={s.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <span className="text-[10px] tabular-nums text-content-muted">{s.count || ''}</span>
+              <div
+                className="w-full rounded-t bg-brand-500/70"
+                style={{ height: `${(s.count / maxMonth) * 100}%` }}
+                title={`${s.month}: ${s.count}`}
+              />
+              <span className="text-[9px] text-content-muted">{s.month.slice(2)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Top clientes */}
+        <section className="surface-sheen rounded-xl bg-surface shadow-soft">
+          <h3 className="border-b p-3 text-sm font-medium">Top clientes</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-content-muted">
+                <tr>
+                  <th className="p-2">Cliente</th>
+                  <th className="p-2 text-right">Receita período</th>
+                  <th className="p-2 text-right">Lifetime</th>
+                  <th className="p-2 text-right">Compras</th>
+                  <th className="p-2 text-right">Ticket médio</th>
+                  <th className="p-2 text-right">Última compra</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topCustomers.map((c) => (
+                  <tr key={c.customerId} className="border-t">
+                    <td className="p-2 font-medium">{c.name}</td>
+                    <td className="p-2 text-right font-medium">{formatBRL(c.periodRevenue)}</td>
+                    <td className="p-2 text-right">{formatBRL(c.lifetimeRevenue)}</td>
+                    <td className="p-2 text-right">{c.purchaseCount}</td>
+                    <td className="p-2 text-right">{formatBRL(c.avgTicket)}</td>
+                    <td className="p-2 text-right text-content-muted">{formatDate(c.lastPurchaseAt)}</td>
+                  </tr>
+                ))}
+                {topCustomers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-4 text-center text-content-muted">
+                      Sem clientes faturados
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Clientes em risco */}
+        <section className="surface-sheen rounded-xl bg-surface shadow-soft">
+          <h3 className="border-b p-3 text-sm font-medium">Clientes em risco</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-content-muted">
+                <tr>
+                  <th className="p-2">Cliente</th>
+                  <th className="p-2 text-right">Última compra</th>
+                  <th className="p-2 text-right">Receita lifetime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {atRisk.customers.map((c) => (
+                  <tr key={c.customerId} className="border-t">
+                    <td className="p-2 font-medium">{c.name}</td>
+                    <td className="p-2 text-right text-content-muted">{formatDate(c.lastPurchaseAt)}</td>
+                    <td className="p-2 text-right font-medium">{formatBRL(c.lifetimeRevenue)}</td>
+                  </tr>
+                ))}
+                {atRisk.customers.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="p-4 text-center text-content-muted">
+                      Nenhum cliente em risco
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function PortfolioCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
+      <div className="text-caption text-content-muted">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.02em]">{value}</div>
+      {sub && <div className="mt-0.5 text-helper text-content-muted">{sub}</div>}
     </div>
   );
 }
