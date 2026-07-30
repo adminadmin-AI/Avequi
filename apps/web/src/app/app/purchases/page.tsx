@@ -8,11 +8,11 @@ import type { PurchaseOrder, PurchaseOrderStatus, Supplier } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { formatBRL, formatDate } from '@/lib/format';
 import { PO_STATUS, PO_STATUS_OPTIONS, purchaseOrderTotal } from './purchase-status';
 
@@ -20,18 +20,6 @@ const RESOURCE = '/purchases/orders';
 
 function shortId(id: string) {
   return id.slice(-6).toUpperCase();
-}
-
-function Kpi({ label, value, count }: { label: string; value: string; count?: number }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
-        {count != null && <p className="mt-0.5 text-xs text-content-muted">{count} POs</p>}
-      </CardContent>
-    </Card>
-  );
 }
 
 export default function PurchasesPage() {
@@ -108,11 +96,14 @@ export default function PurchasesPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-3">
-        <Kpi label="Em rascunho" value={String(kpis.draftCount)} />
-        <Kpi label="Em aberto (aprovadas)" value={formatBRL(kpis.openValue)} />
-        <Kpi label="Recebidas" value={String(kpis.receivedCount)} />
-      </div>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'Em rascunho', value: String(kpis.draftCount) },
+          { label: 'Em aberto (aprovadas)', value: formatBRL(kpis.openValue) },
+          { label: 'Recebidas', value: String(kpis.receivedCount) },
+        ]}
+      />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>

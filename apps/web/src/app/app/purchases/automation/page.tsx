@@ -6,8 +6,8 @@ import { useList } from '@/hooks/use-resource';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { formatNumber } from '@/lib/format';
 
 interface StockBalance {
@@ -117,20 +117,21 @@ export default function PurchaseAutomationPage() {
         description="Monitor de estoque mínimo para reposição."
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2">
-        <Card className={counts.critico > 0 ? 'border-danger/30 bg-danger/10' : undefined}>
-          <CardContent className="py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Crítico (sem estoque)</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-danger">{counts.critico}</p>
-          </CardContent>
-        </Card>
-        <Card className={counts.alerta > 0 ? 'border-warning/30 bg-warning/10' : undefined}>
-          <CardContent className="py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Abaixo do mínimo</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-warning">{counts.alerta}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          {
+            label: 'Crítico (sem estoque)',
+            value: String(counts.critico),
+            tone: counts.critico > 0 ? 'danger' : 'neutral',
+          },
+          {
+            label: 'Abaixo do mínimo',
+            value: String(counts.alerta),
+            tone: counts.alerta > 0 ? 'warning' : 'neutral',
+          },
+        ]}
+      />
 
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />

@@ -10,13 +10,12 @@ import type { FiscalDocument, FiscalStatus, FiscalDocumentType, FiscalFinalidade
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, StatusDot } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { useToast } from '@/components/ui/toast';
-import { KpiGrid } from '@/components/ui/layout';
 import { Can } from '@/components/can';
 import { formatDate } from '@/lib/format';
 import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL, FISCAL_FINALIDADE_LABEL, FISCAL_FINALIDADE_FILTER_OPTIONS } from './fiscal-status';
@@ -24,22 +23,6 @@ import { EmitNfeDialog } from './emit-nfe-dialog';
 import { VoidRangeDialog } from './void-range-dialog';
 
 const RESOURCE = '/fiscal';
-
-function Kpi({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <p className="flex items-center gap-1.5 text-caption text-content-muted">
-        {alert && <span className="h-1.5 w-1.5 rounded-full bg-danger" />}
-        {label}
-      </p>
-      <p
-        className={`mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums ${alert ? 'text-danger' : 'text-content'}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export default function FiscalPage() {
   const router = useRouter();
@@ -221,11 +204,18 @@ export default function FiscalPage() {
         }
       />
 
-      <KpiGrid className="mb-5">
-        <Kpi label="Emitidos hoje" value={String(kpis.emittedToday)} />
-        <Kpi label="Autorizados no mês" value={String(kpis.authorizedMonth)} />
-        <Kpi label="Rejeitados no mês" value={String(kpis.rejectedMonth)} alert={kpis.rejectedMonth > 0} />
-      </KpiGrid>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'Emitidos hoje', value: String(kpis.emittedToday) },
+          { label: 'Autorizados no mês', value: String(kpis.authorizedMonth) },
+          {
+            label: 'Rejeitados no mês',
+            value: String(kpis.rejectedMonth),
+            tone: kpis.rejectedMonth > 0 ? 'danger' : 'neutral',
+          },
+        ]}
+      />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>

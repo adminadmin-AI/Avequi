@@ -9,10 +9,10 @@ import type { WorkCenter } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -26,17 +26,6 @@ interface WorkCenterStats {
   inactive: number;
   avgEfficiencyPct: number;
   avgCapacityHoursPerDay: number;
-}
-
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -204,12 +193,15 @@ export default function WorkCentersPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Centros ativos" value={String(stats?.active ?? 0)} />
-        <Kpi label="Inativos" value={String(stats?.inactive ?? 0)} />
-        <Kpi label="Eficiência média" value={`${formatNumber(stats?.avgEfficiencyPct ?? 0)}%`} />
-        <Kpi label="Capacidade média" value={`${formatNumber(stats?.avgCapacityHoursPerDay ?? 0)} h/dia`} />
-      </div>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'Centros ativos', value: String(stats?.active ?? 0) },
+          { label: 'Inativos', value: String(stats?.inactive ?? 0) },
+          { label: 'Eficiência média', value: `${formatNumber(stats?.avgEfficiencyPct ?? 0)}%` },
+          { label: 'Capacidade média', value: `${formatNumber(stats?.avgCapacityHoursPerDay ?? 0)} h/dia` },
+        ]}
+      />
 
       <label className="mb-3 flex w-fit items-center gap-2 text-sm text-content-secondary">
         <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />

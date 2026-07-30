@@ -2,8 +2,22 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Download, Loader2, ShieldOff, Users2, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+  Download,
+  Loader2,
+  ShieldOff,
+  Users2,
+  X,
+} from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +50,10 @@ interface Seller {
 type SortBy = 'createdAt' | 'name' | 'lastInteractionAt' | 'estimatedValue';
 
 const PAGE_SIZE = 25;
+
+// Casca convergida ao <DataTable> (F3 — visual only; engine server-side intacto)
+const CHECKBOX_CLASS = 'h-4 w-4 cursor-pointer rounded border-line accent-brand-600';
+const NAV_BTN = 'rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800';
 
 /**
  * Lista de leads em tabela (F3.5-C7 #557) — a visão que o kanban não dá:
@@ -92,6 +110,8 @@ export default function LeadListPage() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(total, page * PAGE_SIZE);
   const bulkStageIsLost = stages.find((s) => s.id === bulkStage)?.type === 'LOST';
 
   function setFilter(key: keyof typeof filters, value: string) {
@@ -265,8 +285,10 @@ export default function LeadListPage() {
 
       {/* Barra de ações em lote */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-neutral-500/[0.05] p-2 text-sm">
-          <Badge variant="neutral">{selected.size} selecionado(s)</Badge>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand-600/30 bg-brand-600/10 px-4 py-2.5 text-sm">
+          <span className="font-medium text-brand-700 dark:text-brand-300">
+            {selected.size} selecionado{selected.size === 1 ? '' : 's'}
+          </span>
           <select
             className="rounded-md border bg-surface px-2 py-1.5 text-sm"
             value={bulkSeller}
@@ -345,30 +367,43 @@ export default function LeadListPage() {
               Cancelar
             </Button>
           )}
-          <button className="ml-auto p-1" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
+          <button
+            className="ml-auto rounded-md p-1 text-content-muted transition-colors hover:text-content"
+            onClick={() => setSelected(new Set())}
+            aria-label="Limpar seleção"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
       {/* Tabela */}
-      <div className="surface-sheen overflow-x-auto rounded-xl bg-surface shadow-soft">
+      <div className="avequi-scroll surface-sheen shadow-soft max-h-[70vh] overflow-auto rounded-xl bg-surface">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-500/[0.05] text-left text-xs text-content-muted">
-            <tr>
-              <th className="p-2">
+          <thead>
+            <tr className="border-b border-line">
+              <th className="sticky top-0 z-10 w-10 bg-surface px-5 py-3.5">
                 <input
                   type="checkbox"
+                  className={CHECKBOX_CLASS}
                   checked={items.length > 0 && selected.size === items.length}
                   onChange={toggleAll}
                   aria-label="Selecionar todos"
                 />
               </th>
               <SortableTh label="Nome" col="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-              <th className="p-2">Telefone</th>
-              <th className="p-2">Origem</th>
-              <th className="p-2">Estágio</th>
-              <th className="p-2">Vendedor</th>
+              <th className="sticky top-0 z-10 bg-surface px-5 py-3 text-left text-xs font-medium text-content-muted">
+                Telefone
+              </th>
+              <th className="sticky top-0 z-10 bg-surface px-5 py-3 text-left text-xs font-medium text-content-muted">
+                Origem
+              </th>
+              <th className="sticky top-0 z-10 bg-surface px-5 py-3 text-left text-xs font-medium text-content-muted">
+                Estágio
+              </th>
+              <th className="sticky top-0 z-10 bg-surface px-5 py-3 text-left text-xs font-medium text-content-muted">
+                Vendedor
+              </th>
               <SortableTh label="Valor" col="estimatedValue" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
               <SortableTh label="Criado" col="createdAt" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
               <SortableTh
@@ -380,37 +415,44 @@ export default function LeadListPage() {
               />
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {items.map((l) => (
-              <tr key={l.id} className={`transition-colors duration-micro hover:bg-neutral-500/[0.05] ${selected.has(l.id) ? 'bg-brand-600/[0.08]' : ''}`}>
-                <td className="p-2">
+              <tr
+                key={l.id}
+                className={cn(
+                  'border-quiet border-b transition-colors duration-micro last:border-0 hover:bg-neutral-500/[0.04]',
+                  selected.has(l.id) && 'bg-brand-600/10',
+                )}
+              >
+                <td className="w-10 px-4">
                   <input
                     type="checkbox"
+                    className={CHECKBOX_CLASS}
                     checked={selected.has(l.id)}
                     onChange={() => toggle(l.id)}
                     aria-label={`Selecionar ${l.name ?? l.phone}`}
                   />
                 </td>
-                <td className="max-w-48 truncate p-2 font-medium">{l.name ?? '—'}</td>
-                <td className="p-2 tabular-nums">{l.phone ?? '—'}</td>
-                <td className="p-2">{SOURCE_LABEL[l.source] ?? l.source}</td>
-                <td className="p-2">
+                <td className="max-w-48 truncate px-4 py-3.5 font-medium">{l.name ?? '—'}</td>
+                <td className="px-4 py-3.5 tabular-nums">{l.phone ?? '—'}</td>
+                <td className="px-4 py-3.5">{SOURCE_LABEL[l.source] ?? l.source}</td>
+                <td className="px-4 py-3.5">
                   {l.stage && (
                     <Badge variant={l.stage.type === 'WON' ? 'success' : l.stage.type === 'LOST' ? 'warning' : 'neutral'}>
                       {l.stage.name}
                     </Badge>
                   )}
                 </td>
-                <td className="max-w-32 truncate p-2">{l.assignedTo?.name ?? '—'}</td>
-                <td className="p-2 tabular-nums">
+                <td className="max-w-32 truncate px-4 py-3.5">{l.assignedTo?.name ?? '—'}</td>
+                <td className="px-4 py-3.5 tabular-nums">
                   {l.estimatedValue
                     ? Number(l.estimatedValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                     : '—'}
                 </td>
-                <td className="p-2 text-xs text-content-muted">
+                <td className="px-4 py-3.5 text-xs text-content-muted">
                   {new Date(l.createdAt).toLocaleDateString('pt-BR')}
                 </td>
-                <td className="p-2 text-xs text-content-muted">
+                <td className="px-4 py-3.5 text-xs text-content-muted">
                   {l.lastInteractionAt ? new Date(l.lastInteractionAt).toLocaleDateString('pt-BR') : '—'}
                 </td>
               </tr>
@@ -427,20 +469,43 @@ export default function LeadListPage() {
         )}
       </div>
 
-      {/* Paginação */}
-      <div className="flex items-center justify-between text-sm text-content-muted">
-        <span>
-          {total} lead(s) · página {page} de {pages}
-        </span>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Anterior
-          </Button>
-          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-            Próxima
-          </Button>
+      {/* Paginação (server-side: page/PAGE_SIZE fixos; casca visual = DataTable) */}
+      {total > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-sm text-content-secondary">
+          <span>
+            Mostrando {from}–{to} de {total}
+          </span>
+          {pages > 1 && (
+            <div className="ml-auto flex items-center gap-1">
+              <button onClick={() => setPage(1)} disabled={page <= 1} aria-label="Primeira página" className={NAV_BTN}>
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                aria-label="Página anterior"
+                className={NAV_BTN}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2 tabular-nums">
+                {page} / {pages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                disabled={page >= pages}
+                aria-label="Próxima página"
+                className={NAV_BTN}
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button onClick={() => setPage(pages)} disabled={page >= pages} aria-label="Última página" className={NAV_BTN}>
+                <ChevronsRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -458,12 +523,24 @@ function SortableTh({
   sortDir: 'asc' | 'desc';
   onSort: (col: SortBy) => void;
 }) {
+  const active = sortBy === col;
   return (
-    <th className="cursor-pointer select-none p-2 hover:text-content" onClick={() => onSort(col)}>
+    <th
+      onClick={() => onSort(col)}
+      className={cn(
+        'group/th sticky top-0 z-10 cursor-pointer select-none bg-surface px-5 py-3 text-left text-xs font-medium text-content-muted hover:text-content-secondary',
+        active && 'text-brand-600 dark:text-brand-400',
+      )}
+    >
       <span className="inline-flex items-center gap-1">
         {label}
-        {sortBy === col &&
-          (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+        {!active ? (
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity duration-micro group-hover/th:opacity-40" />
+        ) : sortDir === 'asc' ? (
+          <ChevronUp className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        )}
       </span>
     </th>
   );

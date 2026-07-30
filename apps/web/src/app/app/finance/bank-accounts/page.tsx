@@ -10,8 +10,8 @@ import type { BankAccount } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -195,21 +195,10 @@ export default function BankAccountsPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:text-brand-400">
-              <Landmark size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Saldo total</p>
-              <p className="text-2xl font-semibold tracking-tight text-content">
-                {formatBRL(totalBalance)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGroup
+        className="mb-6"
+        stats={[{ label: 'Saldo total', value: formatBRL(totalBalance), icon: Landmark }]}
+      />
 
       <DataTable
         data={accounts}

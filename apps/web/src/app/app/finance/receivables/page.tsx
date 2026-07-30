@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, Barcode, QrCode, ExternalLink, Ban } from 'lucide-react';
+import { DollarSign, Barcode, QrCode, ExternalLink, Ban, TrendingDown } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
@@ -17,7 +17,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { KpiGrid } from '@/components/ui/layout';
+import { StatGroup } from '@/components/ui/stat-group';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { ReceivablePayForm, type PayFormValues } from './receivable-pay-form';
@@ -58,36 +58,8 @@ const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }>
   CANCELLED: { label: 'Cancelado', variant: 'neutral' },
 };
 
-function KpiCard({
-  label,
-  value,
-  count,
-  highlight,
-}: {
-  label: string;
-  value: number;
-  count?: number;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={highlight ? 'border-danger/30 bg-danger/10' : undefined}>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p
-          className={`mt-1 text-2xl font-semibold tracking-tight ${
-            highlight ? 'text-danger' : 'text-content'
-          }`}
-        >
-          {formatBRL(value)}
-        </p>
-        {count != null && (
-          <p className="mt-0.5 text-xs text-content-muted">
-            {count} {count === 1 ? 'lançamento' : 'lançamentos'}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
+function countSub(count: number): string {
+  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
 export default function ReceivablesPage() {
@@ -332,17 +304,21 @@ export default function ReceivablesPage() {
       />
 
       {/* KPIs */}
-      <KpiGrid className="mb-5">
-        <KpiCard label="A vencer" value={summary.toComeValue} count={summary.toComeCount} />
-        <KpiCard
-          label="Vencido"
-          value={summary.overdueValue}
-          count={summary.overdueCount}
-          highlight
-        />
-        <KpiCard label="Recebido no mês" value={summary.receivedMonth} />
-        <KpiCard label="Total em aberto" value={summary.totalOpen} />
-      </KpiGrid>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'A vencer', value: formatBRL(summary.toComeValue), sub: countSub(summary.toComeCount) },
+          {
+            label: 'Vencido',
+            value: formatBRL(summary.overdueValue),
+            sub: countSub(summary.overdueCount),
+            tone: 'danger',
+            icon: TrendingDown,
+          },
+          { label: 'Recebido no mês', value: formatBRL(summary.receivedMonth) },
+          { label: 'Total em aberto', value: formatBRL(summary.totalOpen) },
+        ]}
+      />
 
       <div className="grid gap-5 lg:grid-cols-4">
         {/* Tabela + filtros */}

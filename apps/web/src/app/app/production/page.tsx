@@ -8,12 +8,11 @@ import type { ProductionOrder, ProductionOrderStatus, Product } from '@/types/ap
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
-import { KpiGrid } from '@/components/ui/layout';
+import { StatGroup } from '@/components/ui/stat-group';
 import { formatNumber, formatDate } from '@/lib/format';
 import { PRODUCTION_STATUS, PRODUCTION_STATUS_OPTIONS } from './production-status';
 
@@ -21,17 +20,6 @@ const RESOURCE = '/production';
 
 function shortId(id: string) {
   return id.slice(-6).toUpperCase();
-}
-
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 export default function ProductionPage() {
@@ -111,11 +99,14 @@ export default function ProductionPage() {
         }
       />
 
-      <KpiGrid className="mb-5">
-        <Kpi label="Em produção" value={String(kpis.inProgress)} />
-        <Kpi label="Planejadas" value={String(kpis.planned)} />
-        <Kpi label="Concluídas no mês" value={String(kpis.doneMonth)} />
-      </KpiGrid>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'Em produção', value: String(kpis.inProgress) },
+          { label: 'Planejadas', value: String(kpis.planned) },
+          { label: 'Concluídas no mês', value: String(kpis.doneMonth) },
+        ]}
+      />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
