@@ -23,7 +23,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
 interface CashFlowEntry {
   id: string;
@@ -264,10 +264,10 @@ export default function CashFlowPage() {
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
+                <CartesianGrid {...chartGridProps} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: chartTickFill }} />
                 <YAxis
-                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tick={{ fontSize: 12, fill: chartTickFill }}
                   tickFormatter={(v) => formatBRL(Number(v)).replace('R$', '').trim()}
                   width={70}
                 />
