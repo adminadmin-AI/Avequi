@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { extractPixKeyFromBrCode } from './pix-brcode';
 
 const schema = z.object({
   description: z.string().min(1, 'Informe a descrição'),
@@ -73,6 +75,7 @@ export function EditEntryDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
 
   const { data: catRoots = [] } = useList<FinancialCategory>('/finance/categories');
@@ -133,11 +136,40 @@ export function EditEntryDialog({
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/finance'] }),
   });
 
+  /**
+   * Captura inteligente de PIX: o copia-e-cola carrega a chave do recebedor
+   * dentro do BR Code. Se o fornecedor vinculado ainda não tem chave no
+   * cadastro, oferecemos salvá-la — assim o cadastro se preenche com o uso,
+   * sem mutirão. Falha aqui NUNCA atrapalha a edição (best-effort).
+   */
+  async function maybeCaptureSupplierPix(values: FormValues) {
+    const sup = entry?.supplier;
+    const linkedId = values.supplierId || entry?.supplierId;
+    if (!sup || sup.pixKey || sup.id !== linkedId) return;
+    const key = extractPixKeyFromBrCode(values.pixCopiaECola);
+    if (!key) return;
+    const ok = await confirm({
+      title: 'Salvar chave PIX no fornecedor?',
+      description: `Detectei a chave "${key}" no PIX Copia e Cola. Salvar no cadastro de ${sup.name}? Ela passa a aparecer em todas as contas desse fornecedor.`,
+      confirmLabel: 'Salvar chave',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.patch(`/suppliers/${sup.id}`, { pixKey: key });
+      toast.success('Chave PIX salva no cadastro do fornecedor');
+      qc.invalidateQueries({ queryKey: ['/finance'] });
+      qc.invalidateQueries({ queryKey: ['/suppliers'] });
+    } catch {
+      toast.error('Não foi possível salvar a chave no fornecedor');
+    }
+  }
+
   function onSubmit(values: FormValues) {
     update.mutate(values, {
       onSuccess: () => {
         toast.success('Lançamento atualizado');
         onOpenChange(false);
+        void maybeCaptureSupplierPix(values);
       },
       onError: () => toast.error('Erro ao atualizar lançamento'),
     });
