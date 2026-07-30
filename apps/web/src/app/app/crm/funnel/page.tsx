@@ -111,20 +111,20 @@ export default function FunnelPage() {
           <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
-        // F4: lanes quase invisíveis (direção Linear) — a coluna é definida
-        // pelo header + pilha de cards no canvas; o tint só aparece durante
-        // o drag, como affordance de drop
+        // F4 (recalibrada com o Claudio): lane com tint suave SEMPRE visível —
+        // contenção clara da coluna sem virar caixa pesada; o tint sobe um
+        // ponto durante o drag como affordance de drop
         <div className="flex gap-5 overflow-x-auto pb-4">
           {columns.map((column) => (
             <div
               key={column.stage.id}
               className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors duration-fast ${
-                dragged ? 'bg-neutral-500/[0.045]' : ''
+                dragged ? 'bg-neutral-500/[0.06]' : 'bg-neutral-500/[0.035]'
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
             >
-              <div className="flex items-center justify-between px-2 pb-2 pt-1.5">
+              <div className="flex items-center justify-between px-3 pb-2 pt-2.5">
                 <div className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -140,7 +140,7 @@ export default function FunnelPage() {
                 )}
               </div>
 
-              <div className="flex-1 space-y-2.5 overflow-y-auto p-1">
+              <div className="flex-1 space-y-2.5 overflow-y-auto p-2">
                 {column.leads.map((lead, index) => (
                   <div
                     key={lead.id}
@@ -199,15 +199,14 @@ export default function FunnelPage() {
                     </div>
                   </div>
                 ))}
-                {/* Coluna vazia: placeholder tracejado delimita o campo sem
-                    virar caixa cinza (calibração pós-F4 — sem ele, um board
-                    vazio parece quebrado); acende como alvo durante o drag */}
+                {/* Coluna vazia: placeholder tracejado dentro da lane;
+                    acende em brand como alvo durante o drag */}
                 {column.leads.length === 0 && (
                   <div
                     className={`rounded-lg border border-dashed py-10 text-center text-xs transition-colors duration-fast ${
                       dragged
-                        ? 'border-brand-600/50 bg-brand-600/[0.04] text-content-secondary'
-                        : 'border-line text-content-muted'
+                        ? 'border-brand-600/50 bg-brand-600/[0.05] text-content-secondary'
+                        : 'border-[color:var(--border-strong)] text-content-muted'
                     }`}
                   >
                     {dragged ? 'solte aqui' : 'Sem leads neste estágio'}
