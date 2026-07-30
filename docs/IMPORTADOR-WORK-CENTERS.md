@@ -1,104 +1,132 @@
-# Importador de Centros de Trabalho (setores da fábrica) — issue #816
+# Importador de Centros de Trabalho
 
-## O que é
+> ⚠️ **O merge do PR não autoriza nem executa a importação. A execução com `--apply` em qualquer ambiente do ERP exige autorização operacional separada.**
 
-A GDR Reboques divide a fábrica em **setores produtivos** (Metalúrgica, Solda, Galvanização, Montagem, Expedição etc.). Esses setores vivem hoje na ferramenta interna `producao_v2` (Streamlit + SQL Server local). No ERP, o modelo equivalente é o **`WorkCenter`** (centro de trabalho).
+Este documento tem duas partes: o **mecanismo genérico** (produto, vale para qualquer empresa) e a **carga da GDR Reboques** (implantação específica).
 
-Este importador leva os setores da ferramenta para o ERP de forma **reexecutável e idempotente**: rodar duas vezes seguidas produz o mesmo resultado; rodar depois de uma mudança aplica só o delta. Nada de INSERT manual.
+---
 
-## Fonte dos dados
+## Parte 1 — Mecanismo genérico
 
-O ERP **não conecta ao SQL Server** (decisão registrada na issue #816: sem driver no repo, sem secrets novos, e o SQL Server não é alcançável de onde o ERP roda).
+### O que é
 
-A fonte é o arquivo **versionado no repositório**:
+Um núcleo reutilizável de sincronização de centros de trabalho (`WorkCenter`), em:
 
 ```
-apps/api/src/modules/production/data/work-centers.data.ts
+apps/api/src/common/production/work-center-import.ts
 ```
 
-Ele contém apenas dados não sensíveis de cada setor: `code`, `name`, `group`, `type` e `displayOrder`. **Não contém** `companyId`, CNPJ por registro, credenciais, capacidade, custo, operadores ou eficiência.
+Ele compara um **estado final desejado** com o que existe no banco e aplica só o delta, de forma **idempotente** (chave natural: `companyId` + `code`). Não conhece nenhuma empresa, CNPJ, taxonomia de origem ou regra de implantação — tudo isso chega de fora.
 
-### Como atualizar o arquivo quando o cadastro mudar
+### Formato de entrada
 
-1. Consulte a tabela `Setores_Operacionais` na ferramenta (`SELECT ... ORDER BY OrdemExibicao`).
-2. Edite o array `WORK_CENTERS_DATA` no arquivo acima, espelhando a origem — não invente códigos, nomes, tipos nem ordem.
-3. Abra PR: o diff do arquivo é a revisão exata do que muda no ERP.
-4. Após o merge, reexecute o script (com autorização operacional — ver abaixo).
-
-## Como executar
-
-```bash
-# Dry-run (PADRÃO — não grava nada, só imprime o plano)
-npx tsx apps/api/scripts/import-work-centers.ts
-
-# Gravar criações e atualizações
-npx tsx apps/api/scripts/import-work-centers.ts --apply
-
-# Também desativar centros que sumiram do arquivo (nunca exclui)
-npx tsx apps/api/scripts/import-work-centers.ts --apply --deactivate-missing
-
-# --deactivate-missing SEM --apply continua sendo dry-run: só mostra, no plano,
-# quais ausentes SERIAM desativados — nada é gravado
-npx tsx apps/api/scripts/import-work-centers.ts --deactivate-missing
-
-# Apontar outra empresa (CNPJ com igualdade EXATA, 14 dígitos)
-TARGET_COMPANY_CNPJ=00000000000000 npx tsx apps/api/scripts/import-work-centers.ts
+```ts
+interface DesiredWorkCenter {
+  code: string;          // chave natural — nunca alterado
+  name: string;
+  description: string | null;
+  isActive: boolean;     // decisão já tomada pela implantação
+}
 ```
 
-O banco alvo é o da conexão Prisma do ambiente (`DATABASE_URL`). O script **nunca imprime** a URL nem credenciais, inclusive em erro.
+### Comportamento
 
-> ⚠️ **Executar com `--apply` em qualquer ambiente do ERP é uma etapa operacional separada e exige autorização específica.** A entrega da issue #816 é só o código: arquivo de dados, script, testes e esta documentação.
-
-## O que o script administra — e o que ele nunca toca
-
-| Campo | Comportamento |
+| Aspecto | Regra |
 |---|---|
-| `code` | Chave natural do upsert (junto com a empresa). Nunca alterado. |
-| `name` | Administrado — atualizado se divergir do arquivo. |
-| `description` | Administrado — sempre `"Grupo · Tipo"` (ex.: `Metalúrgica · Producao`). |
-| `isActive` | Administrado — derivado do tipo (tabela abaixo). |
-| `capacityHoursPerDay` | **Nunca sobrescrito.** Na criação fica no default do schema (8). |
-| `costPerHour` | **Nunca sobrescrito.** Default 0. |
-| `operatorsCount` | **Nunca sobrescrito.** Default 1. |
-| `efficiencyPct` | **Nunca sobrescrito.** Default 85. |
+| Dry-run | Decisão do chamador (`apply: false`): monta e devolve o plano completo, **nenhuma escrita** |
+| Apply | Cria e atualiza dentro de **uma transação** — nunca fica plano meio aplicado |
+| Campos administrados | Somente `name`, `description`, `isActive`. Um registro só é "atualizado" se um deles divergir |
+| Campos protegidos | Qualquer outro campo do `WorkCenter` (`capacityHoursPerDay`, `costPerHour`, `operatorsCount`, `efficiencyPct`, …) **nunca é gravado nem sobrescrito** — na criação ficam nos defaults do schema |
+| Ausentes | No banco, fora do dataset: **só relatados**; desativados apenas com `deactivateMissing` explícito (e só os ativos); **não existe caminho de exclusão** |
+| Relatório | Plano em 4 categorias: criados / atualizados / inalterados / ausentes |
+| Empresa | CNPJ **obrigatório** (o núcleo não tem empresa padrão), busca por **igualdade exata** — nunca `contains`; 0 resultados → aborta; mais de 1 → aborta; `companyId` **nunca** vem do dataset |
 
-Os quatro últimos serão levantados pela operação da fábrica futuramente (issue própria); o importador não pode apagar o que a operação ajustar.
+### Como outra empresa usa
 
-### Regra de atividade por tipo
+Sem tocar no núcleo, seus tipos, suas regras ou seus testes:
 
-| Tipo na origem | `isActive` | Exemplo |
+1. Cria seu próprio arquivo de dados, já no formato final `DesiredWorkCenter[]` — com seus códigos, descrições e **sua própria decisão** de `isActive` (a política da GDR não se aplica);
+2. Cria um wrapper CLI próprio (~30 linhas — espelhar `import-work-centers-gdr.ts`), informando **explicitamente** o CNPJ da sua empresa;
+3. Reutiliza `runWorkCenterImport` com as mesmas garantias (dry-run, transação, ausentes, campos protegidos).
+
+---
+
+## Parte 2 — Carga da GDR Reboques
+
+### O que é
+
+A implantação da GDR: os **34 setores da fábrica** cadastrados na ferramenta interna `producao_v2` (Streamlit + SQL Server local), levados ao ERP pelo CLI:
+
+```
+apps/api/scripts/import-work-centers-gdr.ts
+```
+
+O dataset e as regras da GDR vivem em:
+
+```
+apps/api/src/modules/production/data/gdr/work-centers.data.ts
+```
+
+### Fonte dos dados
+
+- Tabela **`Setores_Operacionais`** do SQL Server local — **34 registros** (extração manual conferida em 29/07/2026).
+- O seed antigo da ferramenta (`criar_setores_operacionais.py`) tem só **29 registros e está desatualizado** — a tabela viva é a fonte.
+- **O ERP não conecta ao SQL Server** (sem driver no repo, sem secrets novos, SQL Server inalcançável de onde o ERP roda). O arquivo versionado é a fonte; o diff dele no PR é a revisão exata do que muda.
+
+O arquivo contém apenas `code`, `name`, `group`, `type` e `displayOrder` por setor — **sem** `companyId`, CNPJ por registro, credenciais ou campos operacionais.
+
+### Regras DESTA implantação (não do produto)
+
+- **`description`** = `"Grupo · Tipo"` (ex.: `Metalúrgica · Producao`);
+- **`isActive` por tipo da origem**:
+
+| Tipo | `isActive` | Exemplo |
 |---|---|---|
 | `Producao` | ✅ ativo | Corte, Solda 1, Montagem de Chassi |
 | `Opcional` | ✅ ativo | Pintura EPOX a pó |
 | `Estoque` | ❌ inativo | os 8 `SET-MER-*` (mercados/almoxarifado) |
 | `Apoio` | ❌ inativo | Administrativo, Diretoria, Refeitório |
 
-Os 11 não produtivos são importados mesmo assim (código resolvível em dado histórico), mas inativos — não poluem despacho nem capacidade.
+Resultado: **23 ativos e 11 inativos**. Os não produtivos entram mesmo assim (código resolvível em dado histórico) mas inativos — não poluem despacho nem capacidade. Os campos operacionais (capacidade, custo/hora, operadores, eficiência) serão levantados pela fábrica em issue própria; o importador nunca os toca.
 
-## Empresa de destino
+### Empresa de destino
 
-- Padrão: **GDR Reboques, CNPJ `46247069000115`**, sobrescritível por `TARGET_COMPANY_CNPJ`.
-- Busca por **igualdade exata** — nunca `contains` (o precedente com `contains('46247069')` casaria também com a GDR Guarapuava `46247069000204`).
-- **0 empresas → aborta. Mais de 1 → aborta.** Nunca "a primeira encontrada".
-- `companyId` **nunca** vem do arquivo de dados — só da empresa resolvida.
+Padrão do wrapper: **GDR Reboques, CNPJ `46247069000115`** (legítimo aqui — o nome do comando diz que é carga GDR; o núcleo genérico não tem empresa padrão). Sobrescrita administrativa: `TARGET_COMPANY_CNPJ`. A busca é por igualdade exata — o precedente com `contains('46247069')` casaria também com a GDR Guarapuava `46247069000204`.
 
-## Relatório e política para ausentes
+### Como executar
 
-Todo run imprime o plano em quatro categorias:
+```bash
+# Dry-run (PADRÃO — não grava nada, só imprime o plano)
+npx tsx apps/api/scripts/import-work-centers-gdr.ts
 
-| Categoria | Significado | Ação com `--apply` |
-|---|---|---|
-| **criados** | no arquivo, não no ERP | cria |
-| **atualizados** | nos dois, com diferença em campo administrado | atualiza só o que mudou |
-| **inalterados** | nos dois, idênticos | nada |
-| **ausentes** | no ERP, fora do arquivo | **só relata**; desativa apenas com `--deactivate-missing`; **nunca exclui** |
+# Gravar criações e atualizações
+npx tsx apps/api/scripts/import-work-centers-gdr.ts --apply
 
-As escritas do `--apply` rodam numa única transação — nunca fica plano meio aplicado.
+# Também desativar centros que sumiram do dataset (nunca exclui)
+npx tsx apps/api/scripts/import-work-centers-gdr.ts --apply --deactivate-missing
+
+# --deactivate-missing SEM --apply continua sendo dry-run: só mostra, no plano,
+# quais ausentes SERIAM desativados — nada é gravado
+npx tsx apps/api/scripts/import-work-centers-gdr.ts --deactivate-missing
+
+# Apontar outra empresa (CNPJ com igualdade EXATA, 14 dígitos)
+TARGET_COMPANY_CNPJ=00000000000000 npx tsx apps/api/scripts/import-work-centers-gdr.ts
+```
+
+O banco alvo é o da conexão Prisma do ambiente (`DATABASE_URL`). O script **nunca imprime** a URL nem credenciais, inclusive em erro. Flag desconhecida é rejeitada antes de tocar o banco.
+
+### Como atualizar o dataset quando a ferramenta mudar
+
+1. Consulte a tabela `Setores_Operacionais` (`SELECT ... ORDER BY OrdemExibicao`);
+2. Edite `GDR_WORK_CENTER_SOURCE` no arquivo do dataset, espelhando a origem — não invente códigos, nomes, tipos nem ordem;
+3. Abra PR — o diff é a revisão;
+4. Após o merge, reexecute o CLI (com autorização operacional).
 
 ## Testes
 
 ```bash
-cd apps/api && npx jest work-center-import
+cd apps/api && npx jest work-center
 ```
 
-Lógica extraída para funções puras em `apps/api/src/common/production/work-center-import.ts` (o CLI é só adaptador). Cobrem: classificação das 4 categorias, idempotência, dry-run sem nenhuma escrita, campos operacionais intocados, regra de atividade por tipo, resolução da empresa (0/1/>1), ausentes (relatar/desativar/nunca excluir) e sanidade do arquivo de dados (34 setores, 11 inativos, codes únicos).
+- **Núcleo** (`src/common/production/work-center-import.spec.ts`): dados 100% sintéticos — classificação, dry-run sem escrita, apply transacional, idempotência, campos protegidos, ausentes, resolução da empresa (0/1/>1, CNPJ obrigatório).
+- **Dataset GDR** (`src/modules/production/data/gdr/work-centers.data.spec.ts`): 34 registros, codes únicos, ordem 1..34, 23 ativos/11 inativos, EPX ativo, descriptions derivadas, sem companyId/credenciais, CNPJ da GDR só no adaptador.

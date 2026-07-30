@@ -1,66 +1,37 @@
 /**
- * Lógica do importador de centros de trabalho (issue #816).
+ * Núcleo GENÉRICO de sincronização de centros de trabalho (WorkCenter).
  *
- * Tudo aqui é puro ou recebe o cliente de banco por injeção — o CLI
- * (`apps/api/scripts/import-work-centers.ts`) é só um adaptador fino.
+ * Reutilizável por qualquer empresa/implantação: opera exclusivamente sobre o
+ * estado final desejado ({ code, name, description, isActive }) e recebe dados,
+ * empresa-alvo e cliente de banco por injeção. Não conhece nenhuma empresa,
+ * CNPJ, taxonomia de origem ou regra de negócio específica de implantação —
+ * isso pertence ao dataset/adaptador de cada carga (em
+ * `src/modules/production/data/<implantacao>/`) e ao seu wrapper CLI.
  *
- * Regras de negócio (aprovadas na issue #816):
+ * Garantias técnicas do mecanismo:
  *   - Chave natural do upsert: (companyId, code). O code nunca é alterado.
- *   - Campos ADMINISTRADOS pelo importador: name, description, isActive.
- *   - Campos que o importador NUNCA sobrescreve em update: capacityHoursPerDay,
- *     costPerHour, operatorsCount, efficiencyPct (na criação, ficam nos
- *     defaults do schema — o script não os grava).
- *   - isActive por tipo de origem: Producao/Opcional → ativo,
- *     Estoque/Apoio → inativo.
- *   - Centro presente no ERP e ausente do arquivo: só relatado; nunca excluído;
- *     desativado apenas com deactivateMissing explícito.
- *   - Empresa resolvida por CNPJ em igualdade EXATA; 0 ou >1 resultados abortam.
+ *   - Campos ADMINISTRADOS: name, description, isActive. Qualquer outro campo
+ *     do WorkCenter (capacityHoursPerDay, costPerHour, operatorsCount,
+ *     efficiencyPct, ...) NUNCA é gravado nem sobrescrito — na criação ficam
+ *     nos defaults do schema.
+ *   - Dry-run é decisão do chamador (apply=false): NENHUMA escrita acontece.
+ *   - Escritas de apply rodam numa única transação.
+ *   - Centro presente no banco e ausente do dataset: só relatado; nunca
+ *     excluído (não existe caminho de delete); desativado apenas com
+ *     deactivateMissing explícito, e só se estiver ativo.
+ *   - Empresa resolvida por CNPJ em igualdade EXATA, recebido como argumento
+ *     obrigatório; 0 ou >1 resultados abortam. companyId nunca vem do dataset.
  */
 
-import type { WorkCenterSeed, WorkCenterSourceType } from '../../modules/production/data/work-centers.data';
-
-/** CNPJ padrão da empresa de destino — GDR Reboques. */
-export const DEFAULT_TARGET_COMPANY_CNPJ = '46247069000115';
-
-const ACTIVE_BY_TYPE: Record<WorkCenterSourceType, boolean> = {
-  Producao: true,
-  Opcional: true,
-  Estoque: false,
-  Apoio: false,
-};
-
-/** `Producao`/`Opcional` → ativo; `Estoque`/`Apoio` → inativo. */
-export function resolveIsActive(type: WorkCenterSourceType): boolean {
-  const active = ACTIVE_BY_TYPE[type];
-  if (active === undefined) {
-    throw new Error(`Tipo de setor desconhecido: "${type}" — tipos aceitos: ${Object.keys(ACTIVE_BY_TYPE).join(', ')}`);
-  }
-  return active;
-}
-
-/** Description padronizada: "Grupo · Tipo" (mapeamento da issue #816). */
-export function buildDescription(seed: Pick<WorkCenterSeed, 'group' | 'type'>): string {
-  return `${seed.group} · ${seed.type}`;
-}
-
-/** Estado desejado de um centro, derivado do arquivo de dados. */
+/** Estado final desejado de um centro de trabalho — contrato de entrada do núcleo. */
 export interface DesiredWorkCenter {
   code: string;
   name: string;
-  description: string;
+  description: string | null;
   isActive: boolean;
 }
 
-export function toDesired(seed: WorkCenterSeed): DesiredWorkCenter {
-  return {
-    code: seed.code,
-    name: seed.name,
-    description: buildDescription(seed),
-    isActive: resolveIsActive(seed.type),
-  };
-}
-
-/** Recorte de WorkCenter existente no ERP que interessa à comparação. */
+/** Recorte de WorkCenter existente no banco que interessa à comparação. */
 export interface ExistingWorkCenter {
   id: string;
   code: string;
@@ -80,47 +51,46 @@ export interface SyncPlan {
   create: DesiredWorkCenter[];
   update: UpdatePlanEntry[];
   unchanged: DesiredWorkCenter[];
-  /** No ERP, mas fora do arquivo — nunca excluídos. */
+  /** No banco, mas fora do dataset — nunca excluídos. */
   missing: ExistingWorkCenter[];
-  /** Ausentes que seriam desativados com --deactivate-missing (só os ativos). */
+  /** Ausentes que seriam desativados com deactivateMissing (só os ativos). */
   missingToDeactivate: ExistingWorkCenter[];
 }
 
 /**
- * Compara o arquivo de dados com os centros existentes e monta o plano.
+ * Compara o estado desejado com os centros existentes e monta o plano.
  * Não escreve nada — quem decide aplicar é o chamador.
  */
 export function planWorkCenterSync(
-  seeds: readonly WorkCenterSeed[],
+  desired: readonly DesiredWorkCenter[],
   existing: readonly ExistingWorkCenter[],
 ): SyncPlan {
   const codes = new Set<string>();
-  for (const seed of seeds) {
-    if (codes.has(seed.code)) {
-      throw new Error(`Arquivo de dados inválido: code duplicado "${seed.code}"`);
+  for (const wc of desired) {
+    if (codes.has(wc.code)) {
+      throw new Error(`Dataset inválido: code duplicado "${wc.code}"`);
     }
-    codes.add(seed.code);
+    codes.add(wc.code);
   }
 
   const byCode = new Map(existing.map((wc) => [wc.code, wc]));
   const plan: SyncPlan = { create: [], update: [], unchanged: [], missing: [], missingToDeactivate: [] };
 
-  for (const seed of seeds) {
-    const desired = toDesired(seed);
-    const current = byCode.get(seed.code);
+  for (const wc of desired) {
+    const current = byCode.get(wc.code);
     if (!current) {
-      plan.create.push(desired);
+      plan.create.push(wc);
       continue;
     }
     const changes: UpdatePlanEntry['changes'] = {};
-    if (current.name !== desired.name) changes.name = desired.name;
-    if (current.description !== desired.description) changes.description = desired.description;
-    if (current.isActive !== desired.isActive) changes.isActive = desired.isActive;
+    if (current.name !== wc.name) changes.name = wc.name;
+    if (current.description !== wc.description) changes.description = wc.description;
+    if (current.isActive !== wc.isActive) changes.isActive = wc.isActive;
 
     if (Object.keys(changes).length > 0) {
       plan.update.push({ id: current.id, code: current.code, changes });
     } else {
-      plan.unchanged.push(desired);
+      plan.unchanged.push(wc);
     }
   }
 
@@ -144,14 +114,14 @@ export interface CompanyCandidate {
 /**
  * Valida o resultado da busca por CNPJ exato: 0 → erro, >1 → erro, 1 → segue.
  * O schema tem `Company.cnpj @unique`, o que torna >1 estruturalmente
- * impossível hoje — a checagem fica mesmo assim, como exige a issue, para o
- * caso de a constraint mudar ou de a busca ser alterada no futuro.
+ * impossível hoje — a checagem fica mesmo assim, defensiva, para o caso de a
+ * constraint mudar ou de a busca ser alterada no futuro.
  */
 export function resolveTargetCompany(candidates: readonly CompanyCandidate[], cnpj: string): CompanyCandidate {
   if (candidates.length === 0) {
     throw new Error(
       `Nenhuma empresa encontrada com CNPJ exatamente igual a "${cnpj}". ` +
-        'Confira o cadastro ou use TARGET_COMPANY_CNPJ para apontar a empresa correta.',
+        'Confira o cadastro ou informe o CNPJ correto da empresa de destino.',
     );
   }
   if (candidates.length > 1) {
@@ -184,7 +154,7 @@ export interface ImportOptions {
   apply: boolean;
   /** Só tem efeito junto com apply: desativa (nunca exclui) os ausentes. */
   deactivateMissing: boolean;
-  /** CNPJ da empresa de destino (igualdade exata). */
+  /** CNPJ da empresa de destino (igualdade exata) — obrigatório, sem default. */
   targetCnpj: string;
 }
 
@@ -204,9 +174,13 @@ export interface ImportResult {
  */
 export async function runWorkCenterImport(
   db: WorkCenterImportDb,
-  seeds: readonly WorkCenterSeed[],
+  desired: readonly DesiredWorkCenter[],
   options: ImportOptions,
 ): Promise<ImportResult> {
+  if (!options.targetCnpj) {
+    throw new Error('CNPJ da empresa de destino é obrigatório — o núcleo não tem empresa padrão.');
+  }
+
   const candidates = await db.company.findMany({
     where: { cnpj: options.targetCnpj },
     select: { id: true, cnpj: true, name: true },
@@ -217,7 +191,7 @@ export async function runWorkCenterImport(
     where: { companyId: company.id },
     select: { id: true, code: true, name: true, description: true, isActive: true },
   });
-  const plan = planWorkCenterSync(seeds, existing);
+  const plan = planWorkCenterSync(desired, existing);
 
   if (!options.apply) {
     return { company, plan, applied: false, created: 0, updated: 0, deactivated: 0 };
@@ -228,10 +202,10 @@ export async function runWorkCenterImport(
     let updatedCount = 0;
     let deactivatedCount = 0;
 
-    for (const desired of plan.create) {
-      // Só os campos administrados + companyId; capacidade/custo/operadores/
-      // eficiência ficam nos defaults do schema.
-      await tx.workCenter.create({ data: { ...desired, companyId: company.id } });
+    for (const wc of plan.create) {
+      // Só os campos administrados + companyId; os demais ficam nos defaults
+      // do schema.
+      await tx.workCenter.create({ data: { ...wc, companyId: company.id } });
       createdCount++;
     }
     for (const entry of plan.update) {

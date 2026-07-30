@@ -1,27 +1,36 @@
 /**
- * Setores operacionais da fábrica — fonte versionada do importador de
- * centros de trabalho (issue #816).
+ * Carga específica da GDR Reboques — setores da fábrica → WorkCenter (#816).
+ *
+ * Este arquivo é o ADAPTADOR da implantação GDR: contém os dados crus da fonte,
+ * a taxonomia da ferramenta de origem e as regras de transformação DESTA
+ * implantação. Nada aqui é regra global do ERP — o núcleo genérico
+ * (`src/common/production/work-center-import.ts`) só conhece o formato final
+ * { code, name, description, isActive }.
  *
  * ORIGEM: tabela `Setores_Operacionais` do SQL Server local da ferramenta
  * interna `producao_v2` (projeto_sql_xml). Extração manual conferida em
- * 29/07/2026 — 34 registros, ordenados por `OrdemExibicao`.
+ * 29/07/2026 — 34 registros, ordenados por `OrdemExibicao`. O ERP NÃO conecta
+ * ao SQL Server: quando o cadastro mudar na ferramenta, atualize
+ * `GDR_WORK_CENTER_SOURCE` manualmente e reexecute o CLI
+ * `apps/api/scripts/import-work-centers-gdr.ts`.
  *
- * Este arquivo é a ÚNICA fonte do script `apps/api/scripts/import-work-centers.ts`.
- * O ERP NÃO conecta ao SQL Server (decisão registrada na issue #816). Quando o
- * cadastro mudar na ferramenta, atualize este arquivo manualmente e reexecute o
- * script — o upsert é idempotente por (companyId, code).
+ * Regras DA GDR (não do produto):
+ *   - isActive por tipo: Producao/Opcional → ativo; Estoque/Apoio → inativo.
+ *   - description: "Grupo · Tipo".
  *
- * O que este arquivo NÃO contém, de propósito:
- *   - companyId (a empresa é resolvida por CNPJ exato no script, nunca vem daqui)
- *   - credenciais ou dados de conexão
- *   - capacidade, custo/hora, operadores, eficiência (serão levantados pela
- *     fábrica em issue própria; o script nunca administra esses campos)
+ * O que este arquivo NÃO contém, de propósito: companyId por registro,
+ * credenciais/conexões, capacidade, custo/hora, operadores, eficiência.
  */
 
-/** Tipo do setor na ferramenta de origem. Decide `isActive` no ERP. */
-export type WorkCenterSourceType = 'Producao' | 'Opcional' | 'Estoque' | 'Apoio';
+import type { DesiredWorkCenter } from '../../../../common/production/work-center-import';
 
-export interface WorkCenterSeed {
+/** CNPJ da GDR Reboques — empresa-alvo padrão do wrapper `import-work-centers-gdr`. */
+export const GDR_COMPANY_CNPJ = '46247069000115';
+
+/** Tipo do setor na ferramenta de origem da GDR. */
+export type GdrSectorType = 'Producao' | 'Opcional' | 'Estoque' | 'Apoio';
+
+export interface GdrSectorSource {
   /** Código do setor — chave natural do upsert junto com a empresa. */
   code: string;
   /** Nome do setor. */
@@ -29,12 +38,36 @@ export interface WorkCenterSeed {
   /** Grupo do setor na fábrica (vira parte da description). */
   group: string;
   /** Tipo na origem (vira parte da description e decide isActive). */
-  type: WorkCenterSourceType;
+  type: GdrSectorType;
   /** Ordem de exibição na ferramenta de origem — documentação/validação. */
   displayOrder: number;
 }
 
-export const WORK_CENTERS_DATA: readonly WorkCenterSeed[] = [
+/** Regra DA GDR: mercados (estoque) e apoio não são centros de trabalho reais. */
+const GDR_ACTIVE_BY_TYPE: Record<GdrSectorType, boolean> = {
+  Producao: true,
+  Opcional: true,
+  Estoque: false,
+  Apoio: false,
+};
+
+export function gdrResolveIsActive(type: GdrSectorType): boolean {
+  const active = GDR_ACTIVE_BY_TYPE[type];
+  if (active === undefined) {
+    throw new Error(
+      `Tipo de setor desconhecido na carga GDR: "${type}" — tipos aceitos: ${Object.keys(GDR_ACTIVE_BY_TYPE).join(', ')}`,
+    );
+  }
+  return active;
+}
+
+/** Description padronizada da carga GDR: "Grupo · Tipo". */
+export function gdrBuildDescription(sector: Pick<GdrSectorSource, 'group' | 'type'>): string {
+  return `${sector.group} · ${sector.type}`;
+}
+
+/** Espelho fiel da tabela `Setores_Operacionais` (34 linhas em 29/07/2026). */
+export const GDR_WORK_CENTER_SOURCE: readonly GdrSectorSource[] = [
   { code: 'SET-MET-001', name: 'Corte', group: 'Metalúrgica', type: 'Producao', displayOrder: 1 },
   { code: 'SET-MET-002', name: 'Dobra', group: 'Metalúrgica', type: 'Producao', displayOrder: 2 },
 
@@ -78,3 +111,14 @@ export const WORK_CENTERS_DATA: readonly WorkCenterSeed[] = [
   { code: 'SET-DIR-001', name: 'Diretoria', group: 'Diretoria', type: 'Apoio', displayOrder: 33 },
   { code: 'SET-REF-001', name: 'Refeitório', group: 'Refeitório', type: 'Apoio', displayOrder: 34 },
 ];
+
+/**
+ * Estado final desejado da carga GDR — o que o núcleo genérico consome.
+ * Toda a taxonomia da GDR é resolvida AQUI; o núcleo nunca a vê.
+ */
+export const GDR_WORK_CENTERS: readonly DesiredWorkCenter[] = GDR_WORK_CENTER_SOURCE.map((sector) => ({
+  code: sector.code,
+  name: sector.name,
+  description: gdrBuildDescription(sector),
+  isActive: gdrResolveIsActive(sector.type),
+}));
