@@ -23,18 +23,26 @@ const GLOW_SOFT =
 
 const MIDDLE = ['V', 'E', 'C', 'C', 'H'] as const;
 
-const markImg = (
-  <Image
-    src="/brand/logo.png"
-    alt=""
-    width={287}
-    height={299}
-    priority
-    // max-w-none: o preflight põe max-width:100% em img e o container
-    // flex tem a largura do "A" invisível — sem isto o símbolo espreme
-    className="mt-[0.36em] h-[0.9em] w-auto max-w-none shrink-0 translate-x-[0.03em]"
-  />
-);
+// max-w-none: o preflight põe max-width:100% em img e o container
+// flex tem a largura do "A" invisível — sem isto o símbolo espreme
+const MARK_IMG_CLASS = 'mt-[0.36em] h-[0.9em] w-auto max-w-none shrink-0 translate-x-[0.03em]';
+
+/** tone=dark (auth, cena sempre escura): arte original. tone=auto: a arte
+ *  acompanha o tema — no claro entra a variante aprofundada (logo-light),
+ *  senão o teal-celeste desenhado pro preto apaga sobre fundo claro. */
+function markImg(tone: 'dark' | 'auto') {
+  if (tone === 'dark') {
+    return (
+      <Image src="/brand/logo.png" alt="" width={287} height={299} priority className={MARK_IMG_CLASS} />
+    );
+  }
+  return (
+    <>
+      <Image src="/brand/logo-light.png" alt="" width={287} height={299} priority className={cn(MARK_IMG_CLASS, 'dark:hidden')} />
+      <Image src="/brand/logo.png" alt="" width={287} height={299} priority className={cn(MARK_IMG_CLASS, 'hidden dark:block')} />
+    </>
+  );
+}
 
 export function AvecchiWordmark({
   className,
@@ -58,7 +66,7 @@ export function AvecchiWordmark({
         <span aria-hidden className="relative inline-block">
           {/* o glifo invisível segura o layout; o símbolo ocupa o lugar do A */}
           <span className="opacity-0">A</span>
-          <span className="absolute inset-0 flex justify-center">{markImg}</span>
+          <span className="absolute inset-0 flex justify-center">{markImg(tone)}</span>
         </span>
         <span aria-hidden>VECCHI</span>
       </span>
@@ -70,7 +78,7 @@ export function AvecchiWordmark({
       {/* O A encena como glifo e cede ao símbolo — o payoff da landing */}
       <span aria-hidden className="wm-anchor relative inline-block">
         <span className="wm-glyph inline-block">A</span>
-        <span className="wm-mark absolute inset-0 flex justify-center">{markImg}</span>
+        <span className="wm-mark absolute inset-0 flex justify-center">{markImg(tone)}</span>
       </span>
       {MIDDLE.map((letter, i) => (
         <span

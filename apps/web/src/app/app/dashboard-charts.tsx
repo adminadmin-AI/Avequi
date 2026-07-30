@@ -43,10 +43,10 @@ export function RevenueLineChart({ data }: { data: { period: string; value: numb
         <Line
           type="monotone"
           dataKey="value"
-          stroke={colors.brand[600]}
+          stroke="var(--chart-1)"
           strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--bg-primary)', fill: colors.brand[600] }}
+          activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--bg-primary)', fill: 'var(--chart-1)' }}
           animationDuration={600}
           animationEasing="ease-out"
         />
@@ -65,7 +65,7 @@ export function ProductionBarChart({ data }: { data: { status: string; count: nu
         <Tooltip {...chartTooltipProps} formatter={(v) => [Number(v), 'OPs']} />
         <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={600} animationEasing="ease-out" maxBarSize={44}>
           {data.map((_, i) => (
-            <Cell key={i} fill={colors.brand[500]} />
+            <Cell key={i} fill="var(--chart-1)" />
           ))}
         </Bar>
       </BarChart>

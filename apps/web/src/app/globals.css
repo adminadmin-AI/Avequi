@@ -30,9 +30,11 @@
 }
 
 .dark {
-  /* Superfícies */
-  --bg-primary: #0c0f1a;
-  --bg-secondary: #111827;
+  /* Superfícies — elevação por LUZ (dark premium): quanto mais alto o plano,
+     mais claro. Canvas é o ponto mais fundo; cards flutuam ACIMA dele.
+     (antes estava invertido: cards mais escuros que o fundo = afundavam) */
+  --bg-primary: #111827;
+  --bg-secondary: #0a0d16;
   --bg-elevated: #1e293b;
   --surface-overlay: rgb(0 0 0 / 0.6);
 
@@ -102,13 +104,20 @@ body {
 :root {
   --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0) 56px);
+  /* hairline de luz: só existe no escuro (onde sombra não define forma) */
+  --surface-ring: 0 0 0 1px transparent;
+  /* série principal dos gráficos: indigo profundo no claro, luminoso no escuro */
+  --chart-1: #3d2ce6;
 }
 .dark {
-  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
-  --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.02), rgb(255 255 255 / 0) 56px);
+  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 56px);
+  --surface-ring: 0 0 0 1px rgb(255 255 255 / 0.055);
+  --chart-1: #818cf8;
 }
 .shadow-soft {
   box-shadow:
+    var(--surface-ring),
     var(--surface-highlight),
     0 1px 2px rgb(16 24 40 / 0.04),
     0 12px 32px -16px rgb(16 24 40 / 0.12);
