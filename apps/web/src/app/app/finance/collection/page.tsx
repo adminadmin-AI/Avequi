@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatDate } from '@/lib/format';
@@ -58,19 +59,6 @@ const CHANNEL_LABEL: Record<string, string> = {
   EMAIL: 'E-mail', WHATSAPP: 'WhatsApp', PHONE: 'Telefone',
 };
 const BOLETO_PENDENTE: BoletoStatus[] = ['PENDING', 'REGISTERED', 'OVERDUE'];
-
-function Kpi({ label, value, hint, tone = 'neutral' }: { label: string; value: string; hint?: string; tone?: 'neutral' | 'warning' | 'danger' | 'success' }) {
-  const cls = { neutral: 'text-content', warning: 'text-warning', danger: 'text-danger', success: 'text-success' }[tone];
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-content-muted">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function CollectionMonitorPage() {
   const router = useRouter();
@@ -229,26 +217,29 @@ export default function CollectionMonitorPage() {
         <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : (
         <>
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi
-              label="Total vencido"
-              value={formatBRL(report?.totalOverdue ?? 0)}
-              hint={`${report?.overdueCount ?? 0} título(s)`}
-              tone={(report?.totalOverdue ?? 0) > 0 ? 'danger' : 'neutral'}
-            />
-            <Kpi
-              label="Recebido hoje"
-              value={formatBRL(report?.totalCollected ?? 0)}
-              hint={`${report?.collectedCount ?? 0} baixa(s)`}
-              tone="success"
-            />
-            <Kpi label="A vencer (em aberto)" value={formatBRL(report?.totalPending ?? 0)} />
-            <Kpi
-              label="Taxa de conversão (dia)"
-              value={`${(report?.conversionRate ?? 0).toFixed(1)}%`}
-              tone={(report?.conversionRate ?? 0) >= 50 ? 'success' : 'warning'}
-            />
-          </div>
+          <StatGroup
+            className="mb-6"
+            stats={[
+              {
+                label: 'Total vencido',
+                value: formatBRL(report?.totalOverdue ?? 0),
+                sub: `${report?.overdueCount ?? 0} título(s)`,
+                tone: (report?.totalOverdue ?? 0) > 0 ? 'danger' : 'neutral',
+              },
+              {
+                label: 'Recebido hoje',
+                value: formatBRL(report?.totalCollected ?? 0),
+                sub: `${report?.collectedCount ?? 0} baixa(s)`,
+                tone: 'success',
+              },
+              { label: 'A vencer (em aberto)', value: formatBRL(report?.totalPending ?? 0) },
+              {
+                label: 'Taxa de conversão (dia)',
+                value: `${(report?.conversionRate ?? 0).toFixed(1)}%`,
+                tone: (report?.conversionRate ?? 0) >= 50 ? 'success' : 'warning',
+              },
+            ]}
+          />
 
           <Card className="mb-6">
             <CardHeader>
@@ -264,12 +255,27 @@ export default function CollectionMonitorPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Recebíveis em aberto" value={formatBRL(overview?.receivables?.openAmount ?? 0)} hint={`${overview?.receivables?.openCount ?? 0} título(s)`} />
-            <Kpi label="Recebíveis vencidos" value={String(overview?.receivables?.overdueCount ?? 0)} tone={(overview?.receivables?.overdueCount ?? 0) > 0 ? 'danger' : 'neutral'} />
-            <Kpi label="Boletos a receber" value={String(boletoPendentes)} tone={boletoPendentes > 0 ? 'warning' : 'neutral'} />
-            <Kpi label="Cobranças PIX ativas" value={String(pixAtivas)} />
-          </div>
+          <StatGroup
+            className="mb-6"
+            stats={[
+              {
+                label: 'Recebíveis em aberto',
+                value: formatBRL(overview?.receivables?.openAmount ?? 0),
+                sub: `${overview?.receivables?.openCount ?? 0} título(s)`,
+              },
+              {
+                label: 'Recebíveis vencidos',
+                value: String(overview?.receivables?.overdueCount ?? 0),
+                tone: (overview?.receivables?.overdueCount ?? 0) > 0 ? 'danger' : 'neutral',
+              },
+              {
+                label: 'Boletos a receber',
+                value: String(boletoPendentes),
+                tone: boletoPendentes > 0 ? 'warning' : 'neutral',
+              },
+              { label: 'Cobranças PIX ativas', value: String(pixAtivas) },
+            ]}
+          />
 
           <div className="grid gap-5 lg:grid-cols-2">
             <Card>

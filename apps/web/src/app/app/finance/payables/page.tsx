@@ -3,23 +3,22 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, CalendarClock, Ban, Pencil } from 'lucide-react';
+import { DollarSign, CalendarClock, Ban, Pencil, TrendingDown } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge, StatusDot } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { KpiGrid } from '@/components/ui/layout';
 import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
@@ -65,37 +64,8 @@ const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }>
   CANCELLED: { label: 'Cancelado', variant: 'neutral' },
 };
 
-function KpiCard({
-  label,
-  value,
-  count,
-  highlight,
-}: {
-  label: string;
-  value: number;
-  count?: number;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="flex items-center gap-1.5 text-caption text-content-muted">
-        {highlight && <span className="h-1.5 w-1.5 rounded-full bg-danger" />}
-        {label}
-      </p>
-      <p
-        className={`mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums ${
-          highlight ? 'text-danger' : 'text-content'
-        }`}
-      >
-        {formatBRL(value)}
-      </p>
-      {count != null && (
-        <p className="mt-0.5 text-helper text-content-muted">
-          {count} {count === 1 ? 'lançamento' : 'lançamentos'}
-        </p>
-      )}
-    </div>
-  );
+function countSub(count: number): string {
+  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
 export default function PayablesPage() {
@@ -347,17 +317,21 @@ export default function PayablesPage() {
       />
 
       {/* KPIs */}
-      <KpiGrid className="mb-5">
-        <KpiCard label="A vencer" value={summary.toComeValue} count={summary.toComeCount} />
-        <KpiCard
-          label="Vencido"
-          value={summary.overdueValue}
-          count={summary.overdueCount}
-          highlight
-        />
-        <KpiCard label="Pago no mês" value={summary.paidMonth} />
-        <KpiCard label="Total em aberto" value={summary.totalOpen} />
-      </KpiGrid>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'A vencer', value: formatBRL(summary.toComeValue), sub: countSub(summary.toComeCount) },
+          {
+            label: 'Vencido',
+            value: formatBRL(summary.overdueValue),
+            sub: countSub(summary.overdueCount),
+            tone: 'danger',
+            icon: TrendingDown,
+          },
+          { label: 'Pago no mês', value: formatBRL(summary.paidMonth) },
+          { label: 'Total em aberto', value: formatBRL(summary.totalOpen) },
+        ]}
+      />
 
       {/* Filtros */}
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

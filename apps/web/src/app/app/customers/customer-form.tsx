@@ -296,8 +296,8 @@ export function CustomerForm({
       </div>
 
       {/* ─── Dados fiscais (#474) ─── */}
-      <div className="border-t border-line pt-4 space-y-4">
-        <p className="text-sm font-medium text-content-secondary">Dados fiscais (NF-e)</p>
+      <div className="mt-2 space-y-4">
+        <p className="text-[13px] font-semibold text-content">Dados fiscais (NF-e)</p>
         {!isPF && (
           <Field label="Razão social" error={errors.razaoSocial?.message}>
             <Input {...register('razaoSocial')} placeholder="Razão social completa (DANFE)" />
@@ -337,8 +337,8 @@ export function CustomerForm({
       </div>
 
       {/* ─── Crédito e cobrança (#475) ─── */}
-      <div className="border-t border-line pt-4 space-y-4">
-        <p className="text-sm font-medium text-content-secondary">Crédito e cobrança</p>
+      <div className="mt-2 space-y-4">
+        <p className="text-[13px] font-semibold text-content">Crédito e cobrança</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Limite de crédito (R$)" error={errors.creditLimit?.message}>
             <Input

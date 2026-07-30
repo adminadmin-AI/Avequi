@@ -8,13 +8,12 @@ import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { StatGroup } from '@/components/ui/stat-group';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { KpiGrid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import {
@@ -25,18 +24,6 @@ import {
   type AlertSeverity,
   type AlertType,
 } from './alert-meta';
-
-function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'warning' | 'danger' }) {
-  const cls = { neutral: 'text-content', warning: 'text-warning', danger: 'text-danger' }[tone];
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function AlertsPage() {
   const router = useRouter();
@@ -170,11 +157,22 @@ export default function AlertsPage() {
       />
 
       {kpis && (
-        <KpiGrid className="mb-5">
-          <Kpi label="Ativos" value={String(kpis.total)} />
-          <Kpi label="Críticos" value={String(kpis.critical)} tone={kpis.critical > 0 ? 'danger' : 'neutral'} />
-          <Kpi label="Avisos" value={String(kpis.warning)} tone={kpis.warning > 0 ? 'warning' : 'neutral'} />
-        </KpiGrid>
+        <StatGroup
+          className="mb-6"
+          stats={[
+            { label: 'Ativos', value: String(kpis.total) },
+            {
+              label: 'Críticos',
+              value: String(kpis.critical),
+              tone: kpis.critical > 0 ? 'danger' : 'neutral',
+            },
+            {
+              label: 'Avisos',
+              value: String(kpis.warning),
+              tone: kpis.warning > 0 ? 'warning' : 'neutral',
+            },
+          ]}
+        />
       )}
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">

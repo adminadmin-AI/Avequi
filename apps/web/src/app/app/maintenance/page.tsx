@@ -17,16 +17,15 @@ import type {
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { StatGroup } from '@/components/ui/stat-group';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { KpiGrid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils';
 import { formatDate, formatBRL } from '@/lib/format';
 import { MaintenanceCalendar } from './maintenance-calendar';
@@ -44,18 +43,6 @@ interface MaintenanceStats {
   equipment: { total: number; active: number; underMaintenance: number };
   orders: { open: number; inProgress: number; doneThisMonth: number };
   overdueCount: number;
-}
-
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-content-muted">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
 }
 
 function Tabs({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
@@ -455,16 +442,19 @@ export default function MaintenancePage() {
         }
       />
 
-      <KpiGrid className="mb-5">
-        <Kpi label="Abertas" value={String(stats?.orders.open ?? 0)} />
-        <Kpi label="Em andamento" value={String(stats?.orders.inProgress ?? 0)} />
-        <Kpi label="Concluídas no mês" value={String(stats?.orders.doneThisMonth ?? 0)} />
-        <Kpi
-          label="Equip. em manutenção"
-          value={String(stats?.equipment.underMaintenance ?? 0)}
-          hint={stats?.overdueCount ? `${stats.overdueCount} com manutenção vencida` : undefined}
-        />
-      </KpiGrid>
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'Abertas', value: String(stats?.orders.open ?? 0) },
+          { label: 'Em andamento', value: String(stats?.orders.inProgress ?? 0) },
+          { label: 'Concluídas no mês', value: String(stats?.orders.doneThisMonth ?? 0) },
+          {
+            label: 'Equip. em manutenção',
+            value: String(stats?.equipment.underMaintenance ?? 0),
+            sub: stats?.overdueCount ? `${stats.overdueCount} com manutenção vencida` : undefined,
+          },
+        ]}
+      />
 
       <Tabs tab={tab} setTab={setTab} />
 

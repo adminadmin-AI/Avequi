@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { SalesKanban } from './sales-kanban';
-import { Card, CardContent } from '@/components/ui/card';
+import { StatGroup } from '@/components/ui/stat-group';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -30,18 +30,6 @@ const OPEN_STATUSES: SalesOrderStatus[] = [
 
 function shortId(id: string) {
   return id.slice(-6).toUpperCase();
-}
-
-function Kpi({ label, value, count }: { label: string; value: string; count?: number }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-content">{value}</p>
-        {count != null && <p className="mt-0.5 text-xs text-content-muted">{count} OVs</p>}
-      </CardContent>
-    </Card>
-  );
 }
 
 export default function SalesPage() {
@@ -165,11 +153,15 @@ export default function SalesPage() {
         }
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-3">
-        <Kpi label="OVs abertas" value={String(kpis.openCount)} />
-        <Kpi label="Em OVs confirmadas" value={formatBRL(kpis.confirmedValue)} />
-        <Kpi label="Faturado no mês" value={formatBRL(kpis.invoicedMonth)} />
-      </div>
+      {/* F3: indicadores de-boxed — tipografia no canvas, a tabela fica com a superfície */}
+      <StatGroup
+        className="mb-6"
+        stats={[
+          { label: 'OVs abertas', value: String(kpis.openCount) },
+          { label: 'Em OVs confirmadas', value: formatBRL(kpis.confirmedValue) },
+          { label: 'Faturado no mês', value: formatBRL(kpis.invoicedMonth) },
+        ]}
+      />
 
       {view === 'kanban' ? (
         <SalesKanban orders={filtered} />
