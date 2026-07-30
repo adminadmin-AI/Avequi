@@ -9,7 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import type { FiscalDocument, FiscalStatus, FiscalDocumentType, FiscalFinalidade } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge, StatusDot } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -27,12 +27,17 @@ const RESOURCE = '/fiscal';
 
 function Kpi({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
   return (
-    <Card className={alert ? 'border-danger/30 bg-danger/10' : undefined}>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-tight ${alert ? 'text-danger' : 'text-content'}`}>{value}</p>
-      </CardContent>
-    </Card>
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-caption text-content-muted">
+        {alert && <span className="h-1.5 w-1.5 rounded-full bg-danger" />}
+        {label}
+      </p>
+      <p
+        className={`mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums ${alert ? 'text-danger' : 'text-content'}`}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -144,7 +149,7 @@ export default function FiscalPage() {
       align: 'center',
       sortable: true,
       accessor: (d) => d.status,
-      cell: (d) => <Badge variant={FISCAL_STATUS[d.status].variant}>{FISCAL_STATUS[d.status].label}</Badge>,
+      cell: (d) => <StatusDot variant={FISCAL_STATUS[d.status].variant}>{FISCAL_STATUS[d.status].label}</StatusDot>,
     },
     {
       key: 'chave',

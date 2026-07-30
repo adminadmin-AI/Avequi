@@ -115,7 +115,7 @@ export default function CrmDashboardPage() {
       ) : (
         <>
           {/* Funil de conversão */}
-          <section className="rounded-lg border p-4">
+          <section className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
             <h2 className="mb-3 text-sm font-medium">Funil de conversão</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
               <Stat label="Leads" value={f!.total} />
@@ -129,7 +129,7 @@ export default function CrmDashboardPage() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Por origem */}
-            <section className="rounded-lg border">
+            <section className="surface-sheen rounded-xl bg-surface shadow-soft">
               <h2 className="border-b p-3 text-sm font-medium">Conversão por origem</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -167,7 +167,7 @@ export default function CrmDashboardPage() {
             </section>
 
             {/* Por vendedor */}
-            <section className="rounded-lg border">
+            <section className="surface-sheen rounded-xl bg-surface shadow-soft">
               <h2 className="border-b p-3 text-sm font-medium">Ranking por vendedor</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -235,7 +235,7 @@ function LostByCategory({ lost }: { lost: Dashboard['lostReasons'] }) {
   }
 
   return (
-    <section className="rounded-lg border p-4">
+    <section className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-medium">Por que perdemos? ({total} leads)</h2>
         <select
@@ -292,10 +292,15 @@ function Stat({
   highlight?: boolean;
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${highlight ? 'border-brand-600/40 bg-brand-600/5' : ''}`}>
-      <div className="text-xs text-content-muted">{label}</div>
-      <div className="text-2xl font-semibold">{value}</div>
-      {pct != null && <div className="text-xs text-content-muted">{pct}% do total</div>}
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5 text-caption text-content-muted">
+        {highlight && <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />}
+        {label}
+      </div>
+      <div className={`mt-1 text-2xl font-semibold tracking-[-0.02em] tabular-nums ${highlight ? 'text-brand-600 dark:text-brand-400' : 'text-content'}`}>
+        {value}
+      </div>
+      {pct != null && <div className="mt-0.5 text-helper text-content-muted">{pct}% do total</div>}
     </div>
   );
 }
