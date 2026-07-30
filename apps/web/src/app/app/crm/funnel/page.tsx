@@ -119,7 +119,7 @@ export default function FunnelPage() {
             <div
               key={column.stage.id}
               className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors duration-fast ${
-                dragged ? 'bg-neutral-500/[0.06]' : 'bg-neutral-500/[0.035]'
+                dragged ? 'bg-neutral-500/[0.08]' : 'bg-neutral-500/[0.05]'
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
