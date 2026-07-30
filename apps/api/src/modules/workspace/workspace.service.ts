@@ -180,6 +180,45 @@ export class WorkspaceService {
     return d.toISOString().slice(0, 10);
   }
 
+  // ─── Layout persistido (F2) ────────────────────────────────────────────────
+
+  /** Layout salvo do usuário, ou null (= template puro do perfil). */
+  async getLayout(user: AuthUserLite) {
+    const row = await this.prisma.userWorkspaceLayout.findUnique({
+      where: { userId: user.id },
+    });
+    if (!row) return null;
+    return { profile: row.profile, version: row.version, widgets: row.layout };
+  }
+
+  async saveLayout(
+    user: AuthUserLite,
+    dto: { profile?: string; version: number; widgets: unknown[] },
+  ) {
+    const row = await this.prisma.userWorkspaceLayout.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        companyId: user.companyId,
+        profile: dto.profile ?? null,
+        version: dto.version,
+        layout: dto.widgets as object[],
+      },
+      update: {
+        profile: dto.profile ?? null,
+        version: dto.version,
+        layout: dto.widgets as object[],
+      },
+    });
+    return { profile: row.profile, version: row.version, widgets: row.layout };
+  }
+
+  /** Reset = apagar a linha; a Home volta ao template puro do perfil. */
+  async resetLayout(user: AuthUserLite) {
+    await this.prisma.userWorkspaceLayout.deleteMany({ where: { userId: user.id } });
+    return { reset: true };
+  }
+
   // ─── Resumo do Dia (insights) ──────────────────────────────────────────────
 
   async getInsights(user: AuthUserLite): Promise<{ insights: WorkspaceInsight[]; generatedAt: string }> {

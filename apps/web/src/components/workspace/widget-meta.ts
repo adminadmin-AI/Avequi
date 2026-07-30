@@ -17,6 +17,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: [],
     zone: 'orientation',
     defaultSize: 'full',
+    sizes: ['full'],
   },
   'kpi-summary': {
     id: 'kpi-summary',
@@ -24,6 +25,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: [], // cada métrica gateia a si mesma (ver METRICS no widget)
     zone: 'orientation',
     defaultSize: 'full',
+    sizes: ['full'],
   },
   'ai-insights': {
     id: 'ai-insights',
@@ -31,6 +33,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['workspace.insights.view'], // GET /workspace/insights
     zone: 'attention',
     defaultSize: 'full',
+    sizes: ['full'],
   },
   'pending-tasks': {
     id: 'pending-tasks',
@@ -38,6 +41,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['workspace.tasks.view'], // GET /workspace/tasks
     zone: 'attention',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
   // Fora dos templates desde a F1 (o Resumo do dia o substitui na atenção);
   // segue registrado para a personalização da F2 poder reativá-lo.
@@ -47,6 +51,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['dashboard.alerts.view'], // GET /alerts
     zone: 'attention',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
   shortcuts: {
     id: 'shortcuts',
@@ -54,6 +59,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: [], // cada atalho gateia a si mesmo (ver SHORTCUT_ACTIONS)
     zone: 'attention',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
   agenda: {
     id: 'agenda',
@@ -61,6 +67,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['workspace.agenda.view'], // GET /workspace/agenda
     zone: 'work',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
   'chart-revenue': {
     id: 'chart-revenue',
@@ -68,6 +75,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['analytics.dashboards.view'], // GET /analytics/sales-cube
     zone: 'context',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
   'chart-production': {
     id: 'chart-production',
@@ -75,6 +83,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     permission: ['production.orders.view'], // GET /production
     zone: 'context',
     defaultSize: 'half',
+    sizes: ['half', 'full'],
   },
 };
 

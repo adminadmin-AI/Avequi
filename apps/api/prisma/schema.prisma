@@ -149,6 +149,7 @@ model Company {
   supplierAdvances      SupplierAdvance[] // adiantamentos (#393)
   debts                 Debt[] // dívidas/financiamentos (#392)
   discountPolicies      DiscountPolicy[] // alçadas de desconto (#391)
+  workspaceLayouts      UserWorkspaceLayout[] // Workspace F2 — layouts da Home
 
   @@map("gdr_companies")
 }
@@ -330,8 +331,32 @@ model User {
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
   creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
+  workspaceLayout           UserWorkspaceLayout? // Workspace F2 — layout da Home por usuário
 
   @@map("gdr_users")
+}
+
+/// Workspace F2 — personalização da Home por papel: UMA linha por usuário com
+/// os DESVIOS do template (JSON sparse). Sem linha = template puro do perfil.
+/// Widget novo que entrar no template aparece automaticamente para todos
+/// (o merge acontece no frontend; ids desconhecidos no JSON são ignorados).
+model UserWorkspaceLayout {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Override explícito do template (ex.: 'purchasing'); null = derivar do perfil
+  profile   String?
+  /// Versão do shape do JSON `layout` — permite migrar o formato no futuro
+  version   Int      @default(1)
+  /// [{ id, size?, hidden?, pinned? }] — ordem do array = ordem dos widgets
+  layout    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("gdr_user_workspace_layouts")
 }
 
 enum UserRole {

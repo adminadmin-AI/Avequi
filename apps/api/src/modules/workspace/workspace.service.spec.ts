@@ -32,6 +32,7 @@ const mockPrisma = {
   inspection: { count: jest.fn(), findMany: jest.fn() },
   alert: { findMany: jest.fn() },
   leadReminder: { findMany: jest.fn() },
+  userWorkspaceLayout: { findUnique: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
 };
 
 const mockPermissionService = { getUserPermissions: jest.fn() };
@@ -173,6 +174,51 @@ describe('WorkspaceService', () => {
       expect(where.userId).toBe(USER.id);
       expect(where.companyId).toBe(USER.companyId);
       expect(where.doneAt).toBeNull();
+    });
+  });
+
+  describe('layout (F2)', () => {
+    it('getLayout devolve null sem linha (template puro) e o shape salvo quando existe', async () => {
+      mockPrisma.userWorkspaceLayout.findUnique.mockResolvedValue(null);
+      expect(await service.getLayout(USER)).toBeNull();
+
+      mockPrisma.userWorkspaceLayout.findUnique.mockResolvedValue({
+        profile: 'purchasing',
+        version: 1,
+        layout: [{ id: 'agenda', hidden: true }],
+      });
+      expect(await service.getLayout(USER)).toEqual({
+        profile: 'purchasing',
+        version: 1,
+        widgets: [{ id: 'agenda', hidden: true }],
+      });
+      expect(mockPrisma.userWorkspaceLayout.findUnique).toHaveBeenCalledWith({
+        where: { userId: USER.id },
+      });
+    });
+
+    it('saveLayout faz upsert SEMPRE do próprio usuário, com companyId do JWT', async () => {
+      mockPrisma.userWorkspaceLayout.upsert.mockResolvedValue({
+        profile: null,
+        version: 1,
+        layout: [{ id: 'chart-revenue', size: 'full' }],
+      });
+      await service.saveLayout(USER, {
+        version: 1,
+        widgets: [{ id: 'chart-revenue', size: 'full' }],
+      });
+      const args = mockPrisma.userWorkspaceLayout.upsert.mock.calls[0][0];
+      expect(args.where).toEqual({ userId: USER.id });
+      expect(args.create.userId).toBe(USER.id);
+      expect(args.create.companyId).toBe(USER.companyId);
+    });
+
+    it('resetLayout apaga só a linha do próprio usuário', async () => {
+      mockPrisma.userWorkspaceLayout.deleteMany.mockResolvedValue({ count: 1 });
+      expect(await service.resetLayout(USER)).toEqual({ reset: true });
+      expect(mockPrisma.userWorkspaceLayout.deleteMany).toHaveBeenCalledWith({
+        where: { userId: USER.id },
+      });
     });
   });
 

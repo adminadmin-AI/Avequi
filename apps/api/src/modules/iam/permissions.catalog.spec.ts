@@ -102,7 +102,9 @@ describe('Catálogo de permissões (#338)', () => {
     // 303 = 302 + crm.portfolio.view (#846, GET /crm/portfolio — KPIs de carteira).
     // 306 = 303 + workspace.{insights,tasks,agenda}.view (Home por papel F1 —
     //       BFF GET /workspace/*, conteúdo curado por permissão no service).
-    expect(PERMISSIONS_CATALOG.length).toBe(306);
+    // 308 = 306 + workspace.layout.{view,update} (F2 — personalização da Home,
+    //       GET/PUT/DELETE /workspace/layout, sempre dado do próprio usuário).
+    expect(PERMISSIONS_CATALOG.length).toBe(308);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

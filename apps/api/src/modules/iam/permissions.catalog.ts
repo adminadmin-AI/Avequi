@@ -83,6 +83,10 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ...r('workspace', 'agenda', 'Workspace — agenda', [
     ['view', 'ver', 'GET /workspace/agenda'],
   ]),
+  ...r('workspace', 'layout', 'Workspace — personalização da Home', [
+    ['view', 'ver o próprio layout', 'GET /workspace/layout'],
+    ['update', 'salvar/restaurar o próprio layout', 'PUT /workspace/layout + DELETE /workspace/layout'],
+  ]),
 
   // ── analytics ── (analytics.controller.ts + report.controller.ts)
   ...r('analytics', 'dashboards', 'Painéis analíticos', [
