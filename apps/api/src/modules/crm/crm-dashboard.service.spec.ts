@@ -13,11 +13,11 @@ describe('CrmDashboardService', () => {
 
   beforeEach(async () => {
     const ALL_STAGES = [
-      { id: 's-novo', type: 'OPEN', order: 0 },
-      { id: 's-atend', type: 'OPEN', order: 1 },
-      { id: 's-prop', type: 'OPEN', order: 2 },
-      { id: 's-won', type: 'WON', order: 4 },
-      { id: 's-lost', type: 'LOST', order: 5 },
+      { id: 's-novo', name: 'Novo', type: 'OPEN', order: 0 },
+      { id: 's-atend', name: 'Atendimento', type: 'OPEN', order: 1 },
+      { id: 's-prop', name: 'Proposta', type: 'OPEN', order: 2 },
+      { id: 's-won', name: 'Ganho', type: 'WON', order: 4 },
+      { id: 's-lost', name: 'Perdido', type: 'LOST', order: 5 },
     ];
     prisma = {
       pipelineStage: {
@@ -130,6 +130,76 @@ describe('CrmDashboardService', () => {
       expect(bySeller[0].leads).toBe(2);
       expect(bySeller[0].won).toBe(1);
       expect(bySeller[0].avgFirstResponseMin).toBe(15);
+    });
+  });
+
+  describe('avgSalesCycleDays (#846)', () => {
+    it('média em dias de (invoicedAt da OV − createdAt do lead) no período', async () => {
+      prisma.lead.count.mockResolvedValue(0);
+      prisma.lead.findMany.mockImplementation(({ select }: any) => {
+        // avgSalesCycle: select tem createdAt E salesOrder
+        if (select?.createdAt && select?.salesOrder) {
+          return Promise.resolve([
+            {
+              createdAt: new Date('2026-06-01T00:00:00Z'),
+              salesOrder: { invoicedAt: new Date('2026-06-11T00:00:00Z') }, // 10 dias
+            },
+            {
+              createdAt: new Date('2026-06-10T00:00:00Z'),
+              salesOrder: { invoicedAt: new Date('2026-06-30T00:00:00Z') }, // 20 dias
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      const { avgSalesCycleDays } = await service.overview(range);
+      expect(avgSalesCycleDays).toBe(15);
+    });
+
+    it('null quando nenhum lead faturou no período', async () => {
+      prisma.lead.count.mockResolvedValue(0);
+      const { avgSalesCycleDays } = await service.overview(range);
+      expect(avgSalesCycleDays).toBeNull();
+    });
+  });
+
+  describe('coolingLeads (#846)', () => {
+    it('agrupa por estágio OPEN os leads sem toque além do limite, com nome do estágio', async () => {
+      prisma.lead.count.mockResolvedValue(0);
+      prisma.lead.findMany.mockImplementation(({ select }: any) => {
+        // coolingLeads: select só com stageId
+        if (select?.stageId && !select?.createdAt && !select?.salesOrder && !select?.assignedTo) {
+          return Promise.resolve([
+            { stageId: 's-novo' },
+            { stageId: 's-novo' },
+            { stageId: 's-prop' },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      const { coolingLeads } = await service.overview(range);
+      expect(coolingLeads).toEqual([
+        { stageId: 's-novo', stageName: 'Novo', count: 2 },
+        { stageId: 's-prop', stageName: 'Proposta', count: 1 },
+      ]);
+    });
+
+    it('aplica o cutoff = to − coolingDays na query (fallback createdAt quando sem interação)', async () => {
+      prisma.lead.count.mockResolvedValue(0);
+      let capturedWhere: any;
+      prisma.lead.findMany.mockImplementation(({ select, where }: any) => {
+        if (select?.stageId && !select?.createdAt && !select?.salesOrder && !select?.assignedTo) {
+          capturedWhere = where;
+        }
+        return Promise.resolve([]);
+      });
+      await service.overview(range, 7);
+      const cutoff = new Date(range.to.getTime() - 7 * 24 * 60 * 60 * 1000);
+      expect(capturedWhere.OR).toEqual([
+        { lastInteractionAt: { lt: cutoff } },
+        { lastInteractionAt: null, createdAt: { lt: cutoff } },
+      ]);
+      expect(capturedWhere.companyId).toBe(COMPANY);
     });
   });
 

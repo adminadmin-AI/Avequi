@@ -233,6 +233,9 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /crm/dashboard, /crm/lost-reasons'],
     ['export', 'exportar CSV', 'GET /crm/dashboard/source.csv'],
   ]),
+  ...r('crm', 'portfolio', 'Carteira de clientes', [
+    ['view', 'ver KPIs de carteira', 'GET /crm/portfolio (#846 — novos/ativos/em risco, recompra, top clientes)'],
+  ]),
   ...r('crm', 'settings', 'Configurações do CRM', [
     ['view', 'ver', 'GET /crm/settings, /crm/settings/sellers'],
     ['update', 'alterar configurações operacionais', 'PATCH /crm/settings (SEM leadRetentionDays — exige crm.lgpd.retention-update), PATCH /crm/settings/sellers/:userId/availability'],

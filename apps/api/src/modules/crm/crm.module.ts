@@ -12,6 +12,7 @@ import { CrmListener } from './crm.listener';
 import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
 import { CrmDashboardService } from './crm-dashboard.service';
+import { PortfolioService } from './portfolio.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
 import { QuickReplyService } from './quick-reply.service';
@@ -60,6 +61,7 @@ import { SiteLeadController } from './connectors/site.controller';
     FunnelService,
     LeadConversionService,
     CrmDashboardService,
+    PortfolioService,
     WhatsappTemplateService,
     CrmSettingsService,
     QuickReplyService,
