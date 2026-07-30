@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { FileText, Loader2, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -152,13 +151,13 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       <div className="space-y-3 p-3 text-sm">
         {/* #574 — cliente negociando em outra loja: avisa ANTES de dar preço */}
         {(lead.crossStoreStores?.length ?? 0) > 0 && (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs">
+          <div className="rounded-md bg-amber-500/[0.08] p-2.5 text-xs">
             ⚠️ Cliente também em negociação na loja{' '}
             <b>{lead.crossStoreStores!.join(', ')}</b> — alinhe o preço antes de propor.
           </div>
         )}
         {(lead.sdrStatus === 'ACTIVE' || lead.sdrStatus === 'QUALIFIED') && (
-          <div className="flex items-center justify-between rounded-md border border-sky-500/40 bg-sky-500/5 p-2">
+          <div className="flex items-center justify-between rounded-md bg-sky-500/[0.08] p-2.5">
             <span className="text-xs">🤖 IA atendendo esta conversa</span>
             <Button size="sm" variant="secondary" disabled={takeover.isPending} onClick={() => takeover.mutate()}>
               Assumir conversa
@@ -196,7 +195,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         </div>
 
         {pendingLostStage && (
-          <div className="space-y-2 rounded-md border border-danger/40 p-2">
+          <div className="space-y-2 rounded-md bg-danger/[0.06] p-2.5">
             <p className="text-xs">
               Mover para <b>{pendingLostStage.name}</b> exige a categoria do motivo:
             </p>
@@ -276,7 +275,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           Enviar proposta
         </Button>
         {showProposals && (
-          <div className="space-y-2 rounded-md border p-2">
+          <div className="space-y-2 rounded-md bg-neutral-500/[0.04] p-2.5">
             {loadingProposals ? (
               <p className="py-2 text-center text-xs text-content-muted">Carregando cotações…</p>
             ) : (proposalOptions?.quotations.length ?? 0) === 0 ? (
@@ -330,23 +329,27 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
 
         <div>
           <h3 className="mb-2 text-xs font-medium uppercase text-content-muted">Timeline</h3>
-          <ul className="space-y-2">
+          {/* F4: timeline sem caixinhas — trilho de dots + espaço; caixa só
+              onde há conteúdo destacável (resumo IA, tint sem borda) */}
+          <ul className="space-y-3">
             {lead.activities.map((a) => {
               const isSummary = a.properties?.kind === 'conversation_summary';
               return (
-                <li
-                  key={a.id}
-                  className={`rounded-md border p-2 ${
-                    isSummary ? 'border-violet-500/40 bg-violet-500/5' : ''
-                  }`}
-                >
+                <li key={a.id} className="relative pl-4">
+                  <span
+                    className={`absolute left-0 top-[5px] h-1.5 w-1.5 rounded-full ${
+                      isSummary ? 'bg-violet-500' : 'bg-neutral-300 dark:bg-neutral-600'
+                    }`}
+                  />
                   <div className="flex items-center justify-between">
                     {isSummary ? (
-                      <Badge variant="neutral" className="gap-1">
+                      <span className="flex items-center gap-1 text-xs font-medium text-violet-700 dark:text-violet-300">
                         <Sparkles className="h-3 w-3" /> Resumo IA
-                      </Badge>
+                      </span>
                     ) : (
-                      <Badge variant="neutral">{ACTIVITY_LABEL[a.type] ?? a.type}</Badge>
+                      <span className="text-xs font-medium text-content-secondary">
+                        {ACTIVITY_LABEL[a.type] ?? a.type}
+                      </span>
                     )}
                     <span className="text-[11px] text-content-muted">
                       {new Date(a.happensAt).toLocaleString('pt-BR', {
@@ -360,7 +363,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
                   {isSummary ? (
                     <>
                       {typeof a.properties?.summary === 'string' && (
-                        <p className="mt-1 whitespace-pre-line text-xs">
+                        <p className="mt-1.5 whitespace-pre-line rounded-md bg-violet-500/[0.06] p-2 text-xs">
                           {a.properties.summary as string}
                         </p>
                       )}

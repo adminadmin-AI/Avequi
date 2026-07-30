@@ -7,7 +7,6 @@ import { GripVertical, Loader2, MessageCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { LOST_REASON_OPTIONS, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 import { Board, BoardColumn, BoardLead, SOURCE_LABEL, formatBRL } from './funnel-types';
@@ -112,24 +111,27 @@ export default function FunnelPage() {
           <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        // F4: lanes quase invisíveis (direção Linear) — a coluna é definida
+        // pelo header + pilha de cards no canvas; o tint só aparece durante
+        // o drag, como affordance de drop
+        <div className="flex gap-5 overflow-x-auto pb-4">
           {columns.map((column) => (
             <div
               key={column.stage.id}
-              className="flex w-72 shrink-0 flex-col rounded-xl bg-neutral-500/[0.04]"
+              className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors duration-fast ${
+                dragged ? 'bg-neutral-500/[0.045]' : ''
+              }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
             >
-              <div className="flex items-center justify-between p-3 pb-2">
+              <div className="flex items-center justify-between px-2 pb-2 pt-1.5">
                 <div className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ background: column.stage.color ?? '#94a3b8' }}
                   />
                   <span className="text-sm font-medium">{column.stage.name}</span>
-                  <Badge variant="neutral" className="text-[10px]">
-                    {column.count}
-                  </Badge>
+                  <span className="text-[11px] tabular-nums text-content-muted">{column.count}</span>
                 </div>
                 {column.totalValue > 0 && (
                   <span className="text-[11px] text-content-muted">
@@ -138,7 +140,7 @@ export default function FunnelPage() {
                 )}
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto p-2">
+              <div className="flex-1 space-y-2.5 overflow-y-auto p-1">
                 {column.leads.map((lead, index) => (
                   <div
                     key={lead.id}
@@ -150,7 +152,7 @@ export default function FunnelPage() {
                       e.stopPropagation();
                       onDrop(column, index);
                     }}
-                    className={`group surface-sheen rounded-lg bg-surface p-2.5 text-sm shadow-soft ${
+                    className={`group surface-sheen cursor-grab rounded-lg bg-surface p-3 text-sm shadow-soft transition-shadow hover:shadow-md active:cursor-grabbing ${
                       dragged?.id === lead.id ? 'opacity-40' : ''
                     }`}
                   >
@@ -170,10 +172,11 @@ export default function FunnelPage() {
                         {lead.interest && (
                           <p className="truncate text-xs text-content-muted">{lead.interest}</p>
                         )}
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          <Badge variant="info" className="text-[10px]">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {/* F4 dieta de badges: origem é metadado, não alarme — texto mudo */}
+                          <span className="text-[10px] text-content-muted">
                             {SOURCE_LABEL[lead.source] ?? lead.source}
-                          </Badge>
+                          </span>
                           {Number(lead.estimatedValue ?? 0) > 0 && (
                             <span className="text-[10px] text-content-muted">
                               {formatBRL(Number(lead.estimatedValue))}
@@ -196,9 +199,16 @@ export default function FunnelPage() {
                     </div>
                   </div>
                 ))}
-                {column.leads.length === 0 && (
-                  <p className="p-4 text-center text-xs text-content-muted">arraste leads aqui</p>
-                )}
+                {column.leads.length === 0 &&
+                  (dragged ? (
+                    <div className="rounded-lg border border-dashed border-line p-6 text-center text-xs text-content-muted">
+                      solte aqui
+                    </div>
+                  ) : (
+                    <p className="px-2 py-8 text-center text-xs text-content-muted opacity-60">
+                      Sem leads neste estágio
+                    </p>
+                  ))}
               </div>
             </div>
           ))}
