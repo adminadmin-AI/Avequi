@@ -199,16 +199,20 @@ export default function FunnelPage() {
                     </div>
                   </div>
                 ))}
-                {column.leads.length === 0 &&
-                  (dragged ? (
-                    <div className="rounded-lg border border-dashed border-line p-6 text-center text-xs text-content-muted">
-                      solte aqui
-                    </div>
-                  ) : (
-                    <p className="px-2 py-8 text-center text-xs text-content-muted opacity-60">
-                      Sem leads neste estágio
-                    </p>
-                  ))}
+                {/* Coluna vazia: placeholder tracejado delimita o campo sem
+                    virar caixa cinza (calibração pós-F4 — sem ele, um board
+                    vazio parece quebrado); acende como alvo durante o drag */}
+                {column.leads.length === 0 && (
+                  <div
+                    className={`rounded-lg border border-dashed py-10 text-center text-xs transition-colors duration-fast ${
+                      dragged
+                        ? 'border-brand-600/50 bg-brand-600/[0.04] text-content-secondary'
+                        : 'border-line text-content-muted'
+                    }`}
+                  >
+                    {dragged ? 'solte aqui' : 'Sem leads neste estágio'}
+                  </div>
+                )}
               </div>
             </div>
           ))}
