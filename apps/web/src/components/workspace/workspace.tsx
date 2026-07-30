@@ -124,25 +124,64 @@ export function Workspace() {
     return <C instance={w} />;
   };
 
-  const surfaceGrid = (
+  // Visualização: sequências de widgets 'half' viram DUAS COLUNAS INDEPENDENTES
+  // (CSS multicol) — cada coluna empacota as próprias alturas, sem o buraco
+  // que o grid deixa quando um card baixo cai ao lado de um gráfico alto.
+  // No mobile vira coluna única na ordem de leitura. 'full' quebra a sequência.
+  type Segment = { type: 'full'; w: WidgetInstance } | { type: 'halves'; ws: WidgetInstance[] };
+  const segments = useMemo(() => {
+    const segs: Segment[] = [];
+    for (const w of surface) {
+      const size = w.size ?? WIDGETS[w.id].defaultSize;
+      if (size === 'full') {
+        segs.push({ type: 'full', w });
+      } else {
+        const last = segs[segs.length - 1];
+        if (last?.type === 'halves') last.ws.push(w);
+        else segs.push({ type: 'halves', ws: [w] });
+      }
+    }
+    return segs;
+  }, [surface]);
+
+  const viewSurface = (
+    <div className="space-y-4">
+      {segments.map((seg, i) =>
+        seg.type === 'full' ? (
+          <div key={seg.w.id}>{renderWidget(seg.w)}</div>
+        ) : (
+          <div
+            key={`halves-${i}`}
+            className="space-y-4 lg:columns-2 lg:gap-4 lg:space-y-0"
+          >
+            {seg.ws.map((w) => (
+              <div key={w.id} className="lg:mb-4 lg:break-inside-avoid">
+                {renderWidget(w)}
+              </div>
+            ))}
+          </div>
+        ),
+      )}
+    </div>
+  );
+
+  // Edição: grid uniforme de propósito — arrastar em células regulares é mais
+  // previsível que em colunas empacotadas; o encaixe fino é da visualização.
+  const editSurfaceGrid = (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {surface.map((w) => {
         const size = w.size ?? WIDGETS[w.id].defaultSize;
         return (
           <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
-            {editing ? (
-              <EditableShell
-                id={w.id}
-                size={size}
-                sortable={!FIXED_ZONES.has(WIDGETS[w.id].zone)}
-                onHide={(id) => upsertOverride(id, { hidden: true })}
-                onResize={(id, s: WidgetSize) => upsertOverride(id, { size: s })}
-              >
-                {renderWidget(w)}
-              </EditableShell>
-            ) : (
-              renderWidget(w)
-            )}
+            <EditableShell
+              id={w.id}
+              size={size}
+              sortable={!FIXED_ZONES.has(WIDGETS[w.id].zone)}
+              onHide={(id) => upsertOverride(id, { hidden: true })}
+              onResize={(id, s: WidgetSize) => upsertOverride(id, { size: s })}
+            >
+              {renderWidget(w)}
+            </EditableShell>
           </div>
         );
       })}
@@ -175,10 +214,10 @@ export function Workspace() {
               do template; a personalização só reordena work/context */}
           {editing ? (
             <EditSurface sortableIds={sortableIds} onReorder={handleReorder}>
-              {surfaceGrid}
+              {editSurfaceGrid}
             </EditSurface>
           ) : (
-            surfaceGrid
+            viewSurface
           )}
 
           {editing && (
