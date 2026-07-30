@@ -60,7 +60,12 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:3000',
+    origin: [
+      process.env.WEB_URL ?? 'http://localhost:3000',
+      // Previews do Vercel (validação visual de PRs no avequi-web) — escopado
+      // ao projeto e ao team; produção continua vindo só de WEB_URL.
+      /^https:\/\/avequi-web-[a-z0-9-]+-adminnexoprimecombrs-projects\.vercel\.app$/,
+    ],
     credentials: true,
   });
 
