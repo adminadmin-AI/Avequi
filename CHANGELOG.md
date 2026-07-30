@@ -6,6 +6,26 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-07-30
+
+### Added
+- feat: KPIs de carteira de clientes + indicadores de ciclo no CRM (#846) (#847)
+- feat(production): liga etapas de roteiro a centros de trabalho (#815) (#836)
+
+### Fixed
+- fix(iam): reset de senha por admin revoga sessões do alvo + refresh nega troca pendente (#823) (#824)
+- fix(iam): JwtStrategy consulta a denylist de sessão — revogação crítica derruba o access token (#835) (#837)
+- fix(web): ícones do PWA com safe area — o A não estoura mais no Dock (#842)
+- fix(web): tooltips dos gráficos legíveis no dark — tema compartilhado com itemStyle/labelStyle (#841)
+
+### Changed
+- style(web): Dark Sweep — 16 telas auditadas, 4 famílias de inconsistência corrigidas (#845)
+- style(web): equivalência entre temas — física de luz no dark + símbolo pra fundo claro (#844)
+- style(web): Consistency Pass — zero classes legadas + refinamentos finais (#840)
+- style(web): follow-ups do De-box — status quiet, nomes legíveis, alertas agrupados (#839)
+- style(web): De-box Pass — menos caixas, mais superfície (Fases 1-5 da auditoria) (#838)
+- style(web): Premium Polish Pass — acabamento premium sem mudar layout/cores (#834)
+
 ## [1.22.0] - 2026-07-29
 
 ### Added
@@ -268,7 +288,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.23.0...HEAD
+[1.23.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.19.0...v1.20.0
