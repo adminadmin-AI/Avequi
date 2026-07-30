@@ -18,6 +18,10 @@ export type WidgetId =
   | 'alerts'
   | 'shortcuts'
   | 'agenda'
+  | 'cashflow-13w'
+  | 'crm-sla'
+  | 'wms-queue'
+  | 'capacity-bottlenecks'
   | 'chart-revenue'
   | 'chart-production';
 

@@ -32,14 +32,15 @@ describe('mergeLayout', () => {
       'pending-tasks',
       'shortcuts',
     ]);
-    // dentro da parte reordenável, a ordem do override vale
-    expect(ids(out).slice(5)).toEqual(['chart-production', 'chart-revenue', 'agenda']);
+    // dentro da parte reordenável, a ordem do override vale; sem override,
+    // segue a ordem do template (cashflow-13w e agenda, F3)
+    expect(ids(out).slice(5)).toEqual(['chart-production', 'chart-revenue', 'cashflow-13w', 'agenda']);
   });
 
   it('widget do template sem override aparece na posição default (widget novo entra sozinho)', () => {
     const out = mergeLayout(T, [{ id: 'chart-revenue' }]);
-    // agenda e chart-production não têm override → seguem a ordem do template após os ordenados
-    expect(ids(out).slice(5)).toEqual(['chart-revenue', 'agenda', 'chart-production']);
+    // cashflow/agenda/chart-production não têm override → ordem do template após os ordenados
+    expect(ids(out).slice(5)).toEqual(['chart-revenue', 'cashflow-13w', 'agenda', 'chart-production']);
   });
 
   it('override de id fora do template é ignorado (forward-compat)', () => {
