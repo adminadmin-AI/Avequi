@@ -57,6 +57,7 @@ describe('Catálogo de permissões (#338)', () => {
       'lgpd',
       'iam',
       'vehicle-tracking',
+      'workspace',
     ];
     expect(catalogModules().sort()).toEqual([...esperados].sort());
     for (const modulo of esperados) {
@@ -99,7 +100,9 @@ describe('Catálogo de permissões (#338)', () => {
     // 301 = 299 + fiscal.nfe.{debit-note,credit-note} (#757, notas 5/6 da Reforma).
     // 302 = 301 + finance.entries.update (editar título em aberto — PATCH /finance/entries/:id).
     // 303 = 302 + crm.portfolio.view (#846, GET /crm/portfolio — KPIs de carteira).
-    expect(PERMISSIONS_CATALOG.length).toBe(303);
+    // 306 = 303 + workspace.{insights,tasks,agenda}.view (Home por papel F1 —
+    //       BFF GET /workspace/*, conteúdo curado por permissão no service).
+    expect(PERMISSIONS_CATALOG.length).toBe(306);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

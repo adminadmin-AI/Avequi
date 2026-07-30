@@ -25,6 +25,22 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     zone: 'orientation',
     defaultSize: 'full',
   },
+  'ai-insights': {
+    id: 'ai-insights',
+    title: 'Resumo do dia',
+    permission: ['workspace.insights.view'], // GET /workspace/insights
+    zone: 'attention',
+    defaultSize: 'full',
+  },
+  'pending-tasks': {
+    id: 'pending-tasks',
+    title: 'Minhas Pendências',
+    permission: ['workspace.tasks.view'], // GET /workspace/tasks
+    zone: 'attention',
+    defaultSize: 'half',
+  },
+  // Fora dos templates desde a F1 (o Resumo do dia o substitui na atenção);
+  // segue registrado para a personalização da F2 poder reativá-lo.
   alerts: {
     id: 'alerts',
     title: 'Pendências & Alertas',
@@ -37,6 +53,13 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     title: 'Ações rápidas',
     permission: [], // cada atalho gateia a si mesmo (ver SHORTCUT_ACTIONS)
     zone: 'attention',
+    defaultSize: 'half',
+  },
+  agenda: {
+    id: 'agenda',
+    title: 'Agenda da semana',
+    permission: ['workspace.agenda.view'], // GET /workspace/agenda
+    zone: 'work',
     defaultSize: 'half',
   },
   'chart-revenue': {

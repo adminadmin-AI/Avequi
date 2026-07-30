@@ -13,8 +13,11 @@ import type { ComponentType } from 'react';
 export type WidgetId =
   | 'greeting'
   | 'kpi-summary'
+  | 'ai-insights'
+  | 'pending-tasks'
   | 'alerts'
   | 'shortcuts'
+  | 'agenda'
   | 'chart-revenue'
   | 'chart-production';
 

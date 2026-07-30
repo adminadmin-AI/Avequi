@@ -38,6 +38,7 @@ import { MrpModule } from './modules/mrp/mrp.module';
 import { ProductionModule } from './modules/production/production.module';
 import { WmsModule } from './modules/wms/wms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { ReportModule } from './modules/report/report.module';
 import { ForecastModule } from './modules/forecast/forecast.module';
 import { AlertModule } from './modules/alert/alert.module';
@@ -140,6 +141,7 @@ import { IamModule } from './modules/iam/iam.module';
     ProductionModule,
     WmsModule,
     DashboardModule,
+    WorkspaceModule,
     ReportModule,
     ForecastModule,
     AlertModule,
