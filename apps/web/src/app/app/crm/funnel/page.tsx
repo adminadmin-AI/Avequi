@@ -111,15 +111,15 @@ export default function FunnelPage() {
           <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
         </div>
       ) : (
-        // F4 (recalibrada com o Claudio): lane com tint suave SEMPRE visível —
-        // contenção clara da coluna sem virar caixa pesada; o tint sobe um
-        // ponto durante o drag como affordance de drop
+        // F4 (calibração final com o Claudio): lane é SUPERFÍCIE BRANCA padrão
+        // do sistema (não existe card cinza no produto); cards internos na
+        // variante outlined; drag = tint brand na lane inteira
         <div className="flex gap-5 overflow-x-auto pb-4">
           {columns.map((column) => (
             <div
               key={column.stage.id}
-              className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors duration-fast ${
-                dragged ? 'bg-neutral-500/[0.08]' : 'bg-neutral-500/[0.05]'
+              className={`surface-sheen flex w-72 shrink-0 flex-col rounded-xl shadow-soft transition-colors duration-fast ${
+                dragged ? 'bg-brand-50/60 dark:bg-brand-600/[0.06]' : 'bg-surface'
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(column, column.leads.length)}
@@ -152,7 +152,7 @@ export default function FunnelPage() {
                       e.stopPropagation();
                       onDrop(column, index);
                     }}
-                    className={`group surface-sheen cursor-grab rounded-lg bg-surface p-3 text-sm shadow-soft transition-shadow hover:shadow-md active:cursor-grabbing ${
+                    className={`group cursor-grab rounded-lg border border-line bg-surface p-3 text-sm transition-shadow hover:shadow-sm active:cursor-grabbing ${
                       dragged?.id === lead.id ? 'opacity-40' : ''
                     }`}
                   >
@@ -199,18 +199,15 @@ export default function FunnelPage() {
                     </div>
                   </div>
                 ))}
-                {/* Coluna vazia: placeholder tracejado dentro da lane;
-                    acende em brand como alvo durante o drag */}
+                {/* Coluna vazia: empty state no padrão do sistema (Leads) */}
                 {column.leads.length === 0 && (
-                  <div
-                    className={`rounded-lg border border-dashed py-10 text-center text-xs transition-colors duration-fast ${
-                      dragged
-                        ? 'border-brand-600/50 bg-brand-600/[0.05] text-content-secondary'
-                        : 'border-[color:var(--border-strong)] text-content-muted'
+                  <p
+                    className={`py-10 text-center text-xs ${
+                      dragged ? 'font-medium text-brand-600 dark:text-brand-400' : 'text-content-muted'
                     }`}
                   >
                     {dragged ? 'solte aqui' : 'Sem leads neste estágio'}
-                  </div>
+                  </p>
                 )}
               </div>
             </div>
