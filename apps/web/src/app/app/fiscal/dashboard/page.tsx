@@ -25,7 +25,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatDateTime } from '@/lib/format';
 import { FISCAL_TYPE_LABEL } from '../fiscal-status';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
 const RESOURCE = '/fiscal';
 const HOUR = 3_600_000;
@@ -145,9 +145,9 @@ export default function FiscalDashboardPage() {
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} interval={4} />
-              <YAxis tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} width={32} />
+              <CartesianGrid {...chartGridProps} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: chartTickFill }} interval={4} />
+              <YAxis tick={{ fontSize: 12, fill: chartTickFill }} allowDecimals={false} width={32} />
               <Tooltip {...chartTooltipProps} />
               <Legend />
               <Line type="monotone" dataKey="autorizados" name="Autorizados" stroke="#16a34a" strokeWidth={2} dot={false} />

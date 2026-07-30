@@ -7,7 +7,7 @@ import { useList } from '@/hooks/use-resource';
 import type { ProductionOrder, ProductionOrderStatus, Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -91,7 +91,7 @@ export default function ProductionPage() {
       align: 'center',
       sortable: true,
       accessor: (o) => o.status,
-      cell: (o) => <Badge variant={PRODUCTION_STATUS[o.status].variant}>{PRODUCTION_STATUS[o.status].label}</Badge>,
+      cell: (o) => <StatusDot variant={PRODUCTION_STATUS[o.status].variant}>{PRODUCTION_STATUS[o.status].label}</StatusDot>,
     },
     { key: 'planned', header: 'Planejada', cell: (o) => (o.scheduledStart ? formatDate(o.scheduledStart) : '—') },
     { key: 'started', header: 'Início', cell: (o) => (o.startedAt ? formatDate(o.startedAt) : '—') },

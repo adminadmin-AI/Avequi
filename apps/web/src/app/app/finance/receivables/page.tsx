@@ -8,7 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -250,7 +250,7 @@ export default function ReceivablesPage() {
       accessor: (e) => effectiveStatus(e, today),
       cell: (e) => {
         const meta = STATUS_META[effectiveStatus(e, today)];
-        return <Badge variant={meta.variant}>{meta.label}</Badge>;
+        return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
       },
     },
     {

@@ -9,7 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import type { StoreTransfer, TransferStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -83,7 +83,7 @@ export default function TransfersPage() {
       align: 'center',
       sortable: true,
       accessor: (t) => t.status,
-      cell: (t) => <Badge variant={STATUS_META[t.status].variant}>{STATUS_META[t.status].label}</Badge>,
+      cell: (t) => <StatusDot variant={STATUS_META[t.status].variant}>{STATUS_META[t.status].label}</StatusDot>,
     },
     { key: 'createdAt', header: 'Data', sortable: true, accessor: (t) => t.createdAt, cell: (t) => formatDate(t.createdAt) },
     {

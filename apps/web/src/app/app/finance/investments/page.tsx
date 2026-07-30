@@ -41,9 +41,9 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatPercent, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
-const C = { flow: '#94a3b8', cumulative: '#3D2CE6', discounted: '#00C2A8', axis: '#64748b', grid: '#e2e8f0' };
+const C = { flow: '#94a3b8', cumulative: '#3D2CE6', discounted: '#00C2A8' };
 const STATUS: Record<InvestmentStatus, { label: string; variant: BadgeVariant }> = {
   DRAFT: { label: 'Rascunho', variant: 'neutral' },
   APPROVED: { label: 'Aprovado', variant: 'success' },
@@ -303,12 +303,12 @@ export default function InvestmentsPage() {
                   ) : (
                     <ResponsiveContainer width="100%" height={320}>
                       <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
-                        <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: C.axis }} />
-                        <YAxis tick={{ fontSize: 12, fill: C.axis }} tickFormatter={compact} width={56} />
+                        <CartesianGrid {...chartGridProps} />
+                        <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: chartTickFill }} />
+                        <YAxis tick={{ fontSize: 12, fill: chartTickFill }} tickFormatter={compact} width={56} />
                         <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                         <Legend />
-                        <ReferenceLine y={0} stroke={C.axis} />
+                        <ReferenceLine y={0} stroke={chartTickFill} />
                         <Bar dataKey="Fluxo" fill={C.flow} radius={[4, 4, 0, 0]} />
                         <Line type="monotone" dataKey="Acumulado" stroke={C.cumulative} strokeWidth={2} dot={{ r: 3 }} />
                         <Line type="monotone" dataKey="Acum. desc." stroke={C.discounted} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} />

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { NCR_SEVERITY, type NcrSeverity, type InspectionStatus, type NcrStatus } from './quality-meta';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
 interface Inspection { id: string; status: InspectionStatus; createdAt: string }
 interface Ncr { id: string; severity: NcrSeverity; status: NcrStatus; createdAt: string }
@@ -117,9 +117,9 @@ export default function QualityDashboardPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={barData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} width={32} />
+                <CartesianGrid {...chartGridProps} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: chartTickFill }} />
+                <YAxis tick={{ fontSize: 12, fill: chartTickFill }} allowDecimals={false} width={32} />
                 <Tooltip {...chartTooltipProps} />
                 <Bar dataKey="total" name="NCRs abertas" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               </BarChart>

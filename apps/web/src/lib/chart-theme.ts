@@ -22,3 +22,9 @@ export const chartTooltipProps = {
   labelStyle: { color: 'var(--text-muted)', marginBottom: 2 } as CSSProperties,
   cursor: { fill: 'rgb(148 163 184 / 0.08)' },
 } as const;
+
+/** Grid horizontal quase invisível, ciente do tema. Espalhe no <CartesianGrid>. */
+export const chartGridProps = { stroke: 'var(--border-default)', vertical: false } as const;
+
+/** Cor de tick de eixo ciente do tema (use em tick={{ fontSize: N, fill: chartTickFill }}). */
+export const chartTickFill = 'var(--text-muted)';
