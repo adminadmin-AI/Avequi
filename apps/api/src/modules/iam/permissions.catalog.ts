@@ -70,6 +70,20 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['resolve', 'resolver', 'PATCH /alerts/:id/resolve'],
   ]),
 
+  // ── workspace ── (workspace.controller.ts — BFF da Home por papel, F1)
+  // Gate de MENOR privilégio: o conteúdo de cada agregador é curado pela
+  // permissão efetiva do usuário DENTRO do service (um insight financeiro
+  // exige finance.entries.view do próprio usuário, e assim por diante).
+  ...r('workspace', 'insights', 'Workspace — resumo do dia', [
+    ['view', 'ver', 'GET /workspace/insights (Antonella V1)'],
+  ]),
+  ...r('workspace', 'tasks', 'Workspace — minhas pendências', [
+    ['view', 'ver', 'GET /workspace/tasks'],
+  ]),
+  ...r('workspace', 'agenda', 'Workspace — agenda', [
+    ['view', 'ver', 'GET /workspace/agenda'],
+  ]),
+
   // ── analytics ── (analytics.controller.ts + report.controller.ts)
   ...r('analytics', 'dashboards', 'Painéis analíticos', [
     ['view', 'ver', 'GET /analytics/* (summary, sales-cube, inventory-aging, production-costs, purchases, stock-turnover, supplier-ranking, nc-by-supplier)'],

@@ -160,6 +160,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Operação completa no escopo da filial (vendas, compras, estoque, produção); leitura em produtos, qualidade, financeiro e configurações. O recorte por filial é aplicado via branchId no UserRoleAssignment (Decisão 3).',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
       ...resourceCodes('dashboard', 'alerts'),
@@ -255,6 +258,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Produção, Estoque, Qualidade e Manutenção completos (CRUD + aprovações); leitura em produtos, vendas e compras.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       ...resourceCodes('dashboard', 'alerts'),
       ...moduleCodes('production', 'stock', 'quality', 'maintenance'),
@@ -273,6 +279,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Gerência ampla e transversal (recebe o enum MANAGER): opera e enxerga vendas, compras, estoque e produção (CRUD + aprovações operacionais), dashboards e leitura de financeiro/fiscal. Fatura venda (o MANAGER já faturava). PROTEGIDO por padrão (fora deste perfil): administração de permissões/usuários, configuração bancária/cobrança, ações fiscais críticas (cancelamento NF-e, CC-e, inutilização, regras tributárias), devolução/cancelamento sensível de venda e mudanças estruturais de segurança.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
       ...resourceCodes('dashboard', 'alerts'),
@@ -341,6 +350,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Financeiro completo (CRUD + aprovações + configuração) e leitura fiscal (documentos/export, manifestação, regras tributárias); leitura em produtos, vendas e compras. Aprova comissões. A OPERAÇÃO fiscal (eventos NF-e, manifestar, editar regras) é do perfil FISCAL.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
       // #623 (E1, decisão Rafael): dono do módulo financeiro — write-off,
@@ -383,6 +395,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Vendas, orçamentos, clientes, demanda e forecast completos (CRUD + aprovações); leitura de contas a receber e estoque.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       ...resourceCodes('dashboard', 'alerts'),
       // #625 (bloco G, decisão Rafael): atualizar STATUS de entrega é
@@ -413,6 +428,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Compras, RFQ, recebimento e fornecedores completos (CRUD + aprovações); leitura de contas a pagar e estoque.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       ...DASHBOARDS_OPERACIONAIS,
       ...resourceCodes('dashboard', 'alerts'),
       ...moduleCodes('purchases', 'suppliers'),
@@ -491,6 +509,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Cria e edita pedidos de compra, solicitações e RFQs; NÃO aprova pedido (segregação de funções). Leitura de fornecedores, produtos e estoque.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.purchases.view',
       'dashboard.stock.view',
       'purchases.orders.view',
@@ -515,6 +536,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Cria e conduz orçamentos e pedidos de venda (criar/reservar/confirmar/enviar/converter); mantém clientes; vê as próprias comissões. NÃO fatura (fiscal/financeiro) nem aprova orçamento (Coordenador). Equivale ao enum COMMERCIAL.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.sales.view',
       'dashboard.executive.view',
       'sales.orders.view',
@@ -566,6 +590,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Planejamento e controle da produção: cria ordens, roda MRP e converte sugestões, gera sequenciamento; leitura de BOM, roteiros, capacidade, estoque e compras. Recebe os usuários do enum PRODUCTION na migração.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.production.view',
       'dashboard.stock.view',
       'production.orders.view',
@@ -599,6 +626,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Chão de fábrica: vê ordens, inicia e aponta produção; leitura de estoque, BOM e roteiros.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.production.view',
       'production.orders.view',
       'production.orders.start',
@@ -622,6 +652,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Estoque operacional completo: movimentações, transferências, lotes, séries, WMS (execução), recebimento de compras, NF-e de entrada e solicitações de compra. Equivale ao enum WAREHOUSE.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.stock.view',
       'dashboard.purchases.view',
       'stock.balances.view',
@@ -663,6 +696,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Contas a pagar/receber (CRUD + baixa/pagamento), cobrança, boletos, PIX, agendamentos, faturamento de vendas e conciliação 3-way; contas bancárias somente leitura (gestão é do Gerente Financeiro). Equivale ao enum FINANCIAL.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.finance.view',
       'dashboard.executive.view',
       // #623 (E1, decisão Rafael): FINANCEIRO opera o dia a dia mas NÃO faz
@@ -733,6 +769,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Documentos fiscais e eventos de NF-e (cancelamento, CC-e, inutilização, reprocesso), manifestação do destinatário e NF-e de entrada; leitura do financeiro e das regras tributárias.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.finance.view',
       ...moduleCodes('fiscal').filter(
         (c) => !['fiscal.tax-rules.create', 'fiscal.tax-rules.update', 'fiscal.tax-rules.delete', 'fiscal.tributary-classifications.sync'].includes(c),
@@ -757,6 +796,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Gestão de usuários (ver, criar, editar — sem excluir; desativação é edição) e da alocação organizacional (#347 F5.2): vê a estrutura (filiais/departamentos/equipes) e vincula usuários a departamentos e equipes. NÃO cria/edita a estrutura em si (isso é do DIRETOR/admins).',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.executive.view',
       ...resourceCodes('settings', 'users'),
       'settings.companies.view',
@@ -771,6 +813,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Inspeções e NCRs completos; quarentena/liberação/sucateamento de lotes e séries; aprova/reprova inspeções de produção. Equivale ao enum QUALITY.',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.production.view',
       'dashboard.stock.view',
       ...moduleCodes('quality'),
@@ -796,6 +841,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Manutenção completa (equipamentos e ordens); leitura de produtos, estoque e números de série (rastreabilidade).',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.production.view',
       ...moduleCodes('maintenance'),
       'products.catalog.view',
@@ -856,6 +904,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     description:
       'Operação de balcão da loja/filial: vende (criar/reservar/confirmar pedido), cadastra cliente, transferências entre filiais e solicitações de compra; leitura de produto, preço e estoque. NÃO fatura (sem NF-e), não devolve nem cancela venda. Escopo por filial via branchId. Recebe os usuários do enum STORE na migração (espelhamento 1:1).',
     permissions: dedupe([
+      // Workspace (Home por papel, F1): resumo do dia, pendências e agenda —
+      // o conteúdo é curado por permissão dentro do service (menor privilégio).
+      ...moduleCodes('workspace'),
       'dashboard.stock.view',
       'dashboard.sales.view',
       'sales.orders.view',

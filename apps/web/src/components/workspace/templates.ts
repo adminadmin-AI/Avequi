@@ -41,14 +41,15 @@ const ALL_METRICS = [...FINANCE_METRICS, ...OPS_METRICS];
 const ALL_SHORTCUTS = ['new-sale', 'new-production', 'new-product', 'new-purchase'];
 
 export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
-  // Paridade com a Home pré-workspace: tudo que existia, na mesma ordem.
   executive: {
     profile: 'executive',
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: ALL_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ALL_SHORTCUTS } },
+      { id: 'agenda' },
       { id: 'chart-revenue' },
       { id: 'chart-production' },
     ],
@@ -59,8 +60,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: OPS_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ALL_SHORTCUTS } },
+      { id: 'agenda' },
       { id: 'chart-production' },
       { id: 'chart-revenue' },
     ],
@@ -71,8 +74,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: OPS_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-production', 'new-product'] } },
+      { id: 'agenda' },
       { id: 'chart-production' },
     ],
   },
@@ -81,8 +86,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: ['stock-below-min'] } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-purchase', 'new-product'] } },
+      { id: 'agenda' },
     ],
   },
   finance: {
@@ -90,8 +97,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: FINANCE_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-sale'] } },
+      { id: 'agenda' },
       { id: 'chart-revenue' },
     ],
   },
@@ -100,8 +109,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: ['revenue'] } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-sale', 'new-product'] } },
+      { id: 'agenda' },
       { id: 'chart-revenue' },
     ],
   },
@@ -110,8 +121,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: OPS_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-product'] } },
+      { id: 'agenda' },
     ],
   },
   // Sem perfil reconhecido: composição ampla, a permissão apara o resto.
@@ -120,8 +133,10 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
     widgets: [
       { id: 'greeting' },
       { id: 'kpi-summary', props: { metrics: ALL_METRICS } },
-      { id: 'alerts' },
+      { id: 'ai-insights' },
+      { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ALL_SHORTCUTS } },
+      { id: 'agenda' },
       { id: 'chart-revenue' },
       { id: 'chart-production' },
     ],

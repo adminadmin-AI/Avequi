@@ -43,13 +43,24 @@ describe('TEMPLATES', () => {
     }
   });
 
-  it('todo template começa com a saudação e inclui alertas', () => {
+  it('todo template começa com a saudação e tem a tríade de atenção da F1', () => {
     for (const p of PROFILES) {
       expect(TEMPLATES[p].widgets[0]?.id, `template ${p}`).toBe('greeting');
+      for (const required of ['ai-insights', 'pending-tasks', 'agenda'] as const) {
+        expect(
+          TEMPLATES[p].widgets.some((w) => w.id === required),
+          `template ${p} sem ${required}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('o Resumo do dia substituiu o widget de alertas em todos os templates (F1)', () => {
+    for (const p of PROFILES) {
       expect(
         TEMPLATES[p].widgets.some((w) => w.id === 'alerts'),
-        `template ${p} sem alerts`,
-      ).toBe(true);
+        `template ${p} ainda inclui alerts`,
+      ).toBe(false);
     }
   });
 

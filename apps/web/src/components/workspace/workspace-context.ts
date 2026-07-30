@@ -32,3 +32,15 @@ export function isoDaysAgo(days: number) {
 export function num(v: string | number | null | undefined) {
   return v == null ? 0 : Number(v);
 }
+
+/** "há 3h" / "em 2d" / "agora" — curto de propósito, para linhas de lista. */
+export function relativeTime(iso: string): string {
+  const diffMs = new Date(iso).getTime() - Date.now();
+  const abs = Math.abs(diffMs);
+  const minutes = Math.round(abs / 60_000);
+  const hours = Math.round(abs / 3_600_000);
+  const days = Math.round(abs / 86_400_000);
+  const value = minutes < 60 ? `${minutes}min` : hours < 24 ? `${hours}h` : `${days}d`;
+  if (minutes < 1) return 'agora';
+  return diffMs < 0 ? `há ${value}` : `em ${value}`;
+}
