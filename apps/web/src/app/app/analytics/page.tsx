@@ -15,14 +15,14 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import { Info } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatGroup, type StatItem } from '@/components/ui/stat-group';
 import { Spinner } from '@/components/ui/spinner';
 import { formatBRL, formatNumber } from '@/lib/format';
 import { chartGridProps, chartTickFill, chartTooltipProps } from '@/lib/chart-theme';
-import { Can } from '@/components/can';
 import { usePermission } from '@/hooks/use-permission';
 
 // ─── Shapes reais do backend (módulo analytics) ──────────────────────────────
@@ -79,18 +79,6 @@ function isoDaysAgo(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString();
-}
-
-function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'success' | 'danger' | 'warning' }) {
-  const cls = { neutral: 'text-content', success: 'text-success', danger: 'text-danger', warning: 'text-warning' }[tone];
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-tight ${cls}`}>{value}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 function brlCompact(v: number) {
@@ -196,6 +184,38 @@ export default function AnalyticsPage() {
 
   const loading = summaryQ.isLoading || salesQ.isLoading || prodQ.isLoading || agingQ.isLoading || dreQ.isLoading;
 
+  // Resumo da página — números como tipografia (de-boxed). Alarme só em NCRs > 0.
+  const totalRevenue = summary?.sales.totalRevenue ?? 0;
+  const openNcrs = summary?.quality.openNcrs ?? 0;
+  const summaryStats: StatItem[] = [
+    { label: 'Receita faturada', value: formatBRL(totalRevenue), tone: totalRevenue < 0 ? 'danger' : 'neutral' },
+    { label: 'Ticket médio', value: formatBRL(summary?.sales.avgTicket ?? 0) },
+    { label: 'OPs concluídas', value: formatNumber(summary?.production.totalOrders ?? 0) },
+    {
+      label: 'NCRs abertas',
+      value: formatNumber(openNcrs),
+      tone: openNcrs > 0 ? 'warning' : 'neutral',
+      icon: openNcrs > 0 ? AlertTriangle : undefined,
+    },
+  ];
+  // #846 — crescimento de receita mês a mês; só entra com a permissão do dashboard executivo.
+  if (can('dashboard.executive.view')) {
+    const growth = executiveQ.data?.sales.revenueGrowthPct;
+    summaryStats.push({
+      label: 'Crescimento de receita (mês)',
+      value: growth == null ? '—' : `${growth > 0 ? '+' : ''}${formatNumber(growth)}%`,
+      tone: growth == null ? 'neutral' : growth < 0 ? 'danger' : 'neutral',
+    });
+  }
+
+  // Financeiro — DRE realizado. Negativos são alarme (danger).
+  const financeStats: StatItem[] = [
+    { label: 'Receita líquida', value: formatBRL(dre?.receitaLiquida ?? 0), tone: (dre?.receitaLiquida ?? 0) < 0 ? 'danger' : 'neutral' },
+    { label: 'Lucro bruto', value: formatBRL(dre?.lucroBruto ?? 0), tone: (dre?.lucroBruto ?? 0) < 0 ? 'danger' : 'neutral' },
+    { label: 'Resultado operacional', value: formatBRL(dre?.resultadoOperacional ?? 0), tone: (dre?.resultadoOperacional ?? 0) < 0 ? 'danger' : 'neutral' },
+    { label: 'Margem bruta', value: `${formatNumber(dre?.margemBruta ?? 0)}%` },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -233,33 +253,14 @@ export default function AnalyticsPage() {
         <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : (
         <>
-          <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Receita faturada" value={formatBRL(summary?.sales.totalRevenue ?? 0)} tone={(summary?.sales.totalRevenue ?? 0) < 0 ? 'danger' : 'neutral'} />
-            <Kpi label="Ticket médio" value={formatBRL(summary?.sales.avgTicket ?? 0)} />
-            <Kpi label="OPs concluídas" value={formatNumber(summary?.production.totalOrders ?? 0)} />
-            <Kpi label="NCRs abertas" value={formatNumber(summary?.quality.openNcrs ?? 0)} tone={(summary?.quality.openNcrs ?? 0) > 0 ? 'warning' : 'neutral'} />
-          </div>
-
-          {/* Crescimento de receita (#846) — mês a mês, do dashboard executivo */}
-          <Can permission="dashboard.executive.view">
-            {(() => {
-              const growth = executiveQ.data?.sales.revenueGrowthPct;
-              const value =
-                growth == null ? '—' : `${growth > 0 ? '+' : ''}${formatNumber(growth)}%`;
-              const tone = growth == null ? 'neutral' : growth < 0 ? 'danger' : 'success';
-              return (
-                <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <Kpi label="Crescimento de receita (mês)" value={value} tone={tone} />
-                </div>
-              );
-            })()}
-          </Can>
+          {/* Resumo — indicadores como tipografia sobre o canvas */}
+          <StatGroup className="mb-8" stats={summaryStats} />
 
           {/* Comercial */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Comercial</h2>
-          <div className="mb-6 grid gap-5 lg:grid-cols-2">
+          <h2 className="mb-3 text-[13px] font-semibold text-content">Comercial</h2>
+          <div className="mb-8 grid gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Receita por mês</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Receita por mês</CardTitle></CardHeader>
               <CardContent>
                 {revenueByMonth.length === 0 ? (
                   <p className="py-12 text-center text-sm text-content-muted">Sem vendas no período.</p>
@@ -278,7 +279,7 @@ export default function AnalyticsPage() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-base">Top 10 produtos por receita</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Top 10 produtos por receita</CardTitle></CardHeader>
               <CardContent>
                 {topProducts.length === 0 ? (
                   <p className="py-12 text-center text-sm text-content-muted">Sem vendas no período.</p>
@@ -298,16 +299,11 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Financeiro */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Financeiro</h2>
-          <div className="mb-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Receita líquida" value={formatBRL(dre?.receitaLiquida ?? 0)} tone={(dre?.receitaLiquida ?? 0) < 0 ? 'danger' : 'neutral'} />
-            <Kpi label="Lucro bruto" value={formatBRL(dre?.lucroBruto ?? 0)} tone={(dre?.lucroBruto ?? 0) < 0 ? 'danger' : 'neutral'} />
-            <Kpi label="Resultado operacional" value={formatBRL(dre?.resultadoOperacional ?? 0)} tone={(dre?.resultadoOperacional ?? 0) < 0 ? 'danger' : 'neutral'} />
-            <Kpi label="Margem bruta" value={`${formatNumber(dre?.margemBruta ?? 0)}%`} />
-          </div>
-          <div className="mb-6 grid gap-5">
+          <h2 className="mb-3 text-[13px] font-semibold text-content">Financeiro</h2>
+          <StatGroup className="mb-6" stats={financeStats} />
+          <div className="mb-8 grid gap-5">
             <Card>
-              <CardHeader><CardTitle className="text-base">DRE do período (valores realizados)</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">DRE do período (valores realizados)</CardTitle></CardHeader>
               <CardContent>
                 {!dre || dre.receitaBruta === 0 ? (
                   <p className="py-12 text-center text-sm text-content-muted">Sem lançamentos pagos no período.</p>
@@ -330,11 +326,11 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          {/* Produção */}
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Produção</h2>
+          {/* Produção e estoque */}
+          <h2 className="mb-3 text-[13px] font-semibold text-content">Produção e estoque</h2>
           <div className="mb-6 grid gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Custo de produção por produto (top 10)</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Custo de produção por produto (top 10)</CardTitle></CardHeader>
               <CardContent>
                 {prodCostData.length === 0 ? (
                   <p className="py-12 text-center text-sm text-content-muted">Sem ordens concluídas no período.</p>
@@ -354,9 +350,8 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            {/* Estoque */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Valor de estoque por faixa de aging</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Valor de estoque por faixa de aging</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={agingData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
