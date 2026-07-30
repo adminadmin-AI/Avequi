@@ -122,6 +122,7 @@ const CRM_GERENCIAL_SEM_LGPD = [
   'crm.distribution.view',
   'crm.dashboard.view',
   'crm.dashboard.export',
+  'crm.portfolio.view', // #846 — leitura gerencial da carteira de clientes
   'crm.settings.view',
   'crm.settings.update',
   'crm.templates.sync',

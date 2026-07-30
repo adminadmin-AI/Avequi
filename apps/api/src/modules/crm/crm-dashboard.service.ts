@@ -17,29 +17,40 @@ export interface DashboardRange {
 export class CrmDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async overview(range: DashboardRange) {
-    const [funnel, bySource, bySeller, lostReasons, slaEscalations, crossStoreDuplicates] =
-      await Promise.all([
-        this.funnel(range),
-        this.bySource(range),
-        this.bySeller(range),
-        this.lostReasons(range),
-        // #569 — leads realocados por SLA estourado no período (visão do gerente)
-        this.prisma.lead.count({
-          where: {
-            companyId: range.companyId,
-            slaEscalatedAt: { gte: range.from, lte: range.to },
-          },
-        }),
-        // #574 — leads que chegaram já em negociação em outra loja (canibalização)
-        this.prisma.leadActivity.count({
-          where: {
-            lead: { companyId: range.companyId },
-            happensAt: { gte: range.from, lte: range.to },
-            properties: { path: ['kind'], equals: 'cross_store_duplicate' },
-          },
-        }),
-      ]);
+  async overview(range: DashboardRange, coolingDays = 7) {
+    const [
+      funnel,
+      bySource,
+      bySeller,
+      lostReasons,
+      slaEscalations,
+      crossStoreDuplicates,
+      avgSalesCycleDays,
+      coolingLeads,
+    ] = await Promise.all([
+      this.funnel(range),
+      this.bySource(range),
+      this.bySeller(range),
+      this.lostReasons(range),
+      // #569 — leads realocados por SLA estourado no período (visão do gerente)
+      this.prisma.lead.count({
+        where: {
+          companyId: range.companyId,
+          slaEscalatedAt: { gte: range.from, lte: range.to },
+        },
+      }),
+      // #574 — leads que chegaram já em negociação em outra loja (canibalização)
+      this.prisma.leadActivity.count({
+        where: {
+          lead: { companyId: range.companyId },
+          happensAt: { gte: range.from, lte: range.to },
+          properties: { path: ['kind'], equals: 'cross_store_duplicate' },
+        },
+      }),
+      // #846 — ciclo médio lead→faturamento e leads esfriando (indicadores de ciclo)
+      this.avgSalesCycle(range),
+      this.coolingLeads(range, coolingDays),
+    ]);
     return {
       range: { from: range.from, to: range.to },
       funnel,
@@ -48,7 +59,71 @@ export class CrmDashboardService {
       lostReasons,
       slaEscalations,
       crossStoreDuplicates,
+      avgSalesCycleDays,
+      coolingLeads,
     };
+  }
+
+  /**
+   * #846 — Ciclo médio lead→faturamento: média em dias de (OV.invoicedAt −
+   * Lead.createdAt) para leads cuja OV vinculada faturou DENTRO do período.
+   * null quando nenhum lead faturou no período.
+   */
+  private async avgSalesCycle(range: DashboardRange): Promise<number | null> {
+    const leads = await this.prisma.lead.findMany({
+      where: {
+        companyId: range.companyId,
+        salesOrder: {
+          status: 'INVOICED',
+          invoicedAt: { gte: range.from, lte: range.to },
+        },
+      },
+      select: { createdAt: true, salesOrder: { select: { invoicedAt: true } } },
+    });
+    const spans = leads
+      .map((l) => {
+        const invoicedAt = l.salesOrder?.invoicedAt;
+        return invoicedAt ? (invoicedAt.getTime() - l.createdAt.getTime()) / 86_400_000 : null;
+      })
+      .filter((d): d is number => d !== null && d >= 0);
+    if (spans.length === 0) return null;
+    return Math.round(spans.reduce((s, d) => s + d, 0) / spans.length);
+  }
+
+  /**
+   * #846 — Leads esfriando: em estágio OPEN e sem toque há mais de `coolingDays`
+   * dias (lastInteractionAt, fallback createdAt), agrupados por estágio. O campo
+   * lastInteractionAt existe justamente pra isso e nunca era agregado.
+   */
+  private async coolingLeads(range: DashboardRange, coolingDays: number) {
+    const openStages = await this.prisma.pipelineStage.findMany({
+      where: { companyId: range.companyId, type: PipelineStageType.OPEN },
+      select: { id: true, name: true },
+    });
+    if (openStages.length === 0) return [] as Array<{ stageId: string; stageName: string; count: number }>;
+    const stageName = new Map(openStages.map((s) => [s.id, s.name]));
+    const cutoff = new Date(range.to.getTime() - coolingDays * 24 * 60 * 60 * 1000);
+
+    const leads = await this.prisma.lead.findMany({
+      where: {
+        companyId: range.companyId,
+        stageId: { in: openStages.map((s) => s.id) },
+        OR: [
+          { lastInteractionAt: { lt: cutoff } },
+          { lastInteractionAt: null, createdAt: { lt: cutoff } },
+        ],
+      },
+      select: { stageId: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const l of leads) {
+      if (!l.stageId) continue;
+      counts.set(l.stageId, (counts.get(l.stageId) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([stageId, count]) => ({ stageId, stageName: stageName.get(stageId) ?? stageId, count }))
+      .sort((a, b) => b.count - a.count);
   }
 
   /** Funil de conversão: leads criados → responderam → proposta+ → fechados */

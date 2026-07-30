@@ -26,6 +26,7 @@ describe('PATCH /crm/settings — retenção LGPD condicional (Bloco F #624)', (
       undefined as any, // funnel
       undefined as any, // conversion
       undefined as any, // dashboard
+      undefined as any, // portfolio (#846)
       undefined as any, // templates
       settings as any, // settings
       undefined as any, // quickReplies

@@ -28,6 +28,7 @@ import { LeadIntakeService } from './lead-intake.service';
 import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
 import { CrmDashboardService } from './crm-dashboard.service';
+import { PortfolioService } from './portfolio.service';
 import { WhatsappTemplateService } from './whatsapp/template.service';
 import { CrmSettingsService } from './crm-settings.service';
 import { QuickReplyService } from './quick-reply.service';
@@ -262,6 +263,7 @@ export class CrmController {
     private readonly funnel: FunnelService,
     private readonly conversion: LeadConversionService,
     private readonly dashboard: CrmDashboardService,
+    private readonly portfolio: PortfolioService,
     private readonly templates: WhatsappTemplateService,
     private readonly settings: CrmSettingsService,
     private readonly quickReplies: QuickReplyService,
@@ -560,6 +562,28 @@ export class CrmController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="crm-origem.csv"');
     res.send(csv);
+  }
+
+  // ── Carteira de clientes (#846) ─────────────────────────────────────────────
+
+  @Get('portfolio')
+  @RequirePermission('crm.portfolio.view')
+  @ApiOperation({
+    summary: 'KPIs de carteira: novos/ativos/em risco, recompra e top clientes',
+  })
+  @ApiQuery({ name: 'days', required: false, description: 'Período de análise em dias (default 30)' })
+  @ApiQuery({
+    name: 'activeWindowDays',
+    required: false,
+    description: 'Janela de atividade/churn em dias (default 365)',
+  })
+  portfolioOverview(
+    @CurrentUser() user: any,
+    @Query('days') days?: string,
+    @Query('activeWindowDays') activeWindowDays?: string,
+  ) {
+    const window = Math.min(Math.max(parseInt(activeWindowDays ?? '365', 10) || 365, 1), 3650);
+    return this.portfolio.portfolio(resolveRange(user.companyId, days), window);
   }
 
   // ── Templates / follow-up (F3.2 #518) ───────────────────────────────────────

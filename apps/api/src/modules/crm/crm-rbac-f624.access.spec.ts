@@ -52,6 +52,7 @@ const GERENCIAL_SEM_LGPD = [
   'crm.distribution.view',
   'crm.dashboard.view',
   'crm.dashboard.export',
+  'crm.portfolio.view', // #846 — leitura gerencial da carteira de clientes
   'crm.settings.view',
   'crm.settings.update',
   'crm.templates.sync',
@@ -61,7 +62,7 @@ const GERENCIAL_SEM_LGPD = [
   'crm.reminders.manage-all',
 ].sort();
 
-const SEM_LGPD = [...OPERACIONAL, ...GERENCIAL_SEM_LGPD].sort(); // 27/29
+const SEM_LGPD = [...OPERACIONAL, ...GERENCIAL_SEM_LGPD].sort(); // 28/30
 
 /** Matriz aprovada — cada um dos 28 perfis system, DECLARADO NOMINALMENTE. */
 const EXPECTED: Record<string, string[]> = {
@@ -109,14 +110,14 @@ function crmOf(roleCode: string): string[] {
 }
 
 describe('Bloco F (#624) — matriz crm.* perfil a perfil', () => {
-  it('a família tem exatamente 29 códigos', () => {
-    expect(CRM_ALL).toHaveLength(29);
+  it('a família tem exatamente 30 códigos', () => {
+    expect(CRM_ALL).toHaveLength(30);
   });
 
-  it('pacotes fecham com as decisões: 12 operacionais, 15 gerenciais s/ LGPD, 27 = 29 - 2', () => {
+  it('pacotes fecham com as decisões: 12 operacionais, 16 gerenciais s/ LGPD, 28 = 30 - 2', () => {
     expect(OPERACIONAL).toHaveLength(12);
-    expect(GERENCIAL_SEM_LGPD).toHaveLength(15);
-    expect(SEM_LGPD).toHaveLength(27);
+    expect(GERENCIAL_SEM_LGPD).toHaveLength(16);
+    expect(SEM_LGPD).toHaveLength(28);
     const lgpd = CRM_ALL.filter((c) => !SEM_LGPD.includes(c));
     expect(lgpd.sort()).toEqual(['crm.lgpd.anonymize', 'crm.lgpd.retention-update']);
   });
@@ -224,7 +225,7 @@ async function allows(
 const asProfile = (code: string) => resolveEffectivePermissions(code);
 
 describe('Bloco F (#624) — cobertura de gate dos controllers do CRM', () => {
-  it('50 rotas autenticadas gateadas com UMA permissão crm.* do catálogo; @Public sem gate', () => {
+  it('51 rotas autenticadas gateadas com UMA permissão crm.* do catálogo; @Public sem gate', () => {
     const gated: string[] = [];
     for (const Ctrl of [CrmController, WhatsappController, ConnectorsController]) {
       for (const e of methodsOf(Ctrl)) {
@@ -238,7 +239,7 @@ describe('Bloco F (#624) — cobertura de gate dos controllers do CRM', () => {
         gated.push(`${Ctrl.name}.${e.name}`);
       }
     }
-    expect(gated).toHaveLength(50); // 45 crm (+summarizeLead #573) + 4 whatsapp + 1 connectors
+    expect(gated).toHaveLength(51); // 46 crm (+portfolio #846) + 4 whatsapp + 1 connectors
   });
 
   it('explicitações do Claudinho: proposal-options sob proposals.send; sdr.operate SÓ no revert', () => {
