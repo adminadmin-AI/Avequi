@@ -146,10 +146,10 @@ export default function LoginPage() {
           </div>
 
           <div
-            className="relative rounded-2xl border border-white/[0.12] bg-white/[0.07] p-8 shadow-[0_32px_80px_-24px_rgb(0_0_0/0.55)] backdrop-blur-2xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
+            className="relative rounded-2xl border border-white/[0.12] bg-white/[0.07] p-8 backdrop-blur-2xl duration-deliberate animate-in fade-in slide-in-from-bottom-2"
             style={{
               boxShadow:
-                '0 0 40px rgba(61,44,230,0.10), 0 0 90px rgba(61,44,230,0.05), 0 12px 40px rgba(0,0,0,0.45)',
+                '0 0 48px rgba(61,44,230,0.12), 0 0 100px rgba(61,44,230,0.06), 0 32px 80px -12px rgba(0,0,0,0.55)',
             }}
           >
             {/* fio de luz no topo do card — detalhe de profundidade */}
