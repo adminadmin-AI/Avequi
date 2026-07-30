@@ -260,99 +260,96 @@ export default function DashboardPage() {
     summaryQ.isLoading || salesQ.isLoading || cashAccountsQ.isLoading || receivablesQ.isLoading;
 
   return (
-    <div className="space-y-6">
-      {/* ─── Cabeçalho + filtro ─── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-heading text-content">
-            {greeting()}
-            {firstName ? `, ${firstName}` : ''}
-          </h1>
-          <p className="text-body text-content-secondary">Visão geral da operação.</p>
+    <div className="space-y-8">
+      {/* ─── Contexto + Resumo: saudação e KPIs formam UMA seção (F2) — os
+          números pertencem ao "como estamos", não flutuam soltos na página ─── */}
+      <section className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-heading text-content">
+              {greeting()}
+              {firstName ? `, ${firstName}` : ''}
+            </h1>
+            <p className="text-body text-content-secondary">Visão geral da operação.</p>
+          </div>
+          <div className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.days}
+                onClick={() => setPeriodDays(p.days)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
+                  periodDays === p.days
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-content-secondary hover:text-content',
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="inline-flex rounded-lg border border-line bg-surface p-0.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.days}
-              onClick={() => setPeriodDays(p.days)}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
-                periodDays === p.days
-                  ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
-                  : 'text-content-secondary hover:text-content',
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
+
+        {/* KPIs com protagonismo (F2): 2 primários em escala maior ("como
+            estamos") + 4 secundários menores — 6 vozes iguais = nenhuma voz */}
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:gap-14">
+          <div className="flex flex-wrap gap-x-12 gap-y-5">
+            <KpiCard
+              primary
+              label="Faturamento"
+              value={formatBRL(revenue)}
+              icon={TrendingUp}
+              tone="brand"
+              sub={`Últimos ${periodDays}d`}
+              loading={salesQ.isLoading}
+            />
+            <KpiCard
+              primary
+              label="Saldo de caixa"
+              value={formatBRL(cashBalance)}
+              icon={Wallet}
+              tone={cashBalance >= 0 ? 'success' : 'danger'}
+              loading={cashAccountsQ.isLoading}
+            />
+          </div>
+          <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+            <KpiCard
+              label="Recebíveis em atraso"
+              value={formatBRL(overdueReceivable)}
+              icon={TrendingDown}
+              tone={overdueReceivable > 0 ? 'danger' : 'success'}
+              loading={receivablesQ.isLoading}
+            />
+            <KpiCard
+              label={`A pagar (${periodDays}d)`}
+              value={formatBRL(payableUpcoming)}
+              icon={CreditCard}
+              tone={payableUpcoming > 0 ? 'warning' : 'neutral'}
+              sub="A vencer no período"
+              loading={payablesQ.isLoading}
+            />
+            <KpiCard
+              label="OPs ativas"
+              value={formatNumber(activeOps)}
+              icon={Factory}
+              tone="info"
+              loading={productionQ.isLoading}
+            />
+            <KpiCard
+              label="Estoque abaixo do mín."
+              value={formatNumber(belowMin)}
+              icon={AlertTriangle}
+              tone={belowMin > 0 ? 'warning' : 'success'}
+              sub={belowMin > 0 ? 'itens críticos' : 'tudo ok'}
+              loading={stockQ.isLoading}
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* ─── KPIs ─── */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 py-1 lg:grid-cols-3 xl:grid-cols-6">
-        <KpiCard
-          label="Faturamento"
-          value={formatBRL(revenue)}
-          icon={TrendingUp}
-          tone="brand"
-          sub={`Últimos ${periodDays}d`}
-          loading={salesQ.isLoading}
-        />
-        <KpiCard
-          label="Recebíveis em atraso"
-          value={formatBRL(overdueReceivable)}
-          icon={TrendingDown}
-          tone={overdueReceivable > 0 ? 'danger' : 'success'}
-          loading={receivablesQ.isLoading}
-        />
-        <KpiCard
-          label={`A pagar (${periodDays}d)`}
-          value={formatBRL(payableUpcoming)}
-          icon={CreditCard}
-          tone={payableUpcoming > 0 ? 'warning' : 'neutral'}
-          sub="A vencer no período"
-          loading={payablesQ.isLoading}
-        />
-        <KpiCard
-          label="Saldo de caixa"
-          value={formatBRL(cashBalance)}
-          icon={Wallet}
-          tone={cashBalance >= 0 ? 'success' : 'danger'}
-          loading={cashAccountsQ.isLoading}
-        />
-        <KpiCard
-          label="OPs ativas"
-          value={formatNumber(activeOps)}
-          icon={Factory}
-          tone="info"
-          loading={productionQ.isLoading}
-        />
-        <KpiCard
-          label="Estoque abaixo do mín."
-          value={formatNumber(belowMin)}
-          icon={AlertTriangle}
-          tone={belowMin > 0 ? 'warning' : 'success'}
-          sub={belowMin > 0 ? 'itens críticos' : 'tudo ok'}
-          loading={stockQ.isLoading}
-        />
-      </div>
-
-      {/* ─── Grid principal ─── */}
+      {/* ─── Narrativa (F2): problemas e ação vêm ANTES dos gráficos —
+          "o que precisa de mim" → "o que fazer" → "tendências" ─── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Faturamento (line) */}
-        <Panel>
-          <PanelHeader>Faturamento</PanelHeader>
-          <PanelBody>
-            {salesQ.isLoading ? (
-              <ChartSkeleton />
-            ) : revenueSeries.length === 0 ? (
-              <EmptyChart label="Sem dados de faturamento no período." />
-            ) : (
-              <RevenueLineChart data={revenueSeries} />
-            )}
-          </PanelBody>
-        </Panel>
-
         {/* Pendências & Alertas */}
         <Panel>
           <PanelHeader
@@ -400,19 +397,7 @@ export default function DashboardPage() {
           </PanelBody>
         </Panel>
 
-        {/* Produção (bar) */}
-        <Panel>
-          <PanelHeader>Produção por status</PanelHeader>
-          <PanelBody>
-            {productionQ.isLoading ? (
-              <ChartSkeleton />
-            ) : (
-              <ProductionBarChart data={prodByStatus} />
-            )}
-          </PanelBody>
-        </Panel>
-
-        {/* Ações rápidas */}
+        {/* Ações rápidas — a resposta imediata ao "o que fazer agora" */}
         <Panel>
           <PanelHeader>Ações rápidas</PanelHeader>
           <PanelBody>
@@ -432,6 +417,32 @@ export default function DashboardPage() {
                 </Link>
               ))}
             </div>
+          </PanelBody>
+        </Panel>
+
+        {/* Detalhe: tendências por último no fluxo de leitura */}
+        <Panel>
+          <PanelHeader>Faturamento</PanelHeader>
+          <PanelBody>
+            {salesQ.isLoading ? (
+              <ChartSkeleton />
+            ) : revenueSeries.length === 0 ? (
+              <EmptyChart label="Sem dados de faturamento no período." />
+            ) : (
+              <RevenueLineChart data={revenueSeries} />
+            )}
+          </PanelBody>
+        </Panel>
+
+        {/* Produção (bar) */}
+        <Panel>
+          <PanelHeader>Produção por status</PanelHeader>
+          <PanelBody>
+            {productionQ.isLoading ? (
+              <ChartSkeleton />
+            ) : (
+              <ProductionBarChart data={prodByStatus} />
+            )}
           </PanelBody>
         </Panel>
       </div>
@@ -485,6 +496,7 @@ function KpiCard({
   tone,
   sub,
   loading,
+  primary,
 }: {
   label: string;
   value: string;
@@ -492,18 +504,28 @@ function KpiCard({
   tone: keyof typeof TONE;
   sub?: string;
   loading?: boolean;
+  /** F2: KPI primário fala mais alto — escala maior que os secundários */
+  primary?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-1.5">
-        <Icon size={14} className={cn('shrink-0', TONE[tone])} />
+        <Icon size={primary ? 14 : 13} className={cn('shrink-0', TONE[tone])} />
         <span className="truncate text-caption text-content-muted">{label}</span>
       </div>
       {loading ? (
-        <div className="mt-1.5 h-8 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
+        <div
+          className={cn(
+            'mt-1.5 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700',
+            primary ? 'h-9 w-32' : 'h-7 w-20',
+          )}
+        />
       ) : (
         <p
-          className="mt-1 truncate text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums text-content"
+          className={cn(
+            'mt-1 truncate font-semibold tracking-[-0.02em] tabular-nums text-content',
+            primary ? 'text-[30px] leading-9' : 'text-[19px] leading-7',
+          )}
           title={value}
         >
           {value}
