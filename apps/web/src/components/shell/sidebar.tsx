@@ -203,7 +203,7 @@ function SidebarInner({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar no menu…"
-              className="h-9 w-full rounded-lg bg-neutral-500/[0.06] pl-8 pr-7 text-sm text-content transition-colors duration-micro placeholder:text-content-muted hover:bg-neutral-500/[0.09] focus-ring"
+              className="h-8 w-full rounded-lg bg-neutral-500/[0.045] pl-8 pr-7 text-[13px] text-content transition-colors duration-micro placeholder:text-content-muted hover:bg-neutral-500/[0.08] focus-ring"
             />
             {search && (
               <button
@@ -232,7 +232,7 @@ function SidebarInner({
             searchResults.map((section) => (
               <div key={'search-' + section.key}>
                 {section.title && (
-                  <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                  <p className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-content-muted">
                     {section.title}
                   </p>
                 )}
@@ -289,7 +289,7 @@ function SidebarInner({
                   {section.title && !mini && (
                     <button
                       onClick={() => toggleSection(section.key)}
-                      className="group flex w-full items-center gap-1 px-3 pb-1.5 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-content-muted transition-colors hover:text-content-secondary"
+                      className="group flex w-full items-center gap-1 px-3 pb-1.5 pt-0.5 text-[10px] font-medium uppercase tracking-wider text-content-muted transition-colors hover:text-content-secondary"
                     >
                       <span className="flex-1 text-left">{section.title}</span>
                       <ChevronDown
@@ -324,17 +324,9 @@ function SidebarInner({
         )}
       </nav>
 
-      {/* ─── Footer ─── */}
-      <div className={cn('border-t border-line px-3 py-2.5', mini && 'px-2 text-center')}>
-        {mini ? (
-          <p className="text-helper text-content-muted">{APP_VERSION}</p>
-        ) : (
-          <div className="flex items-center justify-between gap-2">
-            {/* nome do PRODUTO (a empresa logada aparece no menu do usuário) */}
-            <span className="truncate text-caption text-content-secondary">Avecchi</span>
-            <span className="shrink-0 text-helper text-content-muted">{APP_VERSION}</span>
-          </div>
-        )}
+      {/* ─── Footer — dieta F2: só a versão (a marca já vive no topo) ─── */}
+      <div className={cn('border-t border-line px-4 py-2.5', mini && 'px-2 text-center')}>
+        <p className="text-helper text-content-muted">{APP_VERSION}</p>
       </div>
     </div>
   );

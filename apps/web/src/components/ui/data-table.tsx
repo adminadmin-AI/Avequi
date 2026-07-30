@@ -266,6 +266,13 @@ export function DataTable<T>({
               />
             </div>
           )}
+          {/* F2: contexto ao lado da busca — a linha da toolbar trabalha
+              em telas largas em vez de deixar um vazio até as ações */}
+          <span className="whitespace-nowrap text-caption tabular-nums text-content-muted">
+            {search.trim()
+              ? `${sorted.length} de ${data.length} registros`
+              : `${sorted.length} ${sorted.length === 1 ? 'registro' : 'registros'}`}
+          </span>
           <div className="ml-auto flex items-center gap-2">
             {exportCsv && (
               <Button variant="ghost" size="sm" onClick={downloadCsv} leftIcon={<Download size={15} />}>
