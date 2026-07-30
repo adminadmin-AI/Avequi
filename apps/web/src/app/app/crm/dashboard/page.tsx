@@ -152,7 +152,7 @@ export default function CrmDashboardPage() {
         <>
           {/* Funil de conversão */}
           <section className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
-            <h2 className="mb-3 text-sm font-medium">Funil de conversão</h2>
+            <h2 className="mb-3 text-sm font-semibold">Funil de conversão</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
               <Stat label="Leads" value={f!.total} />
               <Stat label="Responderam" value={f!.responded} pct={f!.respondedRate} />
@@ -190,7 +190,7 @@ export default function CrmDashboardPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Por origem */}
             <section className="surface-sheen rounded-xl bg-surface shadow-soft">
-              <h2 className="border-b p-3 text-sm font-medium">Conversão por origem</h2>
+              <h2 className="px-5 pb-1 pt-4 text-sm font-semibold">Conversão por origem</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-content-muted">
@@ -228,7 +228,7 @@ export default function CrmDashboardPage() {
 
             {/* Por vendedor */}
             <section className="surface-sheen rounded-xl bg-surface shadow-soft">
-              <h2 className="border-b p-3 text-sm font-medium">Ranking por vendedor</h2>
+              <h2 className="px-5 pb-1 pt-4 text-sm font-semibold">Ranking por vendedor</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-content-muted">
@@ -303,7 +303,7 @@ function PortfolioSection({ days }: { days: number }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium">Carteira de clientes</h2>
+      <h2 className="text-sm font-semibold">Carteira de clientes</h2>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <PortfolioCard label="Novos no período" value={String(newCustomers.count)} />
@@ -322,7 +322,7 @@ function PortfolioSection({ days }: { days: number }) {
 
       {/* Série mensal de novos clientes (12 meses) — barras simples */}
       <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
-        <h3 className="mb-3 text-sm font-medium">Novos clientes (12 meses)</h3>
+        <h3 className="mb-3 text-sm font-semibold">Novos clientes (12 meses)</h3>
         <div className="flex h-28 items-end gap-1.5">
           {newCustomers.series.map((s) => (
             <div key={s.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
@@ -341,7 +341,7 @@ function PortfolioSection({ days }: { days: number }) {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Top clientes */}
         <section className="surface-sheen rounded-xl bg-surface shadow-soft">
-          <h3 className="border-b p-3 text-sm font-medium">Top clientes</h3>
+          <h3 className="px-5 pb-1 pt-4 text-sm font-semibold">Top clientes</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-content-muted">
@@ -379,7 +379,7 @@ function PortfolioSection({ days }: { days: number }) {
 
         {/* Clientes em risco */}
         <section className="surface-sheen rounded-xl bg-surface shadow-soft">
-          <h3 className="border-b p-3 text-sm font-medium">Clientes em risco</h3>
+          <h3 className="px-5 pb-1 pt-4 text-sm font-semibold">Clientes em risco</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-content-muted">
@@ -445,7 +445,7 @@ function LostByCategory({ lost }: { lost: Dashboard['lostReasons'] }) {
   return (
     <section className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium">Por que perdemos? ({total} leads)</h2>
+        <h2 className="text-sm font-semibold">Por que perdemos? ({total} leads)</h2>
         <select
           className="rounded-md border bg-surface px-2 py-1 text-xs"
           value={dim}
