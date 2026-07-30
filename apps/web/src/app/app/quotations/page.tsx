@@ -9,7 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import type { Quotation, QuotationStatus, Customer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -133,7 +133,7 @@ export default function QuotationsPage() {
       align: 'center',
       sortable: true,
       accessor: (q) => q.status,
-      cell: (q) => <Badge variant={QUOTATION_STATUS[q.status].variant}>{QUOTATION_STATUS[q.status].label}</Badge>,
+      cell: (q) => <StatusDot variant={QUOTATION_STATUS[q.status].variant}>{QUOTATION_STATUS[q.status].label}</StatusDot>,
     },
     {
       key: 'validUntil',

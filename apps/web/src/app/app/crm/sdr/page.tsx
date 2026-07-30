@@ -150,7 +150,7 @@ export default function SdrPanelPage() {
       </div>
 
       {/* Fila de revisão de descartes (#524) — auditoria < 5 min/dia */}
-      <section className="rounded-lg border">
+      <section className="surface-sheen rounded-xl bg-surface shadow-soft">
         <h2 className="flex items-center gap-2 border-b p-3 text-sm font-medium">
           <Bot className="h-4 w-4" />
           Descartes da IA — últimos 7 dias ({discards.length})
@@ -189,7 +189,7 @@ export default function SdrPanelPage() {
       </section>
 
       {/* Incidentes de guardrail (#523) */}
-      <section className="rounded-lg border">
+      <section className="surface-sheen rounded-xl bg-surface shadow-soft">
         <h2 className="flex items-center gap-2 border-b p-3 text-sm font-medium">
           <AlertTriangle className="h-4 w-4" />
           Incidentes de guardrail ({incidents.length})
@@ -235,10 +235,10 @@ export default function SdrPanelPage() {
 
 function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs text-content-muted">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-      {hint && <p className="text-[10px] text-content-muted">{hint}</p>}
+    <div className="min-w-0">
+      <p className="text-caption text-content-muted">{label}</p>
+      <p className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] tabular-nums text-content">{value}</p>
+      {hint && <p className="mt-0.5 text-helper text-content-muted">{hint}</p>}
     </div>
   );
 }

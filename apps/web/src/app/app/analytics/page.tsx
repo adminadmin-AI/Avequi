@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { formatBRL, formatNumber } from '@/lib/format';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartGridProps, chartTickFill, chartTooltipProps } from '@/lib/chart-theme';
 
 // ─── Shapes reais do backend (módulo analytics) ──────────────────────────────
 interface OlapSummary {
@@ -220,7 +220,7 @@ export default function AnalyticsPage() {
       ) : (
         <>
           <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Receita faturada" value={formatBRL(summary?.sales.totalRevenue ?? 0)} tone="success" />
+            <Kpi label="Receita faturada" value={formatBRL(summary?.sales.totalRevenue ?? 0)} tone={(summary?.sales.totalRevenue ?? 0) < 0 ? 'danger' : 'neutral'} />
             <Kpi label="Ticket médio" value={formatBRL(summary?.sales.avgTicket ?? 0)} />
             <Kpi label="OPs concluídas" value={formatNumber(summary?.production.totalOrders ?? 0)} />
             <Kpi label="NCRs abertas" value={formatNumber(summary?.quality.openNcrs ?? 0)} tone={(summary?.quality.openNcrs ?? 0) > 0 ? 'warning' : 'neutral'} />
@@ -237,9 +237,9 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={revenueByMonth} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="period" tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
+                      <CartesianGrid {...chartGridProps} />
+                      <XAxis dataKey="period" tick={{ fontSize: 12, fill: chartTickFill }} />
+                      <YAxis tick={{ fontSize: 12, fill: chartTickFill }} width={56} tickFormatter={brlCompact} />
                       <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Line type="monotone" dataKey="revenue" name="Receita" stroke="#3D2CE6" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
@@ -256,9 +256,9 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={topProducts} layout="vertical" margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={brlCompact} />
-                      <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
+                      <CartesianGrid stroke="var(--border-default)" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 12, fill: chartTickFill }} tickFormatter={brlCompact} />
+                      <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: chartTickFill }} width={90} />
                       <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Bar dataKey="revenue" name="Receita" fill="#00C2A8" radius={[0, 4, 4, 0]} />
                     </BarChart>
@@ -271,8 +271,8 @@ export default function AnalyticsPage() {
           {/* Financeiro */}
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-content-muted">Financeiro</h2>
           <div className="mb-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Receita líquida" value={formatBRL(dre?.receitaLiquida ?? 0)} tone="success" />
-            <Kpi label="Lucro bruto" value={formatBRL(dre?.lucroBruto ?? 0)} />
+            <Kpi label="Receita líquida" value={formatBRL(dre?.receitaLiquida ?? 0)} tone={(dre?.receitaLiquida ?? 0) < 0 ? 'danger' : 'neutral'} />
+            <Kpi label="Lucro bruto" value={formatBRL(dre?.lucroBruto ?? 0)} tone={(dre?.lucroBruto ?? 0) < 0 ? 'danger' : 'neutral'} />
             <Kpi label="Resultado operacional" value={formatBRL(dre?.resultadoOperacional ?? 0)} tone={(dre?.resultadoOperacional ?? 0) < 0 ? 'danger' : 'neutral'} />
             <Kpi label="Margem bruta" value={`${formatNumber(dre?.margemBruta ?? 0)}%`} />
           </div>
@@ -285,9 +285,9 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={dreChart} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
+                      <CartesianGrid {...chartGridProps} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: chartTickFill }} />
+                      <YAxis tick={{ fontSize: 12, fill: chartTickFill }} width={56} tickFormatter={brlCompact} />
                       <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Bar dataKey="valor" name="Valor" radius={[4, 4, 0, 0]}>
                         {dreChart.map((d) => (
@@ -312,9 +312,9 @@ export default function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={prodCostData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
+                      <CartesianGrid {...chartGridProps} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: chartTickFill }} />
+                      <YAxis tick={{ fontSize: 12, fill: chartTickFill }} width={56} tickFormatter={brlCompact} />
                       <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                       <Legend />
                       <Bar dataKey="material" stackId="c" name="Material" fill="#3D2CE6" radius={[0, 0, 0, 0]} />
@@ -331,9 +331,9 @@ export default function AnalyticsPage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={agingData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="bucket" tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis tick={{ fontSize: 12, fill: '#64748b' }} width={56} tickFormatter={brlCompact} />
+                    <CartesianGrid {...chartGridProps} />
+                    <XAxis dataKey="bucket" tick={{ fontSize: 12, fill: chartTickFill }} />
+                    <YAxis tick={{ fontSize: 12, fill: chartTickFill }} width={56} tickFormatter={brlCompact} />
                     <Tooltip {...chartTooltipProps} formatter={(v) => formatBRL(Number(v))} />
                     <Bar dataKey="valor" name="Valor em estoque" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
                   </BarChart>

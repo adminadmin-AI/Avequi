@@ -7,7 +7,7 @@ import { useList } from '@/hooks/use-resource';
 import type { PurchaseOrder, PurchaseOrderStatus, Supplier } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,7 +85,7 @@ export default function PurchasesPage() {
       align: 'center',
       sortable: true,
       accessor: (o) => o.status,
-      cell: (o) => <Badge variant={PO_STATUS[o.status].variant}>{PO_STATUS[o.status].label}</Badge>,
+      cell: (o) => <StatusDot variant={PO_STATUS[o.status].variant}>{PO_STATUS[o.status].label}</StatusDot>,
     },
     { key: 'createdAt', header: 'Criação', sortable: true, accessor: (o) => o.createdAt, cell: (o) => formatDate(o.createdAt) },
     {

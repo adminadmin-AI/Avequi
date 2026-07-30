@@ -15,7 +15,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatDate } from '@/lib/format';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
 type CollectionChannel = 'EMAIL' | 'WHATSAPP' | 'PHONE';
 
@@ -280,9 +280,9 @@ export default function CollectionMonitorPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={boletoByStatus} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} width={32} />
+                      <CartesianGrid {...chartGridProps} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: chartTickFill }} />
+                      <YAxis tick={{ fontSize: 12, fill: chartTickFill }} allowDecimals={false} width={32} />
                       <Tooltip {...chartTooltipProps} />
                       <Bar dataKey="total" name="Boletos" fill="#3D2CE6" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -299,9 +299,9 @@ export default function CollectionMonitorPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={pixByStatus} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} width={32} />
+                      <CartesianGrid {...chartGridProps} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: chartTickFill }} />
+                      <YAxis tick={{ fontSize: 12, fill: chartTickFill }} allowDecimals={false} width={32} />
                       <Tooltip {...chartTooltipProps} />
                       <Bar dataKey="total" name="PIX" fill="#00C2A8" radius={[4, 4, 0, 0]} />
                     </BarChart>

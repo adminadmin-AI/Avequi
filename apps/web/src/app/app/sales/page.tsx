@@ -7,7 +7,7 @@ import type { SalesOrder, SalesOrderStatus, Customer } from '@/types/api';
 import { Plus, LayoutList, Trello } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusDot } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { SalesKanban } from './sales-kanban';
 import { Card, CardContent } from '@/components/ui/card';
@@ -111,7 +111,7 @@ export default function SalesPage() {
       accessor: (o) => o.status,
       cell: (o) => {
         const m = SALES_STATUS[o.status];
-        return <Badge variant={m.variant}>{m.label}</Badge>;
+        return <StatusDot variant={m.variant}>{m.label}</StatusDot>;
       },
     },
     {
