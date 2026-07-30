@@ -69,7 +69,7 @@ export function EditableShell({ id, size, sortable, onHide, onResize, children }
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('relative', isDragging && 'z-10 opacity-80')}
+      className={cn('relative h-full', isDragging && 'z-10 opacity-80')}
     >
       <div className="absolute -top-2.5 right-3 z-10 flex items-center gap-0.5 rounded-lg border border-line bg-surface px-1 py-0.5 shadow-soft">
         {sortable && (
@@ -99,7 +99,7 @@ export function EditableShell({ id, size, sortable, onHide, onResize, children }
           <EyeOff size={14} />
         </button>
       </div>
-      <div className="pointer-events-none select-none">{children}</div>
+      <div className="pointer-events-none h-full select-none">{children}</div>
     </div>
   );
 }

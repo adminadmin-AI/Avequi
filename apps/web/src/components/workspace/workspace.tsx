@@ -124,44 +124,21 @@ export function Workspace() {
     return <C instance={w} />;
   };
 
-  // Visualização: sequências de widgets 'half' viram DUAS COLUNAS INDEPENDENTES
-  // (CSS multicol) — cada coluna empacota as próprias alturas, sem o buraco
-  // que o grid deixa quando um card baixo cai ao lado de um gráfico alto.
-  // No mobile vira coluna única na ordem de leitura. 'full' quebra a sequência.
-  type Segment = { type: 'full'; w: WidgetInstance } | { type: 'halves'; ws: WidgetInstance[] };
-  const segments = useMemo(() => {
-    const segs: Segment[] = [];
-    for (const w of surface) {
-      const size = w.size ?? WIDGETS[w.id].defaultSize;
-      if (size === 'full') {
-        segs.push({ type: 'full', w });
-      } else {
-        const last = segs[segs.length - 1];
-        if (last?.type === 'halves') last.ws.push(w);
-        else segs.push({ type: 'halves', ws: [w] });
-      }
-    }
-    return segs;
-  }, [surface]);
-
+  // Visualização: grid alinhado com CARDS DA MESMA LINHA NA MESMA ALTURA —
+  // o grid estica a célula pela linha (align stretch) e o Card do WidgetFrame
+  // usa h-full para acompanhar. O espaçamento fica linear (gap-4 em tudo,
+  // linhas alinhadas) e a diferença de conteúdo vira respiro DENTRO do card,
+  // nunca buraco entre cards (achado da auditoria visual, 30/07).
   const viewSurface = (
-    <div className="space-y-4">
-      {segments.map((seg, i) =>
-        seg.type === 'full' ? (
-          <div key={seg.w.id}>{renderWidget(seg.w)}</div>
-        ) : (
-          <div
-            key={`halves-${i}`}
-            className="space-y-4 lg:columns-2 lg:gap-4 lg:space-y-0"
-          >
-            {seg.ws.map((w) => (
-              <div key={w.id} className="lg:mb-4 lg:break-inside-avoid">
-                {renderWidget(w)}
-              </div>
-            ))}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {surface.map((w) => {
+        const size = w.size ?? WIDGETS[w.id].defaultSize;
+        return (
+          <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
+            {renderWidget(w)}
           </div>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 
