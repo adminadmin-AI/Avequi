@@ -102,7 +102,7 @@ export function PermissionTree({
         const isCollapsed = collapsed.has(mod.module);
 
         return (
-          <div key={mod.module} className="overflow-hidden rounded-xl border border-line bg-surface">
+          <div key={mod.module} className="surface-sheen overflow-hidden rounded-xl bg-surface shadow-soft">
             {/* Cabeçalho do módulo */}
             <button
               type="button"

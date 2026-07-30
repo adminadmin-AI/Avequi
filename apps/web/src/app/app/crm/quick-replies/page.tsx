@@ -82,7 +82,7 @@ export default function QuickRepliesPage() {
       </div>
 
       {form && (
-        <section className="space-y-3 rounded-lg border p-4">
+        <section className="surface-sheen space-y-3 rounded-xl bg-surface p-4 shadow-soft">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium">{form.id ? 'Editar resposta' : 'Nova resposta'}</h2>
             <button onClick={() => setForm(null)} aria-label="Fechar">
@@ -192,7 +192,7 @@ function ReplySection({
   onDelete: (r: QuickReply) => void;
 }) {
   return (
-    <section className="rounded-lg border">
+    <section className="surface-sheen rounded-xl bg-surface shadow-soft">
       <h2 className="flex items-center gap-2 border-b p-3 text-sm font-medium">
         {icon}
         {title}

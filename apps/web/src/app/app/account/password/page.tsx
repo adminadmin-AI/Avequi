@@ -31,7 +31,7 @@ export default function AccountPasswordPage() {
         description="Troque a senha da sua conta. Você continua conectado neste dispositivo."
       />
 
-      <div className="rounded-lg border p-4">
+      <div className="surface-sheen rounded-xl bg-surface p-4 shadow-soft">
         <PasswordChangeForm
           mode="voluntary"
           submitLabel="Alterar senha"
