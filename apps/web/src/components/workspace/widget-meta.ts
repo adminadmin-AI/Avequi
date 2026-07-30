@@ -85,6 +85,22 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     defaultSize: 'half',
     sizes: ['half', 'full'],
   },
+  'crm-portfolio': {
+    id: 'crm-portfolio',
+    title: 'Carteira de clientes',
+    permission: ['crm.portfolio.view'], // GET /crm/portfolio (#846)
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'vehicle-docs': {
+    id: 'vehicle-docs',
+    title: 'Documentos do veículo',
+    permission: ['vehicle-tracking.documents.view'], // GET /vehicle-documents/pending-deliveries
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
   'wms-queue': {
     id: 'wms-queue',
     title: 'Fila do armazém',
