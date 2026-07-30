@@ -215,7 +215,7 @@ export default function InboxPage() {
   const windowLeft = selected ? windowRemaining(selected.windowExpiresAt) : null;
 
   return (
-    <div className="flex h-[calc(100vh-6.5rem)] overflow-hidden rounded-lg border">
+    <div className="surface-sheen flex h-[calc(100vh-6.5rem)] overflow-hidden rounded-xl bg-surface shadow-soft">
       {/* Lista de conversas */}
       <aside
         className={`flex w-full flex-col border-r lg:w-80 lg:shrink-0 ${

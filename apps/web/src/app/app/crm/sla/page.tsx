@@ -83,7 +83,7 @@ export default function SlaPage() {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-lg border">
+          <section className="surface-sheen rounded-xl bg-surface shadow-soft">
             <header className="flex items-center gap-2 border-b bg-danger/5 p-3">
               <AlertTriangle className="h-4 w-4 text-danger" />
               <h2 className="text-sm font-medium">
@@ -129,7 +129,7 @@ export default function SlaPage() {
             </ul>
           </section>
 
-          <section className="rounded-lg border">
+          <section className="surface-sheen rounded-xl bg-surface shadow-soft">
             <header className="flex items-center gap-2 border-b bg-sky-500/5 p-3">
               <Snowflake className="h-4 w-4 text-sky-500" />
               <h2 className="text-sm font-medium">

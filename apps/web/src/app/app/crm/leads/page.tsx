@@ -352,7 +352,7 @@ export default function LeadListPage() {
       )}
 
       {/* Tabela */}
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="surface-sheen overflow-x-auto rounded-xl bg-surface shadow-soft">
         <table className="w-full text-sm">
           <thead className="bg-neutral-500/[0.05] text-left text-xs text-content-muted">
             <tr>

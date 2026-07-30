@@ -90,7 +90,7 @@ export default function CrmSettingsPage() {
 
       <PushSettings />
 
-      <section className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+      <section className="surface-sheen grid gap-4 rounded-xl bg-surface p-4 shadow-soft sm:grid-cols-2">
         <Field label="SLA de 1ª resposta (min)">
           <NumInput value={form.slaFirstResponseMin} onChange={(v) => setForm({ ...form, slaFirstResponseMin: v })} />
         </Field>
@@ -130,7 +130,7 @@ export default function CrmSettingsPage() {
       </section>
 
       {/* #569 — escalonamento automático: avisa no SLA x1, realoca no x{factor} */}
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="surface-sheen space-y-3 rounded-xl bg-surface p-4 shadow-soft">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">🚨 Escalonamento de SLA</h2>
           <label className="flex items-center gap-2 text-sm">
@@ -160,7 +160,7 @@ export default function CrmSettingsPage() {
         </p>
       </section>
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="surface-sheen space-y-3 rounded-xl bg-surface p-4 shadow-soft">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">Follow-up automático</h2>
           <label className="flex items-center gap-2 text-sm">
@@ -188,7 +188,7 @@ export default function CrmSettingsPage() {
       </section>
 
       {/* SDR IA (F4 #524): kill switch, modelo A/B, trocas e horário */}
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="surface-sheen space-y-3 rounded-xl bg-surface p-4 shadow-soft">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">🤖 SDR IA (atendente automático)</h2>
           <label className="flex items-center gap-2 text-sm">
@@ -242,7 +242,7 @@ export default function CrmSettingsPage() {
         </Button>
       </div>
 
-      <section className="rounded-lg border">
+      <section className="surface-sheen rounded-xl bg-surface shadow-soft">
         <h2 className="border-b p-3 text-sm font-medium">Disponibilidade dos vendedores (rodízio)</h2>
         <ul className="divide-y">
           {sellers.map((s) => (

@@ -186,7 +186,7 @@ export default function WmsTasksPage() {
           Nenhuma tarefa pendente.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+        <div className="surface-sheen overflow-x-auto rounded-xl bg-surface shadow-soft">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-content-muted">

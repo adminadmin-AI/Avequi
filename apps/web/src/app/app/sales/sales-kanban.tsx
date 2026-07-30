@@ -142,7 +142,7 @@ export function SalesKanban({ orders }: { orders: SalesOrder[] }) {
                 }}
                 onClick={() => router.push(`/app/sales/${o.id}`)}
                 className={cn(
-                  'cursor-grab rounded-lg border border-line bg-surface p-3 shadow-xs transition-shadow hover:shadow-sm active:cursor-grabbing',
+                  'surface-sheen cursor-grab rounded-lg bg-surface p-3 shadow-soft transition-shadow hover:shadow-md active:cursor-grabbing',
                   dragId === o.id && 'opacity-50',
                 )}
               >
