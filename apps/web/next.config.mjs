@@ -12,6 +12,18 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion,
   },
+  async redirects() {
+    return [
+      // F1 Profundidade: árvore legada /dashboard/** removida (era pré-design
+      // system e não tinha nenhuma referência de navegação). URLs antigas em
+      // favoritos caem no app atual.
+      {
+        source: '/dashboard/:path*',
+        destination: '/app',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

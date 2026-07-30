@@ -8,9 +8,12 @@
    Ver: tailwind.config.ts + src/lib/design-tokens.ts
    ─────────────────────────────────────────────────────────────── */
 :root {
-  /* Superfícies */
+  /* Superfícies — F1 Profundidade: canvas PRESENTE no claro (#f4f6fa) para os
+     cards brancos lerem como planos acima do fundo, espelhando a elevação por
+     luz que o dark já tem. Antes (#f8fafc) canvas e card eram ~a mesma cor e
+     a interface achatava ("tudo no mesmo plano"). */
   --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
+  --bg-secondary: #f4f6fa;
   --bg-elevated: #ffffff;
   --surface-overlay: rgb(15 23 42 / 0.45);
 
@@ -104,8 +107,10 @@ body {
 :root {
   --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --surface-sheen: linear-gradient(180deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0) 56px);
-  /* hairline de luz: só existe no escuro (onde sombra não define forma) */
-  --surface-ring: 0 0 0 1px transparent;
+  /* F1 Profundidade: keyline sutilíssima também no claro — com o canvas
+     tintado, 1px a 5% define a forma do card sem virar "borda" (padrão
+     Stripe: sombra dá o plano, keyline dá o contorno) */
+  --surface-ring: 0 0 0 1px rgb(15 23 42 / 0.05);
   /* série principal dos gráficos: indigo profundo no claro, luminoso no escuro */
   --chart-1: #3d2ce6;
 }
@@ -116,11 +121,13 @@ body {
   --chart-1: #818cf8;
 }
 .shadow-soft {
+  /* F1 Profundidade: contato e ambiente um passo mais firmes — o canvas
+     tintado pede sombra que ancore o card (antes 0.04/0.12 dissolvia) */
   box-shadow:
     var(--surface-ring),
     var(--surface-highlight),
-    0 1px 2px rgb(16 24 40 / 0.04),
-    0 12px 32px -16px rgb(16 24 40 / 0.12);
+    0 1px 2px rgb(16 24 40 / 0.05),
+    0 16px 40px -20px rgb(16 24 40 / 0.16);
 }
 /* gradiente de iluminação quase imperceptível no topo da superfície */
 .surface-sheen {
