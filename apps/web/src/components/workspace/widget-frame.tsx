@@ -52,8 +52,10 @@ export function WidgetFrame({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  // h-full: no grid da Home, cards da mesma linha compartilham a altura —
+  // o card mais baixo estica a superfície em vez de deixar buraco embaixo.
   return (
-    <Card>
+    <Card className="h-full">
       <div className="flex items-center justify-between gap-2 px-5 pb-1 pt-5">
         <h3 className="text-title text-content">{title}</h3>
         {action}

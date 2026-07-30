@@ -124,25 +124,41 @@ export function Workspace() {
     return <C instance={w} />;
   };
 
-  const surfaceGrid = (
+  // Visualização: grid alinhado com CARDS DA MESMA LINHA NA MESMA ALTURA —
+  // o grid estica a célula pela linha (align stretch) e o Card do WidgetFrame
+  // usa h-full para acompanhar. O espaçamento fica linear (gap-4 em tudo,
+  // linhas alinhadas) e a diferença de conteúdo vira respiro DENTRO do card,
+  // nunca buraco entre cards (achado da auditoria visual, 30/07).
+  const viewSurface = (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {surface.map((w) => {
         const size = w.size ?? WIDGETS[w.id].defaultSize;
         return (
           <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
-            {editing ? (
-              <EditableShell
-                id={w.id}
-                size={size}
-                sortable={!FIXED_ZONES.has(WIDGETS[w.id].zone)}
-                onHide={(id) => upsertOverride(id, { hidden: true })}
-                onResize={(id, s: WidgetSize) => upsertOverride(id, { size: s })}
-              >
-                {renderWidget(w)}
-              </EditableShell>
-            ) : (
-              renderWidget(w)
-            )}
+            {renderWidget(w)}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Edição: grid uniforme de propósito — arrastar em células regulares é mais
+  // previsível que em colunas empacotadas; o encaixe fino é da visualização.
+  const editSurfaceGrid = (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {surface.map((w) => {
+        const size = w.size ?? WIDGETS[w.id].defaultSize;
+        return (
+          <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
+            <EditableShell
+              id={w.id}
+              size={size}
+              sortable={!FIXED_ZONES.has(WIDGETS[w.id].zone)}
+              onHide={(id) => upsertOverride(id, { hidden: true })}
+              onResize={(id, s: WidgetSize) => upsertOverride(id, { size: s })}
+            >
+              {renderWidget(w)}
+            </EditableShell>
           </div>
         );
       })}
@@ -175,10 +191,10 @@ export function Workspace() {
               do template; a personalização só reordena work/context */}
           {editing ? (
             <EditSurface sortableIds={sortableIds} onReorder={handleReorder}>
-              {surfaceGrid}
+              {editSurfaceGrid}
             </EditSurface>
           ) : (
-            surfaceGrid
+            viewSurface
           )}
 
           {editing && (

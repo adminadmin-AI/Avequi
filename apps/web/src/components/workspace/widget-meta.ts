@@ -69,6 +69,54 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     defaultSize: 'half',
     sizes: ['half', 'full'],
   },
+  'cashflow-13w': {
+    id: 'cashflow-13w',
+    title: 'Fluxo de caixa — 13 semanas',
+    permission: ['finance.reports.view'], // GET /banking/cash-flow/weekly
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'crm-sla': {
+    id: 'crm-sla',
+    title: 'SLA de leads',
+    permission: ['crm.leads.view'], // GET /crm/sla
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'crm-portfolio': {
+    id: 'crm-portfolio',
+    title: 'Carteira de clientes',
+    permission: ['crm.portfolio.view'], // GET /crm/portfolio (#846)
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'vehicle-docs': {
+    id: 'vehicle-docs',
+    title: 'Documentos do veículo',
+    permission: ['vehicle-tracking.documents.view'], // GET /vehicle-documents/pending-deliveries
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'wms-queue': {
+    id: 'wms-queue',
+    title: 'Fila do armazém',
+    permission: ['stock.wms.view'], // GET /wms/dashboard
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
+  'capacity-bottlenecks': {
+    id: 'capacity-bottlenecks',
+    title: 'Capacidade & gargalos',
+    permission: ['production.work-centers.view'], // GET /capacity/plan
+    zone: 'work',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
   'chart-revenue': {
     id: 'chart-revenue',
     title: 'Faturamento',
