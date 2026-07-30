@@ -13,18 +13,15 @@ import {
   YAxis,
 } from 'recharts';
 import { formatBRL } from '@/lib/format';
-import { colors } from '@/lib/design-tokens';
 import { chartTooltipProps } from '@/lib/chart-theme';
 
 /**
- * Gráficos do dashboard — F7.1 (#323).
+ * Gráficos do Workspace (ex-dashboard-charts.tsx, F7.1 #323).
  *
- * Extraídos da page.tsx para serem carregados via next/dynamic: o recharts
- * (~100kb gz) sai do chunk inicial da rota "/app" e só chega depois do
- * primeiro paint, atrás de um ChartSkeleton.
+ * Mantidos num módulo próprio para serem carregados via next/dynamic: o
+ * recharts (~100kb gz) sai do chunk inicial da rota "/app" e só chega depois
+ * do primeiro paint, atrás de um ChartSkeleton.
  */
-
-
 
 export function RevenueLineChart({ data }: { data: { period: string; value: number }[] }) {
   return (
