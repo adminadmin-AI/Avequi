@@ -64,6 +64,22 @@ export interface WidgetMeta {
   permission: string[];
   zone: WidgetZone;
   defaultSize: WidgetSize;
+  /** Presets permitidos no modo edição (F2). 1 item = tamanho fixo. */
+  sizes: WidgetSize[];
+}
+
+/** Desvio persistido do template (F2) — shape espelhado no LayoutWidgetDto da API. */
+export interface LayoutOverride {
+  id: WidgetId;
+  size?: WidgetSize;
+  hidden?: boolean;
+  pinned?: boolean;
+}
+
+export interface PersistedLayout {
+  profile?: string | null;
+  version: number;
+  widgets: LayoutOverride[];
 }
 
 export interface WidgetDefinition extends WidgetMeta {
