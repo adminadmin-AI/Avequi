@@ -29,7 +29,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   'ai-insights': {
     id: 'ai-insights',
-    title: 'Resumo do dia',
+    title: 'Resumo da operação',
     permission: ['workspace.insights.view'], // GET /workspace/insights
     zone: 'attention',
     defaultSize: 'full',
@@ -63,10 +63,12 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   agenda: {
     id: 'agenda',
-    title: 'Agenda da semana',
+    title: 'Agenda',
     permission: ['workspace.agenda.view'], // GET /workspace/agenda
     zone: 'work',
-    defaultSize: 'half',
+    // Calendário (rodada 2 UX): nasce full — grid de 7 colunas precisa de
+    // largura; em half os chips degradam para dots.
+    defaultSize: 'full',
     sizes: ['half', 'full'],
   },
   'cashflow-13w': {

@@ -254,5 +254,28 @@ describe('WorkspaceService', () => {
       expect(mockPrisma.financialEntry.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.productionOrder.findMany).toHaveBeenCalled();
     });
+
+    it('janela larga (?days) amplia o limite e os takes; clamp em 42 dias', async () => {
+      await service.getAgenda(USER, 35);
+      expect(mockPrisma.financialEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 100 }),
+      );
+
+      // clamp: pedir 90 dias não passa de 42
+      mockPrisma.financialEntry.findMany.mockClear();
+      await service.getAgenda(USER, 90);
+      const arg = mockPrisma.financialEntry.findMany.mock.calls[0][0];
+      const to: Date = arg.where.dueDate.lte;
+      const maxTo = new Date();
+      maxTo.setDate(maxTo.getDate() + 43);
+      expect(to.getTime()).toBeLessThan(maxTo.getTime());
+    });
+
+    it('janela default (7 dias) mantém os takes originais', async () => {
+      await service.getAgenda(USER);
+      expect(mockPrisma.financialEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 20 }),
+      );
+    });
   });
 });

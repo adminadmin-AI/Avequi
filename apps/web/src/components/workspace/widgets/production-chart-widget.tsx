@@ -3,10 +3,11 @@
 import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
+import { Factory } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { ProductionOrder, ProductionOrderStatus } from '@/types/api';
 import type { WidgetComponentProps } from '../types';
-import { ChartSkeleton, WidgetFrame } from '../widget-frame';
+import { ChartSkeleton, EmptyState, WidgetFrame } from '../widget-frame';
 
 const ProductionBarChart = dynamic(() => import('./charts').then((m) => m.ProductionBarChart), {
   ssr: false,
@@ -39,9 +40,23 @@ export function ProductionChartWidget(_: WidgetComponentProps) {
       .map((s) => ({ status: PROD_STATUS_LABEL[s], count: counts.get(s) ?? 0 }));
   }, [productionQ.data]);
 
+  // Nunca gráfico vazio: barras todas zeradas viram empty state.
+  const hasData = prodByStatus.some((s) => s.count > 0);
+
   return (
-    <WidgetFrame title="Produção por status">
-      {productionQ.isLoading ? <ChartSkeleton /> : <ProductionBarChart data={prodByStatus} />}
+    <WidgetFrame title="Produção por status" quiet>
+      {productionQ.isLoading ? (
+        <ChartSkeleton />
+      ) : !hasData ? (
+        <EmptyState
+          tall
+          icon={Factory}
+          title="Ainda não há ordens de produção"
+          hint="Assim que novas OPs forem registradas, elas aparecem aqui."
+        />
+      ) : (
+        <ProductionBarChart data={prodByStatus} />
+      )}
     </WidgetFrame>
   );
 }

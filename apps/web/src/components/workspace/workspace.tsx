@@ -2,8 +2,10 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { Plus } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
 import { useAuthStore } from '@/stores/auth-store';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { LayoutOverride, WidgetId, WidgetInstance, WidgetSize } from './types';
 import { WIDGETS } from './widget-registry';
@@ -129,8 +131,15 @@ export function Workspace() {
   // usa h-full para acompanhar. O espaçamento fica linear (gap-4 em tudo,
   // linhas alinhadas) e a diferença de conteúdo vira respiro DENTRO do card,
   // nunca buraco entre cards (achado da auditoria visual, 30/07).
+  //
+  // grid-flow-dense: um half depois de um full sobe para preencher o buraco
+  // que o full deixou — nunca fica cratera no MEIO do grid. Com dense e só
+  // presets half/full, sobra vazio apenas na ÚLTIMA linha, e apenas quando o
+  // número de halves é ímpar — essa célula vira o convite "Adicionar widget".
+  const trailingSlot =
+    surface.filter((w) => (w.size ?? WIDGETS[w.id].defaultSize) === 'half').length % 2 === 1;
   const viewSurface = (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-flow-dense lg:grid-cols-2">
       {surface.map((w) => {
         const size = w.size ?? WIDGETS[w.id].defaultSize;
         return (
@@ -139,6 +148,14 @@ export function Workspace() {
           </div>
         );
       })}
+      {trailingSlot && canEdit && (
+        <button
+          onClick={() => setEditing(true)}
+          className="hidden min-h-[140px] items-center justify-center gap-2 rounded-xl border border-dashed border-line text-caption font-medium text-content-muted transition-colors duration-flow ease-flow hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-600 dark:hover:text-brand-400 lg:flex"
+        >
+          <Plus size={15} /> Adicionar widget
+        </button>
+      )}
     </div>
   );
 
@@ -167,14 +184,22 @@ export function Workspace() {
 
   return (
     <WorkspacePeriodContext.Provider value={{ periodDays, setPeriodDays }}>
-      <div className="space-y-8">
-        {/* Contexto + Resumo: saudação e KPIs formam UMA seção — os números
-            pertencem ao "como estamos", não flutuam soltos na página */}
-        <section className="space-y-5">
-          {orientation.map((w) => (
-            <div key={w.id}>{renderWidget(w)}</div>
-          ))}
-        </section>
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-deliberate ease-flow">
+        {/* Contexto + Resumo: saudação e KPIs formam UM BLOCO — um único
+            container (auditoria UX 30/07: soltos sobre o canvas, "flutuavam").
+            No modo edição a seção esmaece: sinaliza que a orientação é fixa. */}
+        {orientation.length > 0 && (
+          <Card
+            className={cn(
+              'space-y-6 px-5 py-5 transition-opacity duration-flow',
+              editing && 'opacity-50',
+            )}
+          >
+            {orientation.map((w) => (
+              <div key={w.id}>{renderWidget(w)}</div>
+            ))}
+          </Card>
+        )}
 
         <div className="space-y-3">
           <EditBar

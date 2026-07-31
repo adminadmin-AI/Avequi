@@ -1,13 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, LineChart } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { formatBRL } from '@/lib/format';
 import type { WidgetComponentProps } from '../types';
-import { ChartSkeleton, EmptyContent, WidgetFrame } from '../widget-frame';
+import { ChartSkeleton, EmptyState, WidgetAction, WidgetFrame } from '../widget-frame';
 
 const CashFlowSparkline = dynamic(() => import('./cashflow-chart').then((m) => m.CashFlowSparkline), {
   ssr: false,
@@ -57,19 +56,17 @@ export function CashFlowWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="Fluxo de caixa — 13 semanas"
-      action={
-        <Link
-          href="/app/finance/cash-flow"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver fluxo
-        </Link>
-      }
+      action={<WidgetAction href="/app/finance/cash-flow">ver fluxo</WidgetAction>}
     >
       {cashQ.isLoading ? (
         <ChartSkeleton />
       ) : !data || data.projection.length === 0 ? (
-        <EmptyContent label="Sem projeção de fluxo disponível." />
+        <EmptyState
+          tall
+          icon={LineChart}
+          title="Sem projeção de fluxo disponível"
+          hint="Lance contas a pagar e a receber para projetar as próximas 13 semanas."
+        />
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">

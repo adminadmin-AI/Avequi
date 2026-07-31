@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { Users } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 import { relativeTime } from '../workspace-context';
 
 /**
@@ -38,19 +39,12 @@ export function CrmPortfolioWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="Carteira de clientes"
-      action={
-        <Link
-          href="/app/crm/dashboard"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver CRM
-        </Link>
-      }
+      action={<WidgetAction href="/app/crm/dashboard">ver CRM</WidgetAction>}
     >
       {portfolioQ.isLoading ? (
         <ListSkeleton />
       ) : !d ? (
-        <p className="py-2 text-caption text-content-muted">Carteira indisponível no momento.</p>
+        <EmptyState icon={Users} title="Carteira indisponível no momento" />
       ) : (
         <div className="space-y-3">
           {/* De-box: números como tipografia, cor só no alarme real (risco) */}

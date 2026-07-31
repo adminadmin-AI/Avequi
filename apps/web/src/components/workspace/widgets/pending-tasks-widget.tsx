@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BadgeCheck, Bell, ClipboardCheck, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Bell, CheckCircle2, ClipboardCheck, type LucideIcon } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetFrame } from '../widget-frame';
 import { relativeTime } from '../workspace-context';
 
 /**
@@ -42,13 +42,16 @@ export function PendingTasksWidget(_: WidgetComponentProps) {
   const tasks = (tasksQ.data ?? []).slice(0, 8);
 
   return (
-    <WidgetFrame title="Minhas Pendências">
+    <WidgetFrame title="Minhas Pendências" badge={tasks.length}>
       {tasksQ.isLoading ? (
         <ListSkeleton />
       ) : tasks.length === 0 ? (
-        <p className="py-2 text-caption text-content-muted">
-          Nada pendente com você. Bom trabalho! 🎉
-        </p>
+        <EmptyState
+          icon={CheckCircle2}
+          tone="success"
+          title="Nenhuma pendência encontrada"
+          hint="Excelente trabalho — nada esperando por você."
+        />
       ) : (
         <ul className="-mx-2 space-y-0.5">
           {tasks.map((t) => {

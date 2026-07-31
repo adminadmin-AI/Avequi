@@ -136,6 +136,10 @@ const MAX_INSIGHTS = 6;
 const MAX_TASKS = 12;
 const MAX_AGENDA_ITEMS = 40;
 const AGENDA_WINDOW_DAYS = 7;
+// Janela larga (visão de mês do widget calendário): mais dias = caps maiores,
+// senão os takes da semana truncariam o fim do mês.
+const MAX_AGENDA_WINDOW_DAYS = 42;
+const MAX_AGENDA_ITEMS_WIDE = 160;
 const PAYABLE_WINDOW_DAYS = 7;
 
 @Injectable()
@@ -492,12 +496,14 @@ export class WorkspaceService {
 
   // ─── Agenda (próximos 7 dias) ──────────────────────────────────────────────
 
-  async getAgenda(user: AuthUserLite): Promise<AgendaItem[]> {
+  async getAgenda(user: AuthUserLite, days = AGENDA_WINDOW_DAYS): Promise<AgendaItem[]> {
+    const window = Math.min(Math.max(days, 1), MAX_AGENDA_WINDOW_DAYS);
+    const wide = window > AGENDA_WINDOW_DAYS;
     const can = await this.canOf(user);
     const items: AgendaItem[] = [];
     const jobs: Promise<void>[] = [];
     const from = this.startOfToday();
-    const to = this.endOfDayIn(AGENDA_WINDOW_DAYS);
+    const to = this.endOfDayIn(window);
     const todayIso = this.isoDay(from);
 
     if (can('finance.entries.view')) {
@@ -510,7 +516,7 @@ export class WorkspaceService {
               dueDate: { gte: from, lte: to },
             },
             orderBy: { dueDate: 'asc' },
-            take: 20,
+            take: wide ? 100 : 20,
           })
           .then((entries) => {
             for (const e of entries) {
@@ -540,7 +546,7 @@ export class WorkspaceService {
             },
             include: { product: { select: { name: true } } },
             orderBy: { scheduledEnd: 'asc' },
-            take: 10,
+            take: wide ? 40 : 10,
           })
           .then((orders) => {
             for (const o of orders) {
@@ -569,7 +575,7 @@ export class WorkspaceService {
             },
             include: { lead: { select: { name: true } } },
             orderBy: { dueAt: 'asc' },
-            take: 10,
+            take: wide ? 40 : 10,
           })
           .then((reminders) => {
             for (const r of reminders) {
@@ -591,6 +597,6 @@ export class WorkspaceService {
     );
 
     items.sort((a, b) => a.date.localeCompare(b.date));
-    return items.slice(0, MAX_AGENDA_ITEMS);
+    return items.slice(0, wide ? MAX_AGENDA_ITEMS_WIDE : MAX_AGENDA_ITEMS);
   }
 }
