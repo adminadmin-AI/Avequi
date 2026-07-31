@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, CalendarClock, Ban, Pencil, TrendingDown } from 'lucide-react';
@@ -23,6 +23,7 @@ import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
+import { dueFromSearch } from '../due-param';
 import { canEditEntry } from './editable';
 import { venceDate, previsaoDate, inRange, toDayStr } from './filters';
 import { num, remainingOf } from './detail';
@@ -99,6 +100,17 @@ export default function PayablesPage() {
   // Vencimento e Previsão como PERÍODO (um campo cada, calendário de 2 cliques).
   const [dueRange, setDueRange] = useState<DateRange>();
   const [prevRange, setPrevRange] = useState<DateRange>();
+
+  // Deep-link do calendário da Home: ?due=YYYY-MM-DD pré-carrega o filtro de
+  // Vencimento naquele dia — visível e limpável no próprio DateRangePicker.
+  // Lido no mount (URL = estado inicial), fora do render p/ não brigar com o
+  // prerender do Next (useSearchParams exigiria Suspense).
+  useEffect(() => {
+    const due = dueFromSearch(window.location.search);
+    if (!due) return;
+    const day = new Date(`${due}T12:00:00`);
+    setDueRange({ from: day, to: day });
+  }, []);
   const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
   const [supplierFilter, setSupplierFilter] = useState('');
 

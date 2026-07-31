@@ -85,6 +85,19 @@ const GROUP_LINK: Record<DayGroup, { href: string; label: string }> = {
   crm: { href: '/app/crm/leads', label: 'CRM' },
 };
 
+/**
+ * Atalho do grupo para o dia: as carteiras financeiras aceitam deep-link
+ * ?due=YYYY-MM-DD (finance/due-param.ts) e abrem já filtradas no vencimento
+ * do dia clicado; os demais destinos não têm filtro por data — vão limpos.
+ */
+function groupLinkFor(group: DayGroup, iso: string): { href: string; label: string } {
+  const base = GROUP_LINK[group];
+  if (group === 'payable' || group === 'receivable') {
+    return { ...base, href: `${base.href}?due=${iso}` };
+  }
+  return base;
+}
+
 function rollupLabel(group: DayGroup, count: number): string {
   switch (group) {
     case 'payable':
@@ -189,7 +202,7 @@ export function AgendaWidget({ instance }: WidgetComponentProps) {
   /** Detalhe do dia — flutua ancorado na célula, estilo Apple. */
   const dayPopover = (iso: string, dayItems: CalendarItem[]) => {
     const total = dayItems.reduce((s, i) => s + (i.amount ?? 0), 0);
-    const links = summarizeDay(dayItems).map((r) => GROUP_LINK[r.group]);
+    const links = summarizeDay(dayItems).map((r) => groupLinkFor(r.group, iso));
     return (
       <PopoverContent align="center" className="w-80 overflow-hidden p-0">
         <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-2.5">
