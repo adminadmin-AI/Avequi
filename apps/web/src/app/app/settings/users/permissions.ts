@@ -12,3 +12,12 @@ export const USERS_UPDATE_PERMISSION = 'settings.users.update';
 export function canShowStatusToggle(can: (code: string) => boolean): boolean {
   return can(USERS_UPDATE_PERMISSION);
 }
+
+/**
+ * Redefinir senha (#750) usa o MESMO PATCH /users/:id { password } — logo o
+ * mesmo code. Função separada para o dia em que o backend ganhar um code
+ * dedicado (ex.: settings.users.reset-password): muda aqui, não na tela.
+ */
+export function canShowPasswordReset(can: (code: string) => boolean): boolean {
+  return can(USERS_UPDATE_PERMISSION);
+}
