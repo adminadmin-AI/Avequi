@@ -156,27 +156,6 @@ body {
     0 10px 16px -6px rgb(0 0 0 / 0.2),
     0 22px 34px -12px rgb(0 0 0 / 0.16);
 }
-/* dobra do canto (page curl) no rodapé-direito */
-.quick-note::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 26px;
-  height: 26px;
-  background: linear-gradient(
-    135deg,
-    rgb(0 0 0 / 0) 42%,
-    rgb(0 0 0 / 0.05) 50%,
-    rgb(0 0 0 / 0.14) 58%,
-    rgb(255 255 255 / 0.55) 62%,
-    rgb(255 255 255 / 0.15) 100%
-  );
-  clip-path: polygon(100% 0, 0% 100%, 100% 100%);
-  border-bottom-right-radius: 3px;
-  filter: drop-shadow(-2px -2px 3px rgb(0 0 0 / 0.1));
-  pointer-events: none;
-}
 /* sombra projetada do alfinete no papel */
 .quick-pin-shadow {
   background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.22), rgb(0 0 0 / 0) 70%);

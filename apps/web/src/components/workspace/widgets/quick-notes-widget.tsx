@@ -129,7 +129,7 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-3">
+        <div className="flex flex-wrap gap-x-5 gap-y-6 pt-2">
           {notes.map((n) => (
             <PostIt
               key={n.id}
@@ -212,7 +212,7 @@ function PostIt({
     <div
       onClick={() => !editing && canManage && onEdit()}
       className={cn(
-        'quick-note relative min-h-[112px] rounded-[2px_2px_3px_2px] px-4 pb-4 pt-6',
+        'quick-note relative w-[150px] min-h-[150px] shrink-0 rounded-[2px] px-3.5 pb-4 pt-6',
         !editing && canManage && 'cursor-text',
         // fade-in anima só opacidade (sem transform) — não briga com o tilt
         removing ? 'z-10 opacity-0 transition-all duration-[460ms] ease-flow' : 'animate-in fade-in duration-flow',
