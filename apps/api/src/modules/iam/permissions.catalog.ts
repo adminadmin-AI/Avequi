@@ -87,6 +87,10 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver o próprio layout', 'GET /workspace/layout'],
     ['update', 'salvar/restaurar o próprio layout', 'PUT /workspace/layout + DELETE /workspace/layout'],
   ]),
+  ...r('workspace', 'notes', 'Workspace — notas rápidas', [
+    ['view', 'ver as próprias notas', 'GET /workspace/notes'],
+    ['manage', 'criar/editar/arrancar as próprias notas', 'POST/PATCH/DELETE /workspace/notes'],
+  ]),
 
   // ── analytics ── (analytics.controller.ts + report.controller.ts)
   ...r('analytics', 'dashboards', 'Painéis analíticos', [

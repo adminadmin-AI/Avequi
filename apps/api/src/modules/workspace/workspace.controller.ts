@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AgendaQueryDto } from './dto/agenda-query.dto';
+import { CreateQuickNoteDto, UpdateQuickNoteDto } from './dto/quick-note.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 import { WorkspaceService } from './workspace.service';
 
@@ -68,5 +69,45 @@ export class WorkspaceController {
   @ApiOperation({ summary: 'Restaura o padrão do perfil (apaga a personalização)' })
   resetLayout(@CurrentUser() user: { id: string; companyId: string; role: string }) {
     return this.workspaceService.resetLayout(user);
+  }
+
+  // ─── Notas rápidas (post-its) — sempre do PRÓPRIO usuário ──────────────────
+
+  @Get('notes')
+  @RequirePermission('workspace.notes.view')
+  @ApiOperation({ summary: 'Minhas notas rápidas (post-its), mais recentes primeiro' })
+  listNotes(@CurrentUser() user: { id: string; companyId: string; role: string }) {
+    return this.workspaceService.listNotes(user);
+  }
+
+  @Post('notes')
+  @RequirePermission('workspace.notes.manage')
+  @ApiOperation({ summary: 'Criar uma nota rápida' })
+  createNote(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Body() dto: CreateQuickNoteDto,
+  ) {
+    return this.workspaceService.createNote(user, dto);
+  }
+
+  @Patch('notes/:id')
+  @RequirePermission('workspace.notes.manage')
+  @ApiOperation({ summary: 'Editar texto/cor de uma nota rápida' })
+  updateNote(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Param('id') id: string,
+    @Body() dto: UpdateQuickNoteDto,
+  ) {
+    return this.workspaceService.updateNote(user, id, dto);
+  }
+
+  @Delete('notes/:id')
+  @RequirePermission('workspace.notes.manage')
+  @ApiOperation({ summary: 'Arrancar (excluir) uma nota rápida' })
+  deleteNote(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Param('id') id: string,
+  ) {
+    return this.workspaceService.deleteNote(user, id);
   }
 }

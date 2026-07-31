@@ -54,6 +54,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'agenda' },
       { id: 'chart-revenue' },
       { id: 'chart-production' },
+      { id: 'quick-notes' },
     ],
   },
   // Gestão operacional (MANAGER legado, ADMIN_FILIAL): operação sem finanças.
@@ -69,6 +70,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'agenda' },
       { id: 'chart-production' },
       { id: 'chart-revenue' },
+      { id: 'quick-notes' },
     ],
   },
   // Chão de fábrica: nunca faturamento, nunca caixa — nem no template.
@@ -83,6 +85,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'capacity-bottlenecks' },
       { id: 'agenda' },
       { id: 'chart-production' },
+      { id: 'quick-notes' },
     ],
   },
   purchasing: {
@@ -94,6 +97,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-purchase', 'new-product'] } },
       { id: 'agenda' },
+      { id: 'quick-notes' },
     ],
   },
   finance: {
@@ -107,6 +111,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'cashflow-13w', size: 'full' },
       { id: 'agenda' },
       { id: 'chart-revenue' },
+      { id: 'quick-notes' },
     ],
   },
   commercial: {
@@ -121,6 +126,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'crm-portfolio' },
       { id: 'agenda' },
       { id: 'chart-revenue' },
+      { id: 'quick-notes' },
     ],
   },
   logistics: {
@@ -134,6 +140,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'wms-queue' },
       { id: 'vehicle-docs' },
       { id: 'agenda' },
+      { id: 'quick-notes' },
     ],
   },
   // Sem perfil reconhecido: composição ampla, a permissão apara o resto.
@@ -148,6 +155,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'agenda' },
       { id: 'chart-revenue' },
       { id: 'chart-production' },
+      { id: 'quick-notes' },
     ],
   },
 };

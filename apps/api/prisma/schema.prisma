@@ -150,6 +150,7 @@ model Company {
   debts                 Debt[] // dívidas/financiamentos (#392)
   discountPolicies      DiscountPolicy[] // alçadas de desconto (#391)
   workspaceLayouts      UserWorkspaceLayout[] // Workspace F2 — layouts da Home
+  quickNotes            UserQuickNote[] // Workspace — post-its pessoais
 
   @@map("gdr_companies")
 }
@@ -332,6 +333,7 @@ model User {
   updatedAt                 DateTime               @updatedAt
   creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
   workspaceLayout           UserWorkspaceLayout? // Workspace F2 — layout da Home por usuário
+  quickNotes                UserQuickNote[] // Workspace — post-its pessoais
 
   @@map("gdr_users")
 }
@@ -357,6 +359,26 @@ model UserWorkspaceLayout {
 
   @@index([companyId])
   @@map("gdr_user_workspace_layouts")
+}
+
+/// Workspace — post-its pessoais do widget "Notas rápidas". Anotações que o
+/// PRÓPRIO usuário cria/arranca; sem vínculo com trabalho de negócio (não é
+/// pendência, é lembrete solto). Privado por usuário; morre junto com ele.
+model UserQuickNote {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  /// Cor do papel: yellow | pink | blue | green | purple (validada no DTO)
+  color     String   @default("yellow")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("gdr_user_quick_notes")
 }
 
 enum UserRole {

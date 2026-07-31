@@ -33,6 +33,13 @@ const mockPrisma = {
   alert: { findMany: jest.fn() },
   leadReminder: { findMany: jest.fn() },
   userWorkspaceLayout: { findUnique: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
+  userQuickNote: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    updateMany: jest.fn(),
+    findFirstOrThrow: jest.fn(),
+    deleteMany: jest.fn(),
+  },
 };
 
 const mockPermissionService = { getUserPermissions: jest.fn() };
@@ -158,6 +165,10 @@ describe('WorkspaceService', () => {
       expect(tasks[0].title).toBe('Follow-up: Cliente Y');
       expect(tasks[1].subtitle).toContain('Fornecedor X');
       expect(tasks[1].href).toBe('/app/approvals');
+      // Só o lembrete de CRM é concluível no clique; aprovação/inspeção não.
+      expect(tasks[0].complete).toEqual({ url: '/crm/reminders/rem1/done' });
+      expect(tasks[1].complete).toBeUndefined();
+      expect(tasks[2].complete).toBeUndefined();
     });
 
     it('sem permissão de aprovações: getPending não é chamado', async () => {
@@ -174,6 +185,57 @@ describe('WorkspaceService', () => {
       expect(where.userId).toBe(USER.id);
       expect(where.companyId).toBe(USER.companyId);
       expect(where.doneAt).toBeNull();
+    });
+  });
+
+  describe('notas rápidas', () => {
+    const NOTE = {
+      id: 'n1',
+      text: 'Ligar transportadora',
+      color: 'yellow',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    };
+
+    it('lista só as do próprio usuário, mais recentes primeiro', async () => {
+      mockPrisma.userQuickNote.findMany.mockResolvedValue([NOTE]);
+      const notes = await service.listNotes(USER);
+      const where = mockPrisma.userQuickNote.findMany.mock.calls[0][0].where;
+      expect(where.userId).toBe(USER.id);
+      expect(mockPrisma.userQuickNote.findMany.mock.calls[0][0].orderBy).toEqual({
+        createdAt: 'desc',
+      });
+      expect(notes[0]).toMatchObject({ id: 'n1', text: 'Ligar transportadora', color: 'yellow' });
+      expect(typeof notes[0].createdAt).toBe('string');
+    });
+
+    it('cria com userId+companyId do JWT e trima o texto', async () => {
+      mockPrisma.userQuickNote.create.mockResolvedValue(NOTE);
+      await service.createNote(USER, { text: '  nota  ', color: 'pink' });
+      const data = mockPrisma.userQuickNote.create.mock.calls[0][0].data;
+      expect(data).toMatchObject({
+        userId: USER.id,
+        companyId: USER.companyId,
+        text: 'nota',
+        color: 'pink',
+      });
+    });
+
+    it('update escopa por userId (IDOR-safe) e 404 quando não é do dono', async () => {
+      mockPrisma.userQuickNote.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.updateNote(USER, 'alheia', { text: 'x' })).rejects.toThrow(
+        'Nota não encontrada',
+      );
+      const where = mockPrisma.userQuickNote.updateMany.mock.calls[0][0].where;
+      expect(where).toEqual({ id: 'alheia', userId: USER.id });
+    });
+
+    it('arrancar (delete) escopa por userId e é idempotente', async () => {
+      mockPrisma.userQuickNote.deleteMany.mockResolvedValue({ count: 1 });
+      expect(await service.deleteNote(USER, 'n1')).toEqual({ deleted: true });
+      expect(mockPrisma.userQuickNote.deleteMany).toHaveBeenCalledWith({
+        where: { id: 'n1', userId: USER.id },
+      });
     });
   });
 

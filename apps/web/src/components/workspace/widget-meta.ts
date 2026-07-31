@@ -135,6 +135,14 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     defaultSize: 'half',
     sizes: ['half', 'full'],
   },
+  'quick-notes': {
+    id: 'quick-notes',
+    title: 'Notas rápidas',
+    permission: ['workspace.notes.view'], // GET /workspace/notes (post-its pessoais)
+    zone: 'context',
+    defaultSize: 'half',
+    sizes: ['half', 'full'],
+  },
 };
 
 export const ALL_WIDGET_IDS = Object.keys(WIDGET_META) as WidgetId[];
