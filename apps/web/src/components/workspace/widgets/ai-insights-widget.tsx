@@ -39,11 +39,19 @@ interface InsightsResponse {
   generatedAt: string;
 }
 
-const DOT: Record<WorkspaceInsight['severity'], string> = {
-  CRITICAL: 'bg-danger',
-  WARNING: 'bg-warning',
-  INFO: 'bg-info',
-  SUCCESS: 'bg-success',
+/**
+ * Estilo por severidade — o trilho (border-l) e o tint dão PESO ao insight
+ * conforme a urgência: crítico grita, informação sussurra. A tag nomeia a
+ * prioridade (🔴 Crítico / 🟠 Atenção / 🔵 Info / 🟢 OK) sem emoji, na cor.
+ */
+const SEVERITY: Record<
+  WorkspaceInsight['severity'],
+  { rail: string; tint: string; tag: string; label: string }
+> = {
+  CRITICAL: { rail: 'border-l-danger', tint: 'bg-danger/[0.05]', tag: 'text-danger', label: 'Crítico' },
+  WARNING: { rail: 'border-l-warning', tint: 'bg-warning/[0.05]', tag: 'text-warning', label: 'Atenção' },
+  INFO: { rail: 'border-l-info', tint: '', tag: 'text-info', label: 'Info' },
+  SUCCESS: { rail: 'border-l-success', tint: '', tag: 'text-success', label: 'OK' },
 };
 
 const STATUS_CHIP = {
@@ -51,6 +59,15 @@ const STATUS_CHIP = {
   attention: { label: 'Atenção', className: 'bg-warning/10 text-warning', dot: 'bg-warning' },
   ok: { label: 'Tudo OK', className: 'bg-success/10 text-success', dot: 'bg-success' },
 } as const;
+
+/** Abertura de consultora: enquadra a contagem como um briefing, não um alerta seco. */
+function briefing(firstName: string, count: number, status: 'critical' | 'attention' | 'ok'): string {
+  const nome = firstName ? `${firstName}, ` : '';
+  const verbo = status === 'critical' ? 'precisam da sua atenção agora' : 'valem seu olhar hoje';
+  return count === 1
+    ? `${nome}analisei sua operação — 1 ponto ${verbo}.`
+    : `${nome}analisei sua operação — ${count} pontos ${verbo}.`;
+}
 
 export function AiInsightsWidget(_: WidgetComponentProps) {
   const user = useAuthStore((s) => s.user);
@@ -107,13 +124,8 @@ export function AiInsightsWidget(_: WidgetComponentProps) {
         />
       ) : (
         <div className="space-y-3">
-          <p className="text-body text-content-secondary">
-            {firstName ? `${firstName}, analisei` : 'Analisei'} sua operação —{' '}
-            {insights.length === 1
-              ? 'encontrei 1 ponto importante.'
-              : `encontrei ${insights.length} pontos importantes.`}
-          </p>
-          <ul className="-mx-2 space-y-0.5">
+          <p className="text-body text-content-secondary">{briefing(firstName, insights.length, status)}</p>
+          <ul className="space-y-2">
             {insights.map((i) => (
               <li key={i.id}>
                 <InsightRow insight={i} />
@@ -127,29 +139,34 @@ export function AiInsightsWidget(_: WidgetComponentProps) {
 }
 
 function InsightRow({ insight }: { insight: WorkspaceInsight }) {
+  const sev = SEVERITY[insight.severity];
   const inner = (
-    <>
-      <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', DOT[insight.severity])} />
-      <span className="min-w-0 flex-1 text-sm text-content">{insight.message}</span>
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-2.5 transition-[background-color,transform] duration-micro',
+        sev.rail,
+        sev.tint || 'bg-neutral-500/[0.02]',
+        insight.cta && 'group-hover:bg-neutral-500/[0.06]',
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-snug text-content">{insight.message}</p>
+        <span className={cn('mt-0.5 block text-helper font-medium uppercase tracking-wide', sev.tag)}>
+          {sev.label}
+        </span>
+      </div>
       {insight.cta && (
-        // Sugestão acionável como pílula — mesma linguagem do seletor de
-        // período (tint da marca): o próximo passo fica óbvio, não escondido.
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-caption font-medium text-brand-700 transition-colors duration-micro group-hover:bg-brand-100 dark:bg-brand-600/15 dark:text-brand-300 dark:group-hover:bg-brand-600/25">
+        <span className="flex shrink-0 items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-caption font-medium text-white shadow-elevation-1 transition-all duration-micro group-hover:bg-brand-700 group-hover:shadow-elevation-2 dark:bg-brand-600 dark:group-hover:bg-brand-500">
           {insight.cta.label}
           <ArrowRight size={13} className="transition-transform duration-micro group-hover:translate-x-0.5" />
         </span>
       )}
-    </>
+    </div>
   );
 
-  if (!insight.cta) {
-    return <div className="flex items-start gap-3 px-2 py-2.5">{inner}</div>;
-  }
+  if (!insight.cta) return inner;
   return (
-    <Link
-      href={insight.cta.href}
-      className="group flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors duration-micro hover:bg-neutral-500/[0.05]"
-    >
+    <Link href={insight.cta.href} className="group block">
       {inner}
     </Link>
   );
