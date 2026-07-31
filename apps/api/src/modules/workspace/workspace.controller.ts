@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { AgendaQueryDto } from './dto/agenda-query.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 import { WorkspaceService } from './workspace.service';
 
@@ -33,9 +34,14 @@ export class WorkspaceController {
 
   @Get('agenda')
   @RequirePermission('workspace.agenda.view')
-  @ApiOperation({ summary: 'Agenda dos próximos 7 dias: vencimentos, términos de OP e lembretes' })
-  getAgenda(@CurrentUser() user: { id: string; companyId: string; role: string }) {
-    return this.workspaceService.getAgenda(user);
+  @ApiOperation({
+    summary: 'Agenda prospectiva (default 7 dias; ?days até 42 para o grid de mês)',
+  })
+  getAgenda(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Query() query: AgendaQueryDto,
+  ) {
+    return this.workspaceService.getAgenda(user, query.days);
   }
 
   // ─── Layout persistido (F2) — sempre dado do PRÓPRIO usuário ───────────────
