@@ -648,6 +648,15 @@ export interface EntryHistoryEvent {
   changes: Record<string, { from: unknown; to: unknown }> | null;
 }
 
+/** Resposta de GET /finance/entries/:id/banking-alert (#864 anti-fraude). */
+export interface BankingAlertResponse {
+  alert: {
+    at: string;
+    by: { id: string; name: string } | null;
+    fields: string[];
+  } | null;
+}
+
 export interface FinancialCategory extends BaseEntity {
   companyId: string;
   name: string;

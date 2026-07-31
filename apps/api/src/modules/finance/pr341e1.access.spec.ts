@@ -95,6 +95,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     createManualEntry: 'finance.entries.create',
     updateEntry: 'finance.entries.update',
     entryHistory: 'finance.entries.view', // Fase 2 — timeline lê com a permissão de leitura
+    bankingAlert: 'finance.entries.view', // #864 — aviso anti-fraude lê com a mesma permissão
 
     getKpis: 'finance.reports.view',
     getMarginBySku: 'finance.reports.view',

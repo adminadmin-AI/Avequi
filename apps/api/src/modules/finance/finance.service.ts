@@ -535,6 +535,56 @@ export class FinanceService {
     };
   }
 
+  // ─── #864 anti-fraude: dados bancários do fornecedor mudaram há pouco? ─────
+
+  /** Dias da janela do aviso de troca bancária (decisão do Rafael: 15). */
+  private static readonly BANKING_ALERT_WINDOW_DAYS = 15;
+
+  /**
+   * Última TROCA (A→B; primeiro preenchimento não conta) de chave PIX/dados
+   * bancários do fornecedor do título, dentro da janela. Alimenta o aviso
+   * amarelo no detalhe/baixa de Contas a Pagar. Escopo de empresa via o
+   * próprio título (404) — permissão reusada: finance.entries.view.
+   */
+  async bankingAlert(entryId: string, companyId: string) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id: entryId, companyId },
+      select: { id: true, supplierId: true },
+    });
+    if (!entry) throw new NotFoundException(`Lançamento financeiro ${entryId} não encontrado`);
+    if (!entry.supplierId) return { alert: null };
+
+    const since = new Date();
+    since.setDate(since.getDate() - FinanceService.BANKING_ALERT_WINDOW_DAYS);
+
+    const log = await this.prisma.auditLog.findFirst({
+      where: {
+        companyId,
+        entity: 'Supplier',
+        action: 'BANKING_UPDATE',
+        createdAt: { gte: since },
+        AND: [
+          { payload: { path: ['id'], equals: entry.supplierId } },
+          { payload: { path: ['troca'], equals: true } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    if (!log) return { alert: null };
+
+    const changes =
+      (log.payload as { changes?: Record<string, { from: unknown; to: unknown }> } | null)
+        ?.changes ?? {};
+    return {
+      alert: {
+        at: log.createdAt,
+        by: log.user, // null = mudança de sistema/pré-auditoria
+        fields: Object.keys(changes),
+      },
+    };
+  }
+
   // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
 
   async pay(id: string, companyId: string, dto: PayEntryDto) {

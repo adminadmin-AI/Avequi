@@ -26,6 +26,7 @@ import {
   actionLabel,
   changedFieldsSummary,
 } from './detail';
+import { BankingAlertNotice } from './banking-alert-notice';
 
 /**
  * Painel de detalhe do título (Fase 1 do mestre-detalhe da Carteira de
@@ -210,6 +211,8 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
             <Row label="PIX Copia e Cola desta conta">
               {entry.pixCopiaECola ? <Copyable value={entry.pixCopiaECola} copied={copy} /> : DASH}
             </Row>
+            {/* #864 — aviso de troca recente de dados bancários (anti-fraude) */}
+            <BankingAlertNotice entryId={entry.id} />
           </Section>
 
           <Section title="Classificação">

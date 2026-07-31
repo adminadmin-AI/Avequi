@@ -28,6 +28,7 @@ import { venceDate, previsaoDate, inRange, toDayStr, isPagarHoje } from './filte
 import { MultiCombobox } from '@/components/ui/combobox';
 import { num, remainingOf, paymentMethodLabel, PAYMENT_METHOD_LABELS } from './detail';
 import { EntryDetailSheet } from './entry-detail-sheet';
+import { BankingAlertNotice } from './banking-alert-notice';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
 // Opções do filtro de Forma de pagamento (multi-seleção): catálogo + "Não
@@ -452,11 +453,15 @@ export default function PayablesPage() {
         loading={pay.isPending}
       >
         {payTarget && (
-          <PayablePayForm
-            formId="pay-form"
-            remaining={remainingOf(payTarget)}
-            onSubmit={handlePay}
-          />
+          <>
+            {/* #864 — momento crítico do golpe da chave trocada: avisa AQUI */}
+            <BankingAlertNotice entryId={payTarget.id} />
+            <PayablePayForm
+              formId="pay-form"
+              remaining={remainingOf(payTarget)}
+              onSubmit={handlePay}
+            />
+          </>
         )}
       </FormDialog>
 
