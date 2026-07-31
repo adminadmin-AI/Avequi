@@ -134,6 +134,55 @@ body {
   background-image: var(--surface-sheen);
 }
 
+/* ── Notas rápidas (post-it premium, "grife") ──────────────────────────────
+   Papel real: sombra em CAMADAS (contato curto + difusa larga) = peso; a
+   inclinação vem de --note-tilt (determinística por id, inline). O hover
+   levanta 3px mantendo o tilt. Cores do papel/alfinete são inline (paleta em
+   quick-notes.ts). A dobra do canto e a sombra do alfinete moram aqui. */
+.quick-note {
+  transform: rotate(var(--note-tilt, 0deg));
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / 0.1),
+    0 6px 10px -4px rgb(0 0 0 / 0.18),
+    0 14px 24px -10px rgb(0 0 0 / 0.14);
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.quick-note:hover {
+  transform: translateY(-3px) rotate(var(--note-tilt, 0deg));
+  box-shadow:
+    0 2px 2px rgb(0 0 0 / 0.12),
+    0 10px 16px -6px rgb(0 0 0 / 0.2),
+    0 22px 34px -12px rgb(0 0 0 / 0.16);
+}
+/* dobra do canto (page curl) no rodapé-direito */
+.quick-note::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(
+    135deg,
+    rgb(0 0 0 / 0) 42%,
+    rgb(0 0 0 / 0.05) 50%,
+    rgb(0 0 0 / 0.14) 58%,
+    rgb(255 255 255 / 0.55) 62%,
+    rgb(255 255 255 / 0.15) 100%
+  );
+  clip-path: polygon(100% 0, 0% 100%, 100% 100%);
+  border-bottom-right-radius: 3px;
+  filter: drop-shadow(-2px -2px 3px rgb(0 0 0 / 0.1));
+  pointer-events: none;
+}
+/* sombra projetada do alfinete no papel */
+.quick-pin-shadow {
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.22), rgb(0 0 0 / 0) 70%);
+  filter: blur(1px);
+}
+
 /* Borda "quieta" — 60% da borda padrão, para linhas INTERNAS (divisores de
    linha de tabela, barras de shell). A moldura externa continua com o token
    cheio: hierarquia = a moldura segura a forma, o interior quase some.

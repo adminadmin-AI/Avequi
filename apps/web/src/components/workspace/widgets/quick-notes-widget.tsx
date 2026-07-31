@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, StickyNote } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
 import { EmptyState, ListSkeleton, WidgetFrame } from '../widget-frame';
-import { NOTE_COLORS, NOTE_STYLE, safeColor, tiltFor, type NoteColor } from '../quick-notes';
+import { NOTE_COLORS, NOTE_PALETTE, safeColor, tiltFor, type NoteColor } from '../quick-notes';
 
 /**
  * Notas rápidas — post-its pessoais (ideia do Claudio, 31/07). O ÚNICO lugar
@@ -172,7 +172,7 @@ function PostIt({
   onPull: () => void;
 }) {
   const color = safeColor(note.color);
-  const style = NOTE_STYLE[color];
+  const pal = NOTE_PALETTE[color];
   const tilt = tiltFor(note.id);
   const [draft, setDraft] = useState(note.text);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -197,87 +197,132 @@ function PostIt({
     onCommitText(draft);
   }
 
+  // Papel: gradiente topo→base. Fora do "arrancar", a inclinação vai numa CSS
+  // var que a classe .quick-note lê (assim o hover mantém o tilt). No arrancar,
+  // o transform inline (queda) vence a classe — a nota levanta, gira e cai.
+  const paperStyle = {
+    background: `linear-gradient(160deg, ${pal.paper[0]} 0%, ${pal.paper[1]} 100%)`,
+    color: pal.text,
+    ...(removing
+      ? { transform: 'translateY(-10px) rotate(12deg) scale(0.9)' }
+      : { ['--note-tilt' as string]: `${tilt}deg` }),
+  } as CSSProperties;
+
   return (
     <div
+      onClick={() => !editing && canManage && onEdit()}
       className={cn(
-        'relative transition-all ease-flow',
-        removing
-          ? 'z-10 -translate-y-2 rotate-12 scale-90 opacity-0 duration-[460ms]'
-          : 'duration-flow animate-in fade-in zoom-in-95',
+        'quick-note relative min-h-[112px] rounded-[2px_2px_3px_2px] px-4 pb-4 pt-6',
+        !editing && canManage && 'cursor-text',
+        // fade-in anima só opacidade (sem transform) — não briga com o tilt
+        removing ? 'z-10 opacity-0 transition-all duration-[460ms] ease-flow' : 'animate-in fade-in duration-flow',
       )}
-      style={{ transform: removing ? undefined : `rotate(${tilt}deg)` }}
+      style={paperStyle}
     >
-      {/* Alfinete de ponta vermelha — puxar = resolver. Fica acima do papel. */}
+      {/* Alfinete 3D tonal — puxar = resolver. Contra-rotaciona pra ficar
+          "de pé" enquanto o papel inclina (realismo da referência). */}
       {canManage && (
-        <button
-          onClick={onPull}
-          aria-label="Arrancar nota"
-          title="Arrancar nota"
-          className="group absolute -top-2 left-1/2 z-20 -translate-x-1/2 focus:outline-none"
-        >
-          <span className="block transition-transform duration-fast ease-orbital group-hover:-translate-y-0.5 group-active:translate-y-0.5">
-            {/* corpo metálico */}
-            <span className="mx-auto block h-2 w-2 rounded-full bg-gradient-to-b from-danger-400 to-danger-600 shadow-elevation-2 ring-1 ring-black/10" />
-            {/* haste */}
-            <span className="mx-auto block h-2 w-px bg-neutral-400/70 dark:bg-neutral-500/70" />
-          </span>
-        </button>
+        <>
+          <span
+            aria-hidden
+            className="quick-pin-shadow pointer-events-none absolute left-1/2 top-2.5 z-10 h-2 w-5 -translate-x-[30%] rounded-full"
+          />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onPull();
+            }}
+            aria-label="Arrancar nota"
+            title="Arrancar nota"
+            className="group absolute left-1/2 top-[-13px] z-20 h-[30px] w-[26px] focus:outline-none"
+            style={{ transform: `translateX(-50%) rotate(${-tilt}deg)` }}
+          >
+            <span className="block transition-transform duration-fast ease-orbital group-hover:-translate-y-[1.5px] group-active:translate-y-0.5">
+              {/* cabeça (domo com brilho especular) */}
+              <span
+                className="absolute left-1/2 top-0 h-5 w-5 -translate-x-1/2 rounded-full"
+                style={{
+                  background: `radial-gradient(circle at 34% 30%, ${pal.pin[0]}, ${pal.pin[1]} 55%, ${pal.pin[2]} 100%)`,
+                  boxShadow: '0 3px 5px rgba(0,0,0,.30), inset 0 -2px 4px rgba(0,0,0,.25)',
+                }}
+              >
+                <span
+                  className="absolute left-1 top-[3px] h-[6px] w-[7px] rounded-full"
+                  style={{
+                    background:
+                      'radial-gradient(circle at 50% 50%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%)',
+                  }}
+                />
+              </span>
+              {/* colar (base da cabeça) */}
+              <span
+                className="absolute left-1/2 top-[15px] h-[6px] w-3 -translate-x-1/2 rounded-[50%_50%_45%_45%]"
+                style={{
+                  background: `linear-gradient(180deg, ${pal.pin[1]}, ${pal.pin[2]})`,
+                  boxShadow: '0 2px 3px rgba(0,0,0,.28)',
+                }}
+              />
+              {/* haste metálica entrando no papel */}
+              <span
+                className="absolute left-1/2 top-[19px] h-[10px] w-[2px] -translate-x-1/2 rounded-b-[1px]"
+                style={{ background: 'linear-gradient(90deg,#9aa0a6,#d7dade 45%,#7d8288)' }}
+              />
+            </span>
+          </button>
+        </>
       )}
 
-      <div
-        onClick={() => !editing && canManage && onEdit()}
-        className={cn(
-          'min-h-[92px] rounded-[3px] border-b-2 px-2.5 pb-2 pt-3.5 shadow-soft transition-shadow duration-flow',
-          style.paper,
-          style.edge,
-          !editing && canManage && 'cursor-text hover:shadow-elevation-2',
-        )}
-      >
-        {editing ? (
-          <div className="space-y-2">
-            <textarea
-              ref={areaRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commit}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setDraft(note.text);
-                  onStopEdit();
-                }
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
-              }}
-              rows={3}
-              maxLength={500}
-              placeholder="Escreva…"
-              className="w-full resize-none bg-transparent text-sm leading-snug text-content outline-none placeholder:text-content-muted"
-            />
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              {NOTE_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onMouseDown={(e) => {
-                    // onMouseDown p/ não perder o foco do textarea antes do save
-                    e.preventDefault();
-                    if (c !== color) onSaveColor(c);
-                  }}
-                  aria-label={`Cor ${c}`}
-                  className={cn(
-                    'h-4 w-4 rounded-full border transition-transform duration-micro hover:scale-110',
-                    NOTE_STYLE[c].paper,
-                    NOTE_STYLE[c].edge,
-                    c === color && 'ring-2 ring-content/30 ring-offset-1 ring-offset-surface',
-                  )}
-                />
-              ))}
-            </div>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            ref={areaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setDraft(note.text);
+                onStopEdit();
+              }
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
+            }}
+            rows={3}
+            maxLength={500}
+            placeholder="Escreva…"
+            className="w-full resize-none bg-transparent text-sm leading-snug outline-none placeholder:text-current placeholder:opacity-45"
+            style={{ color: pal.text, caretColor: pal.text }}
+          />
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c}
+                onMouseDown={(e) => {
+                  // onMouseDown p/ não perder o foco do textarea antes do save
+                  e.preventDefault();
+                  if (c !== color) onSaveColor(c);
+                }}
+                aria-label={`Cor ${c}`}
+                className={cn(
+                  'h-4 w-4 rounded-full ring-offset-1 transition-transform duration-micro hover:scale-110',
+                  c === color && 'ring-2 ring-black/25',
+                )}
+                style={{
+                  background: `linear-gradient(160deg, ${NOTE_PALETTE[c].paper[1]}, ${NOTE_PALETTE[c].pin[1]})`,
+                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.12)',
+                }}
+              />
+            ))}
           </div>
-        ) : (
-          <p className="whitespace-pre-wrap break-words text-sm leading-snug text-content">
-            {note.text || <span className="text-content-muted">Nota vazia — toque para escrever</span>}
-          </p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <p
+          className="whitespace-pre-wrap break-words text-sm leading-snug"
+          style={{ color: pal.text }}
+        >
+          {note.text || <span className="opacity-45">Nota vazia — toque para escrever</span>}
+        </p>
+      )}
     </div>
   );
 }

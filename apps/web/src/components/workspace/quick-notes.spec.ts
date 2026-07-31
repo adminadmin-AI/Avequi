@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_COLORS, NOTE_STYLE, safeColor, tiltFor } from './quick-notes';
+import { NOTE_COLORS, NOTE_PALETTE, safeColor, tiltFor } from './quick-notes';
 
 /** Helpers puros das Notas rápidas. */
 
@@ -16,11 +16,15 @@ describe('safeColor', () => {
   });
 });
 
-describe('NOTE_STYLE', () => {
-  it('tem estilo para toda cor do catálogo', () => {
+describe('NOTE_PALETTE', () => {
+  it('tem paleta completa para toda cor do catálogo', () => {
     for (const c of NOTE_COLORS) {
-      expect(NOTE_STYLE[c].paper).toBeTruthy();
-      expect(NOTE_STYLE[c].edge).toBeTruthy();
+      const pal = NOTE_PALETTE[c];
+      expect(pal.paper).toHaveLength(2);
+      expect(pal.pin).toHaveLength(3);
+      expect(pal.text).toMatch(/^#[0-9a-f]{6}$/i);
+      // stops são cores hex válidas
+      for (const hex of [...pal.paper, ...pal.pin]) expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 });

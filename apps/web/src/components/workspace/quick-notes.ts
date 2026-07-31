@@ -10,20 +10,27 @@
 export const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple'] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
-export interface NoteColorStyle {
-  /** Fundo do papel. */
-  paper: string;
-  /** Sombra/borda inferior sutil para dar espessura. */
-  edge: string;
+/**
+ * Paleta de papel "grife" (mockup aprovado 31/07): papel com gradiente
+ * topo→base, texto escuro legível SOBRE o papel (mesmo no dark mode — o
+ * post-it é papel claro nos dois temas), e o alfinete TONAL em 3 stops
+ * (claro/médio/fundo) para a cabeça abaulada com brilho especular.
+ */
+export interface NotePalette {
+  /** [topo, base] do gradiente do papel. */
+  paper: [string, string];
+  /** Cor do texto/caret — escura, casa com a família da cor. */
+  text: string;
+  /** [claro, médio, fundo] do domo do alfinete (mesma família, tonal). */
+  pin: [string, string, string];
 }
 
-/** Classe utilitária Tailwind por cor — fundo de papel + aresta. */
-export const NOTE_STYLE: Record<NoteColor, NoteColorStyle> = {
-  yellow: { paper: 'bg-warning/15 dark:bg-warning/20', edge: 'border-warning/25' },
-  pink: { paper: 'bg-danger/10 dark:bg-danger/20', edge: 'border-danger/25' },
-  blue: { paper: 'bg-info/12 dark:bg-info/20', edge: 'border-info/25' },
-  green: { paper: 'bg-success/12 dark:bg-success/20', edge: 'border-success/25' },
-  purple: { paper: 'bg-brand-500/12 dark:bg-brand-500/20', edge: 'border-brand-500/25' },
+export const NOTE_PALETTE: Record<NoteColor, NotePalette> = {
+  yellow: { paper: ['#fef3c7', '#fde68a'], text: '#5b4708', pin: ['#fcd34d', '#f59e0b', '#b45309'] },
+  pink: { paper: ['#fee2e2', '#fecdd3'], text: '#7f1d1d', pin: ['#fca5a5', '#f43f5e', '#be123c'] },
+  blue: { paper: ['#dbeafe', '#bfdbfe'], text: '#1e3a8a', pin: ['#93c5fd', '#3b82f6', '#1d4ed8'] },
+  green: { paper: ['#dcfce7', '#bbf7d0'], text: '#14532d', pin: ['#86efac', '#22c55e', '#15803d'] },
+  purple: { paper: ['#e0e7ff', '#c7d2fe'], text: '#3730a3', pin: ['#a5b4fc', '#6366f1', '#4338ca'] },
 };
 
 /** Cor válida ou o default amarelo — nunca estoura com valor do backend. */
