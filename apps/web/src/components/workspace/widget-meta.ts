@@ -129,7 +129,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   'chart-production': {
     id: 'chart-production',
-    title: 'Produção por status',
+    title: 'Produção',
     permission: ['production.orders.view'], // GET /production
     zone: 'context',
     defaultSize: 'half',
