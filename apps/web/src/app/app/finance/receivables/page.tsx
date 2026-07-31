@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, Barcode, QrCode, ExternalLink, Ban, TrendingDown } from 'lucide-react';
@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatGroup } from '@/components/ui/stat-group';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
+import { dueFromSearch } from '../due-param';
 import { ReceivablePayForm, type PayFormValues } from './receivable-pay-form';
 
 const RESOURCE = '/finance';
@@ -131,6 +132,16 @@ export default function ReceivablesPage() {
   // ── Filtros (client-side) ──
   const [dueFrom, setDueFrom] = useState('');
   const [dueTo, setDueTo] = useState('');
+
+  // Deep-link do calendário da Home: ?due=YYYY-MM-DD pré-carrega o filtro de
+  // vencimento naquele dia (visível e limpável nos campos de data). Lido no
+  // mount — URL é só estado inicial.
+  useEffect(() => {
+    const due = dueFromSearch(window.location.search);
+    if (!due) return;
+    setDueFrom(due);
+    setDueTo(due);
+  }, []);
   const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
   const [clientFilter, setClientFilter] = useState('');
 
