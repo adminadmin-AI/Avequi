@@ -40,3 +40,18 @@ export function toDayStr(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/**
+ * Status de exibição "Pagar hoje" (pedido do Rafael, 31/07): toda conta AINDA
+ * NÃO quitada cuja PREVISÃO de pagamento cai hoje. Substituiu os chips de
+ * atalho — vive no badge de status da tabela e como opção do dropdown.
+ * Pseudo-status de TELA: o status real do banco não muda.
+ */
+const PAYABLE_OPEN_STATUSES: FinancialEntry['status'][] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
+
+export function isPagarHoje(
+  e: Pick<FinancialEntry, 'status' | 'expectedPaymentDate' | 'dueDate'>,
+  todayStr: string,
+): boolean {
+  return PAYABLE_OPEN_STATUSES.includes(e.status) && previsaoDate(e) === todayStr;
+}

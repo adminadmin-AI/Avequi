@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { venceDate, previsaoDate, inRange, toDayStr } from './filters';
+import { venceDate, previsaoDate, inRange, toDayStr, isPagarHoje } from './filters';
 
 describe('helpers dos filtros de data da Carteira de Pagáveis', () => {
   it('venceDate devolve só a parte da data do vencimento', () => {
@@ -47,5 +47,37 @@ describe('helpers dos filtros de data da Carteira de Pagáveis', () => {
   it('toDayStr formata YYYY-MM-DD com zero à esquerda', () => {
     expect(toDayStr(new Date(2026, 6, 28))).toBe('2026-07-28'); // mês 6 = julho
     expect(toDayStr(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+
+  describe('isPagarHoje (status de exibição)', () => {
+    const HOJE = '2026-07-31';
+    const aberto = (status: 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED') => ({
+      status,
+      expectedPaymentDate: `${HOJE}T00:00:00Z`,
+      dueDate: '2026-08-15',
+    });
+
+    it('conta em aberto com previsão = hoje → Pagar hoje (OPEN/OVERDUE/PARCIAL)', () => {
+      expect(isPagarHoje(aberto('OPEN'), HOJE)).toBe(true);
+      expect(isPagarHoje(aberto('OVERDUE'), HOJE)).toBe(true);
+      expect(isPagarHoje(aberto('PARTIALLY_PAID'), HOJE)).toBe(true);
+    });
+
+    it('conta quitada/cancelada NUNCA é Pagar hoje, mesmo com previsão = hoje', () => {
+      expect(isPagarHoje(aberto('PAID'), HOJE)).toBe(false);
+      expect(isPagarHoje(aberto('CANCELLED'), HOJE)).toBe(false);
+    });
+
+    it('previsão em outro dia → não é Pagar hoje', () => {
+      expect(
+        isPagarHoje({ status: 'OPEN', expectedPaymentDate: '2026-08-01', dueDate: '2026-08-15' }, HOJE),
+      ).toBe(false);
+    });
+
+    it('sem previsão informada usa o vencimento (fallback da coluna Previsão)', () => {
+      expect(
+        isPagarHoje({ status: 'OPEN', expectedPaymentDate: null, dueDate: `${HOJE}T12:00:00Z` }, HOJE),
+      ).toBe(true);
+    });
   });
 });
