@@ -59,6 +59,9 @@ export interface AgendaItem {
   title: string;
   href: string;
   tone?: 'danger' | 'warning' | 'neutral';
+  /** Valor estruturado (itens financeiros) — o rollup do calendário SOMA isto,
+   *  nunca parseia o título. */
+  amount?: number;
 }
 
 const SEVERITY_ORDER: Record<WorkspaceInsight['severity'], number> = {
@@ -529,6 +532,7 @@ export class WorkspaceService {
                 title: `${payable ? 'Pagar' : 'Receber'} ${this.brl(e.amount, 2)}${e.description ? ` — ${e.description}` : ''}`,
                 href: payable ? '/app/finance/payables' : '/app/finance/receivables',
                 tone: payable && date === todayIso ? 'warning' : 'neutral',
+                amount: Number(e.amount),
               });
             }
           }),
