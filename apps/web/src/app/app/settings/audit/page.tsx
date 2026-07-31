@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
@@ -40,8 +41,10 @@ export default function AuditLogPage() {
   const [entity, setEntity] = useState('');
   const [userId, setUserId] = useState('');
   const [action, setAction] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Período (padrão #881): um campo, calendário de 2 cliques.
+  const [range, setRange] = useState<DateRange>();
+  const from = dateToISO(range?.from);
+  const to = dateToISO(range?.to);
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -110,7 +113,7 @@ export default function AuditLogPage() {
         </div>
       )}
 
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
         <div>
           <Label>Entidade</Label>
           <Select value={entity} onChange={(e) => { setEntity(e.target.value); setPage(0); }}>
@@ -130,12 +133,16 @@ export default function AuditLogPage() {
           <Input value={action} onChange={(e) => { setAction(e.target.value); setPage(0); }} placeholder="Ex.: CREATE, UPDATE" />
         </div>
         <div>
-          <Label>De</Label>
-          <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(0); }} />
-        </div>
-        <div>
-          <Label>Até</Label>
-          <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(0); }} />
+          <Label>Período</Label>
+          <DateRangePicker
+            value={range}
+            onValueChange={(r) => {
+              setRange(r);
+              setPage(0);
+            }}
+            clearable
+            placeholder="Qualquer período"
+          />
         </div>
       </div>
 
