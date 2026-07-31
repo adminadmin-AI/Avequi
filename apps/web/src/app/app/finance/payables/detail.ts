@@ -109,3 +109,34 @@ export function changedFieldsSummary(changes: EntryHistoryEvent['changes']): str
   if (!keys.length) return null;
   return keys.map((k) => FIELD_LABELS[k] ?? k).join(', ');
 }
+
+// ── #864 anti-fraude: mensagem do aviso de troca bancária ────────────────────
+
+const BANKING_FIELD_LABELS: Record<string, string> = {
+  pixKey: 'chave PIX',
+  bankName: 'banco',
+  bankAgency: 'agência',
+  bankAccount: 'conta',
+};
+
+/** "há 2 dias" / "hoje" — diferença em dias corridos entre `at` e `now`. */
+export function diasAtras(at: string | Date, now: Date): string {
+  const d = Math.floor((now.getTime() - new Date(at).getTime()) / 86_400_000);
+  if (d <= 0) return 'hoje';
+  return d === 1 ? 'há 1 dia' : `há ${d} dias`;
+}
+
+/**
+ * Frase do aviso amarelo: "chave PIX alterada há 2 dias por Manu". Campos em
+ * português; sem ator = mudança de sistema (omite o "por").
+ */
+export function bankingAlertMessage(
+  alert: { at: string; by: { name: string } | null; fields: string[] },
+  now: Date,
+): string {
+  const campos = alert.fields.map((f) => BANKING_FIELD_LABELS[f] ?? f).join(', ');
+  const quando = diasAtras(alert.at, now);
+  const quem = alert.by ? ` por ${alert.by.name}` : '';
+  const plural = alert.fields.length > 1 ? 'alterados' : (alert.fields[0] === 'pixKey' ? 'alterada' : 'alterado');
+  return `${campos} ${plural} ${quando}${quem}`;
+}

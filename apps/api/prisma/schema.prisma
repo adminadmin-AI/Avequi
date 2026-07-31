@@ -2209,6 +2209,7 @@ enum AlertType {
   CRM_REMINDER_DUE // lembrete de follow-up do CRM venceu (#555)
   CRM_SDR_HANDOFF // SDR IA transferiu lead quente p/ vendedor (#522)
   CRM_SLA_WARNING // lead sem resposta estourou o SLA — aviso ao vendedor (#569)
+  SUPPLIER_BANKING_CHANGED // chave PIX/dados bancários de fornecedor TROCADOS — anti-fraude (#864)
   CRM_SLA_ESCALATION // lead estourou SLA x2 — realocado no rodízio, aviso ao gerente (#569)
 }
 

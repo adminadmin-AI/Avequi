@@ -7,6 +7,8 @@ import {
   paymentMethodLabel,
   actionLabel,
   changedFieldsSummary,
+  diasAtras,
+  bankingAlertMessage,
 } from './detail';
 import type { FinancialCategory } from '@/types/api';
 
@@ -65,6 +67,34 @@ describe('helpers do painel de detalhe da Carteira de Pagáveis', () => {
     expect(actionLabel('UPDATE')).toBe('Editado');
     expect(actionLabel('CREATE_PAYABLE')).toBe('Criado (compra)');
     expect(actionLabel('ALGO_NOVO')).toBe('ALGO_NOVO');
+  });
+
+  describe('#864 — mensagem do aviso anti-fraude', () => {
+    const NOW = new Date('2026-07-31T15:00:00');
+
+    it('diasAtras: hoje / 1 dia / N dias', () => {
+      expect(diasAtras('2026-07-31T09:00:00', NOW)).toBe('hoje');
+      expect(diasAtras('2026-07-30T09:00:00', NOW)).toBe('há 1 dia');
+      expect(diasAtras('2026-07-16T09:00:00', NOW)).toBe('há 15 dias');
+    });
+
+    it('chave PIX trocada com ator', () => {
+      expect(
+        bankingAlertMessage(
+          { at: '2026-07-29T10:00:00', by: { name: 'Manu' }, fields: ['pixKey'] },
+          NOW,
+        ),
+      ).toBe('chave PIX alterada há 2 dias por Manu');
+    });
+
+    it('múltiplos campos e sem ator (sistema)', () => {
+      expect(
+        bankingAlertMessage(
+          { at: '2026-07-31T10:00:00', by: null, fields: ['bankName', 'bankAccount'] },
+          NOW,
+        ),
+      ).toBe('banco, conta alterados hoje');
+    });
   });
 
   it('changedFieldsSummary resume os campos alterados em pt', () => {

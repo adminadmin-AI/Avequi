@@ -86,6 +86,26 @@ export class SupplierService {
     // Defesa em profundidade: descarta qualquer companyId injetado no payload
     const { companyId: _ignored, ...data } = dto as any;
 
+    // ── Anti-fraude (#864): rastreia mudanças nos DADOS BANCÁRIOS ────────────
+    // Diff antes→depois dos campos de pagamento. "Troca" = já havia valor e ele
+    // mudou (A→B) — é o vetor do golpe da chave trocada. Primeiro preenchimento
+    // (vazio→A, ex.: captura inteligente #863) NÃO conta como troca (decisão
+    // do Rafael, 31/07). Trocas geram alerta no sino e acendem o aviso de
+    // 15 dias na tela de contas a pagar (GET /finance/entries/:id/banking-alert).
+    const BANKING_FIELDS = ['pixKey', 'bankName', 'bankAgency', 'bankAccount'] as const;
+    const bankingChanges: Record<string, { from: string | null; to: string | null }> = {};
+    let troca = false;
+    for (const f of BANKING_FIELDS) {
+      const next = (dto as Record<string, unknown>)[f];
+      if (next === undefined) continue;
+      const to = (next as string | null) || null;
+      const from = existing[f] ?? null;
+      if (to !== from) {
+        bankingChanges[f] = { from, to };
+        if (from) troca = true; // tinha valor antes → troca real
+      }
+    }
+
     const supplier = await this.prisma.supplier.update({
       where: { id },
       data,
@@ -100,6 +120,38 @@ export class SupplierService {
         payload: { ...dto },
       },
     });
+
+    if (Object.keys(bankingChanges).length > 0) {
+      // registro dedicado, consultável pelo alerta da tela (payload.id + troca)
+      await this.prisma.auditLog.create({
+        data: {
+          userId: user?.id,
+          companyId,
+          entity: 'Supplier',
+          action: 'BANKING_UPDATE',
+          payload: { id, changes: bankingChanges, troca },
+        },
+      });
+      if (troca) {
+        // sino: avisa a empresa NA HORA, independente de alguém abrir a conta
+        const campos = Object.keys(bankingChanges)
+          .map((f) => (f === 'pixKey' ? 'chave PIX' : f))
+          .join(', ');
+        await this.prisma.alert.create({
+          data: {
+            companyId,
+            type: 'SUPPLIER_BANKING_CHANGED',
+            severity: 'WARNING',
+            title: `Dados bancários alterados: ${existing.name}`,
+            body:
+              `${campos} do fornecedor ${existing.name} foram ALTERADOS. ` +
+              'Antes de pagar títulos dele, confirme os novos dados por outro canal (golpe da chave trocada).',
+            entityId: id,
+            entityType: 'Supplier',
+          },
+        });
+      }
+    }
 
     return supplier;
   }

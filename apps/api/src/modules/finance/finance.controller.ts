@@ -105,6 +105,16 @@ export class FinanceController {
     return this.financeService.entryHistory(id, req.user.companyId);
   }
 
+  // #864 anti-fraude — aviso de troca recente de dados bancários do fornecedor
+  // do título (janela 15d; primeiro preenchimento não conta). Mesma permissão
+  // de leitura; 3 segmentos, não colide com `@Get(':id')`.
+  @Get('entries/:id/banking-alert')
+  @RequirePermission('finance.entries.view')
+  @ApiOperation({ summary: 'Alerta de troca recente de dados bancários do fornecedor' })
+  bankingAlert(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
+    return this.financeService.bankingAlert(id, req.user.companyId);
+  }
+
   @Get('kpis')
   @RequirePermission('finance.reports.view')
   @ApiOperation({ summary: 'KPIs financeiros: PMP, PMR, ciclo, cash runway, liquidez (#382/#387)' })

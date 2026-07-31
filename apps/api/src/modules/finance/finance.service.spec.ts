@@ -24,6 +24,7 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
     findMany: jest.fn(),
+    findFirst: jest.fn(),
   },
   entryCostCenterSplit: {
     deleteMany: jest.fn(),
@@ -787,6 +788,59 @@ describe('FinanceService', () => {
       mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
       await expect(service.entryHistory('fe-1', 'co-OUTRA')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.auditLog.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── #864 anti-fraude: aviso de troca bancária do fornecedor ──────────────
+
+  describe('bankingAlert', () => {
+    beforeEach(() => {
+      mockPrisma.financialEntry.findFirst.mockReset();
+      mockPrisma.auditLog.findFirst.mockReset();
+    });
+
+    it('troca dentro da janela → devolve at/by/fields e filtra por troca=true', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ id: 'fe-1', supplierId: 'sup-9' });
+      const at = new Date();
+      mockPrisma.auditLog.findFirst.mockResolvedValue({
+        createdAt: at,
+        user: { id: 'u-1', name: 'Manu' },
+        payload: { id: 'sup-9', troca: true, changes: { pixKey: { from: 'a@x.com', to: 'b@y.com' } } },
+      });
+
+      const r = await service.bankingAlert('fe-1', 'co-1');
+
+      expect(mockPrisma.auditLog.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            companyId: 'co-1',
+            entity: 'Supplier',
+            action: 'BANKING_UPDATE',
+            AND: [
+              { payload: { path: ['id'], equals: 'sup-9' } },
+              { payload: { path: ['troca'], equals: true } },
+            ],
+          }),
+        }),
+      );
+      expect(r.alert).toEqual({ at, by: { id: 'u-1', name: 'Manu' }, fields: ['pixKey'] });
+    });
+
+    it('sem troca recente → alert null', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ id: 'fe-1', supplierId: 'sup-9' });
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+      expect((await service.bankingAlert('fe-1', 'co-1')).alert).toBeNull();
+    });
+
+    it('título sem fornecedor → alert null sem consultar logs', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue({ id: 'fe-1', supplierId: null });
+      expect((await service.bankingAlert('fe-1', 'co-1')).alert).toBeNull();
+      expect(mockPrisma.auditLog.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('título de outra empresa = 404', async () => {
+      mockPrisma.financialEntry.findFirst.mockResolvedValue(null);
+      await expect(service.bankingAlert('fe-1', 'co-OUTRA')).rejects.toThrow(NotFoundException);
     });
   });
 
