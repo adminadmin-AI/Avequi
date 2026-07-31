@@ -7,7 +7,7 @@ import { DollarSign, CalendarClock, Ban, Pencil, TrendingDown } from 'lucide-rea
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
-import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
+import type { FinancialEntry, FinancialEntryStatus, PaymentMethod } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge, StatusDot } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import { EditEntryDialog } from '../edit-entry-dialog';
 import { dueFromSearch } from '../due-param';
 import { canEditEntry } from './editable';
 import { venceDate, previsaoDate, inRange, toDayStr, isPagarHoje } from './filters';
-import { num, remainingOf } from './detail';
+import { num, remainingOf, paymentMethodLabel, PAYMENT_METHOD_LABELS } from './detail';
 import { EntryDetailSheet } from './entry-detail-sheet';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
 
@@ -118,6 +118,8 @@ export default function PayablesPage() {
     setDueRange({ from: day, to: day });
   }, []);
   const [statusFilter, setStatusFilter] = useState<'' | DisplayStatus>('');
+  // Forma de pagamento (Fase 2): '' = todas; 'NONE' = sem forma informada.
+  const [formaFilter, setFormaFilter] = useState<'' | 'NONE' | PaymentMethod>('');
   // Busca geral (fornecedor, CNPJ, descrição/OMIE#, nº doc) — mora no grid de
   // filtros; a barra interna da DataTable fica desligada p/ não duplicar.
   const [search, setSearch] = useState('');
@@ -138,6 +140,10 @@ export default function PayablesPage() {
       if (!inRange(venceDate(e), dueFrom, dueTo)) return false;
       if (!inRange(previsaoDate(e), prevFrom, prevTo)) return false;
       if (statusFilter && displayStatus(e) !== statusFilter) return false;
+      if (formaFilter) {
+        const semForma = !e.paymentMethod;
+        if (formaFilter === 'NONE' ? !semForma : e.paymentMethod !== formaFilter) return false;
+      }
       if (q) {
         const alvo =
           `${supplierName(e)} ${supplierCnpj(e) ?? ''} ${e.description ?? ''} ${e.documentNumber ?? ''}`.toLowerCase();
@@ -146,7 +152,7 @@ export default function PayablesPage() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dueRange, prevRange, statusFilter, search, today, todayStr]);
+  }, [entries, dueRange, prevRange, statusFilter, formaFilter, search, today, todayStr]);
 
   // ── KPIs (refletem os filtros ativos; sem filtro = totais completos) ──
   const summary = useMemo(() => {
@@ -257,6 +263,15 @@ export default function PayablesPage() {
       cell: (e) => formatDate(e.expectedPaymentDate ?? e.dueDate),
     },
     {
+      key: 'paymentMethod',
+      header: 'Forma',
+      sortable: true,
+      // Fase 2 — como a conta será paga (Boleto/PIX/Cheque…); "—" = não informada.
+      accessor: (e) => paymentMethodLabel(e.paymentMethod) ?? '',
+      cell: (e) =>
+        paymentMethodLabel(e.paymentMethod) ?? <span className="text-content-muted">—</span>,
+    },
+    {
       key: 'status',
       header: 'Status',
       align: 'center',
@@ -352,7 +367,7 @@ export default function PayablesPage() {
       />
 
       {/* Filtros */}
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>Vencimento</Label>
           <DateRangePicker
@@ -384,6 +399,21 @@ export default function PayablesPage() {
             <option value="PARTIALLY_PAID">Parcial</option>
             <option value="PAID">Pago</option>
             <option value="CANCELLED">Cancelado</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Forma de pagamento</Label>
+          <Select
+            value={formaFilter}
+            onChange={(e) => setFormaFilter(e.target.value as '' | 'NONE' | PaymentMethod)}
+          >
+            <option value="">Todas</option>
+            {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            <option value="NONE">Não informada</option>
           </Select>
         </div>
         <div>
