@@ -6,6 +6,20 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-07-31
+
+### Adicionado
+- **Workspace (Home por papel) — épico completo em produção** (#859, #860, #861, #862): registry de widgets + templates por perfil (RBAC v2), Resumo do Dia (Antonella V1) + Minhas Pendências + Agenda via módulo `workspace` na API (conteúdo curado por permissão no servidor), personalização persistida (`gdr_user_workspace_layouts` + modo edição com dnd-kit) e 6 widgets de domínio (fluxo 13 semanas, SLA CRM, carteira, fila WMS, docs veiculares, gargalos de capacidade).
+- **Refinamento UX do Workspace** (#875): hierarquia visual em 3 níveis, grid denso com galeria "Adicionar widgets", Antonella analista (chip de status + CTA em pílula), agenda como calendário estilo Apple (Semana|Mês) e empty states padronizados.
+- **Agenda: navegação e rollup executivo** (#882): navegação ‹ Hoje › por semana/mês na janela prospectiva de 42 dias, rollup por grupo com soma em dias densos ("18 pagamentos · R$ 132 mil") e popover de detalhe com total do dia.
+- `GET /workspace/agenda?days=1..42` (#875) e campo `amount` estruturado no item financeiro da agenda (#880).
+
+### Segurança/IAM
+- Catálogo +5 permissões `workspace.*` (303→308) com grants em 17 perfis-raiz; curadoria por permissão fail-closed em todos os agregadores da Home.
+
+### Infra
+- Migration aditiva idempotente `20260730120000_user_workspace_layout` (aplicada via db execute + seed IAM).
+
 ## [1.24.0] - 2026-07-30
 
 _Sem itens listados — edite antes de taggear._
@@ -292,7 +306,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...HEAD
+[1.25.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.21.0...v1.22.0
