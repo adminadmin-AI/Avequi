@@ -104,7 +104,9 @@ describe('Catálogo de permissões (#338)', () => {
     //       BFF GET /workspace/*, conteúdo curado por permissão no service).
     // 308 = 306 + workspace.layout.{view,update} (F2 — personalização da Home,
     //       GET/PUT/DELETE /workspace/layout, sempre dado do próprio usuário).
-    expect(PERMISSIONS_CATALOG.length).toBe(308);
+    // 310 = 308 + workspace.notes.{view,manage} (widget Notas rápidas — post-its
+    //       pessoais, GET/POST/PATCH/DELETE /workspace/notes do próprio usuário).
+    expect(PERMISSIONS_CATALOG.length).toBe(310);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

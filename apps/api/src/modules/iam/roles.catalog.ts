@@ -244,9 +244,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // gerenciar perfis/permissões. iam.org.view entra pelo actionCodes('view').
       'iam.org.manage',
       'iam.org.assign',
-      // Workspace F2: diretor personaliza a própria Home (as leituras
-      // workspace.*.view já entram pelo actionCodes('view') acima).
+      // Workspace F2: diretor personaliza a própria Home e gere as próprias
+      // notas rápidas (as leituras workspace.*.view já entram pelo
+      // actionCodes('view') acima; a maioria dos perfis operacionais recebe
+      // notes.manage via moduleCodes('workspace'), mas o DIRETOR é curado à mão).
       'workspace.layout.update',
+      'workspace.notes.manage',
       // Bloco F (#624, D5): CRM completo 29/29, incluindo as duas ações LGPD
       // (o DIRECTOR legado tinha todas as rotas do CRM — zero regressão).
       // As leituras crm.*.view já entram pelo actionCodes('view') acima.

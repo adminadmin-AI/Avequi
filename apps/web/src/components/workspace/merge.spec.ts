@@ -40,6 +40,7 @@ describe('mergeLayout', () => {
       'cashflow-13w',
       'crm-portfolio',
       'agenda',
+      'quick-notes',
     ]);
   });
 
@@ -52,6 +53,7 @@ describe('mergeLayout', () => {
       'crm-portfolio',
       'agenda',
       'chart-production',
+      'quick-notes',
     ]);
   });
 

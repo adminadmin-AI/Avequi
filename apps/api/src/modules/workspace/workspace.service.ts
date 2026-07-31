@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AlertSeverity,
   AlertType,
@@ -50,6 +50,21 @@ export interface WorkspaceTask {
   href: string;
   dueAt?: string;
   createdAt?: string;
+  /**
+   * Presente só quando a pendência pode ser CONCLUÍDA num clique direto do
+   * widget (ex.: lembrete de CRM → PATCH /crm/reminders/:id/done). Aprovações
+   * e inspeções NÃO têm — resolver ali seria mentira (só se resolvem na tela do
+   * domínio). O front mostra o círculo de check apenas quando isto existe.
+   */
+  complete?: { url: string };
+}
+
+export interface WorkspaceNote {
+  id: string;
+  text: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AgendaItem {
@@ -224,6 +239,77 @@ export class WorkspaceService {
   async resetLayout(user: AuthUserLite) {
     await this.prisma.userWorkspaceLayout.deleteMany({ where: { userId: user.id } });
     return { reset: true };
+  }
+
+  // ─── Notas rápidas (post-its) ──────────────────────────────────────────────
+  // Sempre do PRÓPRIO usuário: userId do JWT em TODO where. Nota é privada —
+  // nunca cruza usuários, mesmo dentro da mesma empresa.
+
+  private noteView(n: {
+    id: string;
+    text: string;
+    color: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }): WorkspaceNote {
+    return {
+      id: n.id,
+      text: n.text,
+      color: n.color,
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+    };
+  }
+
+  async listNotes(user: AuthUserLite): Promise<WorkspaceNote[]> {
+    const notes = await this.prisma.userQuickNote.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return notes.map((n) => this.noteView(n));
+  }
+
+  async createNote(
+    user: AuthUserLite,
+    input: { text: string; color?: string },
+  ): Promise<WorkspaceNote> {
+    const note = await this.prisma.userQuickNote.create({
+      data: {
+        companyId: user.companyId,
+        userId: user.id,
+        text: input.text.trim(),
+        color: input.color ?? 'yellow',
+      },
+    });
+    return this.noteView(note);
+  }
+
+  async updateNote(
+    user: AuthUserLite,
+    id: string,
+    patch: { text?: string; color?: string },
+  ): Promise<WorkspaceNote> {
+    // updateMany com userId no where = escopo à prova de IDOR: nota de outro
+    // usuário não é encontrada (count 0), nunca editada.
+    const data: { text?: string; color?: string } = {};
+    if (patch.text !== undefined) data.text = patch.text.trim();
+    if (patch.color !== undefined) data.color = patch.color;
+    const res = await this.prisma.userQuickNote.updateMany({
+      where: { id, userId: user.id },
+      data,
+    });
+    if (res.count === 0) throw new NotFoundException('Nota não encontrada');
+    const note = await this.prisma.userQuickNote.findFirstOrThrow({
+      where: { id, userId: user.id },
+    });
+    return this.noteView(note);
+  }
+
+  /** Arrancar o post-it — o gesto de "resolvido". Idempotente por design. */
+  async deleteNote(user: AuthUserLite, id: string): Promise<{ deleted: boolean }> {
+    await this.prisma.userQuickNote.deleteMany({ where: { id, userId: user.id } });
+    return { deleted: true };
   }
 
   // ─── Resumo do Dia (insights) ──────────────────────────────────────────────
@@ -460,6 +546,9 @@ export class WorkspaceService {
                 subtitle: r.lead?.name ? r.text : undefined,
                 href: '/app/crm/leads',
                 dueAt: r.dueAt.toISOString(),
+                // Concluível no clique: o mesmo endpoint que o inbox de CRM usa.
+                // Exige crm.leads.annotate (o dono sempre tem); o backend valida.
+                complete: { url: `/crm/reminders/${r.id}/done` },
               });
             }
           }),

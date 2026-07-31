@@ -17,6 +17,7 @@ import { VehicleDocsWidget } from './widgets/vehicle-docs-widget';
 import { CapacityWidget } from './widgets/capacity-widget';
 import { RevenueChartWidget } from './widgets/revenue-chart-widget';
 import { ProductionChartWidget } from './widgets/production-chart-widget';
+import { QuickNotesWidget } from './widgets/quick-notes-widget';
 
 /**
  * Registry de widgets — casa os metadados puros (widget-meta.ts) com os
@@ -39,4 +40,5 @@ export const WIDGETS: Record<WidgetId, WidgetDefinition> = {
   'capacity-bottlenecks': { ...WIDGET_META['capacity-bottlenecks'], Component: CapacityWidget },
   'chart-revenue': { ...WIDGET_META['chart-revenue'], Component: RevenueChartWidget },
   'chart-production': { ...WIDGET_META['chart-production'], Component: ProductionChartWidget },
+  'quick-notes': { ...WIDGET_META['quick-notes'], Component: QuickNotesWidget },
 };

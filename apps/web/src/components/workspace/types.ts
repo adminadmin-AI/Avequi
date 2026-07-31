@@ -25,7 +25,8 @@ export type WidgetId =
   | 'vehicle-docs'
   | 'capacity-bottlenecks'
   | 'chart-revenue'
-  | 'chart-production';
+  | 'chart-production'
+  | 'quick-notes';
 
 /** Presets de tamanho — sem resize livre por pixel, de propósito. */
 export type WidgetSize = 'half' | 'full';
