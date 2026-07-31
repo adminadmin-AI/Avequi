@@ -128,10 +128,14 @@ describe('rollup do dia', () => {
 });
 
 describe('compactBRL', () => {
+  // Intl usa NBSP (U+00A0) entre número e sufixo — ótimo no chip (não quebra
+  // linha); o teste normaliza para não depender do caractere invisível.
+  const plain = (v: number) => compactBRL(v).replace(/ /g, ' ');
+
   it('formata em escala executiva', () => {
-    expect(compactBRL(132_450)).toBe('R$ 132,5 mil');
-    expect(compactBRL(900)).toBe('R$ 900');
-    expect(compactBRL(1_250_000)).toBe('R$ 1,3 mi');
+    expect(plain(132_450)).toBe('R$ 132,5 mil');
+    expect(plain(900)).toBe('R$ 900');
+    expect(plain(1_250_000)).toBe('R$ 1,3 mi');
   });
 });
 
