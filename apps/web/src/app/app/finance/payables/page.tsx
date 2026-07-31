@@ -7,7 +7,7 @@ import { DollarSign, CalendarClock, Ban, Pencil, TrendingDown } from 'lucide-rea
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
-import type { FinancialEntry, FinancialEntryStatus, PaymentMethod } from '@/types/api';
+import type { FinancialEntry, FinancialEntryStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge, StatusDot } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -25,9 +25,17 @@ import { EditEntryDialog } from '../edit-entry-dialog';
 import { dueFromSearch } from '../due-param';
 import { canEditEntry } from './editable';
 import { venceDate, previsaoDate, inRange, toDayStr, isPagarHoje } from './filters';
+import { MultiCombobox } from '@/components/ui/combobox';
 import { num, remainingOf, paymentMethodLabel, PAYMENT_METHOD_LABELS } from './detail';
 import { EntryDetailSheet } from './entry-detail-sheet';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
+
+// Opções do filtro de Forma de pagamento (multi-seleção): catálogo + "Não
+// informada" (títulos de NF-e sem forma no Omie usam o sentinela NONE).
+const FORMA_OPTIONS = [
+  ...Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label })),
+  { value: 'NONE', label: 'Não informada' },
+];
 
 const RESOURCE = '/finance';
 const OPEN_STATUSES: FinancialEntryStatus[] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
@@ -118,8 +126,9 @@ export default function PayablesPage() {
     setDueRange({ from: day, to: day });
   }, []);
   const [statusFilter, setStatusFilter] = useState<'' | DisplayStatus>('');
-  // Forma de pagamento (Fase 2): '' = todas; 'NONE' = sem forma informada.
-  const [formaFilter, setFormaFilter] = useState<'' | 'NONE' | PaymentMethod>('');
+  // Forma de pagamento (Fase 2): MULTI-seleção — vazio = todas; 'NONE' = sem
+  // forma informada. Dá pra ver "Cheque + PIX de hoje" numa tacada.
+  const [formaFilter, setFormaFilter] = useState<string[]>([]);
   // Busca geral (fornecedor, CNPJ, descrição/OMIE#, nº doc) — mora no grid de
   // filtros; a barra interna da DataTable fica desligada p/ não duplicar.
   const [search, setSearch] = useState('');
@@ -140,9 +149,11 @@ export default function PayablesPage() {
       if (!inRange(venceDate(e), dueFrom, dueTo)) return false;
       if (!inRange(previsaoDate(e), prevFrom, prevTo)) return false;
       if (statusFilter && displayStatus(e) !== statusFilter) return false;
-      if (formaFilter) {
-        const semForma = !e.paymentMethod;
-        if (formaFilter === 'NONE' ? !semForma : e.paymentMethod !== formaFilter) return false;
+      if (formaFilter.length > 0) {
+        const match = e.paymentMethod
+          ? formaFilter.includes(e.paymentMethod)
+          : formaFilter.includes('NONE');
+        if (!match) return false;
       }
       if (q) {
         const alvo =
@@ -403,18 +414,14 @@ export default function PayablesPage() {
         </div>
         <div>
           <Label>Forma de pagamento</Label>
-          <Select
-            value={formaFilter}
-            onChange={(e) => setFormaFilter(e.target.value as '' | 'NONE' | PaymentMethod)}
-          >
-            <option value="">Todas</option>
-            {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-            <option value="NONE">Não informada</option>
-          </Select>
+          <MultiCombobox
+            options={FORMA_OPTIONS}
+            values={formaFilter}
+            onValuesChange={setFormaFilter}
+            placeholder="Todas"
+            maxTags={2}
+            clearable
+          />
         </div>
         <div>
           <Label>Buscar</Label>
