@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { StatGroup } from '@/components/ui/stat-group';
 import { FormDialog } from '@/components/ui/form-dialog';
@@ -129,8 +130,10 @@ export default function MaintenancePage() {
   const [typeFilter, setTypeFilter] = useState<'' | MaintenanceType>('');
   const [equipFilter, setEquipFilter] = useState('');
   const [techFilter, setTechFilter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Período (padrão #881): um campo, calendário de 2 cliques.
+  const [range, setRange] = useState<DateRange>();
+  const from = dateToISO(range?.from);
+  const to = dateToISO(range?.to);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -492,7 +495,7 @@ export default function MaintenancePage() {
             </div>
           </div>
 
-          <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div>
               <Label>Status</Label>
               <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | MaintenanceOrderStatus)}>
@@ -530,12 +533,13 @@ export default function MaintenancePage() {
               </Select>
             </div>
             <div>
-              <Label>De</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </div>
-            <div>
-              <Label>Até</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <Label>Período</Label>
+              <DateRangePicker
+                value={range}
+                onValueChange={setRange}
+                clearable
+                placeholder="Qualquer período"
+              />
             </div>
           </div>
 
