@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  defaultSelectedDay,
-  groupByDate,
-  monthGrid,
-  monthWindowDays,
-  rollingWeek,
-} from './agenda-calendar';
+import { groupByDate, monthGrid, monthWindowDays, rollingWeek } from './agenda-calendar';
 
 /** Modelo do calendário — grid de mês estilo Apple + semana rolante. */
 
@@ -47,28 +41,6 @@ describe('monthWindowDays', () => {
     // início do mês: janela grande, mas nunca acima do cap do backend
     expect(monthWindowDays('2026-07-01')).toBeGreaterThan(30);
     expect(monthWindowDays('2026-07-01')).toBeLessThanOrEqual(42);
-  });
-});
-
-describe('defaultSelectedDay', () => {
-  const items = (n: number) => Array.from({ length: n }, (_, i) => ({ i }));
-
-  it('hoje quando hoje tem compromissos', () => {
-    const byDate = new Map<string, unknown[]>([['2026-07-31', items(2)]]);
-    expect(defaultSelectedDay(byDate, '2026-07-31')).toBe('2026-07-31');
-  });
-
-  it('senão o primeiro dia futuro com algo', () => {
-    const byDate = new Map<string, unknown[]>([
-      ['2026-07-30', items(1)], // passado não conta
-      ['2026-08-02', items(1)],
-      ['2026-08-01', items(3)],
-    ]);
-    expect(defaultSelectedDay(byDate, '2026-07-31')).toBe('2026-08-01');
-  });
-
-  it('sem nada na janela, cai em hoje', () => {
-    expect(defaultSelectedDay(new Map(), '2026-07-31')).toBe('2026-07-31');
   });
 });
 

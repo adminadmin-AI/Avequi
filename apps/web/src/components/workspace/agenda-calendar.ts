@@ -92,13 +92,3 @@ export function groupByDate<T extends { date: string }>(items: T[]): Map<string,
   }
   return map;
 }
-
-/**
- * Dia selecionado ao abrir: hoje se tiver compromissos; senão o primeiro dia
- * futuro com algo; senão hoje mesmo (a lista mostra "dia livre").
- */
-export function defaultSelectedDay(byDate: Map<string, unknown[]>, todayIso: string): string {
-  if ((byDate.get(todayIso)?.length ?? 0) > 0) return todayIso;
-  const future = [...byDate.keys()].filter((d) => d >= todayIso).sort();
-  return future[0] ?? todayIso;
-}
