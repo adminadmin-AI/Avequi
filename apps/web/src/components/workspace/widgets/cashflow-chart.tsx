@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatBRL } from '@/lib/format';
-import { chartTooltipProps } from '@/lib/chart-theme';
+import { chartGridProps, chartTickFill, chartTooltipProps } from '@/lib/chart-theme';
 import type { CashFlowWeek } from './cashflow-widget';
 
 /**
@@ -28,32 +28,38 @@ export function CashFlowSparkline({ data }: { data: CashFlowWeek[] }) {
   }));
   return (
     <ResponsiveContainer width="100%" height={160}>
-      <AreaChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: 4 }}>
-        <CartesianGrid stroke="var(--border-default)" vertical={false} />
+      <AreaChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: 4 }}>
+        <defs>
+          <linearGradient id="cash-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid {...chartGridProps} strokeDasharray="3 4" />
         <XAxis
           dataKey="week"
-          tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+          tick={{ fontSize: 10, fill: chartTickFill }}
           tickLine={false}
           axisLine={false}
           interval="preserveStartEnd"
         />
         <YAxis
-          tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+          tick={{ fontSize: 10, fill: chartTickFill }}
           tickLine={false}
           axisLine={false}
           width={56}
           tickFormatter={(v) => formatBRL(v).replace('R$', '').trim()}
         />
         <Tooltip {...chartTooltipProps} formatter={(v) => [formatBRL(Number(v)), 'Saldo projetado']} />
-        <ReferenceLine y={0} stroke="var(--text-muted)" strokeDasharray="4 4" />
+        <ReferenceLine y={0} stroke="var(--text-muted)" strokeDasharray="4 4" strokeOpacity={0.6} />
         <Area
           type="monotone"
           dataKey="saldo"
           stroke="var(--chart-1)"
-          strokeWidth={2}
-          fill="var(--chart-1)"
-          fillOpacity={0.08}
-          animationDuration={600}
+          strokeWidth={2.5}
+          fill="url(#cash-fill)"
+          activeDot={{ r: 3.5, strokeWidth: 2, stroke: 'var(--bg-elevated)', fill: 'var(--chart-1)' }}
+          animationDuration={750}
           animationEasing="ease-out"
         />
       </AreaChart>
