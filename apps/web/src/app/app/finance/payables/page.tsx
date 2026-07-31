@@ -20,15 +20,22 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
 import { dueFromSearch } from '../due-param';
 import { canEditEntry } from './editable';
-import { venceDate, previsaoDate, inRange, toDayStr } from './filters';
-import { num, remainingOf } from './detail';
+import { venceDate, previsaoDate, inRange, toDayStr, isPagarHoje } from './filters';
+import { MultiCombobox } from '@/components/ui/combobox';
+import { num, remainingOf, paymentMethodLabel, PAYMENT_METHOD_LABELS } from './detail';
 import { EntryDetailSheet } from './entry-detail-sheet';
 import { PayablePayForm, type PayFormValues } from './payable-pay-form';
+
+// Opções do filtro de Forma de pagamento (multi-seleção): catálogo + "Não
+// informada" (títulos de NF-e sem forma no Omie usam o sentinela NONE).
+const FORMA_OPTIONS = [
+  ...Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label })),
+  { value: 'NONE', label: 'Não informada' },
+];
 
 const RESOURCE = '/finance';
 const OPEN_STATUSES: FinancialEntryStatus[] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
@@ -57,7 +64,14 @@ function supplierCnpj(e: FinancialEntry): string | null {
   return e.supplier?.cnpj ?? e.purchaseOrder?.supplier?.cnpj ?? null;
 }
 
-const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }> = {
+/**
+ * Status de EXIBIÇÃO: os 5 reais do banco + "Pagar hoje" (pseudo-status de
+ * tela — conta em aberto com previsão = hoje). Substituiu os chips de atalho.
+ */
+type DisplayStatus = FinancialEntryStatus | 'PAGAR_HOJE';
+
+const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
+  PAGAR_HOJE: { label: 'Pagar hoje', variant: 'brand' },
   OPEN: { label: 'Em aberto', variant: 'info' },
   OVERDUE: { label: 'Vencido', variant: 'danger' },
   PARTIALLY_PAID: { label: 'Parcial', variant: 'warning' },
@@ -111,36 +125,45 @@ export default function PayablesPage() {
     const day = new Date(`${due}T12:00:00`);
     setDueRange({ from: day, to: day });
   }, []);
-  const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
-  const [supplierFilter, setSupplierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | DisplayStatus>('');
+  // Forma de pagamento (Fase 2): MULTI-seleção — vazio = todas; 'NONE' = sem
+  // forma informada. Dá pra ver "Cheque + PIX de hoje" numa tacada.
+  const [formaFilter, setFormaFilter] = useState<string[]>([]);
+  // Busca geral (fornecedor, CNPJ, descrição/OMIE#, nº doc) — mora no grid de
+  // filtros; a barra interna da DataTable fica desligada p/ não duplicar.
+  const [search, setSearch] = useState('');
 
   const todayStr = useMemo(() => toDayStr(today), [today]);
+
+  /** Status que a tela mostra: "Pagar hoje" vence os demais quando se aplica. */
+  const displayStatus = (e: FinancialEntry): DisplayStatus =>
+    isPagarHoje(e, todayStr) ? 'PAGAR_HOJE' : effectiveStatus(e, today);
 
   const filtered = useMemo(() => {
     const dueFrom = dateToISO(dueRange?.from);
     const dueTo = dateToISO(dueRange?.to);
     const prevFrom = dateToISO(prevRange?.from);
     const prevTo = dateToISO(prevRange?.to);
+    const q = search.trim().toLowerCase();
     return entries.filter((e) => {
       if (!inRange(venceDate(e), dueFrom, dueTo)) return false;
       if (!inRange(previsaoDate(e), prevFrom, prevTo)) return false;
-      if (statusFilter && effectiveStatus(e, today) !== statusFilter) return false;
-      if (supplierFilter) {
-        if (!supplierName(e).toLowerCase().includes(supplierFilter.toLowerCase())) return false;
+      if (statusFilter && displayStatus(e) !== statusFilter) return false;
+      if (formaFilter.length > 0) {
+        const match = e.paymentMethod
+          ? formaFilter.includes(e.paymentMethod)
+          : formaFilter.includes('NONE');
+        if (!match) return false;
+      }
+      if (q) {
+        const alvo =
+          `${supplierName(e)} ${supplierCnpj(e) ?? ''} ${e.description ?? ''} ${e.documentNumber ?? ''}`.toLowerCase();
+        if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [entries, dueRange, prevRange, statusFilter, supplierFilter, today]);
-
-  // Atalhos "hoje": marcam o período do respectivo campo como [hoje, hoje].
-  const dueIsToday =
-    dateToISO(dueRange?.from) === todayStr && dateToISO(dueRange?.to) === todayStr;
-  const prevIsToday =
-    dateToISO(prevRange?.from) === todayStr && dateToISO(prevRange?.to) === todayStr;
-  const toggleDueToday = () =>
-    setDueRange(dueIsToday ? undefined : { from: today, to: today });
-  const togglePrevToday = () =>
-    setPrevRange(prevIsToday ? undefined : { from: today, to: today });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, dueRange, prevRange, statusFilter, formaFilter, search, today, todayStr]);
 
   // ── KPIs (refletem os filtros ativos; sem filtro = totais completos) ──
   const summary = useMemo(() => {
@@ -251,13 +274,22 @@ export default function PayablesPage() {
       cell: (e) => formatDate(e.expectedPaymentDate ?? e.dueDate),
     },
     {
+      key: 'paymentMethod',
+      header: 'Forma',
+      sortable: true,
+      // Fase 2 — como a conta será paga (Boleto/PIX/Cheque…); "—" = não informada.
+      accessor: (e) => paymentMethodLabel(e.paymentMethod) ?? '',
+      cell: (e) =>
+        paymentMethodLabel(e.paymentMethod) ?? <span className="text-content-muted">—</span>,
+    },
+    {
       key: 'status',
       header: 'Status',
       align: 'center',
       sortable: true,
-      accessor: (e) => effectiveStatus(e, today),
+      accessor: (e) => displayStatus(e),
       cell: (e) => {
-        const meta = STATUS_META[effectiveStatus(e, today)];
+        const meta = STATUS_META[displayStatus(e)];
         return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
       },
     },
@@ -346,7 +378,7 @@ export default function PayablesPage() {
       />
 
       {/* Filtros */}
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div>
           <Label>Vencimento</Label>
           <DateRangePicker
@@ -369,9 +401,10 @@ export default function PayablesPage() {
           <Label>Status</Label>
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as '' | FinancialEntryStatus)}
+            onChange={(e) => setStatusFilter(e.target.value as '' | DisplayStatus)}
           >
             <option value="">Todos</option>
+            <option value="PAGAR_HOJE">Pagar hoje</option>
             <option value="OPEN">Em aberto</option>
             <option value="OVERDUE">Vencido</option>
             <option value="PARTIALLY_PAID">Parcial</option>
@@ -380,37 +413,24 @@ export default function PayablesPage() {
           </Select>
         </div>
         <div>
-          <Label>Fornecedor</Label>
-          <Input
-            value={supplierFilter}
-            onChange={(e) => setSupplierFilter(e.target.value)}
-            placeholder="Nome do fornecedor"
+          <Label>Forma de pagamento</Label>
+          <MultiCombobox
+            options={FORMA_OPTIONS}
+            values={formaFilter}
+            onValuesChange={setFormaFilter}
+            placeholder="Todas"
+            maxTags={2}
+            clearable
           />
         </div>
-      </div>
-
-      {/* Atalhos rápidos */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-content-muted">Atalhos:</span>
-        {[
-          { label: 'Vence hoje', active: dueIsToday, onClick: toggleDueToday },
-          { label: 'Previsão hoje', active: prevIsToday, onClick: togglePrevToday },
-        ].map((chip) => (
-          <button
-            key={chip.label}
-            type="button"
-            aria-pressed={chip.active}
-            onClick={chip.onClick}
-            className={cn(
-              'rounded-full border px-3 py-1 text-sm transition-colors',
-              chip.active
-                ? 'border-brand-600 bg-brand-600/10 text-brand-700 dark:border-brand-500 dark:text-brand-300'
-                : 'border-line text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800',
-            )}
-          >
-            {chip.label}
-          </button>
-        ))}
+        <div>
+          <Label>Buscar</Label>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Fornecedor, CNPJ, descrição, nº doc..."
+          />
+        </div>
       </div>
 
       <DataTable
@@ -418,7 +438,7 @@ export default function PayablesPage() {
         columns={columns}
         loading={isLoading}
         onRowClick={setDetailTarget}
-        searchPlaceholder="Buscar por descrição ou fornecedor..."
+        searchable={false}
         emptyMessage="Nenhum pagável encontrado."
       />
 
@@ -448,7 +468,7 @@ export default function PayablesPage() {
         statusBadge={
           detailTarget &&
           (() => {
-            const meta = STATUS_META[effectiveStatus(detailTarget, today)];
+            const meta = STATUS_META[displayStatus(detailTarget)];
             return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
           })()
         }
