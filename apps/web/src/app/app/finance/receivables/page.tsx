@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
@@ -21,6 +22,8 @@ import { StatGroup } from '@/components/ui/stat-group';
 import { formatBRL, formatDate } from '@/lib/format';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { dueFromSearch } from '../due-param';
+// Padrão da Carteira de Pagáveis (#881) espelhado aqui — helpers puros compartilhados.
+import { venceDate, inRange, toDayStr, isPagarHoje } from '../payables/filters';
 import { ReceivablePayForm, type PayFormValues } from './receivable-pay-form';
 
 const RESOURCE = '/finance';
@@ -51,7 +54,12 @@ function effectiveStatus(e: FinancialEntry, today: Date): FinancialEntryStatus {
   return e.status;
 }
 
-const STATUS_META: Record<FinancialEntryStatus, { label: string; variant: any }> = {
+/** Espelho do "Pagar hoje" da carteira de pagáveis: recebível em aberto com
+ *  previsão (ou vencimento) = hoje. Pseudo-status de TELA — o banco não muda. */
+type DisplayStatus = FinancialEntryStatus | 'RECEBER_HOJE';
+
+const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
+  RECEBER_HOJE: { label: 'Receber hoje', variant: 'brand' },
   OPEN: { label: 'Em aberto', variant: 'info' },
   OVERDUE: { label: 'Vencido', variant: 'danger' },
   PARTIALLY_PAID: { label: 'Parcial', variant: 'warning' },
@@ -129,34 +137,44 @@ export default function ReceivablesPage() {
     };
   }, [entries, today]);
 
-  // ── Filtros (client-side) ──
-  const [dueFrom, setDueFrom] = useState('');
-  const [dueTo, setDueTo] = useState('');
+  // ── Filtros (client-side, padrão #881) ──
+  // Vencimento como PERÍODO (um campo, calendário de 2 cliques).
+  const [dueRange, setDueRange] = useState<DateRange>();
 
   // Deep-link do calendário da Home: ?due=YYYY-MM-DD pré-carrega o filtro de
-  // vencimento naquele dia (visível e limpável nos campos de data). Lido no
+  // vencimento naquele dia (visível e limpável no DateRangePicker). Lido no
   // mount — URL é só estado inicial.
   useEffect(() => {
     const due = dueFromSearch(window.location.search);
     if (!due) return;
-    setDueFrom(due);
-    setDueTo(due);
+    const day = new Date(`${due}T12:00:00`);
+    setDueRange({ from: day, to: day });
   }, []);
-  const [statusFilter, setStatusFilter] = useState<'' | FinancialEntryStatus>('');
-  const [clientFilter, setClientFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | DisplayStatus>('');
+  // Busca geral (cliente, descrição) — única; a barra da DataTable fica desligada.
+  const [search, setSearch] = useState('');
+
+  const todayStr = useMemo(() => toDayStr(today), [today]);
+
+  /** Status que a tela mostra: "Receber hoje" vence os demais quando se aplica. */
+  const displayStatus = (e: FinancialEntry): DisplayStatus =>
+    isPagarHoje(e, todayStr) ? 'RECEBER_HOJE' : effectiveStatus(e, today);
 
   const filtered = useMemo(() => {
+    const dueFrom = dateToISO(dueRange?.from);
+    const dueTo = dateToISO(dueRange?.to);
+    const q = search.trim().toLowerCase();
     return entries.filter((e) => {
-      if (dueFrom && e.dueDate < dueFrom) return false;
-      if (dueTo && e.dueDate > dueTo + 'T23:59:59') return false;
-      if (statusFilter && effectiveStatus(e, today) !== statusFilter) return false;
-      if (clientFilter) {
-        const name = e.salesOrder?.customer?.name ?? '';
-        if (!name.toLowerCase().includes(clientFilter.toLowerCase())) return false;
+      if (!inRange(venceDate(e), dueFrom, dueTo)) return false;
+      if (statusFilter && displayStatus(e) !== statusFilter) return false;
+      if (q) {
+        const alvo = `${e.salesOrder?.customer?.name ?? ''} ${e.description ?? ''}`.toLowerCase();
+        if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [entries, dueFrom, dueTo, statusFilter, clientFilter, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, dueRange, statusFilter, search, today, todayStr]);
 
   // ── Ações ──
   const [payTarget, setPayTarget] = useState<FinancialEntry | null>(null);
@@ -230,9 +248,9 @@ export default function ReceivablesPage() {
       header: 'Status',
       align: 'center',
       sortable: true,
-      accessor: (e) => effectiveStatus(e, today),
+      accessor: (e) => displayStatus(e),
       cell: (e) => {
-        const meta = STATUS_META[effectiveStatus(e, today)];
+        const meta = STATUS_META[displayStatus(e)];
         return <StatusDot variant={meta.variant}>{meta.label}</StatusDot>;
       },
     },
@@ -334,22 +352,24 @@ export default function ReceivablesPage() {
       <div className="grid gap-5 lg:grid-cols-4">
         {/* Tabela + filtros */}
         <div className="lg:col-span-3">
-          <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <Label>Vencimento de</Label>
-              <Input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} />
-            </div>
-            <div>
-              <Label>Vencimento até</Label>
-              <Input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} />
+              <Label>Vencimento</Label>
+              <DateRangePicker
+                value={dueRange}
+                onValueChange={setDueRange}
+                clearable
+                placeholder="Qualquer período"
+              />
             </div>
             <div>
               <Label>Status</Label>
               <Select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as '' | FinancialEntryStatus)}
+                onChange={(e) => setStatusFilter(e.target.value as '' | DisplayStatus)}
               >
                 <option value="">Todos</option>
+                <option value="RECEBER_HOJE">Receber hoje</option>
                 <option value="OPEN">Em aberto</option>
                 <option value="OVERDUE">Vencido</option>
                 <option value="PARTIALLY_PAID">Parcial</option>
@@ -358,11 +378,11 @@ export default function ReceivablesPage() {
               </Select>
             </div>
             <div>
-              <Label>Cliente</Label>
+              <Label>Buscar</Label>
               <Input
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value)}
-                placeholder="Nome do cliente"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cliente, descrição..."
               />
             </div>
           </div>
@@ -371,7 +391,7 @@ export default function ReceivablesPage() {
             data={filtered}
             columns={columns}
             loading={isLoading}
-            searchPlaceholder="Buscar por descrição ou cliente..."
+            searchable={false}
             emptyMessage="Nenhum recebível encontrado."
           />
         </div>

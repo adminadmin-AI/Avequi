@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
 import { SOURCE_LABEL, StageRef } from '../inbox/inbox-types';
@@ -264,18 +265,17 @@ export default function LeadListPage() {
             </option>
           ))}
         </select>
-        <input
-          type="date"
-          className="rounded-md border bg-surface px-2 py-1.5 text-sm"
-          value={filters.from}
-          onChange={(e) => setFilter('from', e.target.value)}
-        />
-        <div className="flex gap-1">
-          <input
-            type="date"
-            className="min-w-0 flex-1 rounded-md border bg-surface px-2 py-1.5 text-sm"
-            value={filters.to}
-            onChange={(e) => setFilter('to', e.target.value)}
+        {/* Período de criação (padrão #881): um campo, calendário de 2 cliques */}
+        <div className="flex gap-1 sm:col-span-2">
+          <DateRangePicker
+            className="h-auto min-w-0 flex-1 px-2 py-1.5 text-sm"
+            value={{ from: isoToDate(filters.from), to: isoToDate(filters.to) }}
+            onValueChange={(r) => {
+              setFilter('from', dateToISO(r?.from));
+              setFilter('to', dateToISO(r?.to));
+            }}
+            clearable
+            placeholder="Qualquer período"
           />
           <Button variant="secondary" size="sm" onClick={exportCsv} title="Exportar CSV">
             <Download className="h-4 w-4" />

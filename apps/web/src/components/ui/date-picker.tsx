@@ -198,6 +198,19 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
 
+  // Preview do intervalo no HOVER (estilo Booking): com o início marcado e o
+  // fim ainda em aberto, o dia sob o cursor "fecha" um intervalo provisório
+  // que vai sendo pintado — o usuário vê como o período ficaria antes do 2º
+  // clique. Só visual; a seleção continua sendo o fluxo de 2 cliques abaixo.
+  const [hovered, setHovered] = useState<Date | undefined>();
+  const picking = !!value?.from && !value?.to;
+  const preview =
+    picking && hovered
+      ? hovered < value!.from!
+        ? { from: hovered, to: value!.from! }
+        : { from: value!.from!, to: hovered }
+      : undefined;
+
   const label =
     value?.from && value?.to
       ? `${fmt.format(value.from)} – ${fmt.format(value.to)}`
@@ -263,8 +276,18 @@ export function DateRangePicker({
               // 2º clique: completa o período (ordenado) e fecha
               const [from, to] = day < value.from ? [day, value.from] : [value.from, day];
               onValueChange({ from, to });
+              setHovered(undefined);
               setOpen(false);
             }
+          }}
+          // preview do hover: pinta o intervalo provisório entre o início e o
+          // dia sob o cursor (ver estado `hovered` acima)
+          onDayMouseEnter={(day) => picking && setHovered(day)}
+          onDayMouseLeave={() => setHovered(undefined)}
+          modifiers={preview ? { preview } : undefined}
+          modifiersClassNames={{
+            preview:
+              '[&>button]:rounded-none [&>button]:bg-brand-600/10 [&>button]:text-brand-700 dark:[&>button]:bg-brand-500/20 dark:[&>button]:text-brand-300',
           }}
           classNames={dayPickerClassNames}
         />

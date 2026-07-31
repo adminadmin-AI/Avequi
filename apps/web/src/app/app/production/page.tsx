@@ -11,6 +11,7 @@ import { StatusDot } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date-picker';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { StatGroup } from '@/components/ui/stat-group';
 import { formatNumber, formatDate } from '@/lib/format';
@@ -30,8 +31,10 @@ export default function ProductionPage() {
 
   const [statusFilter, setStatusFilter] = useState<'' | ProductionOrderStatus>('');
   const [productFilter, setProductFilter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Período de criação (padrão #881): um campo, calendário de 2 cliques.
+  const [range, setRange] = useState<DateRange>();
+  const from = dateToISO(range?.from);
+  const to = dateToISO(range?.to);
 
   const kpis = useMemo(() => {
     const monthStart = new Date();
@@ -108,7 +111,7 @@ export default function ProductionPage() {
         ]}
       />
 
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <Label>Status</Label>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | ProductionOrderStatus)}>
@@ -132,12 +135,13 @@ export default function ProductionPage() {
           </Select>
         </div>
         <div>
-          <Label>Criação de</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div>
-          <Label>Criação até</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <Label>Criação</Label>
+          <DateRangePicker
+            value={range}
+            onValueChange={setRange}
+            clearable
+            placeholder="Qualquer período"
+          />
         </div>
       </div>
 
