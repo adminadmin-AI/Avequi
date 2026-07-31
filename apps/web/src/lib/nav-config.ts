@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   FileText,
   Gauge,
+  ScanBarcode,
   Handshake,
   History,
   KeyRound,
@@ -174,6 +175,7 @@ export const NAV: NavSection[] = [
       { href: '/app/production/mrp', label: 'MRP', icon: Calculator, permission: 'production.mrp.view' },
       { href: '/app/production/routing', label: 'Roteiros', icon: Workflow, permission: 'production.routing.view' },
       { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge, permission: 'production.work-centers.view' },
+      { href: '/app/production/chassis', label: 'Chassis', icon: ScanBarcode, permission: 'production.chassi.view' },
     ],
   },
   {
@@ -375,6 +377,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   edit: 'Editar',
   receive: 'Recebimento',
   'work-centers': 'Centros de Trabalho',
+  chassis: 'Chassis',
   'bank-accounts': 'Contas Bancárias',
   'cash-flow': 'Fluxo de Caixa',
   'collection-tools': 'Cobranças',

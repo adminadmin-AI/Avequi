@@ -53,6 +53,7 @@ import { QuotationModule } from './modules/quotation/quotation.module';
 import { InboundNfeModule } from './modules/inbound-nfe/inbound-nfe.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { BatchModule } from './modules/batch/batch.module';
+import { ChassiModule } from './modules/chassi/chassi.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { VehicleTrackingModule } from './modules/vehicle-tracking/vehicle-tracking.module';
 import { PriceModule } from './modules/price/price.module';
@@ -156,6 +157,7 @@ import { IamModule } from './modules/iam/iam.module';
     InboundNfeModule,
     CapacityModule,
     BatchModule,
+    ChassiModule,
     TaxModule,
     VehicleTrackingModule,
     PriceModule,
