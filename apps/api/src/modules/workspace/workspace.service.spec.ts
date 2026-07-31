@@ -246,6 +246,8 @@ describe('WorkspaceService', () => {
       expect(items[0].title).toContain('Reboque 2E');
       expect(items[1].title).toContain('Aluguel');
       expect(items[1].href).toBe('/app/finance/payables');
+      expect(items[1].amount).toBe(900); // estruturado p/ rollup do calendário
+      expect(items[0].amount).toBeUndefined();
     });
 
     it('curadoria por permissão: sem finance.entries.view não consulta financeiro', async () => {
