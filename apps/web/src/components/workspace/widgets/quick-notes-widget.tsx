@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, StickyNote } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { usePermission } from '@/hooks/use-permission';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
 import { EmptyState, ListSkeleton, WidgetFrame } from '../widget-frame';
@@ -33,6 +34,7 @@ const REMOVE_MS = 460;
 
 export function QuickNotesWidget(_: WidgetComponentProps) {
   const qc = useQueryClient();
+  const toast = useToast();
   const { can } = usePermission();
   const canManage = can('workspace.notes.manage');
 
@@ -48,6 +50,9 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['/workspace/notes'] });
 
+  // Erro nunca some em silêncio (a lição do "cliquei e nada acontece").
+  const onError = () => toast.error('Não foi possível salvar a nota. Tente de novo.');
+
   const createM = useMutation({
     mutationFn: (body: { text: string; color: NoteColor }) =>
       apiClient.post<QuickNote>('/workspace/notes', body).then((r) => r.data),
@@ -55,15 +60,18 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
       invalidate();
       setEditingId(note.id); // já abre a nota nova para digitar
     },
+    onError,
   });
   const updateM = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<QuickNote, 'text' | 'color'>> }) =>
       apiClient.patch(`/workspace/notes/${id}`, patch),
     onSuccess: invalidate,
+    onError,
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/workspace/notes/${id}`),
     onSuccess: invalidate,
+    onError,
   });
 
   const notes = notesQ.data ?? [];
@@ -72,6 +80,17 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
     if (removing.has(id)) return;
     setRemoving((prev) => new Set(prev).add(id));
     window.setTimeout(() => deleteM.mutate(id), REMOVE_MS);
+  }
+
+  // Sair da edição: nota que ficou vazia é removida (não polui o mural); com
+  // texto, salva só se mudou.
+  function commitText(note: QuickNote, raw: string) {
+    const text = raw.trim();
+    if (text === '') {
+      deleteM.mutate(note.id);
+      return;
+    }
+    if (text !== note.text) updateM.mutate({ id: note.id, patch: { text } });
   }
 
   const addNote = () => createM.mutate({ text: '', color: 'yellow' });
@@ -120,7 +139,8 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
               canManage={canManage}
               onEdit={() => canManage && setEditingId(n.id)}
               onStopEdit={() => setEditingId((cur) => (cur === n.id ? null : cur))}
-              onSave={(patch) => updateM.mutate({ id: n.id, patch })}
+              onSaveColor={(color) => updateM.mutate({ id: n.id, patch: { color } })}
+              onCommitText={(text) => commitText(n, text)}
               onPull={() => pullPin(n.id)}
             />
           ))}
@@ -137,7 +157,8 @@ function PostIt({
   canManage,
   onEdit,
   onStopEdit,
-  onSave,
+  onSaveColor,
+  onCommitText,
   onPull,
 }: {
   note: QuickNote;
@@ -146,7 +167,8 @@ function PostIt({
   canManage: boolean;
   onEdit: () => void;
   onStopEdit: () => void;
-  onSave: (patch: Partial<Pick<QuickNote, 'text' | 'color'>>) => void;
+  onSaveColor: (color: NoteColor) => void;
+  onCommitText: (text: string) => void;
   onPull: () => void;
 }) {
   const color = safeColor(note.color);
@@ -172,8 +194,7 @@ function PostIt({
 
   function commit() {
     onStopEdit();
-    const next = draft.trim();
-    if (next !== note.text) onSave({ text: next });
+    onCommitText(draft);
   }
 
   return (
@@ -238,7 +259,7 @@ function PostIt({
                   onMouseDown={(e) => {
                     // onMouseDown p/ não perder o foco do textarea antes do save
                     e.preventDefault();
-                    if (c !== color) onSave({ color: c });
+                    if (c !== color) onSaveColor(c);
                   }}
                   aria-label={`Cor ${c}`}
                   className={cn(
