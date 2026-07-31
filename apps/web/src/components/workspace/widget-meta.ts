@@ -29,7 +29,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   'ai-insights': {
     id: 'ai-insights',
-    title: 'Resumo do dia',
+    title: 'Resumo da operação',
     permission: ['workspace.insights.view'], // GET /workspace/insights
     zone: 'attention',
     defaultSize: 'full',

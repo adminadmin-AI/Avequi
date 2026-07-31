@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { Timer } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 
 /**
  * SLA de leads — F3, zona de trabalho (perfil commercial). Consome o painel
@@ -48,21 +49,17 @@ export function CrmSlaWidget({ instance }: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="SLA de leads"
-      action={
-        <Link
-          href="/app/crm/sla"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver painel
-        </Link>
-      }
+      action={<WidgetAction href="/app/crm/sla">ver painel</WidgetAction>}
     >
       {slaQ.isLoading ? (
         <ListSkeleton />
       ) : breaching.length === 0 && cooling.length === 0 ? (
-        <p className="py-2 text-caption text-content-muted">
-          Nenhum lead estourando SLA ou esfriando. 🎉
-        </p>
+        <EmptyState
+          icon={Timer}
+          tone="success"
+          title="SLA em dia"
+          hint="Nenhum lead estourando o prazo de resposta ou esfriando."
+        />
       ) : (
         <ul className="-mx-2 space-y-0.5">
           {breaching.slice(0, 5).map((l) => (

@@ -69,7 +69,12 @@ export function EditableShell({ id, size, sortable, onHide, onResize, children }
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('relative h-full', isDragging && 'z-10 opacity-80')}
+      // Limites da grid visíveis durante a edição: contorno tracejado em cada
+      // célula; a que está sendo arrastada troca para o tom da marca.
+      className={cn(
+        'relative h-full rounded-xl outline-dashed outline-1 -outline-offset-1',
+        isDragging ? 'z-10 opacity-80 outline-brand-400' : 'outline-line',
+      )}
     >
       <div className="absolute -top-2.5 right-3 z-10 flex items-center gap-0.5 rounded-lg border border-line bg-surface px-1 py-0.5 shadow-soft">
         {sortable && (

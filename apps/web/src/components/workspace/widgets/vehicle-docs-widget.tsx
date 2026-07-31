@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, FileWarning } from 'lucide-react';
+import { ArrowRight, FileCheck2, FileWarning } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/format';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 import { relativeTime } from '../workspace-context';
 
 /**
@@ -37,21 +37,17 @@ export function VehicleDocsWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="Documentos do veículo"
-      action={
-        <Link
-          href="/app/sales"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver vendas
-        </Link>
-      }
+      action={<WidgetAction href="/app/sales">ver vendas</WidgetAction>}
     >
       {pendingQ.isLoading ? (
         <ListSkeleton />
       ) : pending.length === 0 ? (
-        <p className="py-2 text-caption text-content-muted">
-          Todas as vendas faturadas têm documentos entregues. ✅
-        </p>
+        <EmptyState
+          icon={FileCheck2}
+          tone="success"
+          title="Documentos em dia"
+          hint="Todas as vendas faturadas têm documentos entregues."
+        />
       ) : (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-caption text-danger">

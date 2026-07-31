@@ -3,9 +3,10 @@
 import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
+import { BarChart3 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { WidgetComponentProps } from '../types';
-import { ChartSkeleton, EmptyContent, WidgetFrame } from '../widget-frame';
+import { ChartSkeleton, EmptyState, WidgetFrame } from '../widget-frame';
 import { isoDaysAgo, num, useWorkspacePeriod } from '../workspace-context';
 
 const RevenueLineChart = dynamic(() => import('./charts').then((m) => m.RevenueLineChart), {
@@ -44,11 +45,16 @@ export function RevenueChartWidget(_: WidgetComponentProps) {
   }, [salesQ.data]);
 
   return (
-    <WidgetFrame title="Faturamento">
+    <WidgetFrame title="Faturamento" quiet>
       {salesQ.isLoading ? (
         <ChartSkeleton />
       ) : revenueSeries.length === 0 ? (
-        <EmptyContent label="Sem dados de faturamento no período." />
+        <EmptyState
+          tall
+          icon={BarChart3}
+          title="Ainda não há dados neste período"
+          hint="Assim que novas vendas forem registradas, a tendência aparece aqui."
+        />
       ) : (
         <RevenueLineChart data={revenueSeries} />
       )}

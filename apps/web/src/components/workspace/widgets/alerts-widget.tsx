@@ -1,15 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { ALERT_TYPE_LABEL } from '@/app/app/alerts/alert-meta';
 import type { WidgetComponentProps } from '../types';
-import { EmptyContent, ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 
 /**
  * Pendências & Alertas — zona de atenção. Consome GET /alerts (o hub central
@@ -71,19 +70,18 @@ export function AlertsWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title={'Pendências & Alertas'}
-      action={
-        <Link
-          href="/app/alerts"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver todos
-        </Link>
-      }
+      badge={pendencias.length}
+      action={<WidgetAction href="/app/alerts">ver todos</WidgetAction>}
     >
       {alertsQ.isLoading ? (
         <ListSkeleton />
       ) : pendencias.length === 0 ? (
-        <EmptyContent label="Nenhuma pendência. Tudo em dia! 🎉" />
+        <EmptyState
+          icon={CheckCircle2}
+          tone="success"
+          title="Nenhuma pendência"
+          hint="Tudo em dia por aqui."
+        />
       ) : (
         <ul className="-mx-2 space-y-0.5">
           {pendencias.map((a) => (

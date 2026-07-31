@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { Gauge } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 import { isoDaysAgo } from '../workspace-context';
 
 /**
@@ -50,21 +50,16 @@ export function CapacityWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="Capacidade & gargalos"
-      action={
-        <Link
-          href="/app/production/work-centers"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          ver centros
-        </Link>
-      }
+      action={<WidgetAction href="/app/production/work-centers">ver centros</WidgetAction>}
     >
       {capacityQ.isLoading ? (
         <ListSkeleton />
       ) : centers.length === 0 ? (
-        <p className="py-2 text-caption text-content-muted">
-          Sem carga de produção nos próximos 30 dias.
-        </p>
+        <EmptyState
+          icon={Gauge}
+          title="Sem carga de produção"
+          hint="Nenhum centro de trabalho com carga nos próximos 30 dias."
+        />
       ) : (
         <ul className="space-y-2.5">
           {centers.map((wc) => {

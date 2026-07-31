@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { PackageSearch } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
-import { ListSkeleton, WidgetFrame } from '../widget-frame';
+import { EmptyState, ListSkeleton, WidgetAction, WidgetFrame } from '../widget-frame';
 
 /**
  * Fila do armazém — F3, zona de trabalho (perfil logistics). Consome
@@ -42,19 +42,12 @@ export function WmsQueueWidget(_: WidgetComponentProps) {
   return (
     <WidgetFrame
       title="Fila do armazém"
-      action={
-        <Link
-          href="/app/stock/wms"
-          className="text-caption font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-        >
-          abrir WMS
-        </Link>
-      }
+      action={<WidgetAction href="/app/stock/wms">abrir WMS</WidgetAction>}
     >
       {wmsQ.isLoading ? (
         <ListSkeleton />
       ) : !d ? (
-        <p className="py-2 text-caption text-content-muted">Fila indisponível no momento.</p>
+        <EmptyState icon={PackageSearch} title="Fila indisponível no momento" />
       ) : (
         // De-box (padrão StatGroup): números como tipografia, cor só em alarme real
         <div className="grid grid-cols-3 gap-4">
