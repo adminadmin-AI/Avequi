@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BadgeCheck, Bell, Check, CheckCircle2, ClipboardCheck, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Bell, Check, CheckCircle2, CircleDollarSign, ClipboardCheck, type LucideIcon } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
@@ -25,12 +25,13 @@ import { relativeTime } from '../workspace-context';
 
 export interface WorkspaceTask {
   id: string;
-  type: 'approval' | 'crm-reminder' | 'quality-inspection';
+  type: 'approval' | 'crm-reminder' | 'quality-inspection' | 'overdue-receivable';
   title: string;
   subtitle?: string;
   href: string;
   dueAt?: string;
   createdAt?: string;
+  priority?: 'critical' | 'warning' | 'info';
   /** Só quando a pendência pode ser concluída num clique direto daqui. */
   complete?: { url: string };
 }
@@ -39,6 +40,19 @@ const TYPE_ICON: Record<WorkspaceTask['type'], LucideIcon> = {
   approval: BadgeCheck,
   'crm-reminder': Bell,
   'quality-inspection': ClipboardCheck,
+  'overdue-receivable': CircleDollarSign,
+};
+
+/** Cor do ícone/trilho por prioridade — dinheiro vencido grita, follow-up sussurra. */
+const PRIORITY_ICON: Record<NonNullable<WorkspaceTask['priority']>, string> = {
+  critical: 'text-danger',
+  warning: 'text-warning',
+  info: 'text-content-muted',
+};
+const PRIORITY_RAIL: Record<NonNullable<WorkspaceTask['priority']>, string> = {
+  critical: 'border-l-2 border-l-danger bg-danger/[0.04]',
+  warning: 'border-l-2 border-l-warning bg-warning/[0.03]',
+  info: '',
 };
 
 // Espera a animação de saída terminar antes de disparar o done no backend.
@@ -70,7 +84,7 @@ export function PendingTasksWidget(_: WidgetComponentProps) {
   }
 
   return (
-    <WidgetFrame title="Minhas Pendências" badge={tasks.length}>
+    <WidgetFrame title="Minha Mesa" badge={tasks.length}>
       {tasksQ.isLoading ? (
         <ListSkeleton />
       ) : tasks.length === 0 ? (
@@ -100,7 +114,12 @@ export function PendingTasksWidget(_: WidgetComponentProps) {
                     : 'max-h-24 opacity-100 duration-flow',
                 )}
               >
-                <div className="flex items-start gap-2.5 rounded-lg px-2 py-2.5">
+                <div
+                  className={cn(
+                    'flex items-start gap-2.5 rounded-lg px-2 py-2.5',
+                    t.priority && PRIORITY_RAIL[t.priority],
+                  )}
+                >
                   {canComplete ? (
                     <button
                       onClick={() => handleComplete(t)}
@@ -115,7 +134,10 @@ export function PendingTasksWidget(_: WidgetComponentProps) {
                       <Check size={12} strokeWidth={3} />
                     </button>
                   ) : (
-                    <Icon size={15} className="mt-0.5 shrink-0 text-content-muted" />
+                    <Icon
+                      size={15}
+                      className={cn('mt-0.5 shrink-0', t.priority ? PRIORITY_ICON[t.priority] : 'text-content-muted')}
+                    />
                   )}
 
                   <Link

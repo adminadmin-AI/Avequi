@@ -161,14 +161,26 @@ describe('WorkspaceService', () => {
       ]);
 
       const tasks = await service.getTasks(USER);
-      expect(tasks.map((t) => t.type)).toEqual(['crm-reminder', 'approval', 'quality-inspection']);
-      expect(tasks[0].title).toBe('Follow-up: Cliente Y');
-      expect(tasks[1].subtitle).toContain('Fornecedor X');
-      expect(tasks[1].href).toBe('/app/approvals');
+      // Minha Mesa ordena por PRIORIDADE: aprovação+inspeção (warning, por data)
+      // antes do follow-up de CRM (info). Sem cobrança vencida no mock.
+      expect(tasks.map((t) => t.type)).toEqual(['approval', 'quality-inspection', 'crm-reminder']);
+      expect(tasks[0].subtitle).toContain('Fornecedor X');
+      expect(tasks[0].href).toBe('/app/approvals');
+      expect(tasks[0].priority).toBe('warning');
       // Só o lembrete de CRM é concluível no clique; aprovação/inspeção não.
-      expect(tasks[0].complete).toEqual({ url: '/crm/reminders/rem1/done' });
-      expect(tasks[1].complete).toBeUndefined();
-      expect(tasks[2].complete).toBeUndefined();
+      const crm = tasks.find((t) => t.type === 'crm-reminder')!;
+      expect(crm.complete).toEqual({ url: '/crm/reminders/rem1/done' });
+      expect(crm.priority).toBe('info');
+      expect(tasks.find((t) => t.type === 'approval')!.complete).toBeUndefined();
+    });
+
+    it('cobrança vencida entra como item crítico (topo) com a soma dos recebíveis', async () => {
+      mockPrisma.financialEntry.findMany.mockResolvedValue([{ amount: 30000 }, { amount: 18000 }]);
+      const tasks = await service.getTasks(USER);
+      expect(tasks[0].type).toBe('overdue-receivable');
+      expect(tasks[0].priority).toBe('critical');
+      expect(tasks[0].title).toBe('2 cobranças vencidas');
+      expect(tasks[0].href).toBe('/app/finance/receivables');
     });
 
     it('sem permissão de aprovações: getPending não é chamado', async () => {

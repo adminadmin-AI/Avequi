@@ -37,7 +37,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   'pending-tasks': {
     id: 'pending-tasks',
-    title: 'Minhas Pendências',
+    title: 'Minha Mesa',
     permission: ['workspace.tasks.view'], // GET /workspace/tasks
     zone: 'attention',
     defaultSize: 'half',
