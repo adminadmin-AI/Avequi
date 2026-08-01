@@ -3,7 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BadgeCheck, Bell, Check, CheckCircle2, CircleDollarSign, ClipboardCheck, type LucideIcon } from 'lucide-react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  Bell,
+  Check,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardCheck,
+  FileWarning,
+  Timer,
+  type LucideIcon,
+} from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { WidgetComponentProps } from '../types';
@@ -11,9 +22,11 @@ import { EmptyState, ListSkeleton, WidgetFrame } from '../widget-frame';
 import { relativeTime } from '../workspace-context';
 
 /**
- * Minhas Pendências — F1, zona de atenção. Agregador cross-módulo do
- * "trabalho esperando por MIM": aprovações na minha alçada, follow-ups de
- * CRM e inspeções de qualidade.
+ * Minha Mesa — zona de atenção. Inbox unificado e priorizado do "trabalho
+ * esperando por MIM": aprovações na minha alçada, follow-ups de CRM,
+ * inspeções de qualidade, cobrança vencida (dinheiro), expedição parada
+ * (venda faturada sem documento do veículo) e cliente aguardando (SLA de
+ * primeira resposta estourado / lead esfriando).
  *
  * "Concluir com prazer" (rodada UX 31/07): pendências CONCLUÍVEIS num clique
  * (hoje: lembretes de CRM, que trazem `complete.url` do backend) ganham um
@@ -25,7 +38,13 @@ import { relativeTime } from '../workspace-context';
 
 export interface WorkspaceTask {
   id: string;
-  type: 'approval' | 'crm-reminder' | 'quality-inspection' | 'overdue-receivable';
+  type:
+    | 'approval'
+    | 'crm-reminder'
+    | 'quality-inspection'
+    | 'overdue-receivable'
+    | 'vehicle-docs-pending'
+    | 'crm-sla';
   title: string;
   subtitle?: string;
   href: string;
@@ -41,6 +60,8 @@ const TYPE_ICON: Record<WorkspaceTask['type'], LucideIcon> = {
   'crm-reminder': Bell,
   'quality-inspection': ClipboardCheck,
   'overdue-receivable': CircleDollarSign,
+  'vehicle-docs-pending': FileWarning,
+  'crm-sla': Timer,
 };
 
 /** Cor do ícone/trilho por prioridade — dinheiro vencido grita, follow-up sussurra. */
