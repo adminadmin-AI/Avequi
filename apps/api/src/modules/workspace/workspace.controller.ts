@@ -60,6 +60,20 @@ export class WorkspaceController {
     return this.workspaceService.getMyDay(user, query.days);
   }
 
+  @Get('revenue')
+  // Gate do DADO (venda), não do workspace: este endpoint serve exclusivamente
+  // faturamento — quem não enxerga vendas não passa daqui.
+  @RequirePermission('sales.orders.view')
+  @ApiOperation({
+    summary: 'Faturamento por dia no período (venda com NF emitida) + total',
+  })
+  getRevenue(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Query() query: MyDayQueryDto,
+  ) {
+    return this.workspaceService.getRevenueSeries(user, query.days);
+  }
+
   // ─── Layout persistido (F2) — sempre dado do PRÓPRIO usuário ───────────────
 
   @Get('layout')

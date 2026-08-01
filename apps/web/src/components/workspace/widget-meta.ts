@@ -130,7 +130,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   'chart-revenue': {
     id: 'chart-revenue',
     title: 'Faturamento',
-    permission: ['analytics.dashboards.view'], // GET /analytics/sales-cube
+    permission: ['sales.orders.view'], // GET /workspace/revenue (venda faturada)
     zone: 'context',
     defaultSize: 'half',
     sizes: ['half', 'full'],
