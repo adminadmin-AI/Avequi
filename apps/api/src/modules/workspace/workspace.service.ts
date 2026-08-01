@@ -44,12 +44,15 @@ export interface WorkspaceInsight {
 
 export interface WorkspaceTask {
   id: string;
-  type: 'approval' | 'crm-reminder' | 'quality-inspection';
+  type: 'approval' | 'crm-reminder' | 'quality-inspection' | 'overdue-receivable';
   title: string;
   subtitle?: string;
   href: string;
   dueAt?: string;
   createdAt?: string;
+  /** Prioridade para o inbox "Minha Mesa" ordenar e colorir. Dinheiro vencido
+   *  e aprovações são crítico; inspeções, atenção; follow-ups, informação. */
+  priority?: 'critical' | 'warning' | 'info';
   /**
    * Presente só quando a pendência pode ser CONCLUÍDA num clique direto do
    * widget (ex.: lembrete de CRM → PATCH /crm/reminders/:id/done). Aprovações
@@ -522,6 +525,7 @@ export class WorkspaceService {
                   .join(' · ') || undefined,
               href: '/app/approvals',
               createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : undefined,
+              priority: 'warning',
             });
           }
         }),
@@ -546,6 +550,7 @@ export class WorkspaceService {
                 subtitle: r.lead?.name ? r.text : undefined,
                 href: '/app/crm/leads',
                 dueAt: r.dueAt.toISOString(),
+                priority: 'info',
                 // Concluível no clique: o mesmo endpoint que o inbox de CRM usa.
                 // Exige crm.leads.annotate (o dono sempre tem); o backend valida.
                 complete: { url: `/crm/reminders/${r.id}/done` },
@@ -571,8 +576,47 @@ export class WorkspaceService {
                 title: 'Inspeção de qualidade pendente',
                 href: '/app/quality',
                 createdAt: i.createdAt.toISOString(),
+                priority: 'warning',
               });
             }
+          }),
+      );
+    }
+
+    // Cobrança vencida — o item de DINHEIRO da Minha Mesa (crítico). Um card
+    // resumo com a soma dos recebíveis vencidos, direto para a carteira.
+    if (can('finance.entries.view')) {
+      jobs.push(
+        this.prisma.financialEntry
+          .findMany({
+            where: {
+              companyId: user.companyId,
+              type: FinancialEntryType.RECEIVABLE,
+              status: {
+                in: [
+                  FinancialEntryStatus.OVERDUE,
+                  FinancialEntryStatus.OPEN,
+                  FinancialEntryStatus.PARTIALLY_PAID,
+                ],
+              },
+              dueDate: { lt: this.startOfToday() },
+            },
+            select: { amount: true },
+          })
+          .then((entries) => {
+            if (entries.length === 0) return;
+            const total = entries.reduce((s, e) => s + Number(e.amount), 0);
+            tasks.push({
+              id: 'overdue-receivable',
+              type: 'overdue-receivable',
+              title:
+                entries.length === 1
+                  ? '1 cobrança vencida'
+                  : `${entries.length} cobranças vencidas`,
+              subtitle: this.brl(total, 2),
+              href: '/app/finance/receivables',
+              priority: 'critical',
+            });
           }),
       );
     }
@@ -581,8 +625,14 @@ export class WorkspaceService {
       jobs.map((j) => j.catch((err) => this.logger.warn(`task source failed: ${err?.message ?? err}`))),
     );
 
-    // Mais antigo primeiro: pendência velha é pendência esquecida.
-    tasks.sort((a, b) => (a.dueAt ?? a.createdAt ?? '').localeCompare(b.dueAt ?? b.createdAt ?? ''));
+    // Minha Mesa: prioridade primeiro (crítico → atenção → info), depois o mais
+    // antigo dentro do mesmo nível (pendência velha é pendência esquecida).
+    const rank = { critical: 0, warning: 1, info: 2, undefined: 3 } as const;
+    tasks.sort(
+      (a, b) =>
+        rank[a.priority ?? 'undefined'] - rank[b.priority ?? 'undefined'] ||
+        (a.dueAt ?? a.createdAt ?? '').localeCompare(b.dueAt ?? b.createdAt ?? ''),
+    );
     return tasks.slice(0, MAX_TASKS);
   }
 
