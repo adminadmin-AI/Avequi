@@ -142,8 +142,9 @@ export function AgendaWidget({ instance }: WidgetComponentProps) {
   const [view, setView] = useState<ViewMode>('week');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
-  const dense = (instance.size ?? 'full') === 'half';
-  // Em meia largura o grid de mês fica ilegível — o widget se fixa na semana.
+  // Em meia largura (M) o grid de mês fica ilegível — o widget se fixa na
+  // semana. A agenda não aceita o tier P justamente por isso (widget-meta).
+  const dense = (instance.size ?? 'large') !== 'large';
   const mode: ViewMode = dense ? 'week' : view;
 
   const todayIso = toIso(new Date());

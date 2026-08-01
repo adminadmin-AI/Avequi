@@ -29,8 +29,13 @@ export type WidgetId =
   | 'chart-production'
   | 'quick-notes';
 
-/** Presets de tamanho — sem resize livre por pixel, de propósito. */
-export type WidgetSize = 'half' | 'full';
+/**
+ * Presets de tamanho — sem resize livre por pixel, de propósito.
+ * P = um terço · M = metade · G = largura toda (grid de 12 colunas).
+ * O vocabulário antigo ('half'/'full') sobrevive nos layouts salvos e é
+ * traduzido na leitura por `normalizeSize` (sizing.ts).
+ */
+export type WidgetSize = 'small' | 'medium' | 'large';
 
 /**
  * Zonas com ordem narrativa FIXA: orientação → atenção → trabalho → contexto.
@@ -76,10 +81,17 @@ export interface WidgetMeta {
   sizes: WidgetSize[];
 }
 
+/**
+ * Tamanho como ele pode CHEGAR do layout salvo: os tiers atuais mais o
+ * vocabulário anterior ('half'/'full'), que continua no banco de quem
+ * personalizou antes dos tiers. `normalizeSize` (sizing.ts) traduz.
+ */
+export type PersistedWidgetSize = WidgetSize | 'half' | 'full';
+
 /** Desvio persistido do template (F2) — shape espelhado no LayoutWidgetDto da API. */
 export interface LayoutOverride {
   id: WidgetId;
-  size?: WidgetSize;
+  size?: PersistedWidgetSize;
   hidden?: boolean;
   pinned?: boolean;
 }

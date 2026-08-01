@@ -11,17 +11,19 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { EyeOff, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
+import { EyeOff, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WidgetId, WidgetSize } from './types';
 import { WIDGET_META } from './widget-meta';
+import { SIZE_LABEL, SIZE_ORDER, SIZE_TITLE } from './sizing';
 
 /**
  * Maquinário de drag do modo edição (F2) — módulo carregado via next/dynamic
  * (o dnd-kit fica fora do chunk inicial da rota /app, mesmo padrão do #323
  * para o recharts). Personalização RESTRINGIDA de propósito: arrastar (só
- * zonas work/context), ocultar, e tamanho por preset half/full — nada de
- * resize livre por pixel.
+ * zonas work/context), ocultar, e tamanho por TIER (P/M/G) — nada de resize
+ * livre por pixel. Cada widget declara em `sizes` os tiers que fazem sentido
+ * para ele: um calendário não desce para um terço de largura.
  */
 
 export function EditSurface({
@@ -88,13 +90,12 @@ export function EditableShell({ id, size, sortable, onHide, onResize, children }
           </button>
         )}
         {meta.sizes.length > 1 && (
-          <button
-            onClick={() => onResize(id, size === 'full' ? 'half' : 'full')}
-            className="rounded p-1 text-content-muted hover:text-content"
-            aria-label={size === 'full' ? `Reduzir ${meta.title}` : `Expandir ${meta.title}`}
-          >
-            {size === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
+          <SizePicker
+            title={meta.title}
+            current={size}
+            allowed={meta.sizes}
+            onPick={(s) => onResize(id, s)}
+          />
         )}
         <button
           onClick={() => onHide(id)}
@@ -105,6 +106,44 @@ export function EditableShell({ id, size, sortable, onHide, onResize, children }
         </button>
       </div>
       <div className="pointer-events-none h-full select-none">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Seletor de tier — P · M · G em vez de um botão que alterna dois estados.
+ * Mostra só os presets que o widget aceita, e o atual fica marcado: o
+ * usuário vê as opções sem precisar clicar para descobrir.
+ */
+function SizePicker({
+  title,
+  current,
+  allowed,
+  onPick,
+}: {
+  title: string;
+  current: WidgetSize;
+  allowed: WidgetSize[];
+  onPick: (size: WidgetSize) => void;
+}) {
+  return (
+    <div className="flex items-center gap-px" role="group" aria-label={`Tamanho de ${title}`}>
+      {SIZE_ORDER.filter((s) => allowed.includes(s)).map((s) => (
+        <button
+          key={s}
+          onClick={() => onPick(s)}
+          aria-pressed={s === current}
+          title={`${title}: ${SIZE_TITLE[s]}`}
+          className={cn(
+            'h-[22px] w-[22px] rounded text-caption font-semibold leading-none transition-colors duration-micro',
+            s === current
+              ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/20 dark:text-brand-300'
+              : 'text-content-muted hover:bg-neutral-500/[0.08] hover:text-content',
+          )}
+        >
+          {SIZE_LABEL[s]}
+        </button>
+      ))}
     </div>
   );
 }
