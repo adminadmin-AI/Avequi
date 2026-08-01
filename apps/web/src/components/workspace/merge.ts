@@ -1,5 +1,6 @@
 import type { LayoutOverride, WidgetInstance, WidgetId } from './types';
 import { WIDGET_META } from './widget-meta';
+import { normalizeSize } from './sizing';
 import type { WorkspaceTemplate } from './templates';
 
 /**
@@ -16,14 +17,18 @@ import type { WorkspaceTemplate } from './templates';
  *   (apêndice na ordem do template) — widget novo aparece automaticamente.
  * - `pinned` sobe o widget para o topo da parte reordenável.
  * - `hidden` remove da renderização (mas continua listável no modo edição).
- * - `size` só aplica se estiver nos presets permitidos do widget.
+ * - `size` só aplica se estiver nos presets permitidos do widget; o
+ *   vocabulário legado ('half'/'full') é traduzido para os tiers P/M/G.
  */
 
 const FIXED_ZONES = new Set(['orientation', 'attention']);
 
 function applyOverride(w: WidgetInstance, o: LayoutOverride | undefined): WidgetInstance {
   if (!o?.size) return w;
-  return WIDGET_META[w.id].sizes.includes(o.size) ? { ...w, size: o.size } : w;
+  // Layout salvo antes dos tiers guarda 'half'/'full' — traduz na leitura.
+  const size = normalizeSize(o.size);
+  if (!size) return w;
+  return WIDGET_META[w.id].sizes.includes(size) ? { ...w, size } : w;
 }
 
 export function mergeLayout(

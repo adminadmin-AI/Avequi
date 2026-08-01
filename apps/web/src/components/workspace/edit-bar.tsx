@@ -28,7 +28,7 @@ export function EditBar({
     <div className="flex min-h-8 items-center justify-between gap-3">
       {/* No modo edição, a barra explica o que dá pra fazer — fora dele, some. */}
       <p className="text-caption text-content-muted">
-        {editing ? 'Arraste para reordenar · redimensione · oculte o que não usa' : ''}
+        {editing ? 'Arraste para reordenar · escolha o tamanho (P/M/G) · oculte o que não usa' : ''}
       </p>
       <div className="flex shrink-0 items-center gap-2">
         {editing && (

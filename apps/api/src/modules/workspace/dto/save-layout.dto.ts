@@ -25,9 +25,15 @@ export class LayoutWidgetDto {
   @Matches(/^[a-z][a-z0-9-]*$/)
   id!: string;
 
+  /**
+   * Tier de tamanho: 'small' | 'medium' | 'large' (P/M/G, grid de 12 colunas).
+   * 'half'/'full' são o vocabulário anterior — continuam aceitos porque há
+   * layouts salvos com eles e clientes antigos em cache; o frontend traduz na
+   * leitura (sizing.normalizeSize). Nunca remover sem migrar os dados.
+   */
   @IsOptional()
-  @IsIn(['half', 'full'])
-  size?: 'half' | 'full';
+  @IsIn(['small', 'medium', 'large', 'half', 'full'])
+  size?: 'small' | 'medium' | 'large' | 'half' | 'full';
 
   @IsOptional()
   @IsBoolean()

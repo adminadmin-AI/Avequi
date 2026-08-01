@@ -66,11 +66,23 @@ describe('mergeLayout', () => {
 
   it('size só aplica se estiver nos presets do widget', () => {
     const out = mergeLayout(T, [
-      { id: 'chart-revenue', size: 'full' },
-      { id: 'ai-insights', size: 'half' }, // ai-insights é full-only
+      { id: 'chart-revenue', size: 'large' },
+      { id: 'ai-insights', size: 'small' }, // ai-insights só existe em G
+      { id: 'cashflow-13w', size: 'small' }, // gráfico não desce para P
     ]);
-    expect(out.find((w) => w.id === 'chart-revenue')?.size).toBe('full');
+    expect(out.find((w) => w.id === 'chart-revenue')?.size).toBe('large');
     expect(out.find((w) => w.id === 'ai-insights')?.size).toBeUndefined();
+    // preset recusado mantém o que o template diz (aqui: nada, usa o default)
+    expect(out.find((w) => w.id === 'cashflow-13w')?.size).toBeUndefined();
+  });
+
+  it('layout salvo antes dos tiers (half/full) continua valendo', () => {
+    const out = mergeLayout(T, [
+      { id: 'chart-revenue', size: 'full' },
+      { id: 'crm-portfolio', size: 'half' },
+    ]);
+    expect(out.find((w) => w.id === 'chart-revenue')?.size).toBe('large');
+    expect(out.find((w) => w.id === 'crm-portfolio')?.size).toBe('medium');
   });
 
   it('pinned sobe para o topo da parte reordenável, nunca acima da atenção', () => {

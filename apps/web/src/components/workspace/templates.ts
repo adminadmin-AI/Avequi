@@ -113,7 +113,7 @@ export const TEMPLATES: Record<WorkspaceProfile, WorkspaceTemplate> = {
       { id: 'ai-insights' },
       { id: 'pending-tasks' },
       { id: 'shortcuts', props: { actions: ['new-sale'] } },
-      { id: 'cashflow-13w', size: 'full' },
+      { id: 'cashflow-13w', size: 'large' },
       { id: 'agenda' },
       { id: 'chart-revenue' },
       { id: 'quick-notes' },

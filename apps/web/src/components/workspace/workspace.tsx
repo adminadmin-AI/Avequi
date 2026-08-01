@@ -14,6 +14,7 @@ import { resolveProfile, TEMPLATES, type WorkspaceProfile } from './templates';
 import { mergeLayout, hiddenWidgets } from './merge';
 import { useWorkspaceLayout } from './use-workspace-layout';
 import { WorkspacePeriodContext } from './workspace-context';
+import { MIN_INVITE_SPAN, trailingGap } from './sizing';
 import { WidgetFrameSkeleton } from './widget-frame';
 import { EditBar, HiddenTray } from './edit-bar';
 
@@ -33,11 +34,38 @@ const EditableShell = dynamic(() => import('./edit-mode').then((m) => m.Editable
  * filtro de elegibilidade por permissão (fail-closed) → render por zona.
  *
  * Personalização (F2): modo edição explícito — arrastar (só zonas work/
- * context; atenção nunca desce), ocultar/mostrar e presets half/full.
+ * context; atenção nunca desce), ocultar/mostrar e tiers de tamanho P/M/G.
  * Cada mudança salva otimista em PUT /workspace/layout.
  */
 
 const FIXED_ZONES = new Set(['orientation', 'attention']);
+
+/**
+ * Classes de span por tier — literais completos porque o Tailwind varre o
+ * código-fonte: `lg:col-span-${n}` interpolado não seria gerado no CSS.
+ * Em tablet (md) P e M ocupam meia largura; o terço só existe no desktop,
+ * onde há espaço para três colunas legíveis.
+ */
+const SIZE_CLASS: Record<WidgetSize, string> = {
+  small: 'md:col-span-1 lg:col-span-4',
+  medium: 'md:col-span-1 lg:col-span-6',
+  large: 'md:col-span-2 lg:col-span-12',
+};
+
+/** Span do convite "Adicionar widget": exatamente as colunas que sobraram. */
+const GAP_CLASS: Record<number, string> = {
+  1: 'lg:col-span-1',
+  2: 'lg:col-span-2',
+  3: 'lg:col-span-3',
+  4: 'lg:col-span-4',
+  5: 'lg:col-span-5',
+  6: 'lg:col-span-6',
+  7: 'lg:col-span-7',
+  8: 'lg:col-span-8',
+  9: 'lg:col-span-9',
+  10: 'lg:col-span-10',
+  11: 'lg:col-span-11',
+};
 
 /** Equivalente ao arrayMove do @dnd-kit/sortable, sem custar o pacote no chunk. */
 function arrayMove<T>(list: T[], from: number, to: number): T[] {
@@ -132,26 +160,28 @@ export function Workspace() {
   // linhas alinhadas) e a diferença de conteúdo vira respiro DENTRO do card,
   // nunca buraco entre cards (achado da auditoria visual, 30/07).
   //
-  // grid-flow-dense: um half depois de um full sobe para preencher o buraco
-  // que o full deixou — nunca fica cratera no MEIO do grid. Com dense e só
-  // presets half/full, sobra vazio apenas na ÚLTIMA linha, e apenas quando o
-  // número de halves é ímpar — essa célula vira o convite "Adicionar widget".
-  const trailingSlot =
-    surface.filter((w) => (w.size ?? WIDGETS[w.id].defaultSize) === 'half').length % 2 === 1;
+  // 12 COLUNAS para os tiers P/M/G serem frações exatas (4/6/12): P+P+P e
+  // M+M fecham a linha. grid-flow-dense faz um widget menor subir para
+  // preencher o vão que um maior deixou, então cratera no MEIO do grid não
+  // acontece. O que sobra na ÚLTIMA linha vira o convite "Adicionar widget",
+  // ocupando exatamente as colunas livres — mas só quando cabe um widget de
+  // verdade ali (P+M deixa 2 colunas: botão espremido é pior que respiro).
+  const sizeOf = (w: WidgetInstance) => w.size ?? WIDGETS[w.id].defaultSize;
+  const gap = trailingGap(surface.map(sizeOf));
   const viewSurface = (
-    <div className="grid grid-cols-1 gap-4 lg:grid-flow-dense lg:grid-cols-2">
-      {surface.map((w) => {
-        const size = w.size ?? WIDGETS[w.id].defaultSize;
-        return (
-          <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
-            {renderWidget(w)}
-          </div>
-        );
-      })}
-      {trailingSlot && canEdit && (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-flow-dense lg:grid-cols-12">
+      {surface.map((w) => (
+        <div key={w.id} className={SIZE_CLASS[sizeOf(w)]}>
+          {renderWidget(w)}
+        </div>
+      ))}
+      {gap >= MIN_INVITE_SPAN && canEdit && (
         <button
           onClick={() => setEditing(true)}
-          className="hidden min-h-[140px] items-center justify-center gap-2 rounded-xl border border-dashed border-line text-caption font-medium text-content-muted transition-colors duration-flow ease-flow hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-600 dark:hover:text-brand-400 lg:flex"
+          className={cn(
+            'hidden min-h-[140px] items-center justify-center gap-2 rounded-xl border border-dashed border-line text-caption font-medium text-content-muted transition-colors duration-flow ease-flow hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-600 dark:hover:text-brand-400 lg:flex',
+            GAP_CLASS[gap],
+          )}
         >
           <Plus size={15} /> Adicionar widget
         </button>
@@ -162,11 +192,11 @@ export function Workspace() {
   // Edição: grid uniforme de propósito — arrastar em células regulares é mais
   // previsível que em colunas empacotadas; o encaixe fino é da visualização.
   const editSurfaceGrid = (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
       {surface.map((w) => {
-        const size = w.size ?? WIDGETS[w.id].defaultSize;
+        const size = sizeOf(w);
         return (
-          <div key={w.id} className={cn(size === 'full' && 'lg:col-span-2')}>
+          <div key={w.id} className={SIZE_CLASS[size]}>
             <EditableShell
               id={w.id}
               size={size}
