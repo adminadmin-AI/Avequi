@@ -394,6 +394,9 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /production/schedule, /production/schedule/gantt'],
     ['generate', 'gerar', 'POST /production/schedule/generate/:workCenterId'],
   ]),
+  ...r('production', 'chassi', 'Chassis gravados (marcadora)', [
+    ['view', 'ver', 'GET /chassi/gravacoes, /chassi/gravacoes/:id, /chassi/series'],
+  ]),
 
   // ── quality ── (quality.controller.ts)
   ...r('quality', 'inspections', 'Inspeções', [

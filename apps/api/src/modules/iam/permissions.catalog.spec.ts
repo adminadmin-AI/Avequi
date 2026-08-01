@@ -106,7 +106,10 @@ describe('Catálogo de permissões (#338)', () => {
     //       GET/PUT/DELETE /workspace/layout, sempre dado do próprio usuário).
     // 310 = 308 + workspace.notes.{view,manage} (widget Notas rápidas — post-its
     //       pessoais, GET/POST/PATCH/DELETE /workspace/notes do próprio usuário).
-    expect(PERMISSIONS_CATALOG.length).toBe(310);
+    // 311 = 310 + production.chassi.view (#889 — tela de chassis gravados pela
+    //       marcadora OpenClaw; GET /chassi/gravacoes, /chassi/gravacoes/:id,
+    //       /chassi/series; tabelas gdr_chassi_* sem companyId → gate só RBAC).
+    expect(PERMISSIONS_CATALOG.length).toBe(311);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
