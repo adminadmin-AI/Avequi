@@ -4,6 +4,8 @@ import { WorkspaceService } from './workspace.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionService } from '../iam/permission.service';
 import { ApprovalService } from '../approval/approval.service';
+import { VehicleDocumentService } from '../vehicle-document/vehicle-document.service';
+import { FunnelService } from '../crm/funnel.service';
 
 /**
  * WorkspaceService (F1) — o contrato central é a CURADORIA POR PERMISSÃO:
@@ -24,7 +26,10 @@ const ALL_PERMS = [
   'fiscal.documents.view',
   'fiscal.manifestation.view',
   'maintenance.orders.view',
+  'vehicle-tracking.documents.view',
 ];
+
+const EMPTY_SLA_PANEL = { slaMinutes: 30, coolingHours: 48, breaching: [], cooling: [] };
 
 const mockPrisma = {
   productionOrder: { count: jest.fn(), findMany: jest.fn() },
@@ -44,6 +49,8 @@ const mockPrisma = {
 
 const mockPermissionService = { getUserPermissions: jest.fn() };
 const mockApprovalService = { getPending: jest.fn() };
+const mockVehicleDocumentService = { salesMissingDocuments: jest.fn() };
+const mockFunnelService = { slaPanel: jest.fn() };
 
 function grant(permissions: string[]) {
   mockPermissionService.getUserPermissions.mockResolvedValue({ roles: [], permissions });
@@ -64,6 +71,8 @@ describe('WorkspaceService', () => {
     mockPrisma.alert.findMany.mockResolvedValue([]);
     mockPrisma.leadReminder.findMany.mockResolvedValue([]);
     mockApprovalService.getPending.mockResolvedValue([]);
+    mockVehicleDocumentService.salesMissingDocuments.mockResolvedValue([]);
+    mockFunnelService.slaPanel.mockResolvedValue(EMPTY_SLA_PANEL);
     grant(ALL_PERMS);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,6 +81,8 @@ describe('WorkspaceService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PermissionService, useValue: mockPermissionService },
         { provide: ApprovalService, useValue: mockApprovalService },
+        { provide: VehicleDocumentService, useValue: mockVehicleDocumentService },
+        { provide: FunnelService, useValue: mockFunnelService },
       ],
     }).compile();
 
@@ -189,6 +200,58 @@ describe('WorkspaceService', () => {
       expect(mockApprovalService.getPending).not.toHaveBeenCalled();
       expect(mockPrisma.inspection.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.leadReminder.findMany).toHaveBeenCalled();
+    });
+
+    it('expedição parada: venda faturada há dias vira item crítico, mais antiga primeiro', async () => {
+      const day = 86_400_000;
+      mockVehicleDocumentService.salesMissingDocuments.mockResolvedValue([
+        { id: 'so-nova', invoicedAt: new Date(Date.now() - day), createdAt: new Date() },
+        { id: 'so-velha', invoicedAt: new Date(Date.now() - 6 * day), createdAt: new Date() },
+      ]);
+
+      const tasks = await service.getTasks(USER);
+      const docs = tasks.filter((t) => t.type === 'vehicle-docs-pending');
+      expect(docs.map((t) => t.id)).toEqual(['vehicle-docs-so-velha', 'vehicle-docs-so-nova']);
+      expect(docs[0].priority).toBe('critical'); // 6 dias ≥ limiar
+      expect(docs[0].subtitle).toContain('há 6 dias');
+      expect(docs[0].href).toBe('/app/sales/so-velha');
+      expect(docs[1].priority).toBe('warning'); // 1 dia
+      // Item de expedição não se resolve num clique daqui.
+      expect(docs[0].complete).toBeUndefined();
+    });
+
+    it('SLA: lead sem primeira resposta é crítico, esfriando é atenção — sempre no MEU escopo', async () => {
+      mockFunnelService.slaPanel.mockResolvedValue({
+        slaMinutes: 30,
+        coolingHours: 48,
+        breaching: [
+          { id: 'lead-1', name: 'Transportes Silva', waitingMinutes: 95, createdAt: new Date() },
+        ],
+        cooling: [
+          { id: 'lead-2', name: 'Reboques Norte', idleHours: 72, lastInteractionAt: new Date() },
+        ],
+      });
+
+      const tasks = await service.getTasks(USER);
+      expect(mockFunnelService.slaPanel).toHaveBeenCalledWith(USER.companyId, USER.id);
+
+      const breach = tasks.find((t) => t.id === 'crm-sla-breach-lead-1')!;
+      expect(breach.type).toBe('crm-sla');
+      expect(breach.priority).toBe('critical');
+      expect(breach.title).toBe('Cliente aguardando: Transportes Silva');
+      expect(breach.subtitle).toBe('Sem primeira resposta há 1h35 (SLA 30min)');
+      expect(breach.href).toBe('/app/crm/sla');
+
+      const cooling = tasks.find((t) => t.id === 'crm-sla-cooling-lead-2')!;
+      expect(cooling.priority).toBe('warning');
+      expect(cooling.subtitle).toBe('Sem interação há 3d');
+    });
+
+    it('sem permissão de documentos do veículo: a consulta de expedição não roda', async () => {
+      grant(['finance.entries.view']);
+      await service.getTasks(USER);
+      expect(mockVehicleDocumentService.salesMissingDocuments).not.toHaveBeenCalled();
+      expect(mockFunnelService.slaPanel).not.toHaveBeenCalled();
     });
 
     it('lembretes são sempre do PRÓPRIO usuário (userId no where)', async () => {

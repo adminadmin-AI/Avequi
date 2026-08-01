@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { IamModule } from '../iam/iam.module';
 import { ApprovalModule } from '../approval/approval.module';
+import { VehicleDocumentModule } from '../vehicle-document/vehicle-document.module';
+import { CrmModule } from '../crm/crm.module';
 import { WorkspaceController } from './workspace.controller';
 import { WorkspaceService } from './workspace.service';
 
@@ -11,7 +13,7 @@ import { WorkspaceService } from './workspace.service';
  * permissão efetiva do usuário (IamModule.PermissionService).
  */
 @Module({
-  imports: [PrismaModule, IamModule, ApprovalModule],
+  imports: [PrismaModule, IamModule, ApprovalModule, VehicleDocumentModule, CrmModule],
   controllers: [WorkspaceController],
   providers: [WorkspaceService],
 })

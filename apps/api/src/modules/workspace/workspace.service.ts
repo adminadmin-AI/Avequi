@@ -10,6 +10,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionService, permissionMatches } from '../iam/permission.service';
 import { ApprovalService } from '../approval/approval.service';
+import { VehicleDocumentService } from '../vehicle-document/vehicle-document.service';
+import { FunnelService } from '../crm/funnel.service';
 
 /**
  * Workspace — BFF da Home por papel (F1 do épico Workspace Inteligente).
@@ -23,8 +25,9 @@ import { ApprovalService } from '../approval/approval.service';
  * - insights: Resumo do Dia (Antonella V1) — motor de REGRAS determinísticas
  *   sobre o hub de alertas + consultas prospectivas. A V2 (LLM) trocará o
  *   miolo mantendo o contrato.
- * - tasks: Minhas Pendências — aprovações na alçada, follow-ups de CRM e
- *   inspeções de qualidade (3 fontes da F1).
+ * - tasks: Minha Mesa — inbox unificado e priorizado: aprovações na alçada,
+ *   follow-ups de CRM, inspeções de qualidade, cobrança vencida, expedição
+ *   parada (documento do veículo) e cliente aguardando (SLA de 1ª resposta).
  * - agenda: próximos 7 dias — vencimentos financeiros, términos de OP e
  *   lembretes, unificados de datas que já existem no schema.
  *
@@ -44,7 +47,13 @@ export interface WorkspaceInsight {
 
 export interface WorkspaceTask {
   id: string;
-  type: 'approval' | 'crm-reminder' | 'quality-inspection' | 'overdue-receivable';
+  type:
+    | 'approval'
+    | 'crm-reminder'
+    | 'quality-inspection'
+    | 'overdue-receivable'
+    | 'vehicle-docs-pending'
+    | 'crm-sla';
   title: string;
   subtitle?: string;
   href: string;
@@ -162,6 +171,12 @@ const AGENDA_WINDOW_DAYS = 7;
 const MAX_AGENDA_WINDOW_DAYS = 42;
 const MAX_AGENDA_ITEMS_WIDE = 160;
 const PAYABLE_WINDOW_DAYS = 7;
+// Fontes secundárias da Minha Mesa (expedição, SLA): poucos itens cada, para
+// não afogar o inbox — o painel do domínio é que tem a lista inteira.
+const SIDE_SOURCE_TAKE = 3;
+// Venda faturada sem NENHUM documento entregue há tantos dias: vira crítico
+// (reboque faturado que não pode rodar é dinheiro parado no pátio).
+const VEHICLE_DOCS_CRITICAL_DAYS = 3;
 
 @Injectable()
 export class WorkspaceService {
@@ -171,6 +186,8 @@ export class WorkspaceService {
     private readonly prisma: PrismaService,
     private readonly permissionService: PermissionService,
     private readonly approvalService: ApprovalService,
+    private readonly vehicleDocumentService: VehicleDocumentService,
+    private readonly funnelService: FunnelService,
   ) {}
 
   private async canOf(user: AuthUserLite): Promise<(code: string) => boolean> {
@@ -203,6 +220,32 @@ export class WorkspaceService {
 
   private isoDay(d: Date): string {
     return d.toISOString().slice(0, 10);
+  }
+
+  private refTime(value: Date | string | null | undefined): number {
+    return value ? new Date(value).getTime() : Number.MAX_SAFE_INTEGER;
+  }
+
+  private daysSince(value: Date | string | null | undefined): number {
+    if (!value) return 0;
+    return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
+  }
+
+  /** 45 → "45min"; 90 → "1h30"; 1500 → "1d" (subtítulo curto de pendência). */
+  private humanMinutes(minutes: number): string {
+    const m = Math.max(0, Math.round(minutes));
+    if (m < 60) return `${m}min`;
+    if (m < 1440) {
+      const rest = m % 60;
+      return rest ? `${Math.floor(m / 60)}h${String(rest).padStart(2, '0')}` : `${m / 60}h`;
+    }
+    const days = Math.floor(m / 1440);
+    return `${days}d`;
+  }
+
+  private humanHours(hours: number): string {
+    const h = Math.max(0, Math.round(hours));
+    return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
   }
 
   // ─── Layout persistido (F2) ────────────────────────────────────────────────
@@ -618,6 +661,68 @@ export class WorkspaceService {
               priority: 'critical',
             });
           }),
+      );
+    }
+
+    // Expedição parada — venda de veículo FATURADA sem nenhum documento
+    // regulatório entregue (CAT/CCT/projeto). Reusa a mesma consulta do widget
+    // "Documentos do veículo" (#364); aqui vira pendência acionável, a mais
+    // antiga primeiro. Faturada há dias = reboque que não sai do pátio: crítico.
+    if (can('vehicle-tracking.documents.view')) {
+      jobs.push(
+        this.vehicleDocumentService.salesMissingDocuments(user.companyId).then((sales) => {
+          const oldestFirst = [...sales].sort(
+            (a, b) => this.refTime(a.invoicedAt ?? a.createdAt) - this.refTime(b.invoicedAt ?? b.createdAt),
+          );
+          for (const s of oldestFirst.slice(0, SIDE_SOURCE_TAKE)) {
+            const since = s.invoicedAt ?? s.createdAt;
+            const days = this.daysSince(since);
+            tasks.push({
+              id: `vehicle-docs-${s.id}`,
+              type: 'vehicle-docs-pending',
+              title: 'Documentos do veículo pendentes',
+              subtitle: `Venda faturada${days >= 1 ? ` há ${days} ${days === 1 ? 'dia' : 'dias'}` : ' hoje'} sem documento entregue`,
+              href: `/app/sales/${s.id}`,
+              createdAt: since ? new Date(since).toISOString() : undefined,
+              priority: days >= VEHICLE_DOCS_CRITICAL_DAYS ? 'critical' : 'warning',
+            });
+          }
+        }),
+      );
+    }
+
+    // Cliente aguardando — SLA de primeira resposta estourado (crítico) e lead
+    // esfriando (atenção), SEMPRE no escopo MEU (assignedToId = eu): é a Minha
+    // Mesa, não o painel do gerente. Mesma fonte do painel /crm/sla (#516).
+    if (can('crm.leads.view')) {
+      jobs.push(
+        this.funnelService.slaPanel(user.companyId, user.id).then((panel) => {
+          for (const l of panel.breaching.slice(0, SIDE_SOURCE_TAKE)) {
+            tasks.push({
+              id: `crm-sla-breach-${l.id}`,
+              type: 'crm-sla',
+              title: `Cliente aguardando: ${l.name ?? 'lead sem nome'}`,
+              subtitle: `Sem primeira resposta há ${this.humanMinutes(l.waitingMinutes)} (SLA ${this.humanMinutes(panel.slaMinutes)})`,
+              href: '/app/crm/sla',
+              createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : undefined,
+              priority: 'critical',
+            });
+          }
+          for (const l of panel.cooling.slice(0, SIDE_SOURCE_TAKE)) {
+            tasks.push({
+              id: `crm-sla-cooling-${l.id}`,
+              type: 'crm-sla',
+              title: `Lead esfriando: ${l.name ?? 'lead sem nome'}`,
+              subtitle:
+                l.idleHours != null
+                  ? `Sem interação há ${this.humanHours(l.idleHours)}`
+                  : `Sem interação há mais de ${this.humanHours(panel.coolingHours)}`,
+              href: '/app/crm/sla',
+              createdAt: l.lastInteractionAt ? new Date(l.lastInteractionAt).toISOString() : undefined,
+              priority: 'warning',
+            });
+          }
+        }),
       );
     }
 
