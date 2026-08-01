@@ -27,6 +27,14 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
     defaultSize: 'full',
     sizes: ['full'],
   },
+  'my-day': {
+    id: 'my-day',
+    title: 'Meu dia',
+    permission: ['workspace.insights.view'], // GET /workspace/my-day
+    zone: 'orientation',
+    defaultSize: 'full',
+    sizes: ['full'],
+  },
   'ai-insights': {
     id: 'ai-insights',
     title: 'Resumo da operação',

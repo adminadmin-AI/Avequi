@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AgendaQueryDto } from './dto/agenda-query.dto';
+import { MyDayQueryDto } from './dto/my-day-query.dto';
 import { CreateQuickNoteDto, UpdateQuickNoteDto } from './dto/quick-note.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 import { WorkspaceService } from './workspace.service';
@@ -43,6 +44,20 @@ export class WorkspaceController {
     @Query() query: AgendaQueryDto,
   ) {
     return this.workspaceService.getAgenda(user, query.days);
+  }
+
+  @Get('my-day')
+  // Mesmo gate do Resumo do dia: é a mesma leitura agregada do workspace, com
+  // o conteúdo curado por permissão de domínio no service (regra de ouro).
+  @RequirePermission('workspace.insights.view')
+  @ApiOperation({
+    summary: 'Meu Dia: faturado/recebido/produzido hoje + variação vs período anterior',
+  })
+  getMyDay(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Query() query: MyDayQueryDto,
+  ) {
+    return this.workspaceService.getMyDay(user, query.days);
   }
 
   // ─── Layout persistido (F2) — sempre dado do PRÓPRIO usuário ───────────────

@@ -4,6 +4,7 @@ import type { WidgetDefinition, WidgetId } from './types';
 import { WIDGET_META } from './widget-meta';
 import { GreetingWidget } from './widgets/greeting-widget';
 import { KpiSummaryWidget } from './widgets/kpi-summary-widget';
+import { MyDayWidget } from './widgets/my-day-widget';
 import { AiInsightsWidget } from './widgets/ai-insights-widget';
 import { PendingTasksWidget } from './widgets/pending-tasks-widget';
 import { AlertsWidget } from './widgets/alerts-widget';
@@ -27,6 +28,7 @@ import { QuickNotesWidget } from './widgets/quick-notes-widget';
 export const WIDGETS: Record<WidgetId, WidgetDefinition> = {
   greeting: { ...WIDGET_META.greeting, Component: GreetingWidget },
   'kpi-summary': { ...WIDGET_META['kpi-summary'], Component: KpiSummaryWidget },
+  'my-day': { ...WIDGET_META['my-day'], Component: MyDayWidget },
   'ai-insights': { ...WIDGET_META['ai-insights'], Component: AiInsightsWidget },
   'pending-tasks': { ...WIDGET_META['pending-tasks'], Component: PendingTasksWidget },
   alerts: { ...WIDGET_META.alerts, Component: AlertsWidget },

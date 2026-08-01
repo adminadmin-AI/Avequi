@@ -6,6 +6,7 @@ import {
   FinancialEntryType,
   InspectionStatus,
   ProductionOrderStatus,
+  SalesOrderStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionService, permissionMatches } from '../iam/permission.service';
@@ -69,6 +70,40 @@ export interface WorkspaceTask {
    * domínio). O front mostra o círculo de check apenas quando isto existe.
    */
   complete?: { url: string };
+}
+
+/**
+ * Meu Dia — comparação temporal HONESTA (brief "Workspace Vivo", pt.7).
+ *
+ * `today` é o que aconteceu no dia corrente (fuso da operação, não do
+ * container); `period` compara os últimos N dias com os N imediatamente
+ * anteriores. `deltaPct` é NULL quando não há base de comparação (período
+ * anterior zerado) — dividir por zero viraria "+∞%" ou um zero mentiroso.
+ *
+ * NÃO existe meta/streak aqui de propósito: metas moram no épico #867/#868 e
+ * ainda não têm cadastro. Número inventado em ERP financeiro é linha vermelha.
+ */
+export interface MyDayDelta {
+  current: number;
+  previous: number;
+  /** Variação % vs período anterior; null = sem base de comparação. */
+  deltaPct: number | null;
+}
+
+export interface MyDaySummary {
+  /** Dia corrente no fuso da operação (YYYY-MM-DD). */
+  date: string;
+  periodDays: number;
+  today: {
+    invoiced?: { amount: number; count: number };
+    received?: { amount: number; count: number };
+    produced?: { orders: number; qty: number };
+  };
+  period: {
+    invoiced?: MyDayDelta;
+    received?: MyDayDelta;
+    produced?: MyDayDelta;
+  };
 }
 
 export interface WorkspaceNote {
@@ -171,6 +206,12 @@ const AGENDA_WINDOW_DAYS = 7;
 const MAX_AGENDA_WINDOW_DAYS = 42;
 const MAX_AGENDA_ITEMS_WIDE = 160;
 const PAYABLE_WINDOW_DAYS = 7;
+// Fuso da OPERAÇÃO (a GDR é de Ribeirão Preto). O container do Railway roda
+// em UTC: sem isto, "hoje" começaria às 21h do dia anterior no relógio da
+// fábrica — o Meu Dia zeraria no meio do expediente da noite.
+const BUSINESS_TZ = 'America/Sao_Paulo';
+const MY_DAY_DEFAULT_DAYS = 30;
+const MY_DAY_MAX_DAYS = 90;
 // Fontes secundárias da Minha Mesa (expedição, SLA): poucos itens cada, para
 // não afogar o inbox — o painel do domínio é que tem a lista inteira.
 const SIDE_SOURCE_TAKE = 3;
@@ -220,6 +261,45 @@ export class WorkspaceService {
 
   private isoDay(d: Date): string {
     return d.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Meia-noite do dia corrente NO FUSO DA OPERAÇÃO, expressa em UTC — não
+   * depende do TZ do processo (Railway roda UTC). Subtrai do instante atual
+   * as horas/minutos/segundos que o relógio de São Paulo marca agora.
+   */
+  private startOfBusinessDay(now = new Date()): Date {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: BUSINESS_TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    // 24 aparece em algumas implementações à meia-noite; normaliza para 0.
+    const elapsedMs = ((get('hour') % 24) * 3600 + get('minute') * 60 + get('second')) * 1000;
+    return new Date(now.getTime() - elapsedMs);
+  }
+
+  /** Data corrente (YYYY-MM-DD) no fuso da operação. */
+  private businessDate(now = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: BUSINESS_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  }
+
+  /** current vs previous → variação %; null quando não há base (previous = 0). */
+  private toDelta(current: number, previous: number): MyDayDelta {
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return {
+      current: round(current),
+      previous: round(previous),
+      deltaPct: previous > 0 ? round(((current - previous) / previous) * 100) : null,
+    };
   }
 
   private refTime(value: Date | string | null | undefined): number {
@@ -739,6 +819,151 @@ export class WorkspaceService {
         (a.dueAt ?? a.createdAt ?? '').localeCompare(b.dueAt ?? b.createdAt ?? ''),
     );
     return tasks.slice(0, MAX_TASKS);
+  }
+
+  // ─── Meu Dia (hoje + variação do período) ──────────────────────────────────
+
+  /**
+   * Meu Dia: o que ANDOU hoje e como o período se compara com o anterior.
+   *
+   * Só entra evento com carimbo de tempo real no schema — faturamento por
+   * `invoicedAt` (venda com NF emitida), recebimento por `paidAt`, produção
+   * por `completedAt`. Nada de estimativa, nada de meta.
+   *
+   * Curadoria por permissão, como o resto do BFF: quem não enxerga vendas não
+   * dispara a consulta de faturamento nem recebe a chave no payload.
+   */
+  async getMyDay(user: AuthUserLite, days = MY_DAY_DEFAULT_DAYS): Promise<MyDaySummary> {
+    const window = Math.min(Math.max(days, 1), MY_DAY_MAX_DAYS);
+    const can = await this.canOf(user);
+    const now = new Date();
+    const todayStart = this.startOfBusinessDay(now);
+    const dayMs = 86_400_000;
+    const currentStart = new Date(now.getTime() - window * dayMs);
+    const previousStart = new Date(now.getTime() - 2 * window * dayMs);
+
+    const summary: MyDaySummary = {
+      date: this.businessDate(now),
+      periodDays: window,
+      today: {},
+      period: {},
+    };
+    const jobs: Promise<void>[] = [];
+
+    // Faturado — venda com NF emitida (status INVOICED + invoicedAt).
+    if (can('sales.orders.view')) {
+      jobs.push(
+        this.prisma.salesOrder
+          .findMany({
+            where: {
+              companyId: user.companyId,
+              status: SalesOrderStatus.INVOICED,
+              invoicedAt: { gte: previousStart },
+            },
+            select: {
+              invoicedAt: true,
+              items: { select: { quantity: true, unitPrice: true } },
+            },
+          })
+          .then((orders) => {
+            const amountOf = (o: (typeof orders)[number]) =>
+              o.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
+            let todayAmount = 0;
+            let todayCount = 0;
+            let current = 0;
+            let previous = 0;
+            for (const o of orders) {
+              if (!o.invoicedAt) continue;
+              const amount = amountOf(o);
+              if (o.invoicedAt >= todayStart) {
+                todayAmount += amount;
+                todayCount += 1;
+              }
+              if (o.invoicedAt >= currentStart) current += amount;
+              else previous += amount;
+            }
+            summary.today.invoiced = { amount: Math.round(todayAmount * 100) / 100, count: todayCount };
+            summary.period.invoiced = this.toDelta(current, previous);
+          }),
+      );
+    }
+
+    // Recebido — dinheiro que ENTROU (paidAt). Baixa parcial conta pelo valor
+    // efetivamente pago; registros antigos sem paidAmount caem no amount.
+    if (can('finance.entries.view')) {
+      jobs.push(
+        this.prisma.financialEntry
+          .findMany({
+            where: {
+              companyId: user.companyId,
+              type: FinancialEntryType.RECEIVABLE,
+              status: { in: [FinancialEntryStatus.PAID, FinancialEntryStatus.PARTIALLY_PAID] },
+              paidAt: { gte: previousStart },
+            },
+            select: { paidAt: true, paidAmount: true, amount: true },
+          })
+          .then((entries) => {
+            let todayAmount = 0;
+            let todayCount = 0;
+            let current = 0;
+            let previous = 0;
+            for (const e of entries) {
+              if (!e.paidAt) continue;
+              const amount = Number(e.paidAmount ?? e.amount);
+              if (e.paidAt >= todayStart) {
+                todayAmount += amount;
+                todayCount += 1;
+              }
+              if (e.paidAt >= currentStart) current += amount;
+              else previous += amount;
+            }
+            summary.today.received = { amount: Math.round(todayAmount * 100) / 100, count: todayCount };
+            summary.period.received = this.toDelta(current, previous);
+          }),
+      );
+    }
+
+    // Produzido — OP concluída (status DONE + completedAt), com a quantidade
+    // que saiu de fato (producedQty, o mesmo campo da barra de progresso).
+    if (can('production.orders.view')) {
+      jobs.push(
+        this.prisma.productionOrder
+          .findMany({
+            where: {
+              companyId: user.companyId,
+              status: ProductionOrderStatus.DONE,
+              completedAt: { gte: previousStart },
+            },
+            select: { completedAt: true, producedQty: true },
+          })
+          .then((orders) => {
+            let todayQty = 0;
+            let todayOrders = 0;
+            let current = 0;
+            let previous = 0;
+            for (const o of orders) {
+              if (!o.completedAt) continue;
+              const qty = Number(o.producedQty);
+              if (o.completedAt >= todayStart) {
+                todayQty += qty;
+                todayOrders += 1;
+              }
+              // A variação de produção conta ORDENS concluídas — quantidade
+              // mistura reboque com peça avulsa e não compara.
+              if (o.completedAt >= currentStart) current += 1;
+              else previous += 1;
+            }
+            summary.today.produced = { orders: todayOrders, qty: Math.round(todayQty * 100) / 100 };
+            summary.period.produced = this.toDelta(current, previous);
+          }),
+      );
+    }
+
+    await Promise.all(
+      jobs.map((j) => j.catch((err) => this.logger.warn(`my-day source failed: ${err?.message ?? err}`))),
+    );
+
+    return summary;
   }
 
   // ─── Agenda (próximos 7 dias) ──────────────────────────────────────────────

@@ -27,11 +27,13 @@ const ALL_PERMS = [
   'fiscal.manifestation.view',
   'maintenance.orders.view',
   'vehicle-tracking.documents.view',
+  'sales.orders.view',
 ];
 
 const EMPTY_SLA_PANEL = { slaMinutes: 30, coolingHours: 48, breaching: [], cooling: [] };
 
 const mockPrisma = {
+  salesOrder: { findMany: jest.fn() },
   productionOrder: { count: jest.fn(), findMany: jest.fn() },
   financialEntry: { aggregate: jest.fn(), findMany: jest.fn() },
   inspection: { count: jest.fn(), findMany: jest.fn() },
@@ -66,6 +68,7 @@ describe('WorkspaceService', () => {
     mockPrisma.productionOrder.findMany.mockResolvedValue([]);
     mockPrisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 0 }, _count: 0 });
     mockPrisma.financialEntry.findMany.mockResolvedValue([]);
+    mockPrisma.salesOrder.findMany.mockResolvedValue([]);
     mockPrisma.inspection.count.mockResolvedValue(0);
     mockPrisma.inspection.findMany.mockResolvedValue([]);
     mockPrisma.alert.findMany.mockResolvedValue([]);
@@ -260,6 +263,85 @@ describe('WorkspaceService', () => {
       expect(where.userId).toBe(USER.id);
       expect(where.companyId).toBe(USER.companyId);
       expect(where.doneAt).toBeNull();
+    });
+  });
+
+  describe('getMyDay', () => {
+    const DAY = 86_400_000;
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000);
+    const daysAgo = (d: number) => new Date(Date.now() - d * DAY);
+
+    it('separa o que andou HOJE e compara o período com o anterior', async () => {
+      mockPrisma.salesOrder.findMany.mockResolvedValue([
+        // hoje (1h atrás): 2 × 1000 + 1 × 500 = 2500
+        { invoicedAt: hoursAgo(1), items: [{ quantity: 2, unitPrice: 1000 }, { quantity: 1, unitPrice: 500 }] },
+        // dentro do período (10 dias): 1000
+        { invoicedAt: daysAgo(10), items: [{ quantity: 1, unitPrice: 1000 }] },
+        // período anterior (40 dias): 2000
+        { invoicedAt: daysAgo(40), items: [{ quantity: 1, unitPrice: 2000 }] },
+      ]);
+      mockPrisma.financialEntry.findMany.mockResolvedValue([
+        { paidAt: hoursAgo(2), paidAmount: 300, amount: 900 }, // baixa parcial conta o pago
+        { paidAt: daysAgo(50), paidAmount: null, amount: 700 }, // legado sem paidAmount
+      ]);
+      mockPrisma.productionOrder.findMany.mockResolvedValue([
+        { completedAt: hoursAgo(3), producedQty: 4 },
+        { completedAt: daysAgo(5), producedQty: 6 },
+        { completedAt: daysAgo(45), producedQty: 10 },
+      ]);
+
+      const myDay = await service.getMyDay(USER, 30);
+
+      expect(myDay.periodDays).toBe(30);
+      expect(myDay.today.invoiced).toEqual({ amount: 2500, count: 1 });
+      expect(myDay.today.received).toEqual({ amount: 300, count: 1 });
+      expect(myDay.today.produced).toEqual({ orders: 1, qty: 4 });
+
+      // faturado: 3500 no período vs 2000 no anterior → +75%
+      expect(myDay.period.invoiced).toEqual({ current: 3500, previous: 2000, deltaPct: 75 });
+      // recebido: 300 vs 700 (usou o amount do registro sem paidAmount)
+      expect(myDay.period.received!.previous).toBe(700);
+      expect(myDay.period.received!.deltaPct).toBeCloseTo(-57.14, 1);
+      // produção compara ORDENS concluídas, não quantidade
+      expect(myDay.period.produced).toEqual({ current: 2, previous: 1, deltaPct: 100 });
+    });
+
+    it('sem base de comparação (período anterior zerado) o delta é null, nunca infinito', async () => {
+      mockPrisma.salesOrder.findMany.mockResolvedValue([
+        { invoicedAt: hoursAgo(1), items: [{ quantity: 1, unitPrice: 1000 }] },
+      ]);
+      const myDay = await service.getMyDay(USER, 30);
+      expect(myDay.period.invoiced).toEqual({ current: 1000, previous: 0, deltaPct: null });
+    });
+
+    it('"hoje" é o dia da OPERAÇÃO (America/Sao_Paulo), não o dia UTC do container', async () => {
+      // 02:00 UTC = 23:00 do dia ANTERIOR em São Paulo: o dia de trabalho ainda
+      // é 30/07, e um faturamento das 09:00 BRT do dia 30 tem que contar.
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-31T02:00:00Z'));
+      try {
+        mockPrisma.salesOrder.findMany.mockResolvedValue([
+          { invoicedAt: new Date('2026-07-30T12:00:00Z'), items: [{ quantity: 1, unitPrice: 800 }] },
+        ]);
+        const myDay = await service.getMyDay(USER, 30);
+        expect(myDay.date).toBe('2026-07-30');
+        expect(myDay.today.invoiced).toEqual({ amount: 800, count: 1 });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('curadoria por permissão: sem vendas, a consulta não roda e a chave não vem', async () => {
+      grant(['production.orders.view']);
+      const myDay = await service.getMyDay(USER, 7);
+      expect(mockPrisma.salesOrder.findMany).not.toHaveBeenCalled();
+      expect(myDay.today.invoiced).toBeUndefined();
+      expect(myDay.period.invoiced).toBeUndefined();
+      expect(myDay.today.produced).toBeDefined();
+    });
+
+    it('a janela é limitada (1..90 dias)', async () => {
+      const myDay = await service.getMyDay(USER, 999);
+      expect(myDay.periodDays).toBe(90);
     });
   });
 

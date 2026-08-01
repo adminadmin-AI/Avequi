@@ -25,16 +25,17 @@ describe('mergeLayout', () => {
   it('reordena APENAS as zonas work/context; orientação e atenção ficam fixas', () => {
     // usuário tentou colocar o gráfico "antes de tudo" — a zona fixa segura
     const out = mergeLayout(T, [{ id: 'chart-production' }, { id: 'chart-revenue' }]);
-    expect(ids(out).slice(0, 5)).toEqual([
+    expect(ids(out).slice(0, 6)).toEqual([
       'greeting',
       'kpi-summary',
+      'my-day',
       'ai-insights',
       'pending-tasks',
       'shortcuts',
     ]);
     // dentro da parte reordenável, a ordem do override vale; sem override,
     // segue a ordem do template (cashflow-13w e agenda, F3)
-    expect(ids(out).slice(5)).toEqual([
+    expect(ids(out).slice(6)).toEqual([
       'chart-production',
       'chart-revenue',
       'cashflow-13w',
@@ -47,7 +48,7 @@ describe('mergeLayout', () => {
   it('widget do template sem override aparece na posição default (widget novo entra sozinho)', () => {
     const out = mergeLayout(T, [{ id: 'chart-revenue' }]);
     // cashflow/agenda/chart-production não têm override → ordem do template após os ordenados
-    expect(ids(out).slice(5)).toEqual([
+    expect(ids(out).slice(6)).toEqual([
       'chart-revenue',
       'cashflow-13w',
       'crm-portfolio',
@@ -74,8 +75,8 @@ describe('mergeLayout', () => {
 
   it('pinned sobe para o topo da parte reordenável, nunca acima da atenção', () => {
     const out = mergeLayout(T, [{ id: 'chart-production', pinned: true }]);
-    expect(ids(out)[5]).toBe('chart-production');
-    expect(ids(out)[2]).toBe('ai-insights');
+    expect(ids(out)[6]).toBe('chart-production');
+    expect(ids(out)[3]).toBe('ai-insights');
   });
 });
 
