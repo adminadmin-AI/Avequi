@@ -8,6 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { AdaptiveThrottlerGuard } from './common/guards/adaptive-throttler.guard';
+import { CsrfGuard } from './common/guards/csrf.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -178,6 +179,13 @@ import { IamModule } from './modules/iam/iam.module';
   providers: [
     // Filtro global de exceções via DI (injeta EventEmitter2 p/ captura 5xx #766)
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // #349: CSRF double-submit ANTES do JWT — só age em mutação autenticável
+    // por cookie (gdr_access presente, sem Bearer); o canal Bearer e os
+    // webhooks passam intactos. Ver common/guards/csrf.guard.ts.
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

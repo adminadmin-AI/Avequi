@@ -2,12 +2,17 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { readBuildMeta } from './modules/version/version.util';
 
 async function bootstrap() {
   // rawBody: assinatura X-Hub-Signature-256 do webhook WhatsApp (#508) é HMAC do corpo bruto
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // #349: cookies httpOnly de auth (gdr_access/gdr_refresh/gdr_csrf) — o
+  // CsrfGuard e o JwtStrategy leem req.cookies.
+  app.use(cookieParser());
 
   // Security headers (IAM F6.1 #349). CSP em Report-Only para não quebrar o
   // Swagger em /docs — só reporta violações, ainda não bloqueia. Trocar para

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, limparCredenciaisLocais, salvarCsrfToken } from '@/lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -47,21 +47,22 @@ export const useAuthStore = create<AuthState>()(
             passwordExpired: !!data.passwordExpired,
           };
         }
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
+        // #349: a sessão vive em cookies httpOnly setados pelo servidor —
+        // tokens NÃO são mais gravados no localStorage. Só o csrfToken
+        // (não-segredo de autenticação) fica local, p/ o header x-csrf-token.
+        salvarCsrfToken(data.csrfToken);
         set({ user: data.user, isAuthenticated: true });
         return { passwordChangeRequired: false as const };
       },
 
       logout: async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          try {
-            await apiClient.post('/auth/logout', { refreshToken });
-          } catch {}
-        }
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        try {
+          // Cookie httpOnly leva o refresh; body cobre sessão legada
+          // (pré-cookie) que ainda tenha token no localStorage.
+          const legado = localStorage.getItem('refreshToken');
+          await apiClient.post('/auth/logout', legado ? { refreshToken: legado } : {});
+        } catch {}
+        limparCredenciaisLocais();
         set({ user: null, isAuthenticated: false });
       },
     }),
