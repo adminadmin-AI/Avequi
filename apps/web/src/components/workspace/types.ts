@@ -13,6 +13,7 @@ import type { ComponentType } from 'react';
 export type WidgetId =
   | 'greeting'
   | 'kpi-summary'
+  | 'my-day'
   | 'ai-insights'
   | 'pending-tasks'
   | 'alerts'
