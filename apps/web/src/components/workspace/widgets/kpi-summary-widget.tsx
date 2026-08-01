@@ -28,9 +28,18 @@ import { isoDaysAgo, num, useWorkspacePeriod } from '../workspace-context';
  * permissão apara.
  */
 
-interface SalesCubeRow {
-  period: string;
-  totalRevenue: number;
+/**
+ * Faturamento = venda com NF EMITIDA no período (GET /workspace/revenue).
+ *
+ * Antes esta métrica somava `/analytics/sales-cube`, que agrupa por mês de
+ * CRIAÇÃO do pedido e devolve todos os status — o KPI contava rascunho e
+ * cancelado como faturamento. Agora usa a mesma base do Meu Dia, então os
+ * dois números da Home batem sempre.
+ */
+interface RevenueSeriesResponse {
+  periodDays: number;
+  total: number;
+  series: { period: string; value: number }[];
 }
 
 export type MetricKey =
@@ -42,7 +51,7 @@ export type MetricKey =
   | 'stock-below-min';
 
 const METRIC_PERMISSION: Record<MetricKey, string[]> = {
-  revenue: ['analytics.dashboards.view'], // GET /analytics/sales-cube
+  revenue: ['sales.orders.view'], // GET /workspace/revenue (venda faturada)
   cash: ['finance.bank-accounts.view'], // GET /finance/bank-accounts
   'overdue-receivable': ['finance.entries.view'], // GET /finance?type=RECEIVABLE
   'payable-upcoming': ['finance.entries.view'], // GET /finance?type=PAYABLE
@@ -65,17 +74,15 @@ export function KpiSummaryWidget({ instance }: WidgetComponentProps) {
   );
   const want = (m: MetricKey) => metrics.includes(m);
 
-  const startDate = isoDaysAgo(periodDays);
-  const endDate = isoDaysAgo(0);
-
   // Hooks incondicionais (regra do React); `enabled` liga só o que o template
   // pede E a permissão deixa. queryKeys idênticas às dos gráficos → dedupe.
   const salesQ = useQuery({
     ...COMMON,
     enabled: want('revenue'),
-    queryKey: ['/analytics/sales-cube', startDate, endDate],
+    // Mesma queryKey do gráfico de faturamento → uma requisição só.
+    queryKey: ['/workspace/revenue', periodDays],
     queryFn: async () =>
-      (await apiClient.get<SalesCubeRow[]>('/analytics/sales-cube', { params: { startDate, endDate } }))
+      (await apiClient.get<RevenueSeriesResponse>('/workspace/revenue', { params: { days: periodDays } }))
         .data,
   });
   const cashAccountsQ = useQuery({
@@ -112,10 +119,7 @@ export function KpiSummaryWidget({ instance }: WidgetComponentProps) {
   });
 
   // ─── Derivações (mesma semântica da Home antiga) ───
-  const revenue = useMemo(
-    () => (salesQ.data ?? []).reduce((s, r) => s + num(r.totalRevenue), 0),
-    [salesQ.data],
-  );
+  const revenue = num(salesQ.data?.total);
   const today = isoDaysAgo(0);
   const inPeriod = isoDaysAgo(-periodDays);
   const overdueReceivable = useMemo(
@@ -169,7 +173,7 @@ export function KpiSummaryWidget({ instance }: WidgetComponentProps) {
       value: formatBRL(revenue),
       icon: TrendingUp,
       tone: 'brand',
-      sub: `Últimos ${periodDays}d`,
+      sub: `Últimos ${periodDays}d · NF emitida`,
       loading: salesQ.isLoading,
     },
     cash: {

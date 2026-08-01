@@ -106,6 +106,24 @@ export interface MyDaySummary {
   };
 }
 
+/**
+ * Série de faturamento — um ponto por dia (fuso da operação), somando o valor
+ * das vendas com NF emitida naquele dia. Substitui o consumo do sales-cube na
+ * Home, que agrupava por MÊS de criação do pedido e incluía rascunho e
+ * cancelado no total (dois erros distintos: base errada e status errado).
+ */
+export interface RevenuePoint {
+  /** YYYY-MM-DD no fuso da operação. */
+  period: string;
+  value: number;
+}
+
+export interface RevenueSeries {
+  periodDays: number;
+  total: number;
+  series: RevenuePoint[];
+}
+
 export interface WorkspaceNote {
   id: string;
   text: string;
@@ -282,7 +300,7 @@ export class WorkspaceService {
     return new Date(now.getTime() - elapsedMs);
   }
 
-  /** Data corrente (YYYY-MM-DD) no fuso da operação. */
+  /** Data (YYYY-MM-DD) de um instante no fuso da operação. */
   private businessDate(now = new Date()): string {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: BUSINESS_TZ,
@@ -964,6 +982,60 @@ export class WorkspaceService {
     );
 
     return summary;
+  }
+
+  // ─── Faturamento (série real, por venda faturada) ──────────────────────────
+
+  /**
+   * Faturamento do período: um ponto por DIA, somando as vendas cuja NF foi
+   * emitida naquele dia (`status = INVOICED`, carimbo `invoicedAt`).
+   *
+   * Existe porque a Home lia `/analytics/sales-cube`, que agrupa por MÊS de
+   * `createdAt` e não filtra status — o KPI somava rascunho e cancelado, e o
+   * gráfico de 30 dias virava um ou dois pontos mensais. Aqui o número bate
+   * exatamente com `period.invoiced` do Meu Dia: mesma base, mesma verdade.
+   *
+   * Dias sem faturamento aparecem com valor 0 — a linha do gráfico precisa do
+   * eixo contínuo, e "não faturamos nada naquele dia" é informação.
+   */
+  async getRevenueSeries(user: AuthUserLite, days = MY_DAY_DEFAULT_DAYS): Promise<RevenueSeries> {
+    const window = Math.min(Math.max(days, 1), MY_DAY_MAX_DAYS);
+    const dayMs = 86_400_000;
+    const now = new Date();
+    // Começa na meia-noite (fuso da operação) de N-1 dias atrás: a janela
+    // cobre dias INTEIROS, incluindo o de hoje.
+    const from = new Date(this.startOfBusinessDay(now).getTime() - (window - 1) * dayMs);
+
+    const orders = await this.prisma.salesOrder.findMany({
+      where: {
+        companyId: user.companyId,
+        status: SalesOrderStatus.INVOICED,
+        invoicedAt: { gte: from },
+      },
+      select: { invoicedAt: true, items: { select: { quantity: true, unitPrice: true } } },
+    });
+
+    const byDay = new Map<string, number>();
+    for (let i = 0; i < window; i++) {
+      byDay.set(this.businessDate(new Date(from.getTime() + i * dayMs)), 0);
+    }
+    for (const o of orders) {
+      if (!o.invoicedAt) continue;
+      const key = this.businessDate(o.invoicedAt);
+      if (!byDay.has(key)) continue; // fora da janela por arredondamento de fuso
+      const amount = o.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
+      byDay.set(key, byDay.get(key)! + amount);
+    }
+
+    const series = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([period, value]) => ({ period, value: Math.round(value * 100) / 100 }));
+
+    return {
+      periodDays: window,
+      total: Math.round(series.reduce((s, p) => s + p.value, 0) * 100) / 100,
+      series,
+    };
   }
 
   // ─── Agenda (próximos 7 dias) ──────────────────────────────────────────────

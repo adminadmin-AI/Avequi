@@ -7,48 +7,54 @@ import { BarChart3 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { WidgetComponentProps } from '../types';
 import { ChartSkeleton, EmptyState, WidgetFrame } from '../widget-frame';
-import { isoDaysAgo, num, useWorkspacePeriod } from '../workspace-context';
+import { useWorkspacePeriod } from '../workspace-context';
 
 const RevenueLineChart = dynamic(() => import('./charts').then((m) => m.RevenueLineChart), {
   ssr: false,
   loading: () => <ChartSkeleton />,
 });
 
-interface SalesCubeRow {
-  period: string;
-  totalRevenue: number;
+interface RevenueSeriesResponse {
+  periodDays: number;
+  total: number;
+  series: { period: string; value: number }[];
 }
 
-/** Faturamento no período — zona de contexto (tendência, nunca acima de tarefa). */
+/**
+ * Faturamento no período — zona de contexto (tendência, nunca acima de tarefa).
+ *
+ * Consome GET /workspace/revenue: um ponto por DIA, só venda com NF emitida.
+ * Antes lia o sales-cube, que agrupa por MÊS de criação do pedido e inclui
+ * rascunho/cancelado — com período de 30 dias a "tendência" era um ou dois
+ * pontos mensais, e o total divergia do que o Meu Dia mostra.
+ */
 export function RevenueChartWidget(_: WidgetComponentProps) {
   const { periodDays } = useWorkspacePeriod();
-  const startDate = isoDaysAgo(periodDays);
-  const endDate = isoDaysAgo(0);
 
   const salesQ = useQuery({
     retry: false,
     staleTime: 5 * 60 * 1000,
-    queryKey: ['/analytics/sales-cube', startDate, endDate],
+    // Mesma queryKey do KPI de faturamento → uma requisição só.
+    queryKey: ['/workspace/revenue', periodDays],
     queryFn: async () =>
-      (await apiClient.get<SalesCubeRow[]>('/analytics/sales-cube', { params: { startDate, endDate } }))
+      (await apiClient.get<RevenueSeriesResponse>('/workspace/revenue', { params: { days: periodDays } }))
         .data,
   });
 
-  const revenueSeries = useMemo(() => {
-    const byPeriod = new Map<string, number>();
-    for (const r of salesQ.data ?? []) {
-      byPeriod.set(r.period, (byPeriod.get(r.period) ?? 0) + num(r.totalRevenue));
-    }
-    return [...byPeriod.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([period, value]) => ({ period, value }));
-  }, [salesQ.data]);
+  const revenueSeries = useMemo(
+    () => (salesQ.data?.series ?? []).map((p) => ({ period: dayLabel(p.period), value: p.value })),
+    [salesQ.data],
+  );
+
+  // Série só com zeros = período inteiro sem faturamento: o gráfico viraria uma
+  // linha rasteira sem informação; o estado vazio diz isso com todas as letras.
+  const hasMovement = revenueSeries.some((p) => p.value > 0);
 
   return (
     <WidgetFrame title="Faturamento" quiet>
       {salesQ.isLoading ? (
         <ChartSkeleton />
-      ) : revenueSeries.length === 0 ? (
+      ) : !hasMovement ? (
         <EmptyState
           tall
           icon={BarChart3}
@@ -60,4 +66,10 @@ export function RevenueChartWidget(_: WidgetComponentProps) {
       )}
     </WidgetFrame>
   );
+}
+
+/** '2026-07-31' → '31/07' (o eixo X respira melhor sem o ano). */
+function dayLabel(iso: string): string {
+  const [, month, day] = iso.split('-');
+  return month && day ? `${day}/${month}` : iso;
 }

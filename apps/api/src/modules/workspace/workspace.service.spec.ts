@@ -345,6 +345,60 @@ describe('WorkspaceService', () => {
     });
   });
 
+  describe('getRevenueSeries', () => {
+    it('um ponto por dia da janela, somando só venda com NF emitida', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-31T15:00:00Z')); // 12h BRT
+      try {
+        mockPrisma.salesOrder.findMany.mockResolvedValue([
+          { invoicedAt: new Date('2026-07-31T13:00:00Z'), items: [{ quantity: 2, unitPrice: 1000 }] },
+          { invoicedAt: new Date('2026-07-31T17:00:00Z'), items: [{ quantity: 1, unitPrice: 500 }] },
+          { invoicedAt: new Date('2026-07-29T14:00:00Z'), items: [{ quantity: 1, unitPrice: 300 }] },
+        ]);
+
+        const out = await service.getRevenueSeries(USER, 7);
+
+        expect(out.periodDays).toBe(7);
+        expect(out.series).toHaveLength(7); // dias vazios inclusos (eixo contínuo)
+        expect(out.series[out.series.length - 1]).toEqual({ period: '2026-07-31', value: 2500 });
+        expect(out.series.find((p) => p.period === '2026-07-29')).toEqual({
+          period: '2026-07-29',
+          value: 300,
+        });
+        expect(out.series.find((p) => p.period === '2026-07-30')).toEqual({
+          period: '2026-07-30',
+          value: 0,
+        });
+        expect(out.total).toBe(2800);
+
+        // Só INVOICED entra na consulta — rascunho/cancelado nunca chegam aqui.
+        const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
+        expect(where.status).toBe('INVOICED');
+        expect(where.companyId).toBe(USER.companyId);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('o total da série bate com o período do Meu Dia (mesma base)', async () => {
+      const orders = [
+        { invoicedAt: new Date(Date.now() - 3600_000), items: [{ quantity: 3, unitPrice: 700 }] },
+      ];
+      mockPrisma.salesOrder.findMany.mockResolvedValue(orders);
+      const [series, myDay] = await Promise.all([
+        service.getRevenueSeries(USER, 30),
+        service.getMyDay(USER, 30),
+      ]);
+      expect(series.total).toBe(2100);
+      expect(myDay.period.invoiced!.current).toBe(2100);
+    });
+
+    it('a janela é limitada (1..90 dias)', async () => {
+      const out = await service.getRevenueSeries(USER, 999);
+      expect(out.periodDays).toBe(90);
+      expect(out.series).toHaveLength(90);
+    });
+  });
+
   describe('notas rápidas', () => {
     const NOTE = {
       id: 'n1',
