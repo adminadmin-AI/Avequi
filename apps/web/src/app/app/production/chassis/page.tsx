@@ -312,13 +312,17 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Passo a passo</p>
                 <ol className="list-decimal space-y-1 pl-5 text-content-secondary">
-                  <li>Copie a pasta da ferramenta (<span className="font-mono text-xs">scripts/openclaw</span> do projeto) para o computador</li>
-                  <li>Instale as dependências: <span className="font-mono text-xs">pip install streamlit psycopg2-binary pyserial reportlab</span></li>
-                  <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo)</li>
-                  <li>Inicie: <span className="font-mono text-xs">streamlit run app.py --server.port 8503</span></li>
-                  <li>Abra <span className="font-mono text-xs">http://localhost:8503</span> e confirme o chip “☁ Nuvem sincronizada”</li>
+                  <li>Extraia o pacote <span className="font-mono text-xs">OpenClaw_Instalador_*.zip</span> em uma pasta fixa (ex.: <span className="font-mono text-xs">C:\OpenClaw</span> — evitar OneDrive/Área de Trabalho)</li>
+                  <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">.streamlit\secrets.toml</span> conforme o modelo do pacote</li>
+                  <li>Execute <span className="font-mono text-xs">instalar.cmd</span> (cria o ambiente Python isolado e instala as dependências)</li>
+                  <li>Para usar, execute <span className="font-mono text-xs">iniciar.cmd</span> — o navegador abre em <span className="font-mono text-xs">http://localhost:8503</span></li>
+                  <li>Confirme o chip “☁ Nuvem sincronizada” no topo da ferramenta</li>
                   <li>Faça uma gravação de teste em sucata antes de liberar para o operador</li>
                 </ol>
+                <p className="mt-1 text-xs text-content-muted">
+                  O guia completo (com problemas comuns) vai junto no pacote, em{' '}
+                  <span className="font-mono">LEIA-ME_INSTALACAO.md</span>.
+                </p>
               </div>
 
               <Alert variant="warning" title="Credencial de acesso ao banco">
@@ -328,7 +332,9 @@ export default function ChassisPage() {
               </Alert>
 
               <p className="text-xs text-content-muted">
-                Pacote de instalação para download direto nesta página: em preparação (issue #889).
+                O pacote é gerado pelo empacotador do projeto producao_v2
+                (<span className="font-mono">scripts/openclaw/instalador/empacotar.py</span>).
+                Download direto nesta página: em preparação (issue #889).
               </p>
             </div>
           </SheetBody>
