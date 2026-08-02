@@ -6,6 +6,32 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-08-01
+
+### Adicionado
+
+**Workspace Vivo — a Home vira mesa de trabalho** (desafio de 13 pontos, 31/07–01/08)
+- **Minha Mesa** (#897, #898): "Minhas Pendências" vira inbox unificado e priorizado (crítico → atenção → informação). Fontes: aprovações na alçada, follow-ups de CRM, inspeções, **cobrança vencida** (recebíveis somados), **expedição parada** (venda faturada sem documento do veículo, crítica a partir de 3 dias) e **cliente aguardando** (SLA de 1ª resposta estourado, sempre no escopo do próprio usuário).
+- **Meu Dia** (#899): novo `GET /workspace/my-day?days=1..90` — faturado, recebido e produzido **hoje**, mais a variação real contra o período anterior. Sem meta e sem streak (dependem do épico #867/#868); período anterior zerado devolve `null` e a interface diz "sem base", nunca um percentual inventado. "Hoje" é meia-noite em `America/Sao_Paulo`, não o UTC do contêiner.
+- **Tiers de tamanho P/M/G** (#902): grid de 12 colunas (P=4 · M=6 · G=12) e seletor P·M·G no modo edição. Cada widget declara os tiers que aceita — gráfico e calendário não descem para um terço. Layouts salvos com `half`/`full` seguem válidos (tradução na leitura, DTO aceita ambos).
+- **Mural de notas** (#904): as notas ganham ordem (arrastar), podem ser **fixadas** no topo e passam a ser **arquivadas** em vez de excluídas — com "Desfazer" no toast e gaveta de arquivadas. Excluir definitivo só de dentro da gaveta.
+- **Notas rápidas** (#886, #892): post-its pessoais com persistência real (`gdr_user_quick_notes`), alfinete 3D tonal e mural em papel quadrado; pendências concluíveis ganham check com saída animada.
+- **Widgets vivos** (#893, #894, #896): Antonella vira consultora (cada insight com trilho de prioridade, tag e CTA próprio), Produção vira barra de progresso real (produzido ÷ planejado das OPs ativas) e os gráficos ganham área com gradiente, linha suave e tooltip do tema.
+
+**Fora do Workspace**
+- **Alerta anti-fraude de troca de dados bancários de fornecedor** (#864, #891): toda alteração de chave PIX/dados bancários deixa rastro em auditoria e o alerta aparece no sino — e na hora de pagar. Janela de 15 dias; primeiro preenchimento não alerta.
+- **Chassis gravados pela marcadora** (#889, #890): tela de acompanhamento + guia de instalação.
+- **Padrão de filtros clean em todas as listagens** (#881) e **Carteira de Pagáveis** mais direta (status "Pagar hoje", busca).
+- **Deep-link `?due=`** (#885): o calendário abre a carteira já filtrada no vencimento do dia.
+
+### Corrigido
+- **KPI e gráfico de Faturamento passam a medir venda faturada** (#900): liam `/analytics/sales-cube`, que agrupa por mês de **criação** do pedido e inclui **rascunho e cancelado** — o "faturamento" da Home somava o que não foi faturado. Agora ambos usam `GET /workspace/revenue` (venda `INVOICED` por `invoicedAt`, um ponto por dia), com o mesmo número do Meu Dia.
+- **Notas rápidas: "Nova nota" não fazia nada** (#888): `@MinLength(1)` rejeitava o post-it que nasce em branco e a mutação falhava em silêncio (400 sem `onError`). DTO passou a aceitar vazio e toda mutação ganhou toast de erro.
+
+### Infra
+- Migrations aditivas e idempotentes: `20260731120000_user_quick_notes`, `20260731210000_alert_supplier_banking_changed`, `20260801120000_quick_notes_board`.
+- Histórico `_prisma_migrations` regularizado: a migration das notas rápidas fora aplicada à mão na rodada 6 sem registro — banco estava correto, o histórico é que mentia.
+
 ## [1.25.0] - 2026-07-31
 
 ### Adicionado
@@ -306,7 +332,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...HEAD
+[1.26.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...v1.23.0
