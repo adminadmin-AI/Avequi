@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { canalDaSessao, ehErroDeCsrf } from './auth-session';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -15,7 +16,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
  * localStorage e nenhum cookie. Elas continuam funcionando (Bearer segue
  * aceito); no primeiro 401 o refresh legado roda e o servidor JÁ seta os
  * cookies na resposta — a sessão migra sozinha e os tokens legados são
- * apagados. Novos logins nunca mais escrevem tokens no localStorage.
+ * apagados.
+ *
+ * API SEM SUPORTE A COOKIE (ordem de deploy): se o web subir antes da API,
+ * o login responde SEM `csrfToken` — sinal de que a API é anterior a esta
+ * mudança. Nesse caso `registrarSessao` grava os tokens do body e a sessão
+ * segue 100% Bearer, como antes. Sem esse fallback, o login "dá certo" e
+ * toda chamada seguinte volta 401: o usuário fica preso num laço de login
+ * enquanto durar a janela entre os dois deploys.
  */
 
 const CSRF_KEY = 'csrfToken';
@@ -32,6 +40,41 @@ export function limparCredenciaisLocais() {
   localStorage.removeItem(CSRF_KEY);
   localStorage.removeItem(LEGACY_ACCESS);
   localStorage.removeItem(LEGACY_REFRESH);
+}
+
+interface RespostaDeSessao {
+  csrfToken?: string;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+/**
+ * Registra a sessão emitida por login/mfa/refresh, escolhendo o canal pela
+ * resposta do servidor:
+ *
+ * - com `csrfToken` → API já fala cookie: guarda só o segredo de CSRF e
+ *   apaga qualquer token legado (a autenticação vai nos cookies httpOnly);
+ * - sem `csrfToken` → API anterior ao #349: cai no canal Bearer, gravando os
+ *   tokens do body como o cliente antigo fazia.
+ *
+ * Devolve o canal escolhido para quem quiser logar/telemetrar.
+ */
+export function registrarSessao(data: RespostaDeSessao): 'cookie' | 'bearer' {
+  const canal = canalDaSessao(data);
+  if (typeof window === 'undefined') return canal;
+
+  if (canal === 'cookie') {
+    salvarCsrfToken(data.csrfToken);
+    localStorage.removeItem(LEGACY_ACCESS);
+    localStorage.removeItem(LEGACY_REFRESH);
+    return canal;
+  }
+
+  if (data?.accessToken) {
+    localStorage.setItem(LEGACY_ACCESS, data.accessToken);
+    if (data.refreshToken) localStorage.setItem(LEGACY_REFRESH, data.refreshToken);
+  }
+  return canal;
 }
 
 export const apiClient = axios.create({
@@ -57,10 +100,7 @@ async function renovarSessao(): Promise<boolean> {
     const { data } = await axios.post(`${API_URL}/auth/refresh`, body, {
       withCredentials: true,
     });
-    // Servidor setou cookies novos; daqui em diante a sessão é 100% cookie.
-    salvarCsrfToken(data.csrfToken);
-    localStorage.removeItem(LEGACY_ACCESS);
-    localStorage.removeItem(LEGACY_REFRESH);
+    registrarSessao(data);
     return true;
   };
 
@@ -77,10 +117,30 @@ async function renovarSessao(): Promise<boolean> {
   }
 }
 
+/**
+ * Encerra a sessão no servidor para limpar os cookies httpOnly. É o único
+ * jeito de sair de um estado em que o cookie de access ainda vale mas o
+ * segredo de CSRF se perdeu — o cookie `gdr_csrf` é httpOnly e o navegador
+ * do usuário não o alcança. O endpoint é @SkipCsrf() justamente por isto.
+ */
+async function encerrarSessaoNoServidor(): Promise<void> {
+  try {
+    await axios.post(`${API_URL}/auth/logout`, {}, { withCredentials: true });
+  } catch {
+    /* sair nunca pode falhar por causa do servidor */
+  }
+}
+
+function irParaLogin() {
+  limparCredenciaisLocais();
+  window.location.href = '/login';
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       if (await renovarSessao()) {
@@ -91,9 +151,25 @@ apiClient.interceptors.response.use(
         if (csrf) original.headers['x-csrf-token'] = csrf;
         return apiClient.request(original);
       }
-      limparCredenciaisLocais();
-      window.location.href = '/login';
+      irParaLogin();
     }
+
+    // 403 de CSRF é recuperável: o segredo local ficou dessincronizado do
+    // cookie (storage limpo, sessão renovada em outra aba, cookie mais novo).
+    // Renovar reemite o par e a chamada segue. Se nem isso resolver, o único
+    // caminho é apagar os cookies no servidor — senão o usuário fica preso:
+    // com `gdr_access` válido, toda mutação daria 403 até ele expirar.
+    if (ehErroDeCsrf(error) && original && !original._csrfRetry) {
+      original._csrfRetry = true;
+      if (await renovarSessao()) {
+        const csrf = localStorage.getItem(CSRF_KEY);
+        if (csrf) original.headers['x-csrf-token'] = csrf;
+        return apiClient.request(original);
+      }
+      await encerrarSessaoNoServidor();
+      irParaLogin();
+    }
+
     return Promise.reject(error);
   },
 );

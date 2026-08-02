@@ -23,6 +23,7 @@ import {
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkipCsrf } from '../../common/decorators/skip-csrf.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
@@ -43,6 +44,8 @@ export class AuthController {
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login com e-mail e senha' })
@@ -81,6 +84,8 @@ export class AuthController {
   }
 
   @Post('logout')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
@@ -168,6 +173,8 @@ export class AuthController {
 
   @Public()
   @Post('mfa/verify')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({

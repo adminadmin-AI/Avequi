@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient, limparCredenciaisLocais, salvarCsrfToken } from '@/lib/api-client';
+import { apiClient, limparCredenciaisLocais, registrarSessao } from '@/lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -47,10 +47,12 @@ export const useAuthStore = create<AuthState>()(
             passwordExpired: !!data.passwordExpired,
           };
         }
-        // #349: a sessão vive em cookies httpOnly setados pelo servidor —
-        // tokens NÃO são mais gravados no localStorage. Só o csrfToken
-        // (não-segredo de autenticação) fica local, p/ o header x-csrf-token.
-        salvarCsrfToken(data.csrfToken);
+        // #349: a sessão vive em cookies httpOnly setados pelo servidor e o
+        // front guarda só o csrfToken (não-segredo de autenticação). Se a
+        // resposta vier SEM csrfToken, a API ainda é anterior ao #349 —
+        // `registrarSessao` cai no canal Bearer em vez de deixar o usuário
+        // logado sem credencial nenhuma (janela de deploy web-antes-de-API).
+        registrarSessao(data);
         set({ user: data.user, isAuthenticated: true });
         return { passwordChangeRequired: false as const };
       },
