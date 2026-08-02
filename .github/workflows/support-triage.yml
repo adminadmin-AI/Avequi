@@ -7,7 +7,7 @@
 #
 # Segredos necessários no repo (Settings → Secrets and variables → Actions):
 #   ANTHROPIC_API_KEY          — chave da API Claude (sem ela, o script sai 0)
-#   SUPPORT_API_BASE_URL       — ex.: https://avequi-api-production.up.railway.app/api
+#   SUPPORT_API_BASE_URL       — ex.: https://api.avecchi.ai/api
 #   SUPPORT_TRIAGE_HMAC_SECRET — MESMO segredo do env da API (assina o PATCH)
 name: support-triage
 
