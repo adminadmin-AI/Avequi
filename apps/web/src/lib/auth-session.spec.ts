@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canalDaSessao, ehErroDeCsrf } from './auth-session';
+import { canalDaSessao, ehErroDeCsrf, veredictoDaVerificacao } from './auth-session';
 
 describe('canalDaSessao', () => {
   it('resposta com csrfToken → canal cookie', () => {
@@ -51,4 +51,31 @@ describe('ehErroDeCsrf', () => {
       false,
     );
   });
+});
+
+describe('veredictoDaVerificacao (paliativo do cookie de terceiros)', () => {
+  it('verificação OK → o canal cookie autentica de verdade', () => {
+    expect(veredictoDaVerificacao({ ok: true, temAccessToken: true })).toBe('cookie-funciona');
+  });
+
+  it('401 logo após login com token no body → resgata Bearer (caso Safari/ITP)', () => {
+    expect(veredictoDaVerificacao({ ok: false, status: 401, temAccessToken: true })).toBe(
+      'resgatar-bearer',
+    );
+  });
+
+  it('401 sem token no body → indeterminado (não há o que resgatar)', () => {
+    expect(veredictoDaVerificacao({ ok: false, status: 401, temAccessToken: false })).toBe(
+      'indeterminado',
+    );
+  });
+
+  it.each([500, 502, 403, undefined])(
+    'status %s não conclui nada — soluço de rede não pode virar token no storage',
+    (status) => {
+      expect(veredictoDaVerificacao({ ok: false, status, temAccessToken: true })).toBe(
+        'indeterminado',
+      );
+    },
+  );
 });

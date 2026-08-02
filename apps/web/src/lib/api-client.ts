@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { canalDaSessao, ehErroDeCsrf } from './auth-session';
+import { canalDaSessao, ehErroDeCsrf, veredictoDaVerificacao } from './auth-session';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -17,6 +17,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
  * aceito); no primeiro 401 o refresh legado roda e o servidor JÁ seta os
  * cookies na resposta — a sessão migra sozinha e os tokens legados são
  * apagados.
+ *
+ * BROWSER SEM SUPORTE A COOKIE DE TERCEIROS (Safari/ITP): a API responde
+ * `csrfToken`, mas o browser descarta o cookie porque front e API estão em
+ * sites diferentes. `confirmarCanalDeSessao` pergunta ao servidor logo após
+ * o login se ele nos reconhece; se não, resgata o canal Bearer com os tokens
+ * que vieram no body. Paliativo até a API viver em `api.avecchi.ai`.
  *
  * API SEM SUPORTE A COOKIE (ordem de deploy): se o web subir antes da API,
  * o login responde SEM `csrfToken` — sinal de que a API é anterior a esta
@@ -75,6 +81,43 @@ export function registrarSessao(data: RespostaDeSessao): 'cookie' | 'bearer' {
     if (data.refreshToken) localStorage.setItem(LEGACY_REFRESH, data.refreshToken);
   }
   return canal;
+}
+
+/**
+ * Confirma, logo após o login, que o canal cookie realmente autentica —
+ * uma chamada autenticada SEM Bearer. Se voltar 401, o cookie não foi
+ * guardado pelo browser (bloqueio de terceiros) e a sessão é resgatada no
+ * canal Bearer com os tokens do body.
+ *
+ * Usa `/auth/me/permissions` de propósito: é a primeira coisa que o app
+ * pede depois de entrar, então na prática esta verificação não adiciona
+ * requisição nenhuma ao caminho de login — só antecipa uma.
+ *
+ * axios "cru" (não o apiClient) para não passar pelos interceptores: o
+ * retry/refresh automático mascararia justamente o 401 que queremos ver.
+ */
+export async function confirmarCanalDeSessao(data: RespostaDeSessao): Promise<'cookie' | 'bearer'> {
+  if (typeof window === 'undefined') return 'cookie';
+  const csrf = localStorage.getItem(CSRF_KEY);
+
+  try {
+    await axios.get(`${API_URL}/auth/me/permissions`, {
+      withCredentials: true,
+      headers: csrf ? { 'x-csrf-token': csrf } : undefined,
+    });
+    return 'cookie';
+  } catch (error: any) {
+    const veredicto = veredictoDaVerificacao({
+      ok: false,
+      status: error?.response?.status,
+      temAccessToken: !!data?.accessToken,
+    });
+    if (veredicto !== 'resgatar-bearer') return 'cookie';
+
+    localStorage.setItem(LEGACY_ACCESS, data.accessToken as string);
+    if (data.refreshToken) localStorage.setItem(LEGACY_REFRESH, data.refreshToken);
+    return 'bearer';
+  }
 }
 
 export const apiClient = axios.create({

@@ -42,3 +42,35 @@ export function ehErroDeCsrf(error: {
   const msg = res.data?.message;
   return typeof msg === 'string' && msg.toUpperCase().includes('CSRF');
 }
+
+/**
+ * Veredicto da verificação pós-login do canal cookie.
+ *
+ * Por que verificar: quando front e API estão em SITES diferentes
+ * (`avecchi.ai` × `up.railway.app`), `gdr_access` é um cookie de TERCEIROS —
+ * e Safari bloqueia esses cookies por padrão (Firefox estrito isola, Chrome
+ * está eliminando). Nesse caso a API responde `csrfToken` normalmente, o
+ * front acredita no canal cookie... e nada autentica: o usuário loga e cai
+ * em 401 em tudo, num laço de login. Não dá para detectar isso lendo o
+ * cookie (é httpOnly): só perguntando ao servidor se ele nos reconhece.
+ *
+ * É paliativo. A correção real é a API sob o mesmo site do front
+ * (`api.avecchi.ai`), quando o cookie vira first-party e nada disso importa.
+ */
+export type VeredictoCookie = 'cookie-funciona' | 'resgatar-bearer' | 'indeterminado';
+
+export function veredictoDaVerificacao(params: {
+  ok: boolean;
+  status?: number;
+  temAccessToken: boolean;
+}): VeredictoCookie {
+  if (params.ok) return 'cookie-funciona';
+  // 401 logo após um login bem-sucedido = o cookie não foi guardado.
+  if (params.status === 401) {
+    return params.temAccessToken ? 'resgatar-bearer' : 'indeterminado';
+  }
+  // Rede fora, 500, timeout: não dá para concluir nada sobre o cookie —
+  // trocar de canal aqui seria gravar token no storage por causa de um
+  // soluço de rede, justamente o que o #349 quer evitar.
+  return 'indeterminado';
+}

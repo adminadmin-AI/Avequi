@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient, limparCredenciaisLocais, registrarSessao } from '@/lib/api-client';
+import {
+  apiClient,
+  confirmarCanalDeSessao,
+  limparCredenciaisLocais,
+  registrarSessao,
+} from '@/lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -52,7 +57,12 @@ export const useAuthStore = create<AuthState>()(
         // resposta vier SEM csrfToken, a API ainda é anterior ao #349 —
         // `registrarSessao` cai no canal Bearer em vez de deixar o usuário
         // logado sem credencial nenhuma (janela de deploy web-antes-de-API).
-        registrarSessao(data);
+        if (registrarSessao(data) === 'cookie') {
+          // Browser pode ter descartado o cookie (bloqueio de terceiros —
+          // Safari por padrão). Confirma com o servidor e, se for o caso,
+          // resgata a sessão no canal Bearer antes de liberar o app.
+          await confirmarCanalDeSessao(data);
+        }
         set({ user: data.user, isAuthenticated: true });
         return { passwordChangeRequired: false as const };
       },
