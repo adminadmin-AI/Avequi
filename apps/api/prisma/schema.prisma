@@ -373,11 +373,19 @@ model UserQuickNote {
   text      String
   /// Cor do papel: yellow | pink | blue | green | purple (validada no DTO)
   color     String   @default("yellow")
+  /// Ordem no mural (menor primeiro). Empate cai no createdAt desc — notas
+  /// criadas antes do mural ordenável ficam com 0 e seguem por data.
+  position   Int       @default(0)
+  /// Fixada no topo: sai do arrasto e vem sempre primeiro.
+  pinnedAt   DateTime?
+  /// Arquivada: sai do mural mas NÃO some (arrancar é reversível).
+  archivedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([companyId])
+  @@index([userId, archivedAt])
   @@map("gdr_user_quick_notes")
 }
 

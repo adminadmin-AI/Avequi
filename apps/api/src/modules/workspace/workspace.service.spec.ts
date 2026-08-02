@@ -33,6 +33,8 @@ const ALL_PERMS = [
 const EMPTY_SLA_PANEL = { slaMinutes: 30, coolingHours: 48, breaching: [], cooling: [] };
 
 const mockPrisma = {
+  // $transaction do Prisma aceita array de promises; no mock basta resolvê-las.
+  $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   salesOrder: { findMany: jest.fn() },
   productionOrder: { count: jest.fn(), findMany: jest.fn() },
   financialEntry: { aggregate: jest.fn(), findMany: jest.fn() },
@@ -404,20 +406,73 @@ describe('WorkspaceService', () => {
       id: 'n1',
       text: 'Ligar transportadora',
       color: 'yellow',
+      position: 0,
+      pinnedAt: null,
+      archivedAt: null,
       createdAt: new Date('2026-07-31T10:00:00Z'),
       updatedAt: new Date('2026-07-31T10:00:00Z'),
     };
 
-    it('lista só as do próprio usuário, mais recentes primeiro', async () => {
+    it('lista só as do próprio usuário e só as do MURAL (não arquivadas)', async () => {
       mockPrisma.userQuickNote.findMany.mockResolvedValue([NOTE]);
       const notes = await service.listNotes(USER);
-      const where = mockPrisma.userQuickNote.findMany.mock.calls[0][0].where;
-      expect(where.userId).toBe(USER.id);
-      expect(mockPrisma.userQuickNote.findMany.mock.calls[0][0].orderBy).toEqual({
-        createdAt: 'desc',
-      });
-      expect(notes[0]).toMatchObject({ id: 'n1', text: 'Ligar transportadora', color: 'yellow' });
+      const call = mockPrisma.userQuickNote.findMany.mock.calls[0][0];
+      expect(call.where.userId).toBe(USER.id);
+      expect(call.where.archivedAt).toBeNull();
+      // fixadas primeiro, depois a ordem do mural, empate por data
+      expect(call.orderBy).toEqual([
+        { pinnedAt: { sort: 'desc', nulls: 'last' } },
+        { position: 'asc' },
+        { createdAt: 'desc' },
+      ]);
+      expect(notes[0]).toMatchObject({ id: 'n1', pinned: false, archived: false, position: 0 });
       expect(typeof notes[0].createdAt).toBe('string');
+    });
+
+    it('a gaveta lista SÓ as arquivadas, mais recém-arquivada primeiro', async () => {
+      mockPrisma.userQuickNote.findMany.mockResolvedValue([
+        { ...NOTE, archivedAt: new Date('2026-08-01T09:00:00Z') },
+      ]);
+      const notes = await service.listNotes(USER, true);
+      const call = mockPrisma.userQuickNote.findMany.mock.calls[0][0];
+      expect(call.where.archivedAt).toEqual({ not: null });
+      expect(call.orderBy).toEqual([{ archivedAt: 'desc' }]);
+      expect(notes[0].archived).toBe(true);
+    });
+
+    it('fixar e arquivar viram carimbo de tempo; desfazer volta para null', async () => {
+      mockPrisma.userQuickNote.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.userQuickNote.findFirstOrThrow.mockResolvedValue(NOTE);
+
+      await service.updateNote(USER, 'n1', { pinned: true, archived: false });
+      const data = mockPrisma.userQuickNote.updateMany.mock.calls[0][0].data;
+      expect(data.pinnedAt).toBeInstanceOf(Date);
+      expect(data.archivedAt).toBeNull();
+
+      await service.updateNote(USER, 'n1', { pinned: false, archived: true });
+      const data2 = mockPrisma.userQuickNote.updateMany.mock.calls[1][0].data;
+      expect(data2.pinnedAt).toBeNull();
+      expect(data2.archivedAt).toBeInstanceOf(Date);
+    });
+
+    it('reordenar grava a posição pelo índice, escopado por userId e numa transação', async () => {
+      mockPrisma.userQuickNote.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.userQuickNote.findMany.mockResolvedValue([NOTE]);
+
+      await service.reorderNotes(USER, ['n3', 'n1', 'n2']);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      const calls = mockPrisma.userQuickNote.updateMany.mock.calls;
+      expect(calls).toHaveLength(3);
+      expect(calls[0][0]).toEqual({ where: { id: 'n3', userId: USER.id }, data: { position: 0 } });
+      expect(calls[1][0]).toEqual({ where: { id: 'n1', userId: USER.id }, data: { position: 1 } });
+      expect(calls[2][0]).toEqual({ where: { id: 'n2', userId: USER.id }, data: { position: 2 } });
+    });
+
+    it('reordenar com lista vazia não toca no banco', async () => {
+      mockPrisma.userQuickNote.findMany.mockResolvedValue([]);
+      await service.reorderNotes(USER, []);
+      expect(mockPrisma.userQuickNote.updateMany).not.toHaveBeenCalled();
     });
 
     it('cria com userId+companyId do JWT e trima o texto', async () => {

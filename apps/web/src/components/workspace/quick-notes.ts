@@ -33,6 +33,22 @@ export const NOTE_PALETTE: Record<NoteColor, NotePalette> = {
   purple: { paper: ['#e0e7ff', '#c7d2fe'], text: '#3730a3', pin: ['#a5b4fc', '#6366f1', '#4338ca'] },
 };
 
+/**
+ * Nova ordem depois de soltar a nota `fromId` em cima de `toId` — a mesma
+ * conta que o backend vai persistir, aplicada antes na tela (otimista).
+ * Id fora da lista devolve a ordem intacta: arrastar nunca pode embaralhar
+ * o mural por causa de um id velho.
+ */
+export function moveNote(ids: string[], fromId: string, toId: string): string[] {
+  const from = ids.indexOf(fromId);
+  const to = ids.indexOf(toId);
+  if (from < 0 || to < 0 || from === to) return ids;
+  const next = [...ids];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 /** Cor válida ou o default amarelo — nunca estoura com valor do backend. */
 export function safeColor(value: string | null | undefined): NoteColor {
   return (NOTE_COLORS as readonly string[]).includes(value ?? '')
