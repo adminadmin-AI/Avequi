@@ -17,6 +17,18 @@ enum TaxRegime {
   LUCRO_REAL
 }
 
+/// Ciclo de vida do TENANT no SaaS (OPS WP1, #908). Vale na empresa RAIZ
+/// (parentId null) e cascateia para as filiais na verificação de login —
+/// filial não tem status próprio de tenant.
+/// SANDBOX: conta de teste/demonstração — fora de métricas e billing.
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CHURNED
+  SANDBOX
+}
+
 model Company {
   id       String      @id @default(cuid())
   name     String
@@ -151,6 +163,20 @@ model Company {
   discountPolicies      DiscountPolicy[] // alçadas de desconto (#391)
   workspaceLayouts      UserWorkspaceLayout[] // Workspace F2 — layouts da Home
   quickNotes            UserQuickNote[] // Workspace — post-its pessoais
+
+  // ── SaaS control plane — OPS WP1 (#908) ──
+  // Campos de TENANT: só têm significado na empresa raiz (parentId null);
+  // nas filiais ficam no default e são ignorados (o status efetivo vem da raiz).
+  tenantStatus  TenantStatus @default(ACTIVE)
+  /// Fim do período de trial — informativo no WP1 (enforcement vem com billing, WP5)
+  trialEndsAt   DateTime?
+  suspendedAt   DateTime?
+  /// Motivo da suspensão — obrigatório no fluxo (auditável), livre no schema
+  suspendReason String?
+  /// Espelho de conveniência de tenantStatus=SANDBOX para filtros de métricas
+  isSandbox     Boolean      @default(false)
+  /// Estampado quando o provisionamento (WP2) conclui o checklist de go-live
+  onboardedAt   DateTime?
 
   @@map("gdr_companies")
 }
@@ -3801,6 +3827,9 @@ enum LoginFailReason {
   INACTIVE
   LOCKED
   MFA_FAILED
+  // OPS WP1 (#908): credencial válida, mas o tenant (empresa raiz) está
+  // suspenso/encerrado — o login responde 403 com orientação de regularização.
+  TENANT_SUSPENDED
 }
 
 /// Tentativa de login (sucesso ou falha) — base do lockout (#342):

@@ -73,6 +73,7 @@ import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { IamModule } from './modules/iam/iam.module';
+import { OpsModule } from './modules/ops/ops.module';
 
 @Module({
   imports: [
@@ -174,6 +175,7 @@ import { IamModule } from './modules/iam/iam.module';
     RfqModule,
     LgpdModule,
     IamModule,
+    OpsModule,
   ],
   providers: [
     // Filtro global de exceções via DI (injeta EventEmitter2 p/ captura 5xx #766)

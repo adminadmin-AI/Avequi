@@ -64,10 +64,12 @@ const GERENCIAL_SEM_LGPD = [
 
 const SEM_LGPD = [...OPERACIONAL, ...GERENCIAL_SEM_LGPD].sort(); // 28/30
 
-/** Matriz aprovada — cada um dos 28 perfis system, DECLARADO NOMINALMENTE. */
+/** Matriz aprovada — cada um dos 29 perfis system, DECLARADO NOMINALMENTE. */
 const EXPECTED: Record<string, string[]> = {
   ADMIN_GLOBAL: CRM_ALL,
   ADMIN_EMPRESA: CRM_ALL,
+  // OPS WP1 (#908): perfil da OPERADORA — zero permissão intra-tenant, CRM incluso
+  AVECCHI_OPERATOR: [],
   ADMIN_FILIAL: SEM_LGPD, // D7 (Opção C): lista explícita, sem as 2 LGPD
   DIRETOR: CRM_ALL,
   GERENTE_GERAL: CRM_ALL, // espelho do MANAGER legado — zero regressão
@@ -129,7 +131,7 @@ describe('Bloco F (#624) — matriz crm.* perfil a perfil', () => {
       (c) => !SYSTEM_ROLES.some((r) => r.code === c),
     );
     expect(fantasmas).toEqual([]);
-    expect(SYSTEM_ROLES).toHaveLength(28);
+    expect(SYSTEM_ROLES).toHaveLength(29); // 28 + AVECCHI_OPERATOR (OPS WP1 #908)
   });
 
   it.each(SYSTEM_ROLES.map((r) => [r.code] as [string]))(

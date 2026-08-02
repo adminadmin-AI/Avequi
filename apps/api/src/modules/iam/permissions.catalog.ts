@@ -645,6 +645,21 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /vehicle-documents, /pending-deliveries, /by-sale/:salesOrderId, /:id'],
     ['manage', 'criar/editar/excluir/registrar entrega', 'POST/PATCH/DELETE /vehicle-documents*, POST /vehicle-documents/:id/deliveries'],
   ]),
+
+  // ── ops ── (ops/ops.controller.ts, OPS WP1 #908) 🔒🔒 CONTROL PLANE DA OPERADORA
+  // Namespace EXCLUSIVO da operadora Avecchi — o ÚNICO do catálogo autorizado a
+  // enxergar cross-tenant. NUNCA entra em perfil de tenant: perfis system de
+  // cliente derivam de tenantPermissionCodes() (que exclui este módulo) e o
+  // roles.catalog.spec trava isso em teste. Rotas /ops exigem ainda MFA ativo
+  // (OpsMfaGuard) além da permissão.
+  ...r('ops', 'tenants', 'Operadora — contas de cliente (tenants)', [
+    ['view', 'ver', 'GET /ops/tenants, GET /ops/tenants/:id (visão cross-tenant 🔒🔒)'],
+    [
+      'manage',
+      'suspender/reativar/marcar sandbox',
+      'PATCH /ops/tenants/:id/status (suspensão revoga as sessões do tenant)',
+    ],
+  ]),
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -652,6 +667,22 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
 /** Todos os codes do catálogo, em ordem */
 export function allPermissionCodes(): string[] {
   return PERMISSIONS_CATALOG.map((p) => p.code);
+}
+
+/** Módulo(s) exclusivos da OPERADORA (control plane) — fora de perfil de tenant */
+export const OPERATOR_ONLY_MODULES: readonly string[] = ['ops'];
+
+/**
+ * Codes que um perfil de TENANT pode receber: o catálogo inteiro MENOS os
+ * módulos exclusivos da operadora (OPS WP1, #908). Perfis system de cliente
+ * (ADMIN_GLOBAL, ADMIN_EMPRESA, ...) derivam DAQUI, nunca de
+ * allPermissionCodes() — "todas as permissões" de um tenant não inclui
+ * enxergar os outros tenants.
+ */
+export function tenantPermissionCodes(): string[] {
+  return PERMISSIONS_CATALOG.filter(
+    (p) => !OPERATOR_ONLY_MODULES.includes(p.module),
+  ).map((p) => p.code);
 }
 
 /** Codes de um ou mais módulos inteiros */
@@ -668,8 +699,18 @@ export function resourceCodes(module: string, resource: string): string[] {
 
 /** Todos os codes com uma ação específica (default: 'view'), opcionalmente filtrados por módulos */
 export function actionCodes(action = 'view', modules?: string[]): string[] {
+  // Sem lista de módulos = "varredura ampla" usada pelos perfis de TENANT
+  // (READER, DIRETOR, ...). Os módulos exclusivos da operadora (ops.*) NUNCA
+  // entram por varredura — só por menção explícita na lista `modules`
+  // (OPS WP1, #908: ops.tenants.view jamais pode vazar para perfil de cliente).
   return PERMISSIONS_CATALOG
-    .filter((p) => p.action === action && (!modules || modules.includes(p.module)))
+    .filter(
+      (p) =>
+        p.action === action &&
+        (modules
+          ? modules.includes(p.module)
+          : !OPERATOR_ONLY_MODULES.includes(p.module)),
+    )
     .map((p) => p.code);
 }
 
