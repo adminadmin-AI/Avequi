@@ -1,10 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AgendaQueryDto } from './dto/agenda-query.dto';
 import { MyDayQueryDto } from './dto/my-day-query.dto';
-import { CreateQuickNoteDto, UpdateQuickNoteDto } from './dto/quick-note.dto';
+import {
+  CreateQuickNoteDto,
+  ReorderQuickNotesDto,
+  UpdateQuickNoteDto,
+} from './dto/quick-note.dto';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 import { WorkspaceService } from './workspace.service';
 
@@ -104,9 +108,15 @@ export class WorkspaceController {
 
   @Get('notes')
   @RequirePermission('workspace.notes.view')
-  @ApiOperation({ summary: 'Minhas notas rápidas (post-its), mais recentes primeiro' })
-  listNotes(@CurrentUser() user: { id: string; companyId: string; role: string }) {
-    return this.workspaceService.listNotes(user);
+  @ApiOperation({
+    summary: 'Meu mural de notas (fixadas primeiro); ?archived=true abre a gaveta',
+  })
+  @ApiQuery({ name: 'archived', required: false, type: Boolean })
+  listNotes(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Query('archived') archived?: string,
+  ) {
+    return this.workspaceService.listNotes(user, archived === 'true');
   }
 
   @Post('notes')
@@ -119,9 +129,21 @@ export class WorkspaceController {
     return this.workspaceService.createNote(user, dto);
   }
 
+  // Rota ESTÁTICA antes da paramétrica: 'reorder' seria capturado por
+  // 'notes/:id' se viesse depois (sentinela #699).
+  @Patch('notes/reorder')
+  @RequirePermission('workspace.notes.manage')
+  @ApiOperation({ summary: 'Reordenar o mural (ids na ordem desejada)' })
+  reorderNotes(
+    @CurrentUser() user: { id: string; companyId: string; role: string },
+    @Body() dto: ReorderQuickNotesDto,
+  ) {
+    return this.workspaceService.reorderNotes(user, dto.ids);
+  }
+
   @Patch('notes/:id')
   @RequirePermission('workspace.notes.manage')
-  @ApiOperation({ summary: 'Editar texto/cor de uma nota rápida' })
+  @ApiOperation({ summary: 'Editar texto/cor, fixar no topo ou arquivar/desarquivar' })
   updateNote(
     @CurrentUser() user: { id: string; companyId: string; role: string },
     @Param('id') id: string,
@@ -132,7 +154,7 @@ export class WorkspaceController {
 
   @Delete('notes/:id')
   @RequirePermission('workspace.notes.manage')
-  @ApiOperation({ summary: 'Arrancar (excluir) uma nota rápida' })
+  @ApiOperation({ summary: 'Excluir de vez uma nota (a partir da gaveta de arquivadas)' })
   deleteNote(
     @CurrentUser() user: { id: string; companyId: string; role: string },
     @Param('id') id: string,
