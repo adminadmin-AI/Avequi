@@ -50,6 +50,11 @@ export const envValidationSchema = Joi.object({
     .pattern(JWT_EXPIRY_PATTERN)
     .default('7d'),
 
+  // #341 — minutos SEM NENHUMA requisição até a sessão morrer. Decisão de
+  // negócio (terminal de fábrica pede curto; escritório talvez não), por isso
+  // é env e não constante. Fora de 1..1440, o serviço cai no default de 15.
+  SESSION_IDLE_TIMEOUT_MINUTES: Joi.number().integer().min(1).max(1440).optional(),
+
   // ─── Redis (Bull) ───
   REDIS_URL: Joi.string().uri().required(),
 

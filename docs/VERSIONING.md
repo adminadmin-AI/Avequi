@@ -56,7 +56,7 @@ endpoint reporta `gitSha: "unknown"` — a `version` continua correta.
    ```bash
    npm run deploy:api   # estampa build-info.json (SHA+data) e roda `railway up --ci`
    ```
-7. **Validar:** `curl https://avequi-api-production.up.railway.app/api/version`
+7. **Validar:** `curl https://api.avecchi.ai/api/version`
    deve refletir a `version` nova e o `gitSha` do commit taggeado.
 8. **Web (Vercel):** deploy do `apps/web` (o rodapé mostra a versão nova).
 

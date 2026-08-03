@@ -5,6 +5,7 @@ import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
 const mockDenylist = {
   isSessionDenylisted: jest.fn(),
 };
+const mockSessions = { isSessionAliveAndTouch: jest.fn() };
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -15,7 +16,11 @@ describe('JwtStrategy', () => {
     };
     jest.clearAllMocks();
     mockDenylist.isSessionDenylisted.mockResolvedValue(false);
-    strategy = new JwtStrategy(mockConfig as any, mockDenylist as any);
+    // #341: a strategy agora também mede ociosidade da sessão; nos testes de
+    // denylist a sessão está sempre viva (o comportamento de inatividade tem
+    // spec próprio em session-idle.spec.ts).
+    mockSessions.isSessionAliveAndTouch.mockResolvedValue(true);
+    strategy = new JwtStrategy(mockConfig as any, mockDenylist as any, mockSessions as any);
   });
 
   it('should extract user from valid payload', async () => {
