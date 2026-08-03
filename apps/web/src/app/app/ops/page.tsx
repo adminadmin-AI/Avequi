@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Building2, LogIn, Plus, RefreshCw } from 'lucide-react';
@@ -8,6 +9,7 @@ import { useList } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
 import type { OpsAlert, RunMeteringResult, Tenant, TenantStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
+import { EntrarNaContaDialog } from './entrar-na-conta-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,6 +126,9 @@ export default function OpsTenantsPage() {
   // OPS F2: mesmo gate do <Can> do cabeçalho — o CTA do estado vazio é uma
   // prop (não dá pra envolver em <Can>), então decide pela permissão aqui.
   const { can } = usePermission();
+  // OPS F2: conta selecionada no botão "Entrar no ERP" da linha — abre o
+  // diálogo de entrada (usuário + motivo) sem sair da lista.
+  const [entrarTenant, setEntrarTenant] = useState<{ id: string; name: string } | null>(null);
   const { data: tenants = [], isLoading, isError, error, refetch } = useList<Tenant>(RESOURCE);
 
   const runMetering = useMutation({
@@ -266,11 +271,12 @@ export default function OpsTenantsPage() {
         <Can permission="ops.impersonation.execute">
           {/* Botão COM RÓTULO de propósito (feedback do Claudio: ícone mudo
               no canto da linha não se explica) — é a ação principal da
-              operadora sobre uma conta. */}
+              operadora sobre uma conta. Abre o diálogo de entrada AQUI
+              mesmo (usuário + motivo) e cai dentro do ERP do cliente. */}
           <button
             onClick={(e) => {
               e.stopPropagation(); // o clique na LINHA abre a visão geral
-              router.push(`/app/ops/${t.id}?tab=people`);
+              setEntrarTenant({ id: t.id, name: t.name });
             }}
             title={`Entrar no ERP de ${t.name} (ver como o cliente)`}
             aria-label={`Entrar no ERP de ${t.name} (ver como o cliente)`}
@@ -336,6 +342,8 @@ export default function OpsTenantsPage() {
           />
         }
       />
+
+      <EntrarNaContaDialog tenant={entrarTenant} onClose={() => setEntrarTenant(null)} />
     </div>
   );
 }
