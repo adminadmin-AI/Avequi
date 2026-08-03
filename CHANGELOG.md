@@ -6,6 +6,18 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-08-03
+
+### Adicionado
+
+**Portal Avecchi — WP5 e WP6 (épico #915)**
+- **Billing da operadora F1** (#912/#925): assinatura por tenant (valor negociado, vencimento 1–28), fatura mensal gerada por cron idempotente (única por competência; SANDBOX/CHURNED nunca faturam), baixa manual auditada, MRR total/por plano + aging em `/app/ops/billing`, e régua de inadimplência — D+3 e-mail (uma vez), D+10 banner persistente no app do cliente (`GET /billing/me/status`), D+20 proposta de suspensão como alerta no portal (suspender segue manual). Gateway automático = fase 2.
+- **Impersonation read-only auditada** (#913/#927): "Ver como o cliente" com token dedicado de 30 min (nenhuma sessão do cliente é tocada), motivo obrigatório, guard global rejeitando TODA mutação na API, banner com countdown + encerramento antecipado (denylist), e transparência dos dois lados — timeline do portal e card "Acessos do suporte" visível ao admin do tenant. Modo escrita com re-MFA deferido.
+
+### Infra
+- Migration aditiva idempotente: `20260803120000_ops_wp5_billing` (via `db execute`, #640). WP6 sem DDL.
+- Catálogo RBAC: +3 permissões (`ops.billing.{view,manage}`, `ops.impersonation.execute`) — 319.
+
 ## [1.27.0] - 2026-08-03
 
 ### Adicionado
@@ -353,7 +365,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...HEAD
+[1.28.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...v1.28.0
 [1.27.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...v1.25.0
