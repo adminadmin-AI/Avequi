@@ -2,7 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
+// cookie-parser é CJS puro (sem export .default). O tsconfig tem
+// allowSyntheticDefaultImports SEM esModuleInterop: `import x from` compila
+// mas o dist chama `.default` inexistente e o boot cai (v1.29.0 nunca passou
+// no healthcheck do Railway por isso — o helmet escapa porque exporta
+// .default por conta própria). `import = require` emite require() direto.
+import cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 import { readBuildMeta } from './modules/version/version.util';
 
