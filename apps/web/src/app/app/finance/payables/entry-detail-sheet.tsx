@@ -23,6 +23,8 @@ import {
   sourceLabel,
   findCategoryName,
   paymentMethodLabel,
+  installmentLabel,
+  paymentDataVisibility,
   actionLabel,
   changedFieldsSummary,
 } from './detail';
@@ -112,6 +114,7 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
   const splits = entry.costCenterSplits ?? [];
   const remaining = remainingOf(entry);
   const paid = num(entry.paidAmount);
+  const vis = paymentDataVisibility(entry, supplier);
 
   return (
     <Sheet open={!!entry} onOpenChange={onOpenChange}>
@@ -153,7 +156,7 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
             <Row label="Forma de pagamento">
               {paymentMethodLabel(entry.paymentMethod) ?? DASH}
             </Row>
-            <Row label="Parcela">{entry.installmentNumber ?? DASH}</Row>
+            <Row label="Parcela">{installmentLabel(entry) ?? DASH}</Row>
             <Row label="NF-e">
               {entry.fiscalDocument?.chave ? (
                 <span className="break-all font-mono text-xs">
@@ -177,40 +180,61 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
             </Row>
           </Section>
 
+          {/* Personalizado por forma de pagamento: conta de boleto mostra
+              boleto (sem PIX) e vice-versa — regra em paymentDataVisibility. */}
           <Section title="Dados de pagamento">
-            <Row label="Chave PIX">
-              {supplier?.pixKey ? (
-                <Copyable value={supplier.pixKey} copied={copy} />
-              ) : supplier ? (
-                // deep-link: abre a tela de fornecedores já com ESTE fornecedor em edição
-                <Link
-                  href={`/app/suppliers?edit=${supplier.id}`}
-                  className="text-xs text-brand-600 hover:underline dark:text-brand-400"
-                  title="A chave fica no cadastro do fornecedor e aparece em todas as contas dele"
-                >
-                  cadastrar no fornecedor
-                </Link>
-              ) : (
-                DASH
-              )}
-            </Row>
-            <Row label="Banco">
-              {supplier?.bankName ? (
+            {vis.boleto && (
+              <Row label="Boleto (código de barras)">
+                {entry.boletoBarcode ? (
+                  <Copyable value={entry.boletoBarcode} copied={copy} />
+                ) : (
+                  DASH
+                )}
+              </Row>
+            )}
+            {vis.pix && (
+              <>
+                {entry.pixCopiaECola && (
+                  <Row label="PIX Copia e Cola desta conta">
+                    <Copyable value={entry.pixCopiaECola} copied={copy} />
+                  </Row>
+                )}
+                <Row label="Chave PIX do fornecedor">
+                  {supplier?.pixKey ? (
+                    <Copyable value={supplier.pixKey} copied={copy} />
+                  ) : supplier ? (
+                    // deep-link: abre a tela de fornecedores já com ESTE fornecedor em edição
+                    <Link
+                      href={`/app/suppliers?edit=${supplier.id}`}
+                      className="text-xs text-brand-600 hover:underline dark:text-brand-400"
+                      title="A chave fica no cadastro do fornecedor e aparece em todas as contas dele"
+                    >
+                      cadastrar no fornecedor
+                    </Link>
+                  ) : (
+                    DASH
+                  )}
+                </Row>
+              </>
+            )}
+            {vis.banco && (
+              <Row label="Banco">
                 <span>
-                  {supplier.bankName}
-                  {supplier.bankAgency && ` · ag. ${supplier.bankAgency}`}
-                  {supplier.bankAccount && ` · cc. ${supplier.bankAccount}`}
+                  {supplier!.bankName}
+                  {supplier!.bankAgency && ` · ag. ${supplier!.bankAgency}`}
+                  {supplier!.bankAccount && ` · cc. ${supplier!.bankAccount}`}
                 </span>
-              ) : (
-                DASH
-              )}
-            </Row>
-            <Row label="Boleto (código de barras)">
-              {entry.boletoBarcode ? <Copyable value={entry.boletoBarcode} copied={copy} /> : DASH}
-            </Row>
-            <Row label="PIX Copia e Cola desta conta">
-              {entry.pixCopiaECola ? <Copyable value={entry.pixCopiaECola} copied={copy} /> : DASH}
-            </Row>
+              </Row>
+            )}
+            {!vis.boleto && !vis.pix && !vis.banco && (
+              <p className="py-1.5 text-sm text-content-muted">
+                Sem dados de pagamento nesta conta
+                {entry.paymentMethod
+                  ? ` (forma: ${paymentMethodLabel(entry.paymentMethod)})`
+                  : ''}
+                .
+              </p>
+            )}
             {/* #864 — aviso de troca recente de dados bancários (anti-fraude) */}
             <BankingAlertNotice entryId={entry.id} />
           </Section>

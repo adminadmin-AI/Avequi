@@ -72,10 +72,13 @@ function supplierCnpj(e: FinancialEntry): string | null {
 type DisplayStatus = FinancialEntryStatus | 'PAGAR_HOJE';
 
 const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
-  PAGAR_HOJE: { label: 'Pagar hoje', variant: 'brand' },
+  // Amarelo (warning) = ação do dia — o brand (roxo) confundia com o azul do
+  // "Em aberto" (pedido do Rafael 03/08). "Parcial" cedeu o amarelo e virou
+  // neutral: é um estado de pagamento, não um alerta.
+  PAGAR_HOJE: { label: 'Pagar hoje', variant: 'warning' },
   OPEN: { label: 'Em aberto', variant: 'info' },
   OVERDUE: { label: 'Vencido', variant: 'danger' },
-  PARTIALLY_PAID: { label: 'Parcial', variant: 'warning' },
+  PARTIALLY_PAID: { label: 'Parcial', variant: 'neutral' },
   PAID: { label: 'Pago', variant: 'success' },
   CANCELLED: { label: 'Cancelado', variant: 'neutral' },
 };
