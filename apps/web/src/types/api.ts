@@ -598,6 +598,7 @@ export interface FinancialEntry extends BaseEntity {
   supplierId?: string | null;
   categoryId?: string | null;
   installmentNumber?: number | null; // nº da parcela no plano (#586)
+  installmentTotal?: number | null; // total de parcelas — exibe "Parcela 1/10"
   // Fase 2 do detalhe — pagamento/documento (campos de 1ª classe do título)
   issueDate?: string | null; // emissão do documento
   documentNumber?: string | null; // nº do documento (NF/fatura/duplicata)

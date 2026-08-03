@@ -1688,6 +1688,7 @@ model FinancialEntry {
   acquirerId          String?                @map("acquirer_id")
   acquirer            Acquirer?              @relation(fields: [acquirerId], references: [id])
   installmentNumber   Int?                   @map("installment_number") // nº da parcela no plano (#586)
+  installmentTotal    Int?                   @map("installment_total") // total de parcelas do plano — exibe "Parcela 1/10"
   salesPaymentId      String?                @map("sales_payment_id") // forma do plano que originou o título (#586)
   salesPayment        SalesPayment?          @relation(fields: [salesPaymentId], references: [id])
   salesOrderId        String? // 1:N desde #586 — uma venda gera N títulos (parcelas/formas)

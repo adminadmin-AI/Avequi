@@ -5,6 +5,8 @@ import {
   sourceLabel,
   findCategoryName,
   paymentMethodLabel,
+  installmentLabel,
+  paymentDataVisibility,
   actionLabel,
   changedFieldsSummary,
   diasAtras,
@@ -61,6 +63,61 @@ describe('helpers do painel de detalhe da Carteira de Pagáveis', () => {
     expect(paymentMethodLabel('OUTROS')).toBe('Outros');
     expect(paymentMethodLabel(null)).toBeNull();
     expect(paymentMethodLabel(undefined)).toBeNull();
+  });
+
+  it('installmentLabel: "1/10" com total, "1" sem total, null à vista', () => {
+    expect(installmentLabel({ installmentNumber: 1, installmentTotal: 10 })).toBe('1/10');
+    expect(installmentLabel({ installmentNumber: 3, installmentTotal: null })).toBe('3');
+    expect(installmentLabel({ installmentNumber: null, installmentTotal: null })).toBeNull();
+  });
+
+  describe('paymentDataVisibility — drawer adaptado à forma de pagamento', () => {
+    const forn = { pixKey: 'chave@pix', bankName: 'Sicoob' };
+
+    it('boleto mostra boleto e esconde PIX/banco (mesmo com chave no fornecedor)', () => {
+      expect(
+        paymentDataVisibility(
+          { paymentMethod: 'BOLETO', boletoBarcode: '123', pixCopiaECola: null },
+          forn,
+        ),
+      ).toEqual({ boleto: true, pix: false, banco: false });
+    });
+
+    it('PIX mostra PIX e esconde boleto/banco', () => {
+      expect(
+        paymentDataVisibility(
+          { paymentMethod: 'PIX', boletoBarcode: null, pixCopiaECola: null },
+          forn,
+        ),
+      ).toEqual({ boleto: false, pix: true, banco: false });
+    });
+
+    it('TED/débito automático mostram dados bancários', () => {
+      expect(
+        paymentDataVisibility(
+          { paymentMethod: 'DEBITO_AUTOMATICO', boletoBarcode: null, pixCopiaECola: null },
+          forn,
+        ),
+      ).toEqual({ boleto: false, pix: false, banco: true });
+    });
+
+    it('dado existente nunca é escondido (boleto com PIX Copia e Cola gravado)', () => {
+      expect(
+        paymentDataVisibility(
+          { paymentMethod: 'BOLETO', boletoBarcode: '123', pixCopiaECola: 'br.gov.bcb.pix...' },
+          forn,
+        ).pix,
+      ).toBe(true);
+    });
+
+    it('sem forma informada mostra o que existir', () => {
+      expect(
+        paymentDataVisibility({ paymentMethod: null, boletoBarcode: '123', pixCopiaECola: null }, forn),
+      ).toEqual({ boleto: true, pix: true, banco: true });
+      expect(
+        paymentDataVisibility({ paymentMethod: null, boletoBarcode: null, pixCopiaECola: null }, null),
+      ).toEqual({ boleto: false, pix: false, banco: false });
+    });
   });
 
   it('actionLabel traduz ações conhecidas e devolve o cru nas demais', () => {

@@ -70,6 +70,34 @@ export function paymentMethodLabel(m: PaymentMethod | null | undefined): string 
   return m ? (PAYMENT_METHOD_LABELS[m] ?? m) : null;
 }
 
+/** "1/10" quando o total é conhecido; "1" sem total; null = à vista. */
+export function installmentLabel(
+  e: Pick<FinancialEntry, 'installmentNumber' | 'installmentTotal'>,
+): string | null {
+  if (e.installmentNumber == null) return null;
+  return e.installmentTotal
+    ? `${e.installmentNumber}/${e.installmentTotal}`
+    : String(e.installmentNumber);
+}
+
+/**
+ * Quais blocos de "Dados de pagamento" mostrar para ESTA conta: o drawer se
+ * adapta à forma de pagamento — conta de boleto mostra boleto (não PIX) e
+ * vice-versa; TED/débito/cheque mostram dados bancários. Dado EXISTENTE nunca
+ * é escondido (ex.: boleto com PIX Copia e Cola gravado mostra os dois).
+ * Sem forma informada, mostra o que existir.
+ */
+export function paymentDataVisibility(
+  e: Pick<FinancialEntry, 'paymentMethod' | 'boletoBarcode' | 'pixCopiaECola'>,
+  supplier: { pixKey?: string | null; bankName?: string | null } | null,
+): { boleto: boolean; pix: boolean; banco: boolean } {
+  const m = e.paymentMethod ?? null;
+  const boleto = m === 'BOLETO' || !!e.boletoBarcode;
+  const pix = m === 'PIX' || !!e.pixCopiaECola || (!m && !!supplier?.pixKey);
+  const banco = !!supplier?.bankName && m !== 'BOLETO' && m !== 'PIX';
+  return { boleto, pix, banco };
+}
+
 /** Ações do AuditLog em português (fallback = código cru). */
 export const ACTION_LABELS: Record<string, string> = {
   UPDATE: 'Editado',
