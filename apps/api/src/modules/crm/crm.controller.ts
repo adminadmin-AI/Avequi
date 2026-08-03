@@ -21,6 +21,7 @@ import {
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { LostReasonCategory } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequireEntitlement } from '../../common/decorators/require-entitlement.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CrmService } from './crm.service';
 import { IntakeLeadDto } from './dto/intake-lead.dto';
@@ -255,6 +256,10 @@ function resolveRange(companyId: string, daysRaw?: string) {
 
 @ApiTags('crm')
 @ApiBearerAuth()
+// OPS WP4 (#911): CRM é módulo COMERCIAL — a conta precisa ter contratado
+// (plano/override). Tenants sem plano (legado) passam; conector/webhook
+// público não passa por aqui (controllers próprios, @Public).
+@RequireEntitlement('crm')
 @Controller('crm')
 export class CrmController {
   constructor(

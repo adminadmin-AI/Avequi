@@ -9,6 +9,7 @@ import {
 import { SessionRevokedReason } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { ENUM_ROLE_TO_SYSTEM_ROLE } from '../iam/roles.catalog';
@@ -35,9 +36,45 @@ export class UserService {
     private readonly prisma: PrismaService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly sessionService: SessionService,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
+  /**
+   * OPS WP4 (#911): limite de usuários do plano (maxUsers, conta ativa na
+   * árvore matriz+filiais). Tenant legado (sem plano) = ilimitado. O aviso
+   * "80% do limite" fica com a UI (GET /entitlements/me + contagem); aqui é
+   * só o bloqueio duro no teto.
+   */
+  private async assertUserLimit(companyId: string): Promise<void> {
+    const limit = await this.entitlementService.limit(companyId, 'maxUsers');
+    if (limit === null) return; // ilimitado
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, parentId: true },
+    });
+    const rootId = company?.parentId ?? companyId;
+    const treeIds = [
+      rootId,
+      ...(
+        await this.prisma.company.findMany({
+          where: { parentId: rootId },
+          select: { id: true },
+        })
+      ).map((c) => c.id),
+    ];
+    const activeUsers = await this.prisma.user.count({
+      where: { companyId: { in: treeIds }, isActive: true },
+    });
+    if (activeUsers >= limit) {
+      throw new ForbiddenException(
+        `Sua empresa atingiu o limite de ${limit} usuários do plano contratado. ` +
+          'Desative um usuário ou fale com a Avecchi para ampliar o plano.',
+      );
+    }
+  }
+
   async create(dto: CreateUserDto, companyId: string, actorId: string) {
+    await this.assertUserLimit(companyId);
     // #345: senha definida pelo admin também passa pela política de
     // complexidade (inclusive não conter o nome/e-mail do NOVO usuário).
     this.passwordPolicy.validateComplexity(dto.password, {

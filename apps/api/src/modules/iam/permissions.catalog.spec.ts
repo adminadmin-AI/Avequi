@@ -114,7 +114,11 @@ describe('Catálogo de permissões (#338)', () => {
     //       operadora Avecchi; GET/PATCH /ops/tenants*. Namespace EXCLUSIVO da
     //       operadora: fora de tenantPermissionCodes() e das varreduras
     //       actionCodes() sem lista de módulos).
-    expect(PERMISSIONS_CATALOG.length).toBe(313);
+    // 314 = 313 + ops.tenants.provision (OPS WP2 #909 — onboarding de tenant:
+    //       POST /ops/tenants + passos do provisionamento + activate).
+    // 316 = 314 + ops.plans.{view,manage} (OPS WP4 #911 — catálogo de planos
+    //       do SaaS; troca de plano/override de tenant usa ops.tenants.manage).
+    expect(PERMISSIONS_CATALOG.length).toBe(316);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

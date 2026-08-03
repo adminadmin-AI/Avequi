@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { UserService } from './user.service';
@@ -25,6 +26,12 @@ const mockPrisma = {
 
 const mockSessionService = {
   revokeAllSessions: jest.fn().mockResolvedValue(0),
+};
+
+// OPS WP4 (#911): default ILIMITADO (tenant legado) — o limite de usuários
+// tem testes próprios em user.service.user-limit.spec.ts.
+const mockEntitlementService = {
+  limit: jest.fn().mockResolvedValue(null),
 };
 
 // #468: mock do PasswordPolicyService (validação real coberta em
@@ -58,6 +65,7 @@ describe('UserService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: mockSessionService },
+        { provide: EntitlementService, useValue: mockEntitlementService },
       ],
     }).compile();
 

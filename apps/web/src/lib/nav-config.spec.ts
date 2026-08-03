@@ -45,6 +45,41 @@ describe('navItemAllowed (#351)', () => {
   });
 });
 
+describe('navItemAllowed com entitlement (OPS WP4 #911)', () => {
+  it('item com entitlement e a conta SEM esse entitlement → oculto, mesmo com permissão liberada', () => {
+    const it_ = item({ permission: 'crm.leads.list', entitlement: 'crm' });
+    expect(
+      navItemAllowed(it_, { role: 'READER', can: () => true, hasEntitlement: () => false }),
+    ).toBe(false);
+  });
+
+  it('item com entitlement e a conta COM esse entitlement → visível (permissão também ok)', () => {
+    const it_ = item({ permission: 'crm.leads.list', entitlement: 'crm' });
+    expect(
+      navItemAllowed(it_, { role: 'READER', can: () => true, hasEntitlement: () => true }),
+    ).toBe(true);
+  });
+
+  it('sem hasEntitlement no access (dado ainda não carregado) → oculto (fail-closed)', () => {
+    const it_ = item({ permission: 'crm.leads.list', entitlement: 'crm' });
+    expect(navItemAllowed(it_, { role: 'READER', can: () => true })).toBe(false);
+  });
+
+  it('conta legado libera o entitlement (hasEntitlement retorna true para qualquer key)', () => {
+    const it_ = item({ entitlement: 'crm' });
+    expect(navItemAllowed(it_, { role: 'READER', hasEntitlement: () => true })).toBe(true);
+  });
+
+  it('item sem campo entitlement → comportamento inalterado, mesmo com hasEntitlement negando tudo', () => {
+    const it_ = item({ permission: 'sales.orders.view' });
+    expect(
+      navItemAllowed(it_, { role: 'READER', can: () => true, hasEntitlement: () => false }),
+    ).toBe(true);
+    // item livre (sem permission/roles/entitlement) segue liberado
+    expect(navItemAllowed(item({}), { role: 'READER', hasEntitlement: () => false })).toBe(true);
+  });
+});
+
 describe('checkRouteAccess (#351)', () => {
   it('rota com permission: allowed/denied conforme can()', () => {
     expect(checkRouteAccess('/app/sales', canAll)).toEqual({ status: 'allowed' });

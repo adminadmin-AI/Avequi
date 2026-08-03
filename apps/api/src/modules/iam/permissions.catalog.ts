@@ -659,6 +659,19 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'suspender/reativar/marcar sandbox',
       'PATCH /ops/tenants/:id/status (suspensão revoga as sessões do tenant)',
     ],
+    [
+      'provision',
+      'provisionar conta nova (onboarding)',
+      'POST /ops/tenants, GET /ops/tenants/:id/provisioning, POST /ops/tenants/:id/provisioning/{admin,fiscal-check}, POST /ops/tenants/:id/activate (OPS WP2 #909)',
+    ],
+  ]),
+  ...r('ops', 'plans', 'Operadora — planos do SaaS', [
+    ['view', 'ver catálogo de planos', 'GET /ops/plans (OPS WP4 #911)'],
+    [
+      'manage',
+      'criar/editar planos',
+      'POST /ops/plans, PATCH /ops/plans/:id (OPS WP4 #911; trocar plano/exceções de um tenant fica em ops.tenants.manage)',
+    ],
   ]),
 ];
 
