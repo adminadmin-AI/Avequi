@@ -21,10 +21,10 @@
  */
 
 import {
-  allPermissionCodes,
   moduleCodes,
   resourceCodes,
   actionCodes,
+  tenantPermissionCodes,
 } from './permissions.catalog';
 
 export interface SystemRoleDef {
@@ -37,6 +37,13 @@ export interface SystemRoleDef {
   parentCode?: string;
   /** Codes de permissão concedidos diretamente a este perfil */
   permissions: string[];
+  /**
+   * OPS WP1 (#908): usuários com este perfil DEVEM ter MFA habilitado
+   * (materializado em Role.requireMfa pelo seed). O enforcement por perfil
+   * segue SUAVE (decisão pendente do Rafael, #344); nas rotas /ops o
+   * OpsMfaGuard aplica o enforcement DURO independente disso.
+   */
+  requireMfa?: boolean;
 }
 
 /** Deduplica preservando ordem */
@@ -138,8 +145,18 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'ADMIN_GLOBAL',
     name: 'Administrador Global',
     description:
-      'Administrador do sistema — todas as permissões, inclusive ações globais (criar empresas, sincronizar tabelas de referência). Equivale ao enum SUPER_ADMIN.',
-    permissions: allPermissionCodes(),
+      'Administrador do sistema — todas as permissões DE TENANT, inclusive ações globais (criar empresas, sincronizar tabelas de referência). Equivale ao enum SUPER_ADMIN. NÃO inclui o namespace ops.* (control plane da operadora Avecchi — perfil AVECCHI_OPERATOR): admin de cliente não enxerga outros tenants.',
+    permissions: tenantPermissionCodes(),
+  },
+
+  // ── Nível Operadora (Avecchi — control plane, OPS WP1 #908) ────────────────
+  {
+    code: 'AVECCHI_OPERATOR',
+    name: 'Operador Avecchi',
+    description:
+      'Time da operadora Avecchi (back-office SaaS): administra as CONTAS de cliente — lifecycle de tenants, suspensão, sandbox. Único perfil com o namespace ops.* (visão cross-tenant). NÃO herda nenhuma permissão intra-tenant: operar dentro de um cliente exige perfil próprio naquele tenant (ou, no futuro, impersonation auditada — WP6 #913). MFA obrigatório: sem MFA ativo, as rotas /ops respondem 403 (OpsMfaGuard).',
+    permissions: moduleCodes('ops'),
+    requireMfa: true,
   },
 
   // ── Nível Empresa ──────────────────────────────────────────────────────────
@@ -148,7 +165,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: 'Administrador da Empresa',
     description:
       'Tudo dentro da empresa, exceto ações globais do sistema (criar empresas, sincronizar tabela cClassTrib).',
-    permissions: allPermissionCodes().filter(
+    permissions: tenantPermissionCodes().filter(
       (code) =>
         code !== 'settings.companies.create' &&
         code !== 'fiscal.tributary-classifications.sync',
