@@ -1,0 +1,20 @@
+// Reprodução do incidente #36 — [SEC-P0] IDOR cross-tenant: listagem sem
+// filtro de tenant (companyId vinha de @Query e aqui nem isso). O lint TEM
+// que flagrar as três chamadas (zero falso-negativo).
+export class CustomerVulneravelService {
+  constructor(private readonly prisma: any) {}
+
+  async findAll(type?: string) {
+    return this.prisma.customer.findMany({
+      where: { ...(type ? { type } : {}) },
+    });
+  }
+
+  async countAll() {
+    return this.prisma.customer.count();
+  }
+
+  async porTipo() {
+    return this.prisma.product.groupBy({ by: ['type'], _count: true });
+  }
+}

@@ -232,6 +232,7 @@ export class StockService {
     tx?: any,
   ) {
     const prisma = tx ?? this.prisma;
+    // tenant-lint: ok (operação interna de estoque: warehouse/product já escopados pelo chamador tenant-aware)
     await prisma.stockBalance.update({
       where: { warehouseId_productId: { warehouseId, productId } },
       data: {

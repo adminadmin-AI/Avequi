@@ -1,0 +1,14 @@
+// Reprodução da classe de bug do #158 — companyId aceito do CLIENTE via DTO
+// de body. O lint de DTO TEM que flagrar as duas propriedades abaixo e NÃO
+// pode flagrar o comentário (padrão da casa é documentar "companyId vem do
+// JWT" — menção em comentário não é offender).
+export class CreatePedidoVulneravelDto {
+  companyId: string;
+  tenantId?: string;
+  quantidade: number;
+}
+
+/** DTO correto: companyId NUNCA vem do cliente — sempre do JWT (anti-IDOR). */
+export class CreatePedidoCorretoDto {
+  quantidade: number;
+}

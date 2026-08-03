@@ -331,18 +331,31 @@ export class UserService {
   }
 
   private async isEffectiveGlobalAdmin(userId: string): Promise<boolean> {
+    // tenant-lint: ok (escopo por userId: atribuições do próprio usuário)
     const count = await this.prisma.userRoleAssignment.count({
       where: this.assignmentActiveWhere(userId),
     });
     return count > 0;
   }
 
-  /** Admins globais ATIVOS além do usuário excluído da contagem. */
+  /** Admins globais ATIVOS além do usuário excluído da contagem — DENTRO da
+   *  árvore do tenant (matriz + filiais). WP7 (#914): contar sem escopo de
+   *  tenant deixava o guard de "último admin" cego em multi-tenant — inativar
+   *  o único admin do tenant A passava porque o tenant B ainda tinha admins,
+   *  deixando A sem nenhum administrador. Sem tenant resolvido → 0
+   *  (fail-closed: trata como último admin e bloqueia). */
   private async countActiveGlobalAdmins(excludeUserId: string): Promise<number> {
+    const alvo = await this.prisma.user.findUnique({
+      where: { id: excludeUserId },
+      select: { company: { select: { id: true, parentId: true } } },
+    });
+    const rootId = alvo?.company?.parentId ?? alvo?.company?.id;
+    if (!rootId) return 0;
     return this.prisma.user.count({
       where: {
         id: { not: excludeUserId },
         isActive: true,
+        company: { OR: [{ id: rootId }, { parentId: rootId }] },
         roleAssignments: { some: this.assignmentActiveWhere() },
       },
     });

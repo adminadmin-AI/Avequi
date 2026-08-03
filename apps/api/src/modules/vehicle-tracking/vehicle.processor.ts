@@ -78,6 +78,7 @@ export class VehicleProcessor {
       if (!operation.fiscalDocumentChave) {
         return { status: 'erro' as const, motivo: 'Operação sem chave de NF-e (fiscalDocumentChave)' };
       }
+      // tenant-lint: ok (job Bull interno: ids vêm da fila enfileirada por fluxo tenant-escopado)
       const order = await this.prisma.salesOrder.findUnique({
         where: { id: operation.salesOrderId! },
         select: {
@@ -130,11 +131,13 @@ export class VehicleProcessor {
    */
   @Process(VEHICLE_JOB_ATPV_EMAIL)
   async handleAtpvEmail(job: Job<VehicleJobPayload>): Promise<void> {
+    // tenant-lint: ok (job Bull interno: ids vêm da fila enfileirada por fluxo tenant-escopado)
     const operation = await this.prisma.renaveOperation.findUnique({
       where: { id: job.data.operationId },
     });
     if (!operation?.salesOrderId) return;
 
+    // tenant-lint: ok (job Bull interno: serial vem da operação da própria fila)
     const atpve = await this.prisma.atpveRecord.findFirst({
       where: { serialNumberId: operation.serialNumberId, salesOrderId: operation.salesOrderId },
       include: {
@@ -185,6 +188,7 @@ export class VehicleProcessor {
       operation: NonNullable<Awaited<ReturnType<PrismaService['renaveOperation']['findUnique']>>>,
     ) => Promise<VehicleProviderResponse & { pdfBase64?: string }>,
   ): Promise<void> {
+    // tenant-lint: ok (job Bull interno: ids vêm da fila enfileirada por fluxo tenant-escopado)
     const operation = await this.prisma.renaveOperation.findUnique({
       where: { id: job.data.operationId },
     });
@@ -222,6 +226,7 @@ export class VehicleProcessor {
   }
 
   private loadSerial(serialNumberId: string) {
+    // tenant-lint: ok (job Bull interno: ids vêm da fila enfileirada por fluxo tenant-escopado)
     return this.prisma.serialNumber.findUnique({
       where: { id: serialNumberId },
       select: {

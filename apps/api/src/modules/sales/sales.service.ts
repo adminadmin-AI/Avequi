@@ -671,9 +671,10 @@ export class SalesService {
   //   Chamado pelo listener quando PickingOrder.status = DONE.
 
   // Transição interna disparada pelo listener do WMS quando o picking conclui.
-  // Aceita SOMENTE SystemContext: nenhum controller a chama em nome de
-  // usuário (não há recorte aqui — o sistema opera a venda que o evento traz).
+  // Aceita SOMENTE SystemContext (#347-B): nenhum controller a chama em nome
+  // de usuário (não há recorte aqui — o sistema opera a venda que o evento traz).
   async markReadyToInvoice(salesOrderId: string, _ctx: SystemContext) {
+    // tenant-lint: ok (fluxo exclusivamente interno, restrito por SystemContext tipado; o id vem do evento interno picking DONE, não de input do usuário — exceção ao padrão tenant-aware intencional)
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: salesOrderId },
     });
@@ -686,6 +687,7 @@ export class SalesService {
     }
 
     // #491: separação concluída → conferência da carga (nova etapa antes da NF-e)
+    // tenant-lint: ok (transição interna do mesmo pedido carregado acima)
     return this.prisma.salesOrder.update({
       where: { id: salesOrderId },
       data: { status: SalesOrderStatus.AWAITING_CONFERENCE, pickedAt: new Date() },

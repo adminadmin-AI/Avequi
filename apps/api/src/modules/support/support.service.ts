@@ -167,6 +167,7 @@ export class SupportService {
    * Retorna o vínculo com a issue para o controller postar o comentário.
    */
   async applyDiagnosis(incidentId: string, dto: UpdateDiagnosisDto) {
+    // tenant-lint: ok (write-back do runner de triagem: controller valida HMAC antes (fail-closed, #768))
     const incident = await this.prisma.supportIncident.update({
       where: { id: incidentId },
       data: {

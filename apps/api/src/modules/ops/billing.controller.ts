@@ -18,7 +18,10 @@ import {
   UpsertSubscriptionDto,
   VoidInvoiceDto,
 } from './dto/billing.dtos';
+import { Throttle } from '@nestjs/throttler';
+import { OPS_THROTTLE } from './ops-hardening.constants';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsActionContext } from './ops.service';
 
 /**
@@ -29,7 +32,8 @@ import { OpsActionContext } from './ops.service';
  */
 @ApiTags('ops')
 @ApiBearerAuth()
-@UseGuards(OpsMfaGuard)
+@Throttle(OPS_THROTTLE)
+@UseGuards(OpsMfaGuard, OpsSessionGuard)
 @Controller('ops')
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}

@@ -1,0 +1,17 @@
+// Reprodução do incidente #63 — [P1-SEC-04] IDOR PATCH /users/:id: update
+// por id SEM nenhuma noção de tenant no método (o método inteiro não
+// menciona companyId). O lint TEM que flagrar o update e o delete.
+export class UserVulneravelService {
+  constructor(private readonly prisma: any) {}
+
+  async update(id: string, dto: { name?: string }) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { ...dto },
+    });
+  }
+
+  async remove(id: string) {
+    return this.prisma.user.delete({ where: { id } });
+  }
+}

@@ -296,6 +296,7 @@ export class RenaveOrchestratorService {
   // ─── Transições chamadas pelo processor ────────────────────────────────────
 
   async markProcessing(operationId: string): Promise<RenaveOperation> {
+    // tenant-lint: ok (job interno: operationId enfileirado pelo próprio orquestrador)
     return this.prisma.renaveOperation.update({
       where: { id: operationId },
       data: {
@@ -307,6 +308,7 @@ export class RenaveOrchestratorService {
   }
 
   async markError(operationId: string, motivo: string): Promise<void> {
+    // tenant-lint: ok (job interno: operationId enfileirado pelo próprio orquestrador)
     await this.prisma.renaveOperation.update({
       where: { id: operationId },
       data: { status: RenaveOperationStatus.ERROR, lastError: motivo.slice(0, 500) },

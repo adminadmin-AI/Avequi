@@ -5,7 +5,10 @@ import type { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { ImpersonationService } from './impersonation.service';
+import { Throttle } from '@nestjs/throttler';
+import { OPS_THROTTLE } from './ops-hardening.constants';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsActionContext } from './ops.service';
 
 export class StartImpersonationDto {
@@ -26,7 +29,8 @@ export class StartImpersonationDto {
  */
 @ApiTags('ops')
 @ApiBearerAuth()
-@UseGuards(OpsMfaGuard)
+@Throttle(OPS_THROTTLE)
+@UseGuards(OpsMfaGuard, OpsSessionGuard)
 @Controller('ops')
 export class ImpersonationController {
   constructor(private readonly impersonationService: ImpersonationService) {}

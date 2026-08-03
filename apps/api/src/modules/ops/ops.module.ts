@@ -15,6 +15,7 @@ import {
 import { ImpersonationService } from './impersonation.service';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsPanelController } from './ops-panel.controller';
 import { OpsPanelService } from './ops-panel.service';
 import { OpsController } from './ops.controller';
@@ -66,6 +67,7 @@ import { UsageMeteringService } from './usage-metering.service';
     OpsService,
     OpsMfaGuard,
     OpsPanelService,
+    OpsSessionGuard,
     PlansService,
     ProvisioningService,
     TenantInviteService,

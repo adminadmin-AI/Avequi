@@ -638,6 +638,7 @@ export class OrgStructureService {
       visited.add(currentId);
       depth += 1;
       const parent: { parentId: string | null } | null =
+        // tenant-lint: ok (caminhada de árvore a partir de nó já validado no tenant pelo chamador)
         await this.prisma.department.findUnique({
           where: { id: currentId },
           select: { parentId: true },
