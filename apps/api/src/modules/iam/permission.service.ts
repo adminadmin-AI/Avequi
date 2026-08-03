@@ -355,6 +355,7 @@ export class PermissionService {
       }
       frontier.forEach((id) => visited.add(id));
 
+      // tenant-lint: ok (resolução RBAC: ids vêm das atribuições do próprio usuário)
       const roles = await this.prisma.role.findMany({
         where: { id: { in: frontier }, isActive: true },
         select: {
@@ -387,6 +388,7 @@ export class PermissionService {
 
     while (frontier.length > 0 && depth < MAX_INHERITANCE_DEPTH) {
       depth += 1;
+      // tenant-lint: ok (resolução RBAC: expansão da hierarquia de papéis do próprio usuário)
       const children = await this.prisma.role.findMany({
         where: { parentId: { in: frontier } },
         select: { id: true },

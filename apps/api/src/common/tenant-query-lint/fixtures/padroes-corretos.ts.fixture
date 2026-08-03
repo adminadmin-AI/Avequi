@@ -1,0 +1,47 @@
+// Padrões CORRETOS da casa — o lint NÃO pode flagrar nada aqui (zero
+// falso-positivo nos padrões aprovados).
+export class ServicoCorreto {
+  constructor(private readonly prisma: any) {}
+
+  // where inline com companyId (padrão pós-#158)
+  async findAll(user: { companyId: string }) {
+    return this.prisma.customer.findMany({ where: { companyId: user.companyId } });
+  }
+
+  // where montado em variável — evidência no corpo do método
+  async search(user: { companyId: string }, q?: string) {
+    const where = { companyId: user.companyId, ...(q ? { name: { contains: q } } : {}) };
+    return this.prisma.customer.findMany({ where });
+  }
+
+  // unique + chave composta com tenant (padrão anti-#63)
+  async updateName(id: string, companyId: string, name: string) {
+    return this.prisma.customer.update({ where: { id, companyId }, data: { name } });
+  }
+
+  // fetch-então-confere: unique por id com verificação de tenant no método
+  async remove(id: string, user: { companyId: string }) {
+    const found = await this.prisma.customer.findUnique({ where: { id } });
+    if (!found || found.companyId !== user.companyId) throw new Error('not found');
+    return this.prisma.customer.delete({ where: { id } });
+  }
+
+  // filtro por relação company
+  async byCnpj(cnpj: string) {
+    return this.prisma.customer.findFirst({ where: { company: { cnpj } } });
+  }
+
+  // modelo global (sem companyId no schema) — fora do escopo do lint
+  async listPlans() {
+    return this.prisma.plan.findMany({ where: { isActive: true } });
+  }
+
+  // exceção CONSCIENTE com waiver justificado
+  async cronGlobal() {
+    // tenant-lint: ok (cron de sistema: transição por vencimento vale para todos os tenants)
+    return this.prisma.customer.updateMany({
+      where: { status: 'EXPIRED' },
+      data: { archived: true },
+    });
+  }
+}

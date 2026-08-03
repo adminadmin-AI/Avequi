@@ -110,6 +110,7 @@ export class BinRegistrationService {
 
   /** true quando o chassi tem BIN REGISTERED — usado como alerta no faturamento */
   async isRegistered(serialNumberId: string): Promise<boolean> {
+    // tenant-lint: ok (serialNumberId resolvido de pedido tenant-escopado pelo chamador)
     const reg = await this.prisma.binRegistration.findUnique({
       where: { serialNumberId },
       select: { status: true },

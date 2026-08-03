@@ -3,7 +3,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { OPS_THROTTLE } from './ops-hardening.constants';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsPanelService } from './ops-panel.service';
 import {
   METERING_BACKFILL_DAYS,
@@ -31,7 +34,8 @@ export class RunMeteringDto {
  */
 @ApiTags('ops')
 @ApiBearerAuth()
-@UseGuards(OpsMfaGuard)
+@Throttle(OPS_THROTTLE)
+@UseGuards(OpsMfaGuard, OpsSessionGuard)
 @Controller('ops')
 export class OpsPanelController {
   constructor(

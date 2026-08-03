@@ -237,6 +237,7 @@ export class PasswordPolicyService {
    */
   async getMaxAgeDays(userId: string): Promise<number | null> {
     try {
+      // tenant-lint: ok (escopo por userId: papéis do próprio usuário)
       const assignments = await this.prisma.userRoleAssignment.findMany({
         where: {
           userId,

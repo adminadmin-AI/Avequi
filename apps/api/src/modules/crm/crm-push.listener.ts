@@ -101,6 +101,7 @@ export class CrmPushListener {
     if (!this.push.isEnabled) return 0;
     const cutoff = new Date(Date.now() - UNANSWERED_MIN * 60_000);
 
+    // tenant-lint: ok (cron de push: varre conversas de TODOS os tenants por design; só dispara notificação ao dono da conversa)
     const candidates = await this.prisma.whatsappConversation.findMany({
       where: {
         lastCustomerMessageAt: { not: null, lte: cutoff },
@@ -145,6 +146,7 @@ export class CrmPushListener {
           url: `/app/crm/inbox?lead=${conv.lead.id}`,
           tag: `unanswered-${conv.id}`,
         });
+        // tenant-lint: ok (cron de push: update de flag na conversa resolvida pelo próprio job)
         await this.prisma.whatsappConversation.update({
           where: { id: conv.id },
           data: { pushNudgedAt: new Date() },
@@ -161,6 +163,7 @@ export class CrmPushListener {
   // ── internos ────────────────────────────────────────────────────────────────
 
   private async leadLabel(leadId: string): Promise<{ label: string; detail: string | null }> {
+    // tenant-lint: ok (cron de push: lead resolvido a partir da conversa do próprio job)
     const lead = await this.prisma.lead.findUnique({
       where: { id: leadId },
       select: { name: true, phone: true, interest: true, source: true },

@@ -101,6 +101,10 @@ export class TriageProcessor {
     const rows = await this.prisma.supportIncident.findMany({
       where: {
         route: incident.route,
+        // WP7 (#914): dedup SÓ dentro do tenant do incidente — sem isto o
+        // contexto enviado ao LLM misturava protocolo+título de OUTROS
+        // tenants (vazamento cross-tenant na trilha de triagem).
+        companyId: incident.companyId,
         status: { in: ACTIVE_STATUSES },
         id: { not: incident.id },
       },

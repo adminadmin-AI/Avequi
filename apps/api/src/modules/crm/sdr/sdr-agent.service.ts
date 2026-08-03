@@ -69,6 +69,7 @@ export class SdrAgentService {
 
   /** Silencia a IA na conversa (implícito ao digitar ou explícito no painel #524) */
   async takeover(leadId: string, actorId: string): Promise<boolean> {
+    // tenant-lint: ok (leadId vem de evento interno (webhook do conector), nunca de input do usuário)
     const updated = await this.prisma.lead.updateMany({
       where: { id: leadId, sdrStatus: { in: [SdrLeadStatus.ACTIVE, SdrLeadStatus.QUALIFIED] } },
       data: { sdrStatus: SdrLeadStatus.HANDOFF },

@@ -97,6 +97,7 @@ export class MfaService {
    */
   async roleRequiresMfa(userId: string): Promise<boolean> {
     try {
+      // tenant-lint: ok (escopo por userId: consulta os papéis do próprio usuário)
       const count = await this.prisma.userRoleAssignment.count({
         where: {
           userId,
