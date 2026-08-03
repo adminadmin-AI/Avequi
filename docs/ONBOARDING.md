@@ -19,7 +19,8 @@ ERP industrial da **GDR Reboques** (substitui o Omie). Monorepo npm workspaces +
 - **Repo:** https://github.com/adminadmin-AI/Avequi (privado)
 - **Board:** https://github.com/users/adminadmin-AI/projects/7
 - **Front (prod):** https://avequi-web-psi.vercel.app (Vercel)
-- **API (prod):** https://avequi-api-production.up.railway.app/api · Swagger em `/docs`
+- **API (prod):** https://api.avecchi.ai/api · Swagger em `/docs`
+  - O domínio antigo (`avequi-api-production.up.railway.app`) continua ativo e responde igual — é a rede de segurança do rollback, não o endereço oficial.
 - **Versão em prod:** `GET /api/version` → `{version, gitSha, builtAt, env}`
 
 ---

@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { canalDaSessao, ehErroDeCsrf, veredictoDaVerificacao } from './auth-session';
+import { singleFlight } from './single-flight';
+import { tokensParaPersistir } from './session-tokens';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -30,6 +32,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
  * segue 100% Bearer, como antes. Sem esse fallback, o login "dá certo" e
  * toda chamada seguinte volta 401: o usuário fica preso num laço de login
  * enquanto durar a janela entre os dois deploys.
+ *
+ * RENOVAÇÃO É SINGLE-FLIGHT: o backend ROTACIONA o refresh (revoga o antigo
+ * a cada uso). Quando o access expira, todas as queries da tela levam 401
+ * juntas; sem single-flight cada uma dispararia um refresh e a segunda já
+ * chegaria com o token revogado → logout no meio do trabalho. Vale para os
+ * DOIS canais — o cookie de refresh rotaciona igual.
  */
 
 const CSRF_KEY = 'csrfToken';
@@ -54,6 +62,13 @@ interface RespostaDeSessao {
   refreshToken?: string;
 }
 
+/** Grava tokens Bearer sanitizados — campo ausente/vazio nunca vira "undefined" no storage (#735). */
+function gravarTokensLegados(data: RespostaDeSessao) {
+  const { accessToken, refreshToken } = tokensParaPersistir(data);
+  if (accessToken) localStorage.setItem(LEGACY_ACCESS, accessToken);
+  if (refreshToken) localStorage.setItem(LEGACY_REFRESH, refreshToken);
+}
+
 /**
  * Registra a sessão emitida por login/mfa/refresh, escolhendo o canal pela
  * resposta do servidor:
@@ -76,10 +91,7 @@ export function registrarSessao(data: RespostaDeSessao): 'cookie' | 'bearer' {
     return canal;
   }
 
-  if (data?.accessToken) {
-    localStorage.setItem(LEGACY_ACCESS, data.accessToken);
-    if (data.refreshToken) localStorage.setItem(LEGACY_REFRESH, data.refreshToken);
-  }
+  gravarTokensLegados(data);
   return canal;
 }
 
@@ -114,8 +126,7 @@ export async function confirmarCanalDeSessao(data: RespostaDeSessao): Promise<'c
     });
     if (veredicto !== 'resgatar-bearer') return 'cookie';
 
-    localStorage.setItem(LEGACY_ACCESS, data.accessToken as string);
-    if (data.refreshToken) localStorage.setItem(LEGACY_REFRESH, data.refreshToken);
+    gravarTokensLegados(data);
     return 'bearer';
   }
 }
@@ -137,8 +148,15 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-/** Renova a sessão: cookie primeiro; sem cookie, tenta o refresh legado. */
-async function renovarSessao(): Promise<boolean> {
+/**
+ * Renova a sessão: cookie primeiro; sem cookie, tenta o refresh legado.
+ * Single-flight: as N chamadas que tomaram 401 juntas compartilham UMA
+ * renovação — a rotação do refresh não perdoa concorrência.
+ *
+ * axios "cru" de propósito: pelo apiClient, a própria renovação cairia nos
+ * interceptores se respondesse 401.
+ */
+const renovarSessao = singleFlight(async (): Promise<boolean> => {
   const tentar = async (body: Record<string, string>) => {
     const { data } = await axios.post(`${API_URL}/auth/refresh`, body, {
       withCredentials: true,
@@ -158,7 +176,7 @@ async function renovarSessao(): Promise<boolean> {
       return false;
     }
   }
-}
+});
 
 /**
  * Encerra a sessão no servidor para limpar os cookies httpOnly. É o único
@@ -184,12 +202,16 @@ apiClient.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
+    // `_retry` impede laço: uma tentativa de renovação por requisição.
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       if (await renovarSessao()) {
-        // A renovação migrou a sessão p/ cookie: refazer SEM o Bearer velho
-        // (o interceptor de request não vai reinjetá-lo — o legado foi limpo).
+        // A renovação pode ter migrado a sessão p/ cookie: refazer SEM o
+        // Bearer velho e deixar o interceptor de request reinjetar o canal
+        // que valer (Bearer novo se legado, só CSRF se cookie).
         delete original.headers?.Authorization;
+        const legado = typeof window !== 'undefined' ? localStorage.getItem(LEGACY_ACCESS) : null;
+        if (legado) original.headers.Authorization = `Bearer ${legado}`;
         const csrf = localStorage.getItem(CSRF_KEY);
         if (csrf) original.headers['x-csrf-token'] = csrf;
         return apiClient.request(original);

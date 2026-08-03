@@ -95,6 +95,9 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
       where: { code: role.code, companyId: null },
       select: { id: true },
     });
+    // OPS WP1 (#908): requireMfa vem do catálogo (ex.: AVECCHI_OPERATOR=true).
+    // Perfis SYSTEM são reconciliados com o catálogo também neste campo —
+    // ajuste manual em perfil system não sobrevive ao seed (igual aos vínculos).
     if (existingRole) {
       await prisma.role.update({
         where: { id: existingRole.id },
@@ -104,6 +107,7 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
           isSystem: true,
           isActive: true,
           companyId: null,
+          requireMfa: role.requireMfa ?? false,
         },
       });
     } else {
@@ -114,6 +118,7 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
           description: role.description,
           isSystem: true,
           isActive: true,
+          requireMfa: role.requireMfa ?? false,
         },
       });
     }

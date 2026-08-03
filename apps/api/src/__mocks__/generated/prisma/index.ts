@@ -134,6 +134,23 @@ export enum TaxRegime {
   LUCRO_REAL = 'LUCRO_REAL',
 }
 
+// OPS WP1 (#908) — ciclo de vida do tenant no SaaS (control plane)
+export enum TenantStatus {
+  TRIAL = 'TRIAL',
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  CHURNED = 'CHURNED',
+  SANDBOX = 'SANDBOX',
+}
+
+// OPS WP5 (#912) — fatura da assinatura (billing da operadora)
+export enum InvoiceStatus {
+  OPEN = 'OPEN',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+  VOID = 'VOID',
+}
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   DIRECTOR = 'DIRECTOR',
@@ -506,6 +523,8 @@ export enum LoginFailReason {
   INACTIVE = 'INACTIVE',
   LOCKED = 'LOCKED',
   MFA_FAILED = 'MFA_FAILED',
+  // OPS WP1 (#908): credencial válida, tenant suspenso/encerrado
+  TENANT_SUSPENDED = 'TENANT_SUSPENDED',
 }
 
 // IAM v2 - F1 (#337): auditoria enterprise

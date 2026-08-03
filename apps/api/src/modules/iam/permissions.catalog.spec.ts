@@ -58,6 +58,7 @@ describe('Catálogo de permissões (#338)', () => {
       'iam',
       'vehicle-tracking',
       'workspace',
+      'ops',
     ];
     expect(catalogModules().sort()).toEqual([...esperados].sort());
     for (const modulo of esperados) {
@@ -109,7 +110,18 @@ describe('Catálogo de permissões (#338)', () => {
     // 311 = 310 + production.chassi.view (#889 — tela de chassis gravados pela
     //       marcadora OpenClaw; GET /chassi/gravacoes, /chassi/gravacoes/:id,
     //       /chassi/series; tabelas gdr_chassi_* sem companyId → gate só RBAC).
-    expect(PERMISSIONS_CATALOG.length).toBe(311);
+    // 313 = 311 + ops.tenants.{view,manage} (OPS WP1 #908 — control plane da
+    //       operadora Avecchi; GET/PATCH /ops/tenants*. Namespace EXCLUSIVO da
+    //       operadora: fora de tenantPermissionCodes() e das varreduras
+    //       actionCodes() sem lista de módulos).
+    // 314 = 313 + ops.tenants.provision (OPS WP2 #909 — onboarding de tenant:
+    //       POST /ops/tenants + passos do provisionamento + activate).
+    // 316 = 314 + ops.plans.{view,manage} (OPS WP4 #911 — catálogo de planos
+    //       do SaaS; troca de plano/override de tenant usa ops.tenants.manage).
+    // 318 = 316 + ops.billing.{view,manage} (OPS WP5 #912 — assinaturas,
+    //       faturas, baixa manual e régua de inadimplência).
+    // 319 = 318 + ops.impersonation.execute (OPS WP6 #913 — visita read-only).
+    expect(PERMISSIONS_CATALOG.length).toBe(319);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

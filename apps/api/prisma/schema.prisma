@@ -17,6 +17,18 @@ enum TaxRegime {
   LUCRO_REAL
 }
 
+/// Ciclo de vida do TENANT no SaaS (OPS WP1, #908). Vale na empresa RAIZ
+/// (parentId null) e cascateia para as filiais na verificação de login —
+/// filial não tem status próprio de tenant.
+/// SANDBOX: conta de teste/demonstração — fora de métricas e billing.
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CHURNED
+  SANDBOX
+}
+
 model Company {
   id       String      @id @default(cuid())
   name     String
@@ -152,7 +164,195 @@ model Company {
   workspaceLayouts      UserWorkspaceLayout[] // Workspace F2 — layouts da Home
   quickNotes            UserQuickNote[] // Workspace — post-its pessoais
 
+  // ── SaaS control plane — OPS WP1 (#908) ──
+  // Campos de TENANT: só têm significado na empresa raiz (parentId null);
+  // nas filiais ficam no default e são ignorados (o status efetivo vem da raiz).
+  tenantStatus  TenantStatus @default(ACTIVE)
+  /// Fim do período de trial — informativo no WP1 (enforcement vem com billing, WP5)
+  trialEndsAt   DateTime?
+  suspendedAt   DateTime?
+  /// Motivo da suspensão — obrigatório no fluxo (auditável), livre no schema
+  suspendReason String?
+  /// Espelho de conveniência de tenantStatus=SANDBOX para filtros de métricas
+  isSandbox     Boolean      @default(false)
+  /// Estampado quando o provisionamento (WP2) conclui o checklist de go-live
+  onboardedAt   DateTime?
+
+  // OPS WP2 (#909) — provisionamento e convites
+  provisioning  TenantProvisioning?
+  tenantInvites TenantInvite[]
+  // OPS WP3 (#910) — metering diário do tenant (linhas só na empresa RAIZ)
+  usageDailies  TenantUsageDaily[]
+  // OPS WP4 (#911) — plano do tenant (só na RAIZ; null = legado, tudo liberado)
+  planId               String?
+  plan                 Plan?                      @relation(fields: [planId], references: [id])
+  entitlementOverrides TenantEntitlementOverride[]
+  // OPS WP5 (#912) — billing da operadora (só na RAIZ)
+  subscription         Subscription?
+  invoices             Invoice[]
+
   @@map("gdr_companies")
+}
+
+// ─── OPS WP5 (#912) — Billing da operadora (F1: contrato + régua) ─────────────
+// F1 governa o ESTADO (assinatura, fatura, inadimplência); a cobrança em si
+// (PIX/boleto/cartão via gateway) é fase 2. Baixa de fatura é MANUAL e
+// auditada. SANDBOX nunca fatura. Suspensão por inadimplência é SEMPRE ação
+// explícita do operador (via PATCH /ops/tenants/:id/status do WP1) — a régua
+// só propõe (alerta D+20 no portal).
+
+/// Assinatura do tenant (1:1 com a empresa RAIZ). priceCents é o valor
+/// NEGOCIADO — pode diferir do preço de tabela do plano (Plan.priceCents).
+model Subscription {
+  id          String    @id @default(cuid())
+  companyId   String    @unique
+  company     Company   @relation(fields: [companyId], references: [id])
+  planId      String? // referência comercial; entitlements continuam em Company.planId (WP4)
+  priceCents  Int
+  /// Dia do vencimento (1–28 — evita fevereiro quebrar a régua)
+  billingDay  Int
+  startedAt   DateTime
+  canceledAt  DateTime?
+  createdById String // operador
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_subscriptions")
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  OVERDUE
+  VOID
+}
+
+/// Fatura mensal da assinatura. UMA por (tenant, competência) — `period` é o
+/// primeiro dia do mês de competência (@db.Date) e a unique trava duplicata:
+/// o gerador é idempotente por construção. `notifiedAt` marca o aviso D+3
+/// (e-mail enviado UMA vez); banner e alertas são derivados, sem estado.
+model Invoice {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
+  period      DateTime      @db.Date
+  amountCents Int
+  dueDate     DateTime      @db.Date
+  status      InvoiceStatus @default(OPEN)
+  paidAt      DateTime?
+  /// Registro manual na F1: PIX | BOLETO | TRANSFER | OUTRO
+  method      String?
+  notifiedAt  DateTime?
+  voidReason  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([companyId, period])
+  @@index([status, dueDate])
+  @@map("gdr_invoices")
+}
+
+/// OPS WP4 (#911) — plano comercial do SaaS. `entitlements` é um JSON
+/// { key: valor } validado contra o catálogo em código
+/// (modules/entitlement/entitlements.catalog.ts — fonte da verdade das keys).
+/// bool = módulo ligado/desligado; number = limite (null = ilimitado).
+/// priceCents é REFERÊNCIA de tabela — billing real vem no WP5 (#912).
+model Plan {
+  id           String    @id @default(cuid())
+  code         String    @unique // ESSENCIAL, PROFISSIONAL, INDUSTRIAL
+  name         String
+  description  String?
+  entitlements Json      @default("{}")
+  priceCents   Int?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  companies    Company[]
+
+  @@map("gdr_plans")
+}
+
+/// OPS WP4 (#911) — exceção de entitlement por tenant (raiz), acima do plano.
+/// Resolução: override > plano > default DESLIGADO (fail-closed). `reason`
+/// obrigatório — exceção comercial sem justificativa não é auditável.
+model TenantEntitlementOverride {
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  key         String // ex: "renave" — validada contra o catálogo em código
+  value       Json // bool ou number, conforme o tipo da key
+  reason      String
+  createdById String // operador
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([companyId, key])
+  @@map("gdr_tenant_entitlement_overrides")
+}
+
+/// OPS WP3 (#910) — agregado DIÁRIO de uso por tenant (empresa RAIZ; os
+/// números somam a árvore matriz + filiais). Populado pelo MeteringScheduler
+/// (cron 03:15) com upsert por (companyId, date) — reprocessar um dia
+/// sobrescreve, nunca duplica. Backfill de 90 dias na primeira execução.
+/// storageBytes fica 0 até existir fonte confiável (deferido no épico #915).
+model TenantUsageDaily {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  date         DateTime @db.Date
+  activeUsers  Int      @default(0) // usuários distintos com sessão criada no dia
+  nfeIssued    Int      @default(0) // FiscalDocument AUTHORIZED no dia (authorizedAt)
+  nfeRejected  Int      @default(0) // FiscalDocument REJECTED no dia (createdAt)
+  crmLeads     Int      @default(0) // Leads criados no dia
+  errors5xx    Int      @default(0) // SupportIncident source=AUTO_ERROR no dia
+  storageBytes BigInt   @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, date])
+  @@index([date])
+  @@map("gdr_tenant_usage_dailies")
+}
+
+/// OPS WP2 (#909) — máquina de estados do onboarding de um tenant novo.
+/// UMA linha por tenant (companyId unique); cada passo grava seu resultado em
+/// `steps` (JSON) e é IDEMPOTENTE: reexecutar um passo concluído atualiza o
+/// registro sem duplicar efeito. O tenant nasce TRIAL e só vira ACTIVE no
+/// activate (gate manual do operador), que estampa Company.onboardedAt.
+model TenantProvisioning {
+  id          String    @id @default(cuid())
+  companyId   String    @unique
+  company     Company   @relation(fields: [companyId], references: [id])
+  /// { admin?: {userId, email, invitedAt, acceptedAt?}, fiscal?: {ok, tokenSource, checkedAt} }
+  steps       Json      @default("{}")
+  createdById String // operador (sem FK: preservado se o operador sair)
+  completedAt DateTime? // go-live concluído (espelha Company.onboardedAt)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_tenant_provisionings")
+}
+
+/// OPS WP2 (#909) — convite de primeiro acesso do admin do tenant.
+/// NUNCA senha provisória em texto: o e-mail leva um token de uso único
+/// (sha256 no banco, expira em 72h); o aceite público define a senha
+/// (política #345) e destrava o usuário. Reenviar convite revoga o anterior.
+model TenantInvite {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String    @unique // sha256 do token — o token em claro só existe no e-mail
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime? // reenvio revoga o convite anterior
+  createdById String // operador
+  createdAt   DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@map("gdr_tenant_invites")
 }
 
 enum CompanyType {
@@ -334,6 +534,7 @@ model User {
   creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
   workspaceLayout           UserWorkspaceLayout? // Workspace F2 — layout da Home por usuário
   quickNotes                UserQuickNote[] // Workspace — post-its pessoais
+  tenantInvites             TenantInvite[] // OPS WP2 (#909) — convites de primeiro acesso
 
   @@map("gdr_users")
 }
@@ -373,11 +574,19 @@ model UserQuickNote {
   text      String
   /// Cor do papel: yellow | pink | blue | green | purple (validada no DTO)
   color     String   @default("yellow")
+  /// Ordem no mural (menor primeiro). Empate cai no createdAt desc — notas
+  /// criadas antes do mural ordenável ficam com 0 e seguem por data.
+  position   Int       @default(0)
+  /// Fixada no topo: sai do arrasto e vem sempre primeiro.
+  pinnedAt   DateTime?
+  /// Arquivada: sai do mural mas NÃO some (arrancar é reversível).
+  archivedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([companyId])
+  @@index([userId, archivedAt])
   @@map("gdr_user_quick_notes")
 }
 
@@ -3793,6 +4002,9 @@ enum LoginFailReason {
   INACTIVE
   LOCKED
   MFA_FAILED
+  // OPS WP1 (#908): credencial válida, mas o tenant (empresa raiz) está
+  // suspenso/encerrado — o login responde 403 com orientação de regularização.
+  TENANT_SUSPENDED
 }
 
 /// Tentativa de login (sucesso ou falha) — base do lockout (#342):

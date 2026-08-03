@@ -128,6 +128,10 @@ export interface WorkspaceNote {
   id: string;
   text: string;
   color: string;
+  /** Ordem no mural (menor primeiro); fixadas ignoram e vêm antes. */
+  position: number;
+  pinned: boolean;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -393,6 +397,9 @@ export class WorkspaceService {
     id: string;
     text: string;
     color: string;
+    position: number;
+    pinnedAt: Date | null;
+    archivedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): WorkspaceNote {
@@ -400,15 +407,32 @@ export class WorkspaceService {
       id: n.id,
       text: n.text,
       color: n.color,
+      position: n.position,
+      pinned: n.pinnedAt != null,
+      archived: n.archivedAt != null,
       createdAt: n.createdAt.toISOString(),
       updatedAt: n.updatedAt.toISOString(),
     };
   }
 
-  async listNotes(user: AuthUserLite): Promise<WorkspaceNote[]> {
+  /**
+   * Mural do usuário. `archived: true` abre a GAVETA (o que foi arrancado),
+   * nunca misturada com o mural — arrancar tira da vista, não da existência.
+   *
+   * Ordem: fixadas primeiro, depois a ordem do mural (position), e o empate
+   * cai em createdAt desc — é o que preserva o comportamento das notas
+   * criadas antes de existir ordenação (todas com position 0).
+   */
+  async listNotes(user: AuthUserLite, archived = false): Promise<WorkspaceNote[]> {
     const notes = await this.prisma.userQuickNote.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
+      where: { userId: user.id, archivedAt: archived ? { not: null } : null },
+      orderBy: archived
+        ? [{ archivedAt: 'desc' }]
+        : [
+            { pinnedAt: { sort: 'desc', nulls: 'last' } },
+            { position: 'asc' },
+            { createdAt: 'desc' },
+          ],
       take: 100,
     });
     return notes.map((n) => this.noteView(n));
@@ -432,13 +456,22 @@ export class WorkspaceService {
   async updateNote(
     user: AuthUserLite,
     id: string,
-    patch: { text?: string; color?: string },
+    patch: { text?: string; color?: string; pinned?: boolean; archived?: boolean },
   ): Promise<WorkspaceNote> {
     // updateMany com userId no where = escopo à prova de IDOR: nota de outro
     // usuário não é encontrada (count 0), nunca editada.
-    const data: { text?: string; color?: string } = {};
+    const data: {
+      text?: string;
+      color?: string;
+      pinnedAt?: Date | null;
+      archivedAt?: Date | null;
+    } = {};
     if (patch.text !== undefined) data.text = patch.text.trim();
     if (patch.color !== undefined) data.color = patch.color;
+    // Fixar/arquivar são carimbos de tempo, não flags: o "quando" é o que
+    // ordena a gaveta (mais recém-arquivada primeiro).
+    if (patch.pinned !== undefined) data.pinnedAt = patch.pinned ? new Date() : null;
+    if (patch.archived !== undefined) data.archivedAt = patch.archived ? new Date() : null;
     const res = await this.prisma.userQuickNote.updateMany({
       where: { id, userId: user.id },
       data,
@@ -450,7 +483,26 @@ export class WorkspaceService {
     return this.noteView(note);
   }
 
-  /** Arrancar o post-it — o gesto de "resolvido". Idempotente por design. */
+  /**
+   * Nova ordem do mural: a posição de cada id vira o índice recebido. Só as
+   * notas do PRÓPRIO usuário são tocadas (userId no where de cada update) e
+   * tudo numa transação — mural meio reordenado seria pior que não reordenar.
+   */
+  async reorderNotes(user: AuthUserLite, ids: string[]): Promise<WorkspaceNote[]> {
+    if (ids.length > 0) {
+      await this.prisma.$transaction(
+        ids.map((id, index) =>
+          this.prisma.userQuickNote.updateMany({
+            where: { id, userId: user.id },
+            data: { position: index },
+          }),
+        ),
+      );
+    }
+    return this.listNotes(user);
+  }
+
+  /** Excluir de vez (só faz sentido a partir da gaveta). Idempotente. */
   async deleteNote(user: AuthUserLite, id: string): Promise<{ deleted: boolean }> {
     await this.prisma.userQuickNote.deleteMany({ where: { id, userId: user.id } });
     return { deleted: true };

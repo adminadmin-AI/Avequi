@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { usePermission } from '@/hooks/use-permission';
+import { ErrorState } from '@/components/ui/error-state';
+import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
 import { PushSettings } from './push-settings';
 import { buildSettingsPayload } from './settings-payload';
 
@@ -47,14 +49,24 @@ export default function CrmSettingsPage() {
   const { can } = usePermission();
   const canEditRetention = can('crm.lgpd.retention-update');
 
-  const { data: settings } = useQuery<Settings>({
+  // #739: 403 não se resolve tentando de novo (é permissão, não instabilidade)
+  // — sem isto o react-query repete 3x e o usuário espera o triplo para ver
+  // a mesma negativa.
+  const semRetryEmNegativa = (falhas: number, erro: any) =>
+    !ehNegativaDeAcesso(erro) && falhas < 2;
+
+  const settingsQ = useQuery<Settings>({
     queryKey: ['crm-settings'],
     queryFn: async () => (await apiClient.get('/crm/settings')).data,
+    retry: semRetryEmNegativa,
   });
-  const { data: sellers = [] } = useQuery<Seller[]>({
+  const sellersQ = useQuery<Seller[]>({
     queryKey: ['crm-sellers'],
     queryFn: async () => (await apiClient.get('/crm/settings/sellers')).data,
+    retry: semRetryEmNegativa,
   });
+  const settings = settingsQ.data;
+  const sellers = sellersQ.data ?? [];
 
   useEffect(() => {
     if (settings) setForm(settings);
@@ -82,7 +94,34 @@ export default function CrmSettingsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['crm-sellers'] }),
   });
 
-  if (!settings) return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  // #739: antes era `if (!settings)` — que também é verdade quando a consulta
+  // FALHA. Com 403 (usuário sem crm.settings.view, caso real da #738) a tela
+  // girava o spinner para sempre, sem mensagem nenhuma. Agora carregar e
+  // falhar são estados distintos.
+  if (settingsQ.isPending) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (settingsQ.isError || !settings) {
+    const negado = ehNegativaDeAcesso(settingsQ.error);
+    return (
+      <ErrorState
+        title={negado ? 'Acesso negado' : 'Não foi possível carregar as configurações'}
+        description={
+          negado
+            ? 'Você não tem permissão para ver as configurações do CRM. Fale com um administrador se precisar desse acesso.'
+            : mensagemDoErro(settingsQ.error) ??
+              'Houve uma falha ao buscar as configurações. Tente novamente em instantes.'
+        }
+        // Retentar uma negativa de permissão só repetiria o 403.
+        onRetry={negado ? undefined : () => settingsQ.refetch()}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -244,6 +283,23 @@ export default function CrmSettingsPage() {
 
       <section className="surface-sheen rounded-xl bg-surface shadow-soft">
         <h2 className="border-b p-3 text-sm font-medium">Disponibilidade dos vendedores (rodízio)</h2>
+        {/* #739: a lista falha SOZINHA sem derrubar a tela — mas também não
+            pode fingir "nenhum vendedor" quando na verdade não carregou. */}
+        {sellersQ.isError && (
+          <p className="border-b p-3 text-caption text-content-secondary">
+            {ehNegativaDeAcesso(sellersQ.error)
+              ? 'Você não tem permissão para ver a lista de vendedores.'
+              : 'Não foi possível carregar os vendedores.'}{' '}
+            {!ehNegativaDeAcesso(sellersQ.error) && (
+              <button
+                onClick={() => sellersQ.refetch()}
+                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+              >
+                Tentar de novo
+              </button>
+            )}
+          </p>
+        )}
         <ul className="divide-y">
           {sellers.map((s) => (
             <li key={s.id} className="flex items-center justify-between p-3 text-sm">

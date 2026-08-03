@@ -1,5 +1,9 @@
 import { UserRole } from '@prisma/client';
-import { allPermissionCodes } from './permissions.catalog';
+import {
+  allPermissionCodes,
+  moduleCodes,
+  tenantPermissionCodes,
+} from './permissions.catalog';
 import {
   SYSTEM_ROLES,
   ENUM_ROLE_TO_SYSTEM_ROLE,
@@ -10,8 +14,8 @@ import {
 describe('Catálogo de perfis system (#339)', () => {
   const catalogo = new Set(allPermissionCodes());
 
-  it('tem exatamente 28 perfis (24 da #339 + split de Loja em 3 + Gerente Geral, decisão #463)', () => {
-    expect(SYSTEM_ROLES.length).toBe(28);
+  it('tem exatamente 29 perfis (28 da #339/#463 + AVECCHI_OPERATOR do OPS WP1 #908)', () => {
+    expect(SYSTEM_ROLES.length).toBe(29);
   });
 
   it('não tem codes de perfil duplicados', () => {
@@ -78,16 +82,48 @@ describe('Catálogo de perfis system (#339)', () => {
     }
   });
 
-  it('ADMIN_GLOBAL tem TODAS as permissões do catálogo', () => {
+  it('ADMIN_GLOBAL tem TODAS as permissões DE TENANT (catálogo menos ops.*)', () => {
     const admin = findSystemRole('ADMIN_GLOBAL')!;
-    expect(new Set(admin.permissions)).toEqual(catalogo);
+    expect(new Set(admin.permissions)).toEqual(new Set(tenantPermissionCodes()));
   });
 
-  it('ADMIN_EMPRESA tem tudo exceto as ações globais do sistema', () => {
+  it('ADMIN_EMPRESA tem tudo de tenant exceto as ações globais do sistema', () => {
     const admin = findSystemRole('ADMIN_EMPRESA')!;
     expect(admin.permissions).not.toContain('settings.companies.create');
     expect(admin.permissions).not.toContain('fiscal.tributary-classifications.sync');
-    expect(admin.permissions.length).toBe(allPermissionCodes().length - 2);
+    expect(admin.permissions.length).toBe(tenantPermissionCodes().length - 2);
+  });
+
+  // ── OPS WP1 (#908): fronteira do control plane ─────────────────────────────
+
+  it('🔒 NENHUM perfil de tenant tem permissão ops.* (nem por herança) — só AVECCHI_*', () => {
+    for (const role of SYSTEM_ROLES) {
+      if (role.code.startsWith('AVECCHI_')) continue;
+      const efetivas = resolveEffectivePermissions(role.code);
+      const vazadas = [...efetivas].filter((p) => p.startsWith('ops.'));
+      expect({ perfil: role.code, vazadas }).toEqual({
+        perfil: role.code,
+        vazadas: [],
+      });
+    }
+  });
+
+  it('AVECCHI_OPERATOR tem exatamente o módulo ops, exige MFA e não herda nada', () => {
+    const operator = findSystemRole('AVECCHI_OPERATOR')!;
+    expect(operator).toBeDefined();
+    expect(new Set(operator.permissions)).toEqual(new Set(moduleCodes('ops')));
+    expect(operator.permissions.length).toBeGreaterThan(0);
+    expect(operator.requireMfa).toBe(true);
+    expect(operator.parentCode).toBeUndefined();
+    // Nenhuma permissão intra-tenant: operador da Avecchi não opera o ERP do cliente
+    const intraTenant = operator.permissions.filter((p) => !p.startsWith('ops.'));
+    expect(intraTenant).toEqual([]);
+  });
+
+  it('nenhum enum role aponta para perfil da operadora (espelhamento nunca concede ops.*)', () => {
+    for (const roleCode of Object.values(ENUM_ROLE_TO_SYSTEM_ROLE)) {
+      expect(roleCode.startsWith('AVECCHI_')).toBe(false);
+    }
   });
 
   it('AUDITOR só tem leitura + export (nenhuma mutação)', () => {

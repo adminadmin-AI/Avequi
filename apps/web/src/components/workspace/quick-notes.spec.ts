@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_COLORS, NOTE_PALETTE, safeColor, tiltFor } from './quick-notes';
+import { moveNote, NOTE_COLORS, NOTE_PALETTE, safeColor, tiltFor } from './quick-notes';
 
 /** Helpers puros das Notas rápidas. */
 
@@ -48,5 +48,29 @@ describe('tiltFor', () => {
       ['ckv1a', 'ckv2b7', 'ckv3c99', 'nota-xyz', 'lembrete-42', 'clr-9f8e'].map(tiltFor),
     );
     expect(angles.size).toBeGreaterThan(1);
+  });
+});
+
+describe('moveNote', () => {
+  const board = ['a', 'b', 'c', 'd'];
+
+  it('move a nota para a posição de destino', () => {
+    expect(moveNote(board, 'd', 'a')).toEqual(['d', 'a', 'b', 'c']);
+    expect(moveNote(board, 'a', 'c')).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  it('soltar no mesmo lugar não mexe no mural', () => {
+    expect(moveNote(board, 'b', 'b')).toBe(board);
+  });
+
+  it('id desconhecido (nota que sumiu do cache) devolve a ordem intacta', () => {
+    expect(moveNote(board, 'z', 'a')).toBe(board);
+    expect(moveNote(board, 'a', 'z')).toBe(board);
+  });
+
+  it('não perde nem duplica nota', () => {
+    const out = moveNote(board, 'c', 'a');
+    expect(out).toHaveLength(board.length);
+    expect(new Set(out)).toEqual(new Set(board));
   });
 });

@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   LoginFailReason,
@@ -12,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { LoginContext, SessionService } from '../iam/session.service';
+import { TenantStatusService } from '../iam/tenant-status.service';
 
 /**
  * Claim `scope` do token intermediário do login em 2 passos (#344).
@@ -58,6 +64,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly mfaService: MfaService,
     private readonly passwordPolicy: PasswordPolicyService,
+    private readonly tenantStatus: TenantStatusService,
   ) {}
 
   private hashToken(token: string): string {
@@ -103,6 +110,21 @@ export class AuthService {
         LoginFailReason.WRONG_PASSWORD,
       );
       return null;
+    }
+
+    // OPS WP1 (#908): tenant SUSPENDED/CHURNED não autentica. O check vem
+    // DEPOIS da senha de propósito — só quem provou a credencial vê a
+    // mensagem de regularização (403); antes disso a resposta continua o
+    // 401 genérico da anti-enumeração (#342).
+    const tenantBlock = await this.tenantStatus.getLoginBlock(user.companyId);
+    if (tenantBlock) {
+      await this.sessionService.recordLoginAttempt(
+        email,
+        ctx,
+        false,
+        LoginFailReason.TENANT_SUSPENDED,
+      );
+      throw new ForbiddenException(tenantBlock.message);
     }
 
     await this.sessionService.recordLoginAttempt(email, ctx, true);
@@ -312,10 +334,18 @@ export class AuthService {
     // #221: check isActive on refresh
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      select: { isActive: true, mustChangePassword: true },
+      select: { isActive: true, mustChangePassword: true, companyId: true },
     });
     if (!user?.isActive) {
       throw new UnauthorizedException('Usuário desativado');
+    }
+
+    // OPS WP1 (#908): defesa em profundidade — a suspensão do tenant já
+    // revoga as sessões (OpsService), mas um refresh legado sem sessão
+    // escaparia da denylist; aqui ele morre de vez.
+    const tenantBlock = await this.tenantStatus.getLoginBlock(user.companyId);
+    if (tenantBlock) {
+      throw new ForbiddenException(tenantBlock.message);
     }
 
     // #750 (defesa em profundidade): troca obrigatória pendente = refresh

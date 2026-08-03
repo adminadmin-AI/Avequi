@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { TenantStatusService } from '../iam/tenant-status.service';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -59,6 +60,12 @@ const mockPasswordPolicy = {
   getPolicy: jest.fn(),
 };
 
+// OPS WP1 (#908): TenantStatusService mockado — default tenant liberado.
+const mockTenantStatus = {
+  getTenantRoot: jest.fn(),
+  getLoginBlock: jest.fn(),
+};
+
 const mockUser = {
   id: 'user-1',
   email: 'admin@gdr.com.br',
@@ -83,6 +90,7 @@ describe('AuthService', () => {
         { provide: SessionService, useValue: mockSessionService },
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        { provide: TenantStatusService, useValue: mockTenantStatus },
       ],
     }).compile();
 
@@ -111,6 +119,8 @@ describe('AuthService', () => {
     mockPasswordPolicy.recordPasswordChange.mockResolvedValue(undefined);
     mockPasswordPolicy.isPasswordExpired.mockResolvedValue(false);
     mockPasswordPolicy.getMaxAgeDays.mockResolvedValue(null);
+    // Default OPS WP1 (#908): tenant ACTIVE — login/refresh liberados.
+    mockTenantStatus.getLoginBlock.mockResolvedValue(null);
   });
 
   // ─── validateUser ──────────────────────────────────────────────────────────

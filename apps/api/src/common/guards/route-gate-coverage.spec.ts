@@ -42,6 +42,7 @@ const PUBLIC_ALLOWLIST = [
   'FiscalController.webhook', // Focus NFe (x-focus-token, timingSafeEqual)
   'SupportController.updateDiagnosis', // write-back triagem (#768, HMAC x-triage-signature, fail-closed)
   'VersionController.version', // GET /version — público por design
+  'InviteController.accept', // aceite de convite de tenant (OPS WP2 #909 — token sha256 uso único 72h, throttle 5/min, resposta única p/ token inválido)
 ].sort();
 
 /** Controllers com migração RBAC v2 PENDENTE — rotas sem gate toleradas até a
@@ -86,6 +87,12 @@ const SELF_SERVICE_OK = new Set([
   // qualquer usuário logado (self-service); gestão/triagem virá com permissão.
   'SupportController.create',
   'SupportController.listMine',
+  // OPS WP4 (#911) — o que a PRÓPRIA conta contratou: qualquer usuário logado
+  // lê (a nav esconde módulo não contratado); dados são do tenant dele.
+  'EntitlementController.me',
+  // OPS WP5 (#912) — status de cobrança da PRÓPRIA conta (banner de
+  // inadimplência do app); situação financeira da conta do próprio usuário.
+  'BillingStatusController.myStatus',
 ]);
 
 interface Route {

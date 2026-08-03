@@ -18,6 +18,7 @@ import { RolesAdminService } from './roles-admin.service';
 import { SessionDenylistService } from './session-denylist.service';
 import { SessionService } from './session.service';
 import { ShadowModeService } from './shadow-mode.service';
+import { TenantStatusService } from './tenant-status.service';
 import { UserAccessController } from './user-access.controller';
 import { UserAccessService } from './user-access.service';
 
@@ -66,6 +67,7 @@ import { UserAccessService } from './user-access.service';
     SessionDenylistService,
     SessionService,
     ShadowModeService,
+    TenantStatusService,
     UserAccessService,
   ],
   exports: [
@@ -78,6 +80,7 @@ import { UserAccessService } from './user-access.service';
     SessionDenylistService,
     SessionService,
     ShadowModeService,
+    TenantStatusService,
   ],
 })
 export class IamModule {}

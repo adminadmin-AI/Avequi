@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { TenantStatusService } from '../iam/tenant-status.service';
 
 const mockPrisma = {
   user: {
@@ -59,6 +60,12 @@ const mockPasswordPolicy = {
   getPolicy: jest.fn(),
 };
 
+// OPS WP1 (#908): default tenant liberado — cenários daqui não tocam nisso.
+const mockTenantStatus = {
+  getTenantRoot: jest.fn(),
+  getLoginBlock: jest.fn(),
+};
+
 const mockUser = {
   id: 'user-1',
   email: 'admin@gdr.com.br',
@@ -85,6 +92,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
         { provide: SessionService, useValue: mockSessionService },
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        { provide: TenantStatusService, useValue: mockTenantStatus },
       ],
     }).compile();
 
@@ -97,6 +105,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
     mockSessionService.clearLockout.mockResolvedValue(undefined);
     mockSessionService.createSession.mockResolvedValue({ id: 'sess-1' });
     mockSessionService.revokeAllSessions.mockResolvedValue(1);
+    mockTenantStatus.getLoginBlock.mockResolvedValue(null);
     mockMfaService.isEnabled.mockResolvedValue(false);
     mockMfaService.roleRequiresMfa.mockResolvedValue(false);
     mockPasswordPolicy.validateComplexity.mockReturnValue(undefined);

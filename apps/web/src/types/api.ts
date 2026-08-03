@@ -1281,3 +1281,457 @@ export interface SupportIncident {
   updatedAt: string;
   updates?: SupportIncidentUpdate[];
 }
+
+// ─── Ops — control plane da operadora (OPS WP1 #908 / WP2 #909) ──────────────
+export type TenantStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CHURNED' | 'SANDBOX';
+
+/**
+ * Resumo de uso embutido em cada item de GET /ops/tenants (OPS WP3 #910) —
+ * `null` quando o tenant ainda não tem linhas de metering (ex.: recém-criado,
+ * antes do primeiro cron rodar).
+ */
+export interface TenantUsageSummary {
+  activeUsers30d: number;
+  nfeMonth: number;
+  errors7d: number;
+  lastLoginAt: string | null;
+}
+
+/** GET /ops/tenants — item da lista de contas de cliente. */
+export interface Tenant {
+  id: string;
+  name: string;
+  razaoSocial: string;
+  cnpj: string;
+  tenantStatus: TenantStatus;
+  isSandbox: boolean;
+  trialEndsAt?: string | null;
+  suspendedAt?: string | null;
+  suspendReason?: string | null;
+  onboardedAt?: string | null;
+  createdAt: string;
+  _count: { users: number; branches: number };
+  usage: TenantUsageSummary | null;
+}
+
+/** GET /ops/tenants/:id — detalhe (raiz + filiais). */
+export interface TenantDetail extends Tenant {
+  branches: Array<{ id: string; name: string; cnpj: string; type: CompanyType }>;
+}
+
+// ─── Ops — painel de contas: uso, saúde, timeline, alertas (OPS WP3 #910) ─────
+
+/** Um ponto da série diária de GET /ops/tenants/:id/usage. */
+export interface TenantUsageDailyPoint {
+  date: string;
+  activeUsers: number;
+  nfeIssued: number;
+  nfeRejected: number;
+  crmLeads: number;
+  errors5xx: number;
+}
+
+/** Totais do período de GET /ops/tenants/:id/usage. */
+export interface TenantUsageTotals {
+  nfeIssued: number;
+  nfeRejected: number;
+  crmLeads: number;
+  errors5xx: number;
+  peakActiveUsers: number;
+}
+
+/** GET /ops/tenants/:id/usage?days=90 — série diária + totais (KPIs + sparklines). */
+export interface TenantUsageSeries {
+  series: TenantUsageDailyPoint[];
+  totals: TenantUsageTotals;
+}
+
+/** Rejeição SEFAZ recente — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthRejection {
+  id: string;
+  type: FiscalDocumentType;
+  createdAt: string;
+  rejectionReason: string | null;
+}
+
+/** Chamado de erro 5xx auto-aberto — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthError {
+  id: string;
+  protocol: string;
+  title: string;
+  status: SupportIncidentStatus;
+  createdAt: string;
+}
+
+/** Usuário do tenant com último acesso — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  lastLoginAt: string | null;
+}
+
+/** GET /ops/tenants/:id/health */
+export interface TenantHealth {
+  recentRejections: TenantHealthRejection[];
+  recentErrors: TenantHealthError[];
+  users: TenantHealthUser[];
+}
+
+/** GET /ops/tenants/:id/timeline?take=50 — eventos ops do AuditLogV2. */
+export interface TenantTimelineEntry {
+  id: string;
+  entity: string;
+  entityId: string;
+  action: string;
+  oldValue: unknown;
+  newValue: unknown;
+  createdAt: string;
+  user: { id: string; name: string } | null;
+}
+
+export type OpsAlertType = 'SEM_LOGIN' | 'PICO_5XX' | 'REJEICAO_SEFAZ' | 'TRIAL_VENCENDO';
+export type OpsAlertSeverity = 'WARNING' | 'CRITICAL';
+
+/** GET /ops/alerts — CRITICAL primeiro. */
+export interface OpsAlert {
+  type: OpsAlertType;
+  severity: OpsAlertSeverity;
+  tenantId: string;
+  tenantName: string;
+  message: string;
+}
+
+/** POST /ops/metering/run */
+export interface RunMeteringInput {
+  days?: number;
+}
+export interface RunMeteringResult {
+  processedDays: number;
+}
+
+/** PATCH /ops/tenants/:id/status */
+export interface UpdateTenantStatusInput {
+  status: TenantStatus;
+  /** obrigatório para SUSPENDED/CHURNED */
+  reason?: string;
+}
+
+/** POST /ops/tenants/:id/impersonate — body (OPS WP6, #913). */
+export interface StartImpersonationInput {
+  userId: string;
+  /** obrigatório, mínimo 5 caracteres */
+  reason: string;
+}
+
+/** POST /ops/tenants/:id/impersonate — resposta. Token vale 30min como
+ *  access token do ALVO; toda mutação sob ele responde 403 (guard no backend). */
+export interface ImpersonateResult {
+  impersonationToken: string;
+  expiresAt: string;
+  iid: string;
+  target: { id: string; name: string; email: string; role: UserRole };
+}
+
+/** GET /support-access — transparência ao cliente das sessões de suporte
+ *  (impersonation) sobre o tenant dele. */
+export interface SupportAccessLog {
+  id: string;
+  /** iid da sessão de impersonation */
+  entityId: string;
+  action: 'EXECUTE' | 'CANCEL';
+  newValue: {
+    targetEmail?: string;
+    reason?: string;
+    expiresAt?: string;
+    endedEarly?: boolean;
+  } | null;
+  createdAt: string;
+  user: { name: string } | null;
+}
+
+/** POST /ops/tenants — passo 1 do onboarding (empresa raiz). */
+export interface CreateTenantInput {
+  name: string;
+  cnpj: string;
+  razaoSocial: string;
+  ie?: string;
+  crt?: 1 | 2 | 3;
+  taxRegime?: TaxRegime;
+  state?: string;
+  city?: string;
+  email?: string;
+}
+
+/** Checklist de onboarding — GET /ops/tenants/:id/provisioning. */
+export interface TenantProvisioningChecklist {
+  company: { done: true };
+  admin:
+    | {
+        done: boolean;
+        invited: true;
+        email: string;
+        emailSent: boolean;
+        accepted: boolean;
+        inviteExpiresAt: string | null;
+      }
+    | { done: false; invited: false };
+  /**
+   * `done` espelha `ok` quando já houve verificação (ok=false → done=false,
+   * mas os demais campos vêm preenchidos); antes da primeira verificação só
+   * `done: false` existe, sem os demais campos — por isso todos opcionais.
+   */
+  fiscal: {
+    done: boolean;
+    ok?: boolean;
+    tokenSource?: 'scoped' | 'missing';
+    checkedAt?: string;
+  };
+  activation: { done: boolean; completedAt: string | null };
+}
+
+/** GET /ops/tenants/:id/provisioning */
+export interface TenantProvisioning {
+  id: string;
+  companyId: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company: {
+    id: string;
+    name: string;
+    cnpj: string;
+    razaoSocial: string;
+    tenantStatus: TenantStatus;
+    onboardedAt: string | null;
+  };
+  checklist: TenantProvisioningChecklist;
+}
+
+/** POST /ops/tenants/:id/provisioning/admin */
+export interface InviteAdminInput {
+  name: string;
+  email: string;
+}
+export interface InviteAdminResult {
+  inviteId: string;
+  userId: string;
+  email: string;
+  expiresAt: string;
+  emailSent: boolean;
+  emailError?: string;
+}
+
+/** POST /ops/tenants/:id/provisioning/fiscal-check */
+export interface FiscalCheckResult {
+  ok: boolean;
+  tokenSource: 'scoped' | 'missing';
+  checkedAt: string;
+}
+
+/** POST /invite/accept */
+export interface AcceptInviteResult {
+  ok: true;
+  email: string;
+}
+
+// ─── Ops — Planos & Entitlements (OPS WP4 #911) ───────────────────────────
+
+export type EntitlementType = 'bool' | 'limit';
+/** bool = módulo ligado/desligado; number = limite; null = ilimitado. */
+export type EntitlementValue = boolean | number | null;
+
+/** Item do catálogo de entitlements — fonte da verdade das keys (código no backend). */
+export interface EntitlementDef {
+  key: string;
+  type: EntitlementType;
+  name: string;
+  description?: string;
+}
+
+/** Item de GET /ops/plans → plans[]. */
+export interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  entitlements: Record<string, EntitlementValue>;
+  priceCents: number | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count: { companies: number };
+}
+
+/** GET /ops/plans */
+export interface PlansCatalog {
+  catalog: EntitlementDef[];
+  plans: Plan[];
+}
+
+/** POST /ops/plans */
+export interface CreatePlanInput {
+  code: string;
+  name: string;
+  description?: string;
+  entitlements: Record<string, EntitlementValue>;
+  priceCents?: number;
+}
+
+/** PATCH /ops/plans/:id */
+export interface UpdatePlanInput {
+  name?: string;
+  description?: string;
+  entitlements?: Record<string, EntitlementValue>;
+  priceCents?: number;
+  active?: boolean;
+}
+
+/** Exceção de entitlement de um tenant — item de GET /ops/tenants/:id/entitlements → overrides[]. */
+export interface TenantEntitlementOverride {
+  key: string;
+  value: EntitlementValue;
+  reason: string;
+  createdById: string;
+  createdAt: string;
+}
+
+/** Mapa efetivo resolvido (override > plano > legado) — GET /entitlements/me e o
+ * campo `resolved` de GET /ops/tenants/:id/entitlements. */
+export interface ResolvedEntitlements {
+  /** null = tenant legado sem plano (tudo liberado) */
+  planCode: string | null;
+  values: Record<string, EntitlementValue>;
+  legacy: boolean;
+}
+
+/** GET /ops/tenants/:id/entitlements */
+export interface TenantEntitlements {
+  catalog: EntitlementDef[];
+  plan: { id: string; code: string; name: string; entitlements: Record<string, EntitlementValue> } | null;
+  overrides: TenantEntitlementOverride[];
+  resolved: ResolvedEntitlements;
+}
+
+/** PATCH /ops/tenants/:id/plan */
+export interface AssignTenantPlanInput {
+  /** null = volta ao legado (sem plano, tudo liberado) */
+  planId: string | null;
+}
+
+/** PUT /ops/tenants/:id/entitlements/:key */
+export interface SetTenantOverrideInput {
+  value: EntitlementValue;
+  /** mín. 5 caracteres — auditável */
+  reason: string;
+}
+
+// ─── Ops — Billing (OPS WP5 #912) ─────────────────────────────────────────
+// F1 = contrato + régua, não gateway: fatura nasce sozinha (cron diário),
+// baixa é MANUAL e auditada. Todos os valores monetários em CENTAVOS.
+
+export type InvoiceStatus = 'OPEN' | 'OVERDUE' | 'PAID' | 'VOID';
+export type InvoiceMethod = 'PIX' | 'BOLETO' | 'TRANSFER' | 'OUTRO';
+
+/** Buckets de aging das faturas em aberto (OPEN/OVERDUE) — valores em centavos. */
+export interface BillingAging {
+  /** ainda dentro do vencimento */
+  current: number;
+  d1_15: number;
+  d16_30: number;
+  d31_plus: number;
+}
+
+/** Item de GET /ops/billing → openInvoices[]. */
+export interface OpsOpenInvoice {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  period: string;
+  dueDate: string;
+  amountCents: number;
+  status: Extract<InvoiceStatus, 'OPEN' | 'OVERDUE'>;
+  daysPastDue: number;
+}
+
+/** GET /ops/billing — MRR (total/por plano), aging e faturas em aberto da carteira. */
+export interface BillingOverview {
+  mrrCents: number;
+  /** code do plano → MRR em centavos; 'LEGADO' = conta sem plano. */
+  mrrByPlan: Record<string, number>;
+  activeSubscriptions: number;
+  aging: BillingAging;
+  openInvoices: OpsOpenInvoice[];
+}
+
+/** POST /ops/billing/run */
+export interface RunBillingResult {
+  invoicesCreated: number;
+  overdueMarked: number;
+  emailsSent: number;
+}
+
+/** POST /ops/billing/invoices/:invoiceId/pay */
+export interface PayInvoiceInput {
+  method: InvoiceMethod;
+}
+
+/** POST /ops/billing/invoices/:invoiceId/void */
+export interface VoidInvoiceInput {
+  /** mín. 5 caracteres — auditável */
+  reason: string;
+}
+
+/** Assinatura do tenant — parte de GET /ops/tenants/:id/billing. */
+export interface Subscription {
+  id: string;
+  companyId: string;
+  planId: string | null;
+  priceCents: number;
+  billingDay: number;
+  startedAt: string;
+  canceledAt: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Fatura do tenant — parte de GET /ops/tenants/:id/billing → invoices[]. */
+export interface Invoice {
+  id: string;
+  companyId: string;
+  period: string;
+  amountCents: number;
+  dueDate: string;
+  status: InvoiceStatus;
+  paidAt: string | null;
+  method: InvoiceMethod | null;
+  notifiedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /ops/tenants/:id/billing */
+export interface TenantBilling {
+  subscription: Subscription | null;
+  invoices: Invoice[];
+}
+
+/** PUT /ops/tenants/:id/subscription — editar reativa assinatura cancelada. */
+export interface UpsertSubscriptionInput {
+  /** null = sem vínculo comercial */
+  planId?: string | null;
+  priceCents: number;
+  /** 1–28 */
+  billingDay: number;
+  /** ISO; default = agora (ou mantém a vigência existente na edição) */
+  startedAt?: string;
+}
+
+/** GET /billing/me/status — banner de inadimplência do app do cliente. */
+export type MyBillingStatus =
+  | { level: 'none' }
+  | { level: 'notice' | 'banner'; dueDate: string; amountCents: number; daysPastDue: number; message: string };

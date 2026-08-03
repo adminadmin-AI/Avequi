@@ -4,13 +4,25 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { ACCESS_COOKIE } from '../../../common/auth/auth-cookies';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
+import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
+import { IMPERSONATION_SCOPE } from '../../ops/impersonation.constants';
 import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  /**
+   * Última gravação de atividade por sessão, em memória. Sem isto, uma tela
+   * que dispara 10 chamadas geraria 10 UPDATEs no mesmo segundo. Dentro da
+   * janela de debounce a sessão só é LIDA (barato); passou da janela, grava.
+   * Cache local ao processo: com várias instâncias, o pior caso é gravar
+   * mais vezes — nunca deixar de expirar.
+   */
+  private readonly ultimaGravacao = new Map<string, number>();
+
   constructor(
     config: ConfigService,
     private readonly denylist: SessionDenylistService,
+    private readonly sessions: SessionService,
   ) {
     super({
       // #349: header Bearer tem PRECEDÊNCIA (clientes atuais); sem header,
@@ -33,6 +45,32 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token restrito não é um access token');
     }
 
+    // OPS WP6 (#913): token de IMPERSONATION vale como access token do usuário
+    // ALVO, com contexto anexado — o ImpersonationReadonlyGuard global rejeita
+    // toda mutação, e os guards de permissão resolvem pelo alvo (o operador vê
+    // exatamente o que o cliente vê). Sem sessionId de propósito: nenhuma
+    // sessão do cliente é tocada; revogação antecipada é pelo iid na denylist
+    // (Redis fora = fail-open com teto de 30 min, mesmo trade-off da #823).
+    if (payload?.scope === IMPERSONATION_SCOPE) {
+      if (payload?.iid) {
+        const ended = await this.denylist.isSessionDenylisted(payload.iid);
+        if (ended) {
+          throw new UnauthorizedException('Sessão de suporte encerrada.');
+        }
+      }
+      return {
+        id: payload.sub,
+        email: payload.email,
+        role: payload.role,
+        companyId: payload.companyId,
+        impersonation: {
+          iid: payload.iid,
+          impersonatorId: payload.impersonatorId,
+          readOnly: payload.readOnly !== false,
+        },
+      };
+    }
+
     // #823: sessão revogada criticamente (SECURITY/ADMIN_REVOKE — inativação,
     // troca de senha, reset por admin) está na denylist Redis → o access
     // token morre AQUI, antes de Company/Roles/PermissionGuard e do
@@ -48,6 +86,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       if (denied) {
         throw new UnauthorizedException('Sessão inválida ou expirada. Faça login novamente.');
       }
+    }
+
+    // INATIVIDADE (#341): a sessão morre depois de SESSION_IDLE_TIMEOUT_MINUTES
+    // sem NENHUMA requisição. Aqui é o ponto por onde passa todo access token
+    // válido, então é onde a ociosidade é medida e a atividade registrada.
+    // Antes disto, `lastActivityAt` só mudava na rotação do refresh — ou seja,
+    // ninguém media atividade de verdade.
+    if (payload?.sessionId) {
+      const agora = Date.now();
+      const ultima = this.ultimaGravacao.get(payload.sessionId) ?? 0;
+      const dentroDoDebounce = agora - ultima < ACTIVITY_DEBOUNCE_MS;
+
+      const viva = await this.sessions.isSessionAliveAndTouch(payload.sessionId, dentroDoDebounce);
+      if (!viva) {
+        this.ultimaGravacao.delete(payload.sessionId);
+        throw new UnauthorizedException('Sessão encerrada por inatividade. Faça login novamente.');
+      }
+      if (!dentroDoDebounce) this.ultimaGravacao.set(payload.sessionId, agora);
     }
 
     return {

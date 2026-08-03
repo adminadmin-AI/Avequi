@@ -4,10 +4,16 @@
  *
  * Uso (uma vez por CNPJ emissor, com o token DAQUELA empresa):
  *   FOCUS_TOKEN=<token da empresa> \
- *   WEBHOOK_URL=https://avequi-api-production.up.railway.app/api/fiscal/webhook \
+ *   WEBHOOK_URL=https://api.avecchi.ai/api/fiscal/webhook \
  *   WEBHOOK_SECRET=<mesmo FOCUS_NFE_WEBHOOK_SECRET do Railway> \
  *   FOCUS_BASE_URL=https://api.focusnfe.com.br \
  *   npx ts-node scripts/register-focus-webhook.ts
+ *
+ * ⚠️ O hook JÁ REGISTRADO na conta Focus aponta para o domínio antigo
+ * (`avequi-api-production.up.railway.app`), que continua ativo e entregando
+ * normalmente. Re-registrar no domínio novo é tarefa à parte: rodar este
+ * script substitui o hook do evento, então precisa ser feito com a conferência
+ * do GET /v2/hooks depois — e nunca junto de outra mudança de produção.
  *
  * Mesmo fluxo validado no dry-run de 06/07 (hook 2RLPpbzR): POST /v2/hooks
  * aceita `authorization` + `authorization_header` p/ header customizado

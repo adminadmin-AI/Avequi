@@ -6,6 +6,65 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-08-03
+
+### Adicionado
+
+**Portal Avecchi — WP5 e WP6 (épico #915)**
+- **Billing da operadora F1** (#912/#925): assinatura por tenant (valor negociado, vencimento 1–28), fatura mensal gerada por cron idempotente (única por competência; SANDBOX/CHURNED nunca faturam), baixa manual auditada, MRR total/por plano + aging em `/app/ops/billing`, e régua de inadimplência — D+3 e-mail (uma vez), D+10 banner persistente no app do cliente (`GET /billing/me/status`), D+20 proposta de suspensão como alerta no portal (suspender segue manual). Gateway automático = fase 2.
+- **Impersonation read-only auditada** (#913/#927): "Ver como o cliente" com token dedicado de 30 min (nenhuma sessão do cliente é tocada), motivo obrigatório, guard global rejeitando TODA mutação na API, banner com countdown + encerramento antecipado (denylist), e transparência dos dois lados — timeline do portal e card "Acessos do suporte" visível ao admin do tenant. Modo escrita com re-MFA deferido.
+
+### Infra
+- Migration aditiva idempotente: `20260803120000_ops_wp5_billing` (via `db execute`, #640). WP6 sem DDL.
+- Catálogo RBAC: +3 permissões (`ops.billing.{view,manage}`, `ops.impersonation.execute`) — 319.
+
+## [1.27.0] - 2026-08-03
+
+### Adicionado
+
+**Portal Avecchi — control plane da operadora** (épico #915, WP1–WP4)
+- **Fundação** (#908/#916): ciclo de vida de tenant (`TRIAL/ACTIVE/SUSPENDED/CHURNED/SANDBOX`) na empresa raiz com cascata pras filiais; namespace RBAC `ops.*` EXCLUSIVO da operadora (nenhum perfil de cliente recebe — travado em teste); perfil `AVECCHI_OPERATOR` com **MFA obrigatório duro** nas rotas `/ops`; tenant suspenso não loga (403 pós-senha, anti-enumeração intacta) e tem as sessões revogadas na hora.
+- **Provisionamento** (#909/#919): onboarding como máquina de estados idempotente e retomável por CNPJ — empresa → **convite de admin por e-mail com token de uso único** (72h, sha256, nunca senha em texto; aceite público em `/invite/accept` define a senha pela política #345) → checagem fiscal (exige `FOCUS_NFE_TOKEN__<companyId>` escopado, #695) → go-live com gate manual do operador. Wizard completo em `/app/ops/new`.
+- **Painel de contas** (#910/#921): metering diário por tenant (`gdr_tenant_usage_dailies` — usuários ativos, NF-e, leads, erros 5xx; cron 03:15 com backfill de 90 dias na primeira execução) alimentando lista com resumo de uso, drill-down com abas (Visão geral com sparklines · Saúde · Pessoas · Linha do tempo) e **alertas da carteira** (sem login 7d, pico de 5xx, rejeição SEFAZ >20%, trial vencendo).
+- **Planos & Entitlements** (#911/#922): o que cada conta usa vira dado governado pelo portal — catálogo de módulos em código (`crm`, `renave`*, `suporteIa`, `tef`, `maxUsers`), resolução exceção > plano > desligado (fail-closed), **tenant sem plano = legado (tudo liberado)**; trocar plano muda o app do cliente em ≤60s **sem redeploy**. CRM inteiro atrás do entitlement; limite de usuários com teto duro; 3 planos seedados (Essencial/Profissional/Industrial) sem atribuição automática. *`renave` é gate comercial — o runtime fiscal segue em `renaveEnabled`+SERPRO.
+- **Expiração de sessão por inatividade de verdade** (#341/#920): a sessão morre após `SESSION_IDLE_TIMEOUT_MINUTES` (default 15) sem NENHUMA requisição — e cada requisição empurra o relógio (com debounce). Antes, `lastActivityAt` só mudava na rotação do refresh.
+- **Endereço oficial da API: api.avecchi.ai** (#917) — docs e webhook Focus.
+
+### Corrigido
+- **Sessão derrubava o usuário a cada ~30 min** (#918): o interceptor web guardava só o `accessToken` da renovação e mantinha o refresh já revogado pela rotação; e N chamadas com 401 simultâneo disparavam N refreshes concorrentes. Agora persiste o PAR rotacionado e a renovação é single-flight.
+- **Config do CRM não fica mais em loading eterno no 403** (#739/#907).
+
+### Infra
+- Migrations aditivas e idempotentes (aplicar via `db execute`, #640): `20260802120000_ops_wp1_tenant_lifecycle`, `20260802150000_ops_wp2_provisioning`, `20260802180000_ops_wp3_tenant_usage`, `20260802210000_ops_wp4_plans_entitlements`.
+- Seeds: `db:seed:iam` (perfil `AVECCHI_OPERATOR` + permissões `ops.*`, catálogo 316) e planos (3 templates, sem atribuição a tenants).
+- Catálogo RBAC: `ADMIN_GLOBAL`/`ADMIN_EMPRESA` migram de `allPermissionCodes()` para `tenantPermissionCodes()` — admin de cliente **não** recebe `ops.*`.
+
+## [1.26.0] - 2026-08-01
+
+### Adicionado
+
+**Workspace Vivo — a Home vira mesa de trabalho** (desafio de 13 pontos, 31/07–01/08)
+- **Minha Mesa** (#897, #898): "Minhas Pendências" vira inbox unificado e priorizado (crítico → atenção → informação). Fontes: aprovações na alçada, follow-ups de CRM, inspeções, **cobrança vencida** (recebíveis somados), **expedição parada** (venda faturada sem documento do veículo, crítica a partir de 3 dias) e **cliente aguardando** (SLA de 1ª resposta estourado, sempre no escopo do próprio usuário).
+- **Meu Dia** (#899): novo `GET /workspace/my-day?days=1..90` — faturado, recebido e produzido **hoje**, mais a variação real contra o período anterior. Sem meta e sem streak (dependem do épico #867/#868); período anterior zerado devolve `null` e a interface diz "sem base", nunca um percentual inventado. "Hoje" é meia-noite em `America/Sao_Paulo`, não o UTC do contêiner.
+- **Tiers de tamanho P/M/G** (#902): grid de 12 colunas (P=4 · M=6 · G=12) e seletor P·M·G no modo edição. Cada widget declara os tiers que aceita — gráfico e calendário não descem para um terço. Layouts salvos com `half`/`full` seguem válidos (tradução na leitura, DTO aceita ambos).
+- **Mural de notas** (#904): as notas ganham ordem (arrastar), podem ser **fixadas** no topo e passam a ser **arquivadas** em vez de excluídas — com "Desfazer" no toast e gaveta de arquivadas. Excluir definitivo só de dentro da gaveta.
+- **Notas rápidas** (#886, #892): post-its pessoais com persistência real (`gdr_user_quick_notes`), alfinete 3D tonal e mural em papel quadrado; pendências concluíveis ganham check com saída animada.
+- **Widgets vivos** (#893, #894, #896): Antonella vira consultora (cada insight com trilho de prioridade, tag e CTA próprio), Produção vira barra de progresso real (produzido ÷ planejado das OPs ativas) e os gráficos ganham área com gradiente, linha suave e tooltip do tema.
+
+**Fora do Workspace**
+- **Alerta anti-fraude de troca de dados bancários de fornecedor** (#864, #891): toda alteração de chave PIX/dados bancários deixa rastro em auditoria e o alerta aparece no sino — e na hora de pagar. Janela de 15 dias; primeiro preenchimento não alerta.
+- **Chassis gravados pela marcadora** (#889, #890): tela de acompanhamento + guia de instalação.
+- **Padrão de filtros clean em todas as listagens** (#881) e **Carteira de Pagáveis** mais direta (status "Pagar hoje", busca).
+- **Deep-link `?due=`** (#885): o calendário abre a carteira já filtrada no vencimento do dia.
+
+### Corrigido
+- **KPI e gráfico de Faturamento passam a medir venda faturada** (#900): liam `/analytics/sales-cube`, que agrupa por mês de **criação** do pedido e inclui **rascunho e cancelado** — o "faturamento" da Home somava o que não foi faturado. Agora ambos usam `GET /workspace/revenue` (venda `INVOICED` por `invoicedAt`, um ponto por dia), com o mesmo número do Meu Dia.
+- **Notas rápidas: "Nova nota" não fazia nada** (#888): `@MinLength(1)` rejeitava o post-it que nasce em branco e a mutação falhava em silêncio (400 sem `onError`). DTO passou a aceitar vazio e toda mutação ganhou toast de erro.
+
+### Infra
+- Migrations aditivas e idempotentes: `20260731120000_user_quick_notes`, `20260731210000_alert_supplier_banking_changed`, `20260801120000_quick_notes_board`.
+- Histórico `_prisma_migrations` regularizado: a migration das notas rápidas fora aplicada à mão na rodada 6 sem registro — banco estava correto, o histórico é que mentia.
+
 ## [1.25.0] - 2026-07-31
 
 ### Adicionado
@@ -306,7 +365,10 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...HEAD
+[1.28.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...v1.28.0
+[1.27.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.22.0...v1.23.0

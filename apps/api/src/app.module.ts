@@ -13,6 +13,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
+import { EntitlementGuard } from './common/guards/entitlement.guard';
+import { ImpersonationReadonlyGuard } from './common/guards/impersonation-readonly.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
@@ -74,6 +76,8 @@ import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { IamModule } from './modules/iam/iam.module';
+import { OpsModule } from './modules/ops/ops.module';
+import { EntitlementModule } from './modules/entitlement/entitlement.module';
 
 @Module({
   imports: [
@@ -175,6 +179,8 @@ import { IamModule } from './modules/iam/iam.module';
     RfqModule,
     LgpdModule,
     IamModule,
+    OpsModule,
+    EntitlementModule,
   ],
   providers: [
     // Filtro global de exceções via DI (injeta EventEmitter2 p/ captura 5xx #766)
@@ -204,6 +210,20 @@ import { IamModule } from './modules/iam/iam.module';
     {
       provide: APP_GUARD,
       useClass: PermissionGuard,
+    },
+    // OPS WP4 (#911): entitlement por CONTA (o que o tenant contratou).
+    // DEPOIS do PermissionGuard: primeiro "este usuário pode?", depois
+    // "esta conta contratou?" — 403 com mensagens distintas. Endpoint sem
+    // @RequireEntitlement → libera (nada muda para o resto do app).
+    {
+      provide: APP_GUARD,
+      useClass: EntitlementGuard,
+    },
+    // OPS WP6 (#913): sessão de suporte é somente-leitura — mutações sob
+    // impersonation morrem aqui, independente de permissão/entitlement.
+    {
+      provide: APP_GUARD,
+      useClass: ImpersonationReadonlyGuard,
     },
     // #349: rate limiting adaptativo — tracker por usuário quando autenticado,
     // teto global 2× p/ confiáveis; limites estritos de rota nunca inflam.

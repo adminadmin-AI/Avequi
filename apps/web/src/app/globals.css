@@ -156,6 +156,16 @@ body {
     0 10px 16px -6px rgb(0 0 0 / 0.2),
     0 22px 34px -12px rgb(0 0 0 / 0.16);
 }
+/* Nota FIXADA no topo: pregada firme — fica reta (o tilt vem 0 do componente)
+   e assenta mais alto que as soltas, com uma sombra um pouco mais densa. É a
+   diferença entre "pregado com força" e "preso de qualquer jeito". */
+.quick-note-pinned {
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / 0.14),
+    0 8px 14px -5px rgb(0 0 0 / 0.24),
+    0 18px 30px -12px rgb(0 0 0 / 0.2);
+}
+
 /* sombra projetada do alfinete no papel */
 .quick-pin-shadow {
   background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.22), rgb(0 0 0 / 0) 70%);

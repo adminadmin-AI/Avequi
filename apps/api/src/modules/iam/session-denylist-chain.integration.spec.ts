@@ -72,7 +72,12 @@ describe('cadeia revokeAllSessions → denylist → JwtStrategy (#823)', () => {
       disconnect: jest.fn(),
     };
 
-    strategy = new JwtStrategy({ get: jest.fn().mockReturnValue('secret') } as any, denylist);
+    strategy = new JwtStrategy(
+      { get: jest.fn().mockReturnValue('secret') } as any,
+      denylist,
+      // #341: sessão viva — esta cadeia testa a denylist, não a ociosidade.
+      { isSessionAliveAndTouch: jest.fn().mockResolvedValue(true) } as any,
+    );
 
     mockPrisma.userSession.update.mockResolvedValue({});
     mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });

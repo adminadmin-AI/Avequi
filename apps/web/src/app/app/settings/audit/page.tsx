@@ -16,6 +16,7 @@ import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
+import { SupportAccessCard } from './support-access-card';
 
 interface AuditLog {
   id: string;
@@ -88,6 +89,11 @@ export default function AuditLogPage() {
     return (
       <div>
         <PageHeader title="Log de Auditoria" />
+        {/* Transparência do suporte (#913): independe de SUPER_ADMIN — gate
+            próprio por permissão (iam.audit-logs.view) dentro do card. */}
+        <div className="mb-5">
+          <SupportAccessCard />
+        </div>
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
             <ShieldX size={32} className="text-content-muted" />
@@ -101,6 +107,10 @@ export default function AuditLogPage() {
   return (
     <div>
       <PageHeader title="Log de Auditoria" description="Registro de alterações realizadas no sistema." />
+
+      <div className="mb-5">
+        <SupportAccessCard />
+      </div>
 
       {logsQ.isError && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-warning">

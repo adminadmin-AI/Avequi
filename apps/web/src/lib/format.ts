@@ -113,6 +113,27 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   });
 }
 
+/**
+ * Tempo relativo curto em pt-BR por extenso ("agora", "há 5 min", "há 2 h",
+ * "há 3 dias") — a partir de 30 dias cai para a data absoluta (formatDate).
+ * Ver também `relativeTime`/`timeAgo` locais (notification-bell, crm/inbox)
+ * — versões abreviadas para contextos mais compactos; esta é a forma por
+ * extenso usada em tabelas/detalhe (ex.: painel Ops #910).
+ */
+export function formatRelativeTime(value: string | Date | null | undefined): string {
+  const d = toDate(value);
+  if (!d) return '—';
+  const diffMs = Date.now() - d.getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `há ${days} ${days === 1 ? 'dia' : 'dias'}`;
+  return formatDate(d);
+}
+
 /** Para inputs <input type="date"> → YYYY-MM-DD */
 export function toDateInput(value: string | Date | null | undefined): string {
   const d = toDate(value);

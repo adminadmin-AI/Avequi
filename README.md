@@ -18,7 +18,7 @@ NestJS 10 + Prisma 5 + PostgreSQL/Supabase (`apps/api`) · Next.js 14 + Tailwind
 | 🔖 Versionamento & release | [`docs/VERSIONING.md`](docs/VERSIONING.md) |
 | 📋 Board | https://github.com/users/adminadmin-AI/projects/7 |
 | 🌐 Front (prod) | https://avequi-web-psi.vercel.app |
-| ⚙️ API (prod) | https://avequi-api-production.up.railway.app/api · [Swagger](https://avequi-api-production.up.railway.app/docs) |
+| ⚙️ API (prod) | https://api.avecchi.ai/api · [Swagger](https://api.avecchi.ai/docs) |
 
 ## Quick start
 
