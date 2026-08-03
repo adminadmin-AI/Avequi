@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Can } from '@/components/can';
+import { usePermission } from '@/hooks/use-permission';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -120,6 +121,9 @@ export default function OpsTenantsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  // OPS F2: mesmo gate do <Can> do cabeçalho — o CTA do estado vazio é uma
+  // prop (não dá pra envolver em <Can>), então decide pela permissão aqui.
+  const { can } = usePermission();
   const { data: tenants = [], isLoading, isError, error, refetch } = useList<Tenant>(RESOURCE);
 
   const runMetering = useMutation({
@@ -270,10 +274,15 @@ export default function OpsTenantsPage() {
                 Reprocessar métricas
               </Button>
             </Can>
-            <Button onClick={() => router.push('/app/ops/new')}>
-              <Plus size={16} />
-              Nova conta
-            </Button>
+            {/* OPS F2: /app/ops/new entrou no mapa de rotas (nav-config) com o
+                gate do backend (ops.tenants.provision) — o atalho some para
+                quem não provisiona, em vez de levar a um "Acesso negado". */}
+            <Can permission="ops.tenants.provision">
+              <Button onClick={() => router.push('/app/ops/new')}>
+                <Plus size={16} />
+                Nova conta
+              </Button>
+            </Can>
           </div>
         }
       />
@@ -291,7 +300,11 @@ export default function OpsTenantsPage() {
             icon={Building2}
             title="Nenhuma conta cadastrada"
             description="Comece o onboarding de uma nova conta de cliente."
-            action={{ label: 'Nova conta', icon: <Plus size={16} />, onClick: () => router.push('/app/ops/new') }}
+            action={
+              can('ops.tenants.provision')
+                ? { label: 'Nova conta', icon: <Plus size={16} />, onClick: () => router.push('/app/ops/new') }
+                : undefined
+            }
           />
         }
       />

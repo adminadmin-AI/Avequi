@@ -1,57 +1,25 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, PanelLeftClose, PanelLeft, Search, Star, X } from 'lucide-react';
+import { ChevronDown, PanelLeftClose, PanelLeft, Search, X } from 'lucide-react';
 import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
 import { useNavAccess, usePermission } from '@/hooks/use-permission';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
-import { useUiStore } from '@/stores/ui-store';
+import { NavLink } from '@/components/shell/nav-link';
+import { SidebarFrame, SidebarVersionFooter } from '@/components/shell/sidebar-frame';
 import Image from 'next/image';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { cn } from '@/lib/utils';
 
 const FAV_KEY = 'avequi:sidebar:favorites';
 const COLLAPSED_SECTIONS_KEY = 'avequi:sidebar:collapsed-sections';
-// #versioning — versão real do produto, injetada do package.json em build time
-const APP_VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}`;
 
 export function Sidebar() {
-  const { sidebarCollapsed, toggleSidebarCollapsed, mobileNavOpen, setMobileNavOpen } =
-    useUiStore();
-
-  return (
-    <>
-      {/* Desktop — fixa */}
-      <aside
-        className={cn(
-          'fixed inset-y-0 left-0 z-20 hidden flex-col bg-surface-secondary transition-[width] duration-flow ease-precise lg:flex',
-          sidebarCollapsed ? 'w-16' : 'w-60',
-        )}
-      >
-        <SidebarInner
-          mini={sidebarCollapsed}
-          onToggleMini={toggleSidebarCollapsed}
-        />
-      </aside>
-
-      {/* Mobile — drawer overlay */}
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            aria-label="Fechar menu"
-            className="absolute inset-0 bg-surface-overlay backdrop-blur-sm duration-fast animate-in fade-in"
-            onClick={() => setMobileNavOpen(false)}
-          />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-surface shadow-elevation-4 duration-flow animate-in slide-in-from-left">
-            <SidebarInner mini={false} onClose={() => setMobileNavOpen(false)} showClose />
-          </aside>
-        </div>
-      )}
-    </>
-  );
+  // A casca (coluna fixa + drawer mobile + Ctrl+B) é compartilhada com o
+  // console da operadora desde a OPS F2 — ver sidebar-frame.tsx.
+  return <SidebarFrame>{(ctx) => <SidebarInner {...ctx} />}</SidebarFrame>;
 }
 
 function SidebarInner({
@@ -325,104 +293,8 @@ function SidebarInner({
       </nav>
 
       {/* ─── Footer — dieta F2: só a versão (a marca já vive no topo) ─── */}
-      <div className={cn('border-t border-line px-4 py-2.5', mini && 'px-2 text-center')}>
-        <p className="text-helper text-content-muted">{APP_VERSION}</p>
-      </div>
+      <SidebarVersionFooter mini={mini} />
     </div>
-  );
-}
-
-function NavLink({
-  item,
-  active,
-  mini,
-  count,
-  isFavorite,
-  onToggleFav,
-  onNavigate,
-  highlight,
-}: {
-  item: NavItem;
-  active: boolean;
-  mini: boolean;
-  count: number;
-  isFavorite: boolean;
-  onToggleFav: () => void;
-  onNavigate?: () => void;
-  highlight?: string;
-}) {
-  const { icon: Icon, label, href } = item;
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      title={mini ? label : undefined}
-      className={cn(
-        'group relative flex items-center rounded-lg text-sm transition-colors duration-fast',
-        mini ? 'h-10 justify-center' : 'gap-2.5 px-3 py-2',
-        // Soft Surfaces: seleção por tinta alpha (não bloco sólido)
-        active
-          ? 'bg-brand-600/[0.08] font-medium text-brand-700 dark:bg-brand-400/[0.10] dark:text-brand-300'
-          : 'text-content-secondary hover:bg-neutral-500/[0.08]',
-      )}
-    >
-      {/* left border accent quando ativo */}
-      {active && (
-        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-600 duration-flow animate-in fade-in slide-in-from-left-1 dark:bg-brand-400" />
-      )}
-      <Icon
-        size={17}
-        className={cn('shrink-0', active ? 'text-brand-600 dark:text-brand-300' : 'text-content-muted')}
-      />
-      {!mini && (
-        <>
-          <span className="flex-1 truncate">
-            {highlight ? <Highlighted text={label} term={highlight} /> : label}
-          </span>
-          {count > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white duration-fast animate-in zoom-in">
-              {count > 99 ? '99+' : count}
-            </span>
-          )}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onToggleFav();
-            }}
-            aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-            className={cn(
-              'rounded p-0.5 transition-opacity',
-              isFavorite
-                ? 'text-warning opacity-100'
-                : 'text-content-muted opacity-0 hover:text-warning group-hover:opacity-100',
-            )}
-          >
-            <Star size={14} className={isFavorite ? 'fill-warning' : ''} />
-          </button>
-        </>
-      )}
-      {/* badge compacto no modo mini */}
-      {mini && count > 0 && (
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
-      )}
-    </Link>
-  );
-}
-
-function Highlighted({ text, term }: { text: string; term: string }) {
-  const q = term.trim();
-  if (!q) return <>{text}</>;
-  const idx = text.toLowerCase().indexOf(q.toLowerCase());
-  if (idx === -1) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="bg-brand-100 text-brand-700 dark:bg-brand-600/30 dark:text-brand-200">
-        {text.slice(idx, idx + q.length)}
-      </mark>
-      {text.slice(idx + q.length)}
-    </>
   );
 }
 
