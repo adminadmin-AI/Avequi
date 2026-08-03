@@ -71,9 +71,32 @@ export const MAX_CONCURRENT_SESSIONS = 5;
  * usuários/permissões) pode ser aplicado numa fase futura sobrepondo este valor
  * no ponto de validação — a estrutura de validação por sessão já suporta isso.
  */
-export const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
-/** Debounce do heartbeat de lastActivityAt (5 min). */
-export const ACTIVITY_DEBOUNCE_MS = 5 * 60 * 1000;
+export const SESSION_IDLE_TIMEOUT_MS = resolveIdleTimeoutMs();
+
+/**
+ * Minutos de ociosidade até a sessão morrer. Configurável porque o número
+ * certo é decisão de negócio, não de código: 15 min protege um terminal
+ * destravado no chão de fábrica; um escritório talvez queira 60.
+ * `SESSION_IDLE_TIMEOUT_MINUTES` no ambiente; fora da faixa 1..1440 ou
+ * inválido, cai no default.
+ */
+export function resolveIdleTimeoutMs(): number {
+  const DEFAULT_MIN = 15;
+  const bruto = Number(process.env.SESSION_IDLE_TIMEOUT_MINUTES);
+  const minutos = Number.isFinite(bruto) && bruto >= 1 && bruto <= 1440 ? bruto : DEFAULT_MIN;
+  return minutos * 60 * 1000;
+}
+
+/**
+ * Debounce do heartbeat: com que frequência a atividade é gravada. Deriva do
+ * timeout (um quinto), entre 30s e 5 min — com timeout de 15 min, grava no
+ * máximo a cada 3 min, então o erro do relógio de ociosidade é ≤ 3 min.
+ * Fixar 5 min seria grosseiro demais para um timeout curto.
+ */
+export const ACTIVITY_DEBOUNCE_MS = Math.min(
+  5 * 60 * 1000,
+  Math.max(30 * 1000, Math.floor(SESSION_IDLE_TIMEOUT_MS / 5)),
+);
 
 /** Mensagem do 423 — genérica de propósito (não revela se a conta existe). */
 const LOCKED_MESSAGE =
@@ -517,6 +540,60 @@ export class SessionService {
       });
     } catch (err) {
       this.logger.warn(`Falha no heartbeat da sessão (best-effort): ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Ponto único da regra de INATIVIDADE, chamado a cada requisição
+   * autenticada (JwtStrategy). Faz as duas coisas numa query só:
+   *
+   *   UPDATE ... SET lastActivityAt = agora
+   *    WHERE id = ? AND revokedAt IS NULL AND lastActivityAt >= (agora - timeout)
+   *
+   * - afetou 1 linha  → sessão viva e atividade registrada;
+   * - afetou 0 linhas → ou está revogada, ou passou do tempo ocioso. Só aí
+   *   vale uma leitura para distinguir: se foi ociosidade, revoga com
+   *   EXPIRED (a sessão some da tela "meus dispositivos" com o motivo certo).
+   *
+   * O `skipWrite` evita gravar a cada request: quem já foi tocado dentro da
+   * janela de debounce só precisa ser LIDO, e leitura é barata.
+   *
+   * FAIL-OPEN por decisão: se o banco falhar, a requisição segue. Derrubar
+   * todo mundo por instabilidade de infraestrutura seria pior que esticar a
+   * ociosidade de alguém — e o access token ainda expira sozinho em 15 min.
+   */
+  async isSessionAliveAndTouch(sessionId: string, skipWrite = false): Promise<boolean> {
+    const agora = Date.now();
+    const limite = new Date(agora - SESSION_IDLE_TIMEOUT_MS);
+
+    try {
+      if (!skipWrite) {
+        const { count } = await this.prisma.userSession.updateMany({
+          where: { id: sessionId, revokedAt: null, lastActivityAt: { gte: limite } },
+          data: { lastActivityAt: new Date(agora) },
+        });
+        if (count > 0) return true;
+      }
+
+      const sessao = await this.prisma.userSession.findUnique({
+        where: { id: sessionId },
+        select: { id: true, revokedAt: true, lastActivityAt: true, refreshTokenId: true },
+      });
+      // Token legado sem sessão persistida (#342): segue valendo até expirar.
+      if (!sessao) return true;
+      if (sessao.revokedAt) return false;
+
+      const ocioso = agora - sessao.lastActivityAt.getTime() > SESSION_IDLE_TIMEOUT_MS;
+      if (ocioso) {
+        await this.revokeSessionRow(sessao.id, sessao.refreshTokenId, SessionRevokedReason.EXPIRED);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao validar ociosidade da sessão (fail-open): ${(err as Error).message}`,
+      );
+      return true;
     }
   }
 
