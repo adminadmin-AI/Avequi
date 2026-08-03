@@ -16,7 +16,10 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { InviteAdminDto } from './dto/invite-admin.dto';
 import { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
+import { Throttle } from '@nestjs/throttler';
+import { OPS_THROTTLE } from './ops-hardening.constants';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsPanelService } from './ops-panel.service';
 import { OpsActionContext, OpsService } from './ops.service';
 import { ProvisioningService } from './provisioning.service';
@@ -33,7 +36,8 @@ import { ProvisioningService } from './provisioning.service';
  */
 @ApiTags('ops')
 @ApiBearerAuth()
-@UseGuards(OpsMfaGuard)
+@Throttle(OPS_THROTTLE)
+@UseGuards(OpsMfaGuard, OpsSessionGuard)
 @Controller('ops/tenants')
 export class OpsController {
   constructor(

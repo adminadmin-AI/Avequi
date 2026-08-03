@@ -603,6 +603,7 @@ export class SalesService {
   //   Chamado pelo listener quando PickingOrder.status = DONE.
 
   async markReadyToInvoice(salesOrderId: string) {
+    // tenant-lint: ok (chamado por listener interno (picking DONE): id vem de registro próprio, não de input do usuário)
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: salesOrderId },
     });
@@ -615,6 +616,7 @@ export class SalesService {
     }
 
     // #491: separação concluída → conferência da carga (nova etapa antes da NF-e)
+    // tenant-lint: ok (transição interna do mesmo pedido carregado acima)
     return this.prisma.salesOrder.update({
       where: { id: salesOrderId },
       data: { status: SalesOrderStatus.AWAITING_CONFERENCE, pickedAt: new Date() },

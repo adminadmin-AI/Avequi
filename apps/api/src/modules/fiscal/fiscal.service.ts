@@ -999,6 +999,7 @@ export class FiscalService {
     if (issues.length === 0) return false;
     const msg = formatValidationIssues(issues);
     this.logger.warn(`Fiscal Validator bloqueou ${ref}: ${msg}`);
+    // tenant-lint: ok (fluxo interno de emissão: id do documento recém-criado pelo próprio service)
     await this.prisma.fiscalDocument.update({
       where: { id: fiscalDocumentId },
       data: { status: FiscalStatus.ERROR, lastError: msg },

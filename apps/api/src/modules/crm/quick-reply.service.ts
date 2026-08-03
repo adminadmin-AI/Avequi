@@ -89,6 +89,7 @@ export class QuickReplyService {
 
   async remove(actor: RequestActor, id: string) {
     await this.findOwned(actor, id);
+    // tenant-lint: ok (posse verificada em findOwned(actor, id) na linha acima)
     await this.prisma.quickReply.delete({ where: { id } });
     return { deleted: true };
   }

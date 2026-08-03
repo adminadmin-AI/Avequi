@@ -170,6 +170,7 @@ export class SessionService {
    * manter a resposta indistinguível.
    */
   private async resolveLockedUntil(email: string): Promise<Date | null> {
+    // tenant-lint: ok (pré-auth por email (lockout): email é único global, ainda não há tenant resolvido)
     const user = await this.prisma.user.findUnique({
       where: { email },
       select: { lockedUntil: true },
@@ -358,6 +359,7 @@ export class SessionService {
   /** Sucesso de login zera a trava. Best-effort. */
   async clearLockout(userId: string): Promise<void> {
     try {
+      // tenant-lint: ok (plumbing de auth: userId já autenticado pelo fluxo)
       await this.prisma.user.update({
         where: { id: userId },
         data: { lockedUntil: null },
@@ -426,6 +428,7 @@ export class SessionService {
 
   /** Estourou o limite de 5 sessões ativas? Derruba a mais antiga. */
   private async enforceSessionLimit(userId: string): Promise<void> {
+    // tenant-lint: ok (plumbing de auth: sessões do próprio userId)
     const active = await this.prisma.userSession.findMany({
       where: { userId, revokedAt: null },
       orderBy: { lastActivityAt: 'asc' },
@@ -485,6 +488,7 @@ export class SessionService {
    */
   async validateSessionForRefresh(refreshTokenId: string): Promise<SessionRefreshCheck> {
     try {
+      // tenant-lint: ok (plumbing de auth: refreshTokenId é segredo de posse do próprio usuário)
       const session = await this.prisma.userSession.findUnique({
         where: { refreshTokenId },
         select: { id: true, lastActivityAt: true, revokedAt: true },
@@ -516,6 +520,7 @@ export class SessionService {
    */
   async attachRefreshToSession(sessionId: string, newRefreshTokenId: string): Promise<void> {
     try {
+      // tenant-lint: ok (plumbing de auth: sessionId da própria sessão validada)
       await this.prisma.userSession.update({
         where: { id: sessionId },
         data: { refreshTokenId: newRefreshTokenId, lastActivityAt: new Date() },
@@ -534,6 +539,7 @@ export class SessionService {
   async touchSession(sessionId: string): Promise<void> {
     try {
       const threshold = new Date(Date.now() - ACTIVITY_DEBOUNCE_MS);
+      // tenant-lint: ok (plumbing de auth: heartbeat da própria sessão)
       await this.prisma.userSession.updateMany({
         where: { id: sessionId, revokedAt: null, lastActivityAt: { lt: threshold } },
         data: { lastActivityAt: new Date() },
@@ -568,6 +574,7 @@ export class SessionService {
 
     try {
       if (!skipWrite) {
+        // tenant-lint: ok (plumbing de auth: touch atômico da própria sessão)
         const { count } = await this.prisma.userSession.updateMany({
           where: { id: sessionId, revokedAt: null, lastActivityAt: { gte: limite } },
           data: { lastActivityAt: new Date(agora) },
@@ -575,6 +582,7 @@ export class SessionService {
         if (count > 0) return true;
       }
 
+      // tenant-lint: ok (plumbing de auth: leitura da própria sessão)
       const sessao = await this.prisma.userSession.findUnique({
         where: { id: sessionId },
         select: { id: true, revokedAt: true, lastActivityAt: true, refreshTokenId: true },
@@ -599,6 +607,7 @@ export class SessionService {
 
   /** Sessões ativas do usuário — base da tela "meus dispositivos" (#352). */
   async listSessions(userId: string) {
+    // tenant-lint: ok (plumbing de auth: sessões do próprio userId)
     return this.prisma.userSession.findMany({
       where: { userId, revokedAt: null },
       orderBy: { lastActivityAt: 'desc' },
@@ -722,6 +731,7 @@ export class SessionService {
     reason: SessionRevokedReason,
   ): Promise<void> {
     try {
+      // tenant-lint: ok (plumbing de auth: revogação pela posse do refreshTokenId)
       await this.prisma.userSession.updateMany({
         where: { refreshTokenId, revokedAt: null },
         data: { revokedAt: new Date(), revokedReason: reason },
@@ -739,6 +749,7 @@ export class SessionService {
     refreshTokenId: string | null,
     reason: SessionRevokedReason,
   ): Promise<void> {
+    // tenant-lint: ok (plumbing de auth: revogação da própria sessão)
     await this.prisma.userSession.update({
       where: { id: sessionId },
       data: { revokedAt: new Date(), revokedReason: reason },

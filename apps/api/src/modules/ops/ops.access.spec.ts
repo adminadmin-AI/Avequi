@@ -33,7 +33,11 @@ interface Endpoint {
   roles?: string[];
 }
 
-/** Controllers PROTEGIDOS do control plane — todo novo controller /ops entra aqui. */
+/** Controllers PROTEGIDOS do control plane — todo novo controller /ops entra aqui.
+ *  WP7 (#914): a lista não estagna — o teste "lista manual = descoberta
+ *  automática" abaixo compara com o glob de modules/ops e quebra se um
+ *  controller novo nascer fora daqui (a blindagem por default é provada no
+ *  tenant-isolation.sweep.spec, que descobre sozinho). */
 const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }> = [
   { name: 'OpsController', cls: OpsController },
   { name: 'OpsPanelController', cls: OpsPanelController },
@@ -41,6 +45,10 @@ const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }>
   { name: 'BillingController', cls: BillingController },
   { name: 'ImpersonationController', cls: ImpersonationController },
 ];
+
+/** Self-service/público por design (cada um valida a si próprio; sem visão
+ *  cross-tenant) — mesma allowlist do tenant-isolation.sweep.spec. */
+const OPS_SELF_SERVICE = ['BillingStatusController', 'InviteController', 'SupportAccessController'];
 
 function endpointsOf(cls: new (...args: any[]) => any): Endpoint[] {
   const proto = cls.prototype as any;
@@ -101,6 +109,24 @@ const PERFIS_DE_TENANT_AMOSTRA = [
 ];
 
 describe('OPS WP1/WP3 (#908/#910) — fronteira do control plane (PermissionGuard + metadata real)', () => {
+  it('WP7 (#914): lista manual = descoberta automática de modules/ops (não estagna)', () => {
+    const fs = require('fs') as typeof import('fs');
+    const path = require('path') as typeof import('path');
+    const descobertos: string[] = [];
+    for (const entry of fs.readdirSync(__dirname)) {
+      if (!entry.endsWith('.controller.ts')) continue;
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require(path.join(__dirname, entry));
+      for (const cls of Object.values(mod) as any[]) {
+        if (typeof cls !== 'function') continue;
+        if (Reflect.getMetadata('path', cls) === undefined) continue;
+        descobertos.push(cls.name);
+      }
+    }
+    const esperados = [...OPS_CONTROLLERS.map((c) => c.name), ...OPS_SELF_SERVICE].sort();
+    expect(descobertos.sort()).toEqual(esperados);
+  });
+
   for (const { name, cls } of OPS_CONTROLLERS) {
     it(`${name}: tem endpoints e TODOS exigem exatamente uma permissão ops.*`, () => {
       const endpoints = endpointsOf(cls);

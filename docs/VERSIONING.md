@@ -58,6 +58,16 @@ endpoint reporta `gitSha: "unknown"` — a `version` continua correta.
    ```
 7. **Validar:** `curl https://api.avecchi.ai/api/version`
    deve refletir a `version` nova e o `gitSha` do commit taggeado.
+   **Smoke de isolamento cross-tenant (OPS WP7 #914)** — obrigatório com 2+
+   tenants em produção:
+   ```bash
+   SMOKE_TENANT_A_EMAIL=... SMOKE_TENANT_A_PASSWORD=... \
+   SMOKE_TENANT_B_EMAIL=... SMOKE_TENANT_B_PASSWORD=... \
+   npm run smoke:isolation
+   ```
+   (A e B em **tenants diferentes** — ex.: GDR × conta SANDBOX. O script
+   prova que B não lê recurso de A por ID e que token de tenant não abre
+   `/ops`. Qualquer furo → exit 1: deploy NÃO validado.)
 8. **Web (Vercel):** deploy do `apps/web` (o rodapé mostra a versão nova).
 
 > Dica: o `gitSha` no `/api/version` diz **exatamente** qual commit está no ar —

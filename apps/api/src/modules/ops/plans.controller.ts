@@ -20,7 +20,10 @@ import {
   SetOverrideDto,
   UpdatePlanDto,
 } from './dto/plan.dtos';
+import { Throttle } from '@nestjs/throttler';
+import { OPS_THROTTLE } from './ops-hardening.constants';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsSessionGuard } from './ops-session.guard';
 import { OpsActionContext } from './ops.service';
 import { PlansService } from './plans.service';
 
@@ -31,7 +34,8 @@ import { PlansService } from './plans.service';
  */
 @ApiTags('ops')
 @ApiBearerAuth()
-@UseGuards(OpsMfaGuard)
+@Throttle(OPS_THROTTLE)
+@UseGuards(OpsMfaGuard, OpsSessionGuard)
 @Controller('ops')
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}

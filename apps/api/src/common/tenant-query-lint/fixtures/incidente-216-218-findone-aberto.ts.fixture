@@ -1,0 +1,17 @@
+// Reprodução dos incidentes #216/#218 — RLS "teatro" + findOne/update sem
+// filtro de tenant: leitura por id direto confiando num RLS que não estava
+// ativo. O lint TEM que flagrar as duas chamadas.
+export class ReportVulneravelService {
+  constructor(private readonly prisma: any) {}
+
+  async getStatus(reportId: string) {
+    return this.prisma.report.findUnique({ where: { id: reportId } });
+  }
+
+  async listPending() {
+    return this.prisma.report.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+}

@@ -875,6 +875,7 @@ export class FinanceService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // tenant-lint: ok (cron de sistema: OPEN vencido vira OVERDUE em todos os tenants por design)
     const { count } = await this.prisma.financialEntry.updateMany({
       where: {
         status: FinancialEntryStatus.OPEN,

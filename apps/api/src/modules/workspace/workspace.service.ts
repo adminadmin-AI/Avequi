@@ -354,6 +354,7 @@ export class WorkspaceService {
 
   /** Layout salvo do usuário, ou null (= template puro do perfil). */
   async getLayout(user: AuthUserLite) {
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     const row = await this.prisma.userWorkspaceLayout.findUnique({
       where: { userId: user.id },
     });
@@ -385,6 +386,7 @@ export class WorkspaceService {
 
   /** Reset = apagar a linha; a Home volta ao template puro do perfil. */
   async resetLayout(user: AuthUserLite) {
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     await this.prisma.userWorkspaceLayout.deleteMany({ where: { userId: user.id } });
     return { reset: true };
   }
@@ -424,6 +426,7 @@ export class WorkspaceService {
    * criadas antes de existir ordenação (todas com position 0).
    */
   async listNotes(user: AuthUserLite, archived = false): Promise<WorkspaceNote[]> {
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     const notes = await this.prisma.userQuickNote.findMany({
       where: { userId: user.id, archivedAt: archived ? { not: null } : null },
       orderBy: archived
@@ -472,11 +475,13 @@ export class WorkspaceService {
     // ordena a gaveta (mais recém-arquivada primeiro).
     if (patch.pinned !== undefined) data.pinnedAt = patch.pinned ? new Date() : null;
     if (patch.archived !== undefined) data.archivedAt = patch.archived ? new Date() : null;
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     const res = await this.prisma.userQuickNote.updateMany({
       where: { id, userId: user.id },
       data,
     });
     if (res.count === 0) throw new NotFoundException('Nota não encontrada');
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     const note = await this.prisma.userQuickNote.findFirstOrThrow({
       where: { id, userId: user.id },
     });
@@ -492,6 +497,7 @@ export class WorkspaceService {
     if (ids.length > 0) {
       await this.prisma.$transaction(
         ids.map((id, index) =>
+          // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
           this.prisma.userQuickNote.updateMany({
             where: { id, userId: user.id },
             data: { position: index },
@@ -504,6 +510,7 @@ export class WorkspaceService {
 
   /** Excluir de vez (só faz sentido a partir da gaveta). Idempotente. */
   async deleteNote(user: AuthUserLite, id: string): Promise<{ deleted: boolean }> {
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
     await this.prisma.userQuickNote.deleteMany({ where: { id, userId: user.id } });
     return { deleted: true };
   }

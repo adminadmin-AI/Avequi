@@ -19,7 +19,8 @@
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
-    "changelog:draft": "node scripts/changelog-draft.js"
+    "changelog:draft": "node scripts/changelog-draft.js",
+    "smoke:isolation": "node scripts/smoke-tenant-isolation.mjs"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

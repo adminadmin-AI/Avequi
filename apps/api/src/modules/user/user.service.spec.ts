@@ -272,6 +272,11 @@ describe('UserService', () => {
       // precisar — o beforeEach garante que um teste não vaza p/ o outro.
       mockPrisma.userRoleAssignment.count.mockResolvedValue(0);
       mockPrisma.user.count.mockResolvedValue(1);
+      // WP7 (#914): a contagem de admins é escopada à ÁRVORE do tenant — o
+      // service resolve a empresa do alvo via findUnique antes de contar.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        company: { id: 'co-1', parentId: null },
+      });
       mockSessionService.revokeAllSessions.mockResolvedValue(0);
     });
 
@@ -355,6 +360,37 @@ describe('UserService', () => {
       await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.isActive).toBe(false);
+    });
+
+    it('WP7 (#914): a contagem de admins é escopada à ÁRVORE do tenant (matriz+filiais), nunca global', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      // alvo está numa FILIAL: raiz = parentId
+      mockPrisma.user.findUnique.mockResolvedValue({
+        company: { id: 'co-filial', parentId: 'co-raiz' },
+      });
+
+      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+
+      // O guard só conta admins DENTRO da árvore da raiz — admins de OUTROS
+      // tenants não podem mais mascarar o "último admin" (bug multi-tenant).
+      expect(mockPrisma.user.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            company: { OR: [{ id: 'co-raiz' }, { parentId: 'co-raiz' }] },
+          }),
+        }),
+      );
+    });
+
+    it('WP7 (#914): tenant do alvo não resolvido → fail-closed (bloqueia como último admin)', async () => {
+      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
+      mockPrisma.user.findUnique.mockResolvedValue(null); // empresa não resolvida
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.user.count).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('CORRIDA: pós-checagem zerou os admins → reverte a inativação e rejeita', async () => {

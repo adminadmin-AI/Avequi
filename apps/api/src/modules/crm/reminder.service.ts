@@ -97,6 +97,7 @@ export class ReminderService {
 
   async markDone(actor: ReminderActor, id: string) {
     await this.findOwned(actor, id);
+    // tenant-lint: ok (posse verificada em findOwned(actor, id) na linha acima)
     return this.prisma.leadReminder.update({
       where: { id },
       data: { doneAt: new Date() },
@@ -105,6 +106,7 @@ export class ReminderService {
 
   async remove(actor: ReminderActor, id: string) {
     await this.findOwned(actor, id);
+    // tenant-lint: ok (posse verificada em findOwned(actor, id) na linha acima)
     await this.prisma.leadReminder.delete({ where: { id } });
     return { deleted: true };
   }

@@ -60,6 +60,7 @@ export class SupplierPortalService {
   // ── Portal methods ───────────────────────────────────────────────────────────
 
   async getProfile(supplierId: string) {
+    // tenant-lint: ok (fronteira própria do portal: supplierId vem do token do portal, não de JWT de tenant)
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: {
@@ -78,6 +79,7 @@ export class SupplierPortalService {
     supplierId: string,
     opts: { status?: PurchaseOrderStatus },
   ) {
+    // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
     return this.prisma.purchaseOrder.findMany({
       where: {
         supplierId,
@@ -95,6 +97,7 @@ export class SupplierPortalService {
   }
 
   async getPurchaseOrder(supplierId: string, poId: string) {
+    // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
     const po = await this.prisma.purchaseOrder.findFirst({
       where: { id: poId, supplierId },
       include: {
@@ -119,6 +122,7 @@ export class SupplierPortalService {
   }
 
   async listReceipts(supplierId: string) {
+    // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
     return this.prisma.goodsReceipt.findMany({
       where: {
         purchaseOrder: { supplierId },
@@ -136,6 +140,7 @@ export class SupplierPortalService {
   }
 
   async listPayments(supplierId: string) {
+    // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
     return this.prisma.financialEntry.findMany({
       where: {
         type: 'PAYABLE',
@@ -155,6 +160,7 @@ export class SupplierPortalService {
   }
 
   async listNcrs(supplierId: string) {
+    // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
     return this.prisma.nonConformance.findMany({
       where: { supplierId },
       select: {
@@ -171,15 +177,18 @@ export class SupplierPortalService {
   async getPortalSummary(supplierId: string) {
     const [pendingOrders, openNcrs, pendingPayments, overduePayments] =
       await Promise.all([
+        // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
         this.prisma.purchaseOrder.count({
           where: { supplierId, status: 'APPROVED' },
         }),
+        // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
         this.prisma.nonConformance.count({
           where: {
             supplierId,
             status: { in: ['OPEN', 'UNDER_ANALYSIS'] },
           },
         }),
+        // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
         this.prisma.financialEntry.count({
           where: {
             type: 'PAYABLE',
@@ -187,6 +196,7 @@ export class SupplierPortalService {
             status: { in: ['OPEN', 'OVERDUE'] },
           },
         }),
+        // tenant-lint: ok (fronteira própria do portal: escopo por supplierId do token)
         this.prisma.financialEntry.count({
           where: {
             type: 'PAYABLE',
