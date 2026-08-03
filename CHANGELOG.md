@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.29.1] - 2026-08-03
+
+### Fixed
+- **Boot da API quebrado na v1.29.0** (#933) — o `import default` do `cookie-parser` (CJS puro) compilava para `.default` inexistente (tsconfig sem `esModuleInterop`) e o bootstrap morria antes do listen; a v1.29.0 nunca passou no healthcheck do Railway (rollback automático manteve a 1.28.0 no ar, sem downtime). A v1.29.1 é a primeira versão da linha 1.29 efetivamente em produção.
+
 ## [1.29.0] - 2026-08-03
 
 ### Added
@@ -375,7 +380,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...HEAD
+[1.29.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...v1.29.1
 [1.29.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...v1.28.0
 [1.27.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...v1.27.0
