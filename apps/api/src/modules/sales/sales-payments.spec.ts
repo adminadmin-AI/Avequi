@@ -3,6 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PaymentMethod, SalesOrderStatus } from '@prisma/client';
 import { SalesService } from './sales.service';
+import { PermissionService } from '../iam/permission.service';
+import { companyScope } from '../iam/scope';
 import { DiscountPolicyService } from './discount-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
@@ -43,6 +45,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
         { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn() } },
         { provide: AcquirerService, useValue: mockAcquirer },
         { provide: PaymentAuthorizationService, useValue: { authorizeCardPayments: jest.fn(), voidCardPayments: jest.fn() } },
+        { provide: PermissionService, useValue: { getUserScope: jest.fn().mockResolvedValue(companyScope('user-1')) } },
       ],
     }).compile();
     service = module.get(SalesService);

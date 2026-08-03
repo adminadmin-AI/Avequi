@@ -59,7 +59,7 @@ export class SalesController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.salesService.findAll(user.companyId, { status, customerId, from, to });
+    return this.salesService.findAll(user.companyId, { status, customerId, from, to }, user?.id);
   }
 
   @Get('discount-policies')
@@ -111,14 +111,14 @@ export class SalesController {
     @Query('productId') productId: string,
     @Query('warehouseId') warehouseId: string,
   ) {
-    return this.salesService.listCounterSerials(user.companyId, productId, warehouseId);
+    return this.salesService.listCounterSerials(user.companyId, productId, warehouseId, user?.id);
   }
 
   @Get(':id')
   @RequirePermission('sales.orders.view')
   @ApiOperation({ summary: 'Buscar venda por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.findOne(id, user.companyId);
+    return this.salesService.findOne(id, user.companyId, user?.id);
   }
 
   @Patch(':id/payments')
@@ -136,7 +136,7 @@ export class SalesController {
   @RequirePermission('sales.orders.authorize-cards')
   @ApiOperation({ summary: 'Autorizar cartões da venda no TEF/gateway (gate do faturamento) (#596)' })
   authorizeCards(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.authorizeCards(id, user.companyId);
+    return this.salesService.authorizeCards(id, user.companyId, user?.id);
   }
 
   @Patch(':id/reserve')

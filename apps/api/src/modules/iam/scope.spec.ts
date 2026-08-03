@@ -29,6 +29,9 @@ const mockCache = {
   del: jest.fn(),
   delUserAllCompanies: jest.fn(),
   delCompany: jest.fn(),
+  // #347-B: cache do escopo — default miss (resolve no banco)
+  getScope: jest.fn().mockResolvedValue(null),
+  setScope: jest.fn().mockResolvedValue(undefined),
 };
 
 describe('Escopo por filial (#347-A)', () => {
@@ -84,6 +87,7 @@ describe('Escopo por filial (#347-A)', () => {
       jest.clearAllMocks();
       mockPrisma.userRoleAssignment.findMany.mockResolvedValue([]);
       mockPrisma.warehouse.findMany.mockResolvedValue([]);
+      mockCache.getScope.mockResolvedValue(null); // #347-B: default = miss
     });
 
     it('usuário SEM assignments (fallback legado) → COMPANY (retrocompatível)', async () => {
@@ -152,6 +156,34 @@ describe('Escopo por filial (#347-A)', () => {
       expect(arg.where.companyId).toBe('c1');
       expect(arg.where.role).toEqual({ isActive: true });
       expect(arg.where.OR).toBeDefined(); // notExpired
+    });
+
+    // ─── #347-B: cache-first (mesmo ciclo do cache de permissões) ───────────
+
+    it('cache hit: devolve o escopo cacheado sem tocar o banco', async () => {
+      mockCache.getScope.mockResolvedValue({
+        v: 1,
+        level: 'BRANCH',
+        branchIds: ['b1'],
+        warehouseIds: ['w1'],
+      });
+      const scope = await service.getUserScope('u1', 'c1');
+      expect(scope).toEqual({ level: 'BRANCH', branchIds: ['b1'], warehouseIds: ['w1'], userId: 'u1' });
+      expect(mockPrisma.userRoleAssignment.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.warehouse.findMany).not.toHaveBeenCalled();
+    });
+
+    it('cache miss: resolve no banco e popula o cache (best-effort)', async () => {
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([{ branchId: 'b1' }]);
+      mockPrisma.warehouse.findMany.mockResolvedValue([{ id: 'w1' }]);
+      const scope = await service.getUserScope('u1', 'c1');
+      expect(scope.level).toBe('BRANCH');
+      expect(mockCache.setScope).toHaveBeenCalledWith('c1', 'u1', {
+        v: 1,
+        level: 'BRANCH',
+        branchIds: ['b1'],
+        warehouseIds: ['w1'],
+      });
     });
   });
 });

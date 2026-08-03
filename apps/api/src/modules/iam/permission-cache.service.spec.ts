@@ -79,9 +79,9 @@ describe('PermissionCacheService', () => {
       expect(PERMISSION_CACHE_TTL_SECONDS).toBe(300);
     });
 
-    it('del: deleta a chave exata', async () => {
+    it('del: deleta as chaves de permissões E de escopo (#347-B)', async () => {
       await service.del('c1', 'u1');
-      expect(mockRedis.del).toHaveBeenCalledWith('iam:perms:c1:u1');
+      expect(mockRedis.del).toHaveBeenCalledWith('iam:perms:c1:u1', 'iam:scope:c1:u1');
     });
   });
 

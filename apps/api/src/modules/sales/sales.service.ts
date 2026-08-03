@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,6 +15,8 @@ import { nfceUnidentifiedLimit } from '../fiscal/fiscal-validator';
 import { AcquirerService } from '../acquirer/acquirer.service';
 import { isCardMethod } from '../acquirer/payment-classification';
 import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
+import { PermissionService } from '../iam/permission.service';
+import { companyScope, EffectiveScope, scopeWhere } from '../iam/scope';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -33,12 +36,50 @@ export class SalesService {
     private readonly discountPolicy: DiscountPolicyService,
     private readonly acquirerService: AcquirerService,
     private readonly paymentAuth: PaymentAuthorizationService,
+    private readonly permissions: PermissionService,
   ) {}
+
+  // ─── Escopo por filial (#347-B) ───────────────────────────────────────────
+
+  /**
+   * Escopo de DADOS do usuário na empresa (#347-B). Sem userId (chamadas
+   * internas de listeners/schedulers, que operam em nome do sistema) →
+   * visão da empresa, o comportamento de sempre. Usuário sem assignment com
+   * branchId também resolve para COMPANY — nada muda até o admin vincular
+   * filiais (retrocompatível por construção; ver PermissionService.getUserScope).
+   */
+  private async escopoDe(companyId: string, userId?: string): Promise<EffectiveScope> {
+    if (!userId) return companyScope('');
+    return this.permissions.getUserScope(userId, companyId);
+  }
+
+  /**
+   * Operações que APONTAM para um depósito (criar venda, listar chassis do
+   * balcão): usuário BRANCH só opera nos depósitos das suas filiais. 403 com
+   * mensagem clara — diferente do recorte de leitura, que responde 404 para
+   * não revelar a existência de vendas de outra filial.
+   */
+  private negarDepositoForaDoEscopo(scope: EffectiveScope, warehouseId: string) {
+    if (scope.level === 'BRANCH' && !scope.warehouseIds.includes(warehouseId)) {
+      throw new ForbiddenException(
+        'Depósito fora do escopo da sua filial. Selecione um depósito da sua loja/filial.',
+      );
+    }
+  }
 
   // ─── Autorização de cartão (#596) ─────────────────────────────────────────
 
   /** Passa as formas de cartão da venda no TEF/gateway; gate do faturamento */
-  async authorizeCards(id: string, companyId: string) {
+  async authorizeCards(id: string, companyId: string, userId?: string) {
+    // #347-B: venda fora do escopo do usuário responde como inexistente
+    const scope = await this.escopoDe(companyId, userId);
+    if (scope.level !== 'COMPANY') {
+      const visible = await this.prisma.salesOrder.findFirst({
+        where: { id, companyId, ...scopeWhere(scope) },
+        select: { id: true },
+      });
+      if (!visible) throw new NotFoundException(`Venda ${id} não encontrada`);
+    }
     return this.paymentAuth.authorizeCardPayments(id, companyId);
   }
 
@@ -110,6 +151,10 @@ export class SalesService {
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
   async createOrder(dto: CreateSalesOrderDto, companyId: string, userId?: string, userRole?: string) {
+    // #347-B: vendedor de filial só abre venda em depósito da própria filial
+    const scope = await this.escopoDe(companyId, userId);
+    this.negarDepositoForaDoEscopo(scope, dto.warehouseId);
+
     // #391: desconto acima da alçada do papel bloqueia a criação
     await this.discountPolicy.assertWithinLimit(companyId, userRole, dto.items, userId);
 
@@ -197,10 +242,12 @@ export class SalesService {
    * sales.orders.reserve) porque VENDEDOR/LOJA_OPERACIONAL não têm
    * stock.serials.view — o balcão só enxerga o recorte da própria venda.
    */
-  async listCounterSerials(companyId: string, productId: string, warehouseId: string) {
+  async listCounterSerials(companyId: string, productId: string, warehouseId: string, userId?: string) {
     if (!productId || !warehouseId) {
       throw new BadRequestException('productId e warehouseId são obrigatórios');
     }
+    // #347-B: balcão não enxerga chassis de depósito de outra filial
+    this.negarDepositoForaDoEscopo(await this.escopoDe(companyId, userId), warehouseId);
     return this.prisma.serialNumber.findMany({
       where: {
         companyId,
@@ -300,8 +347,9 @@ export class SalesService {
    * autorizar cartão (#596) → faturar (#492 exige o chassi, já vinculado).
    */
   async checkoutCounterSale(id: string, companyId: string, userId?: string, userRole?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scopeWhere(scope) },
       include: { items: { include: { product: true } }, customer: true },
     });
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -415,8 +463,9 @@ export class SalesService {
     payments: SalesPaymentInputDto[],
     userId?: string,
   ) {
+    const scope = await this.escopoDe(companyId, userId);
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scopeWhere(scope) },
       include: { items: true },
     });
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -471,9 +520,10 @@ export class SalesService {
   // ─── S07.03: Reservar estoque (DRAFT → RESERVED) ─────────────────────────
 
   async reserveOrder(id: string, companyId: string, userId?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, companyId },
+        where: { id, companyId, ...scopeWhere(scope) },
         include: { items: true },
       });
 
@@ -538,8 +588,9 @@ export class SalesService {
   //   Picking deve ser concluído antes do faturamento.
 
   async confirmOrder(id: string, companyId: string, userId?: string, userRole?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scopeWhere(scope) },
       include: { items: true, customer: true },
     });
 
@@ -669,8 +720,9 @@ export class SalesService {
     dto: { items: { saleItemId: string; quantity: number; serialNumberId?: string }[] },
     userId?: string,
   ) {
+    const scope = await this.escopoDe(companyId, userId);
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scopeWhere(scope) },
       include: { items: { include: { product: true, serialNumber: true } } },
     });
     if (!order) throw new NotFoundException(`Venda ${id} não encontrada`);
@@ -734,9 +786,10 @@ export class SalesService {
   //   Picking deve estar concluído. Gera StockMovement EXIT e emite evento para fiscal e financeiro.
 
   async invoiceOrder(id: string, companyId: string, userId?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     const invoiced = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, companyId },
+        where: { id, companyId, ...scopeWhere(scope) },
         include: { items: { include: { product: true, serialNumber: true } }, pickingOrder: true, customer: true, company: true, payments: true },
       });
 
@@ -862,9 +915,10 @@ export class SalesService {
   // ─── S07.06: Devolução (INVOICED → RETURNED) — entrada de estoque ─────────
 
   async returnOrder(id: string, companyId: string, dto: ReturnOrderDto, userId?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     const returned = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, companyId },
+        where: { id, companyId, ...scopeWhere(scope) },
         include: { items: true },
       });
 
@@ -959,9 +1013,10 @@ export class SalesService {
   //   INVOICED: não pode cancelar — usar devolução.
 
   async cancelOrder(id: string, companyId: string, userId?: string) {
+    const scope = await this.escopoDe(companyId, userId);
     const cancelled = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, companyId },
+        where: { id, companyId, ...scopeWhere(scope) },
         include: { items: true },
       });
 
@@ -1044,10 +1099,14 @@ export class SalesService {
       from?: string;
       to?: string;
     } = {},
+    userId?: string,
   ) {
+    // #347-B: usuário de filial só lista vendas dos depósitos das suas filiais
+    const scope = await this.escopoDe(companyId, userId);
     return this.prisma.salesOrder.findMany({
       where: {
         companyId,
+        ...scopeWhere(scope),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.customerId ? { customerId: filters.customerId } : {}),
         ...(filters.from || filters.to
@@ -1069,9 +1128,11 @@ export class SalesService {
     });
   }
 
-  async findOne(id: string, companyId: string) {
+  async findOne(id: string, companyId: string, userId?: string) {
+    // #347-B: venda de outra filial responde 404 (não revela existência)
+    const scope = await this.escopoDe(companyId, userId);
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scopeWhere(scope) },
       include: {
         customer: true,
         warehouse: true,

@@ -9,6 +9,8 @@ import { StockService } from '../stock/stock.service';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
 import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
+import { PermissionService } from '../iam/permission.service';
+import { companyScope } from '../iam/scope';
 import { SALE_CONFIRMED_EVENT } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT } from './events/sale-invoiced.event';
 
@@ -60,6 +62,11 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+// #347-B: default = visão da empresa (comportamento de sempre)
+const mockPermissions = {
+  getUserScope: jest.fn(),
+};
+
 const mockPaymentAuth = {
   authorizeCardPayments: jest.fn(),
   voidCardPayments: jest.fn().mockResolvedValue(undefined),
@@ -101,6 +108,7 @@ describe('SalesService', () => {
         { provide: DiscountPolicyService, useValue: { assertWithinLimit: jest.fn().mockResolvedValue(undefined) } },
         { provide: AcquirerService, useValue: { resolveFee: jest.fn().mockResolvedValue(null) } },
         { provide: PaymentAuthorizationService, useValue: mockPaymentAuth },
+        { provide: PermissionService, useValue: mockPermissions },
       ],
     }).compile();
 
@@ -111,6 +119,7 @@ describe('SalesService', () => {
     mockPrisma.product.findMany.mockResolvedValue([]); // #595
     mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 }); // #595 happy path
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
+    mockPermissions.getUserScope.mockResolvedValue(companyScope('user-1')); // #347-B
   });
 
   // ─── checkoutCounterSale (#595) — venda balcão ────────────────────────────
@@ -844,6 +853,88 @@ describe('SalesService', () => {
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
       expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
+    });
+  });
+
+  // ─── #347-B: escopo por filial em vendas ──────────────────────────────────
+
+  describe('escopo por filial (#347-B)', () => {
+    const escopoFilial = {
+      level: 'BRANCH' as const,
+      branchIds: ['br-1'],
+      warehouseIds: ['wh-1', 'wh-2'],
+      userId: 'user-1',
+    };
+
+    it('COMPANY: findAll não adiciona filtro de depósito (comportamento de sempre)', async () => {
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      await service.findAll('co-1', {}, 'user-1');
+      const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
+      expect(where.warehouseId).toBeUndefined();
+    });
+
+    it('sem userId (chamada interna): não resolve escopo e não filtra', async () => {
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      await service.findAll('co-1', {});
+      expect(mockPermissions.getUserScope).not.toHaveBeenCalled();
+      const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
+      expect(where.warehouseId).toBeUndefined();
+    });
+
+    it('BRANCH: findAll recorta pelos depósitos das filiais do usuário', async () => {
+      mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      await service.findAll('co-1', {}, 'user-1');
+      const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
+      expect(where.warehouseId).toEqual({ in: ['wh-1', 'wh-2'] });
+    });
+
+    it('BRANCH: findOne de venda fora do escopo responde 404 (não revela existência)', async () => {
+      mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
+      await expect(service.findOne('so-outra-filial', 'co-1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      const where = mockPrisma.salesOrder.findFirst.mock.calls[0][0].where;
+      expect(where.warehouseId).toEqual({ in: ['wh-1', 'wh-2'] });
+    });
+
+    it('BRANCH: criar venda em depósito de outra filial é 403 com mensagem clara', async () => {
+      mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
+      await expect(
+        service.createOrder(
+          { warehouseId: 'wh-de-outra-filial', items: [] } as any,
+          'co-1',
+          'user-1',
+        ),
+      ).rejects.toThrow(/fora do escopo da sua filial/);
+      expect(mockPrisma.salesOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('BRANCH: balcão não lista chassis de depósito de outra filial', async () => {
+      mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
+      await expect(
+        service.listCounterSerials('co-1', 'p-1', 'wh-de-outra-filial', 'user-1'),
+      ).rejects.toThrow(/fora do escopo/);
+      expect(mockPrisma.serialNumber.findMany).not.toHaveBeenCalled();
+    });
+
+    it('BRANCH: mutações por id (reservar) enxergam a venda pelo recorte — fora dele, 404', async () => {
+      mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
+      mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
+      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      const where = mockPrisma.salesOrder.findFirst.mock.calls[0][0].where;
+      expect(where.warehouseId).toEqual({ in: ['wh-1', 'wh-2'] });
+    });
+
+    it('BRANCH sem depósito vinculado é fail-closed: vê lista vazia, não a empresa', async () => {
+      mockPermissions.getUserScope.mockResolvedValue({ ...escopoFilial, warehouseIds: [] });
+      mockPrisma.salesOrder.findMany.mockResolvedValue([]);
+      await service.findAll('co-1', {}, 'user-1');
+      const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
+      expect(where.warehouseId).toEqual({ in: [] });
     });
   });
 

@@ -8,9 +8,10 @@ import { StockModule } from '../stock/stock.module';
 import { TaxModule } from '../tax/tax.module';
 import { AcquirerModule } from '../acquirer/acquirer.module';
 import { PaymentGatewayModule } from '../payment-gateway/payment-gateway.module';
+import { IamModule } from '../iam/iam.module';
 
 @Module({
-  imports: [PrismaModule, EventEmitterModule, StockModule, TaxModule, AcquirerModule, PaymentGatewayModule],
+  imports: [PrismaModule, EventEmitterModule, StockModule, TaxModule, AcquirerModule, PaymentGatewayModule, IamModule],
   controllers: [SalesController],
   providers: [SalesService, DiscountPolicyService],
   exports: [SalesService],

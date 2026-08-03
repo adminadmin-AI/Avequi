@@ -128,11 +128,34 @@ export class PermissionService {
    *   (gerente que acumula lojas = múltiplos assignments) e dos depósitos
    *   ativos dessas filiais (Warehouse.branchId, a ponte operacional).
    *
-   * ⚠️ 347-A é SHADOW: este método ainda não é chamado em nenhum request path;
-   * os services passam a consumi-lo (via scopeWhere) nas fases 347-B em
-   * diante — quando entrar no caminho quente, ganha cache como o de permissões.
+   * #347-B: entrou no caminho quente (services de VENDAS consomem via
+   * scopeWhere) — cache-first como o de permissões (TTL 5 min + invalidação
+   * ativa nos mesmos pontos: todo grant/revoke de assignment limpa os dois).
    */
   async getUserScope(userId: string, companyId: string): Promise<EffectiveScope> {
+    const cached = await this.cache.getScope(companyId, userId);
+    if (cached) {
+      return {
+        level: cached.level,
+        branchIds: cached.branchIds,
+        warehouseIds: cached.warehouseIds,
+        userId,
+      };
+    }
+    const scope = await this.resolveScopeFromDatabase(userId, companyId);
+    await this.cache.setScope(companyId, userId, {
+      v: 1,
+      level: scope.level,
+      branchIds: scope.branchIds,
+      warehouseIds: scope.warehouseIds,
+    });
+    return scope;
+  }
+
+  private async resolveScopeFromDatabase(
+    userId: string,
+    companyId: string,
+  ): Promise<EffectiveScope> {
     const now = new Date();
     const notExpired = { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
 

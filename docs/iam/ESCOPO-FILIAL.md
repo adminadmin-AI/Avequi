@@ -64,7 +64,15 @@ na filial) na 347-C; relatórios/exports respeitando escopo na 347-D.
 ## Roadmap
 
 - **347-A** ✅ infraestrutura (este doc) — shadow, zero mudança de comportamento.
-- **347-B** vendas/faturamento de loja (caso real: venda balcão #595).
+- **347-B** ✅ vendas/faturamento de loja (caso real: venda balcão #595) —
+  entregue em 03/08/2026: todo o `SalesService` consome `scopeWhere` (listagem,
+  detalhe e mutações por id respondem 404 fora do recorte; criar venda e listar
+  chassis do balcão em depósito de outra filial respondem 403), `getUserScope`
+  ganhou cache Redis (TTL 5 min, invalidado junto com o de permissões) e o
+  vínculo depósito→filial da GDR tem script idempotente
+  (`scripts/backfill-warehouse-branches-347b.ts`, dry-run por padrão:
+  ALM-FAB→MATRIZ, LOJA-CAS→CAS, LOJA-GUA→GUA). O recorte só ativa para quem
+  receber assignment com `branchId` — sem isso, comportamento de sempre.
 - **347-C** estoque/WMS/transferências.
 - **347-D** relatórios/exports.
 - **CRM** no bloco F, consumindo o mecanismo após reconciliar Company-por-loja.
