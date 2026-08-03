@@ -90,6 +90,9 @@ const SELF_SERVICE_OK = new Set([
   // OPS WP4 (#911) — o que a PRÓPRIA conta contratou: qualquer usuário logado
   // lê (a nav esconde módulo não contratado); dados são do tenant dele.
   'EntitlementController.me',
+  // OPS WP5 (#912) — status de cobrança da PRÓPRIA conta (banner de
+  // inadimplência do app); situação financeira da conta do próprio usuário.
+  'BillingStatusController.myStatus',
 ]);
 
 interface Route {

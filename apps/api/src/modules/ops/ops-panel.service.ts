@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { FiscalStatus, SupportIncidentSource, TenantStatus } from '@prisma/client';
+import { FiscalStatus, InvoiceStatus, SupportIncidentSource, TenantStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { utcDayStart } from './usage-metering.service';
 
@@ -21,10 +21,18 @@ export const ALERT_RULES = {
   REJEICAO_SEFAZ_PCT: 20,
   REJEICAO_SEFAZ_MIN_DOCS: 5,
   TRIAL_VENCENDO_DIAS: 7,
+  SUSPENSAO_PROPOSTA_DIAS: 20, // WP5 #912 — espelha DUNNING.SUSPENSAO_DIAS
 } as const;
 
 export interface OpsAlert {
-  type: 'SEM_LOGIN' | 'PICO_5XX' | 'REJEICAO_SEFAZ' | 'TRIAL_VENCENDO';
+  type:
+    | 'SEM_LOGIN'
+    | 'PICO_5XX'
+    | 'REJEICAO_SEFAZ'
+    | 'TRIAL_VENCENDO'
+    // OPS WP5 (#912): fatura vencida há ≥20 dias — a régua PROPÕE, o operador
+    // decide (suspensão é sempre o PATCH de status manual do WP1)
+    | 'SUSPENSAO_PROPOSTA';
   severity: 'WARNING' | 'CRITICAL';
   tenantId: string;
   tenantName: string;
@@ -248,7 +256,7 @@ export class OpsPanelService {
     if (tenants.length === 0) return [];
     const tenantIds = tenants.map((t) => t.id);
 
-    const [summary, yesterdayRows, sefaz7d] = await Promise.all([
+    const [summary, yesterdayRows, sefaz7d, overdue20] = await Promise.all([
       this.listUsageSummary(),
       this.prisma.tenantUsageDaily.findMany({
         where: {
@@ -261,6 +269,16 @@ export class OpsPanelService {
         by: ['companyId'],
         where: { companyId: { in: tenantIds }, date: { gte: utcDayStart(daysAgo(7)) } },
         _sum: { nfeIssued: true, nfeRejected: true },
+      }),
+      // WP5 (#912): faturas OVERDUE há ≥20 dias → proposta de suspensão
+      this.prisma.invoice.findMany({
+        where: {
+          companyId: { in: tenantIds },
+          status: InvoiceStatus.OVERDUE,
+          dueDate: { lte: daysAgo(ALERT_RULES.SUSPENSAO_PROPOSTA_DIAS) },
+        },
+        select: { companyId: true, dueDate: true, amountCents: true },
+        orderBy: { dueDate: 'asc' },
       }),
     ]);
 
@@ -327,6 +345,23 @@ export class OpsPanelService {
           });
         }
       }
+    }
+
+    const propostos = new Set<string>();
+    for (const inv of overdue20) {
+      if (propostos.has(inv.companyId)) continue; // 1 alerta por tenant (fatura mais antiga)
+      propostos.add(inv.companyId);
+      const t = tenants.find((x) => x.id === inv.companyId)!;
+      const dias = Math.floor((now - inv.dueDate.getTime()) / (24 * 3600 * 1000));
+      alerts.push({
+        type: 'SUSPENSAO_PROPOSTA',
+        severity: 'CRITICAL',
+        tenantId: t.id,
+        tenantName: t.name,
+        message:
+          `Fatura vencida há ${dias} dias (R$ ${(inv.amountCents / 100).toFixed(2)}) — ` +
+          'proposta de suspensão. Suspender é decisão manual (ações da conta).',
+      });
     }
 
     const severityOrder = { CRITICAL: 0, WARNING: 1 } as const;

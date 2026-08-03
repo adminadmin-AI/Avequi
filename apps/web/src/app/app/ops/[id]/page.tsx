@@ -49,6 +49,7 @@ import { formatCNPJ, formatDate, formatDateTime, formatNumber, formatRelativeTim
 import { USER_ROLE_LABELS } from '@/lib/enums';
 import { FISCAL_TYPE_LABEL } from '../../fiscal/fiscal-status';
 import { EntitlementsTab } from './entitlements-tab';
+import { FinanceiroTab } from './financeiro-tab';
 
 const RESOURCE = '/ops/tenants';
 const USAGE_DAYS = 90;
@@ -693,6 +694,7 @@ export default function TenantDetailPage() {
           <TabsTrigger value="health">Saúde</TabsTrigger>
           <TabsTrigger value="people">Pessoas</TabsTrigger>
           <TabsTrigger value="plan">Plano & Módulos</TabsTrigger>
+          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
         </TabsList>
 
@@ -707,6 +709,9 @@ export default function TenantDetailPage() {
         </TabsContent>
         <TabsContent value="plan">
           <EntitlementsTab tenantId={tenant.id} />
+        </TabsContent>
+        <TabsContent value="financeiro">
+          <FinanceiroTab tenantId={tenant.id} />
         </TabsContent>
         <TabsContent value="timeline">
           <TimelineTab tenantId={tenant.id} />

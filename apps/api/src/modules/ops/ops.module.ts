@@ -4,6 +4,9 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { IamModule } from '../iam/iam.module';
 import { MailModule } from '../mail/mail.module';
 import { UserModule } from '../user/user.module';
+import { BillingController } from './billing.controller';
+import { BillingStatusController } from './billing-status.controller';
+import { BillingService } from './billing.service';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
 import { OpsPanelController } from './ops-panel.controller';
@@ -29,8 +32,16 @@ import { UsageMeteringService } from './usage-metering.service';
  */
 @Module({
   imports: [ConfigModule, PrismaModule, IamModule, MailModule, UserModule],
-  controllers: [OpsController, OpsPanelController, PlansController, InviteController],
+  controllers: [
+    OpsController,
+    OpsPanelController,
+    PlansController,
+    BillingController,
+    BillingStatusController,
+    InviteController,
+  ],
   providers: [
+    BillingService,
     OpsService,
     OpsMfaGuard,
     OpsPanelService,
