@@ -50,6 +50,11 @@ export const envValidationSchema = Joi.object({
     .pattern(JWT_EXPIRY_PATTERN)
     .default('7d'),
 
+  // #349 — SameSite dos cookies de sessão. 'lax' só quando front e API estão
+  // no MESMO site (app.avecchi.ai × api.avecchi.ai); 'none' funciona em
+  // qualquer topologia e por isso é o default de produção.
+  AUTH_COOKIE_SAMESITE: Joi.string().valid('lax', 'none').optional(),
+
   // #341 — minutos SEM NENHUMA requisição até a sessão morrer. Decisão de
   // negócio (terminal de fábrica pede curto; escritório talvez não), por isso
   // é env e não constante. Fora de 1..1440, o serviço cai no default de 15.

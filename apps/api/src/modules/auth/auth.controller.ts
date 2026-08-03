@@ -7,15 +7,23 @@ import {
   Param,
   UseGuards,
   Request,
+  Res,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SessionRevokedReason } from '@prisma/client';
+import { Response } from 'express';
+import {
+  REFRESH_COOKIE,
+  clearAuthCookies,
+  setAuthCookies,
+} from '../../common/auth/auth-cookies';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkipCsrf } from '../../common/decorators/skip-csrf.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
@@ -36,15 +44,25 @@ export class AuthController {
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login com e-mail e senha' })
-  async login(@Request() req: any) {
+  async login(@Request() req: any, @Res({ passthrough: true }) res: Response) {
     // #342: IP + user-agent alimentam a UserSession criada no login.
-    return this.authService.login(req.user, {
+    const result = await this.authService.login(req.user, {
       ipAddress: req.ip,
       userAgent: req.headers?.['user-agent'],
     });
+    // #349: emissão de tokens também vira cookies httpOnly (modo dual — o
+    // body continua com os tokens p/ clientes Bearer). MFA pendente não
+    // emite tokens, logo não seta cookies.
+    if ('accessToken' in result) {
+      const csrfToken = setAuthCookies(res, result);
+      return { ...result, csrfToken };
+    }
+    return result;
   }
 
   @Public()
@@ -52,16 +70,33 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Renovar access token com refresh token' })
-  async refresh(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refresh(refreshToken);
+  async refresh(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+    @Body('refreshToken') refreshToken?: string,
+  ) {
+    // #349: body tem precedência (clientes Bearer atuais); sem body, usa o
+    // cookie httpOnly gdr_refresh (front migrado). Rotação normal nos dois.
+    const token = refreshToken || req.cookies?.[REFRESH_COOKIE];
+    const result = await this.authService.refresh(token);
+    const csrfToken = setAuthCookies(res, result);
+    return { ...result, csrfToken };
   }
 
   @Post('logout')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
-  async logout(@Body('refreshToken') refreshToken: string) {
-    await this.authService.logout(refreshToken);
+  async logout(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+    @Body('refreshToken') refreshToken?: string,
+  ) {
+    await this.authService.logout(refreshToken || req.cookies?.[REFRESH_COOKIE]);
+    // #349: sessão de cookie morre junto, sempre.
+    clearAuthCookies(res);
   }
 
   // ─── Minhas permissões (#351) ──────────────────────────────────────────────
@@ -138,6 +173,8 @@ export class AuthController {
 
   @Public()
   @Post('mfa/verify')
+  // #349: precisa responder mesmo sem o segredo de CSRF (ver decorator).
+  @SkipCsrf()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({
@@ -146,13 +183,20 @@ export class AuthController {
   })
   async verifyMfa(
     @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
     @Body('mfaPendingToken') mfaPendingToken: string,
     @Body('code') code: string,
   ) {
-    return this.authService.loginWithMfa(mfaPendingToken, code, {
+    const result = await this.authService.loginWithMfa(mfaPendingToken, code, {
       ipAddress: req.ip,
       userAgent: req.headers?.['user-agent'],
     });
+    // #349: 2º passo emite os tokens finais → mesmos cookies do login.
+    if ('accessToken' in result) {
+      const csrfToken = setAuthCookies(res, result);
+      return { ...result, csrfToken };
+    }
+    return result;
   }
 
   @Post('mfa/setup')

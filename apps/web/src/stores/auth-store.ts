@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient, limparSessao, salvarSessao } from '@/lib/api-client';
+import {
+  apiClient,
+  confirmarCanalDeSessao,
+  limparCredenciaisLocais,
+  registrarSessao,
+} from '@/lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -47,21 +52,29 @@ export const useAuthStore = create<AuthState>()(
             passwordExpired: !!data.passwordExpired,
           };
         }
-        // Mesma porta de entrada do refresh: grava o par completo. Guardar
-        // só o access foi o que derrubava a sessão a cada ~30 min.
-        salvarSessao(data);
+        // #349: a sessão vive em cookies httpOnly setados pelo servidor e o
+        // front guarda só o csrfToken (não-segredo de autenticação). Se a
+        // resposta vier SEM csrfToken, a API ainda é anterior ao #349 —
+        // `registrarSessao` cai no canal Bearer em vez de deixar o usuário
+        // logado sem credencial nenhuma (janela de deploy web-antes-de-API).
+        if (registrarSessao(data) === 'cookie') {
+          // Browser pode ter descartado o cookie (bloqueio de terceiros —
+          // Safari por padrão). Confirma com o servidor e, se for o caso,
+          // resgata a sessão no canal Bearer antes de liberar o app.
+          await confirmarCanalDeSessao(data);
+        }
         set({ user: data.user, isAuthenticated: true });
         return { passwordChangeRequired: false as const };
       },
 
       logout: async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          try {
-            await apiClient.post('/auth/logout', { refreshToken });
-          } catch {}
-        }
-        limparSessao();
+        try {
+          // Cookie httpOnly leva o refresh; body cobre sessão legada
+          // (pré-cookie) que ainda tenha token no localStorage.
+          const legado = localStorage.getItem('refreshToken');
+          await apiClient.post('/auth/logout', legado ? { refreshToken: legado } : {});
+        } catch {}
+        limparCredenciaisLocais();
         set({ user: null, isAuthenticated: false });
       },
     }),

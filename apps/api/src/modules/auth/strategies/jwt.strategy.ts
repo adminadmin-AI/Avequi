@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { ACCESS_COOKIE } from '../../../common/auth/auth-cookies';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
 import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
 import { IMPERSONATION_SCOPE } from '../../ops/impersonation.constants';
@@ -24,7 +25,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly sessions: SessionService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // #349: header Bearer tem PRECEDÊNCIA (clientes atuais); sem header,
+      // cai no cookie httpOnly gdr_access (front migrado). O CsrfGuard
+      // global compensa o risco de CSRF que o canal cookie introduz.
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: any) => req?.cookies?.[ACCESS_COOKIE] ?? null,
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.get('JWT_SECRET'),
     });
