@@ -6,6 +6,27 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-08-03
+
+### Adicionado
+
+**Portal Avecchi — control plane da operadora** (épico #915, WP1–WP4)
+- **Fundação** (#908/#916): ciclo de vida de tenant (`TRIAL/ACTIVE/SUSPENDED/CHURNED/SANDBOX`) na empresa raiz com cascata pras filiais; namespace RBAC `ops.*` EXCLUSIVO da operadora (nenhum perfil de cliente recebe — travado em teste); perfil `AVECCHI_OPERATOR` com **MFA obrigatório duro** nas rotas `/ops`; tenant suspenso não loga (403 pós-senha, anti-enumeração intacta) e tem as sessões revogadas na hora.
+- **Provisionamento** (#909/#919): onboarding como máquina de estados idempotente e retomável por CNPJ — empresa → **convite de admin por e-mail com token de uso único** (72h, sha256, nunca senha em texto; aceite público em `/invite/accept` define a senha pela política #345) → checagem fiscal (exige `FOCUS_NFE_TOKEN__<companyId>` escopado, #695) → go-live com gate manual do operador. Wizard completo em `/app/ops/new`.
+- **Painel de contas** (#910/#921): metering diário por tenant (`gdr_tenant_usage_dailies` — usuários ativos, NF-e, leads, erros 5xx; cron 03:15 com backfill de 90 dias na primeira execução) alimentando lista com resumo de uso, drill-down com abas (Visão geral com sparklines · Saúde · Pessoas · Linha do tempo) e **alertas da carteira** (sem login 7d, pico de 5xx, rejeição SEFAZ >20%, trial vencendo).
+- **Planos & Entitlements** (#911/#922): o que cada conta usa vira dado governado pelo portal — catálogo de módulos em código (`crm`, `renave`*, `suporteIa`, `tef`, `maxUsers`), resolução exceção > plano > desligado (fail-closed), **tenant sem plano = legado (tudo liberado)**; trocar plano muda o app do cliente em ≤60s **sem redeploy**. CRM inteiro atrás do entitlement; limite de usuários com teto duro; 3 planos seedados (Essencial/Profissional/Industrial) sem atribuição automática. *`renave` é gate comercial — o runtime fiscal segue em `renaveEnabled`+SERPRO.
+- **Expiração de sessão por inatividade de verdade** (#341/#920): a sessão morre após `SESSION_IDLE_TIMEOUT_MINUTES` (default 15) sem NENHUMA requisição — e cada requisição empurra o relógio (com debounce). Antes, `lastActivityAt` só mudava na rotação do refresh.
+- **Endereço oficial da API: api.avecchi.ai** (#917) — docs e webhook Focus.
+
+### Corrigido
+- **Sessão derrubava o usuário a cada ~30 min** (#918): o interceptor web guardava só o `accessToken` da renovação e mantinha o refresh já revogado pela rotação; e N chamadas com 401 simultâneo disparavam N refreshes concorrentes. Agora persiste o PAR rotacionado e a renovação é single-flight.
+- **Config do CRM não fica mais em loading eterno no 403** (#739/#907).
+
+### Infra
+- Migrations aditivas e idempotentes (aplicar via `db execute`, #640): `20260802120000_ops_wp1_tenant_lifecycle`, `20260802150000_ops_wp2_provisioning`, `20260802180000_ops_wp3_tenant_usage`, `20260802210000_ops_wp4_plans_entitlements`.
+- Seeds: `db:seed:iam` (perfil `AVECCHI_OPERATOR` + permissões `ops.*`, catálogo 316) e planos (3 templates, sem atribuição a tenants).
+- Catálogo RBAC: `ADMIN_GLOBAL`/`ADMIN_EMPRESA` migram de `allPermissionCodes()` para `tenantPermissionCodes()` — admin de cliente **não** recebe `ops.*`.
+
 ## [1.26.0] - 2026-08-01
 
 ### Adicionado
@@ -332,7 +353,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.23.0...v1.24.0
