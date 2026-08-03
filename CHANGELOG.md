@@ -6,6 +6,15 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-08-03
+
+### Added
+- **Escopo por filial em vendas (347-B, #347/#930)** — o `SalesService` inteiro consome o escopo criado no 347-A, com contexto de acesso explícito USER×SYSTEM (esquecer o contexto é erro de compilação; chamadas internas usam `SYSTEM_CONTEXT` congelado) e recorte por depósito: usuário BRANCH vê e opera somente vendas dos depósitos das suas filiais (404 anti-enumeração fora do recorte; fail-closed em filial sem depósito; COMPANY prevalece em assignments mistos). Cache do escopo por empresa+usuário com invalidação junto do cache de permissões e fallback pro banco. Zero mudança de comportamento hoje — nenhum assignment com filial em produção.
+- **Detalhe do pagável adaptado à forma de pagamento + "Parcela 1/10" (#929)** — o drawer do contas a pagar mostra nº/total da parcela (`installmentTotal`, backfill já aplicado em produção) e o histórico das ações registra o autor (baixa, cancelamento e parcelamento).
+
+### Fixed
+- **Proteção do último administrador global serializada com lock pessimista (#752/#938)** — elimina a corrida em que inativações/rebaixamentos simultâneos podiam passar pelo guard e deixar o tenant sem nenhum admin global.
+
 ## [1.29.1] - 2026-08-03
 
 ### Fixed
@@ -380,7 +389,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...HEAD
+[1.30.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...v1.30.0
 [1.29.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...v1.29.1
 [1.29.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...v1.28.0
