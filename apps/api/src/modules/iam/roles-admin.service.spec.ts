@@ -332,4 +332,65 @@ describe('RolesAdminService', () => {
       expect(mockPermissionService.invalidateRole).not.toHaveBeenCalled();
     });
   });
+
+  describe('#752 — ADMIN_GLOBAL é role estrutural intocável', () => {
+    // Role de recuperação com a FLAG isSystem corrompida (drift de seed /
+    // correção manual): a guarda antiga liberaria a edição; a nova barra
+    // por IDENTIDADE (code + companyId null).
+    const ADMIN_ROLE_FLAG_PERDIDA = {
+      ...SYSTEM_ROLE,
+      isSystem: false,
+    };
+
+    it('desativar ADMIN_GLOBAL → 403, mesmo com isSystem corrompido no banco', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE_FLAG_PERDIDA);
+      await expect(
+        service.updateRole(ACTOR, 'role-sys', { isActive: false }),
+      ).rejects.toThrow(/recuperação administrativa/);
+      expect(prisma.role.update).not.toHaveBeenCalled();
+    });
+
+    it('renomear/descaracterizar ADMIN_GLOBAL → 403', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE_FLAG_PERDIDA);
+      await expect(
+        service.updateRole(ACTOR, 'role-sys', { name: 'Qualquer Outro Nome' }),
+      ).rejects.toThrow(/recuperação administrativa/);
+      expect(prisma.role.update).not.toHaveBeenCalled();
+    });
+
+    it('excluir ADMIN_GLOBAL → 403', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE_FLAG_PERDIDA);
+      await expect(service.deleteRole(ACTOR, 'role-sys')).rejects.toThrow(
+        /recuperação administrativa/,
+      );
+      expect(prisma.role.delete).not.toHaveBeenCalled();
+    });
+
+    it('trocar as permissões de ADMIN_GLOBAL → 403', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE_FLAG_PERDIDA);
+      await expect(
+        service.setRolePermissions(ACTOR, 'role-sys', { permissionCodes: [] } as any),
+      ).rejects.toThrow(/recuperação administrativa/);
+    });
+
+    it('role ADMIN_GLOBAL de TENANT (homônimo, companyId setado) não é a estrutural — segue a regra de system', async () => {
+      prisma.role.findFirst.mockResolvedValue({
+        ...SYSTEM_ROLE,
+        isSystem: false,
+        companyId: 'co-1',
+      });
+      prisma.role.update.mockResolvedValue({ ...SYSTEM_ROLE, companyId: 'co-1', isActive: false });
+      await expect(
+        service.updateRole(ACTOR, 'role-sys', { isActive: false }),
+      ).resolves.toBeDefined();
+    });
+
+    it('perfil personalizado continua editável normalmente (regressão)', async () => {
+      prisma.role.findFirst.mockResolvedValue({ ...CUSTOM_ROLE });
+      prisma.role.update.mockResolvedValue({ ...CUSTOM_ROLE, name: 'Outro' });
+      await expect(
+        service.updateRole(ACTOR, 'role-custom', { name: 'Outro' }),
+      ).resolves.toBeDefined();
+    });
+  });
 });

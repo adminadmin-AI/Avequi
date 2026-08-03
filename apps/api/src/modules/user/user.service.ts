@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -12,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { ENUM_ROLE_TO_SYSTEM_ROLE } from '../iam/roles.catalog';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -36,6 +36,7 @@ export class UserService {
     private readonly prisma: PrismaService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly sessionService: SessionService,
+    private readonly lastAdmin: LastAdminInvariantService,
     private readonly entitlementService: EntitlementService,
   ) {}
 
@@ -185,9 +186,11 @@ export class UserService {
       if (actorId === id) {
         throw new ForbiddenException('Você não pode inativar a própria conta.');
       }
-      // 2) Último administrador global efetivo do sistema.
-      await this.assertNotLastActiveGlobalAdmin(id);
     }
+    // #752: inativar quem conta na invariante (vínculo ADMIN_GLOBAL perpétuo)
+    // passa pelo mecanismo central com lock — decidido aqui, validado lá.
+    const alvoContaNaInvariante =
+      deactivating && (await this.lastAdmin.temVinculoAdminPerpetuo(id));
     // Defesa em profundidade: descarta password (hash separado) e qualquer
     // companyId injetado no payload — usuário nunca muda de empresa via update (#450)
     const { password, companyId: _ignored, ...rest } = dto as any;
@@ -218,55 +221,21 @@ export class UserService {
         data.mustChangePassword = true;
       }
     }
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data,
-      select: SELECT_SAFE,
-    });
+    // #752: a inativação de um admin que conta na invariante roda DENTRO da
+    // transação com lock do grupo — a contagem acontece após o lock e a
+    // violação faz rollback (sem check-then-act, sem compensação posterior).
+    const updated = alvoContaNaInvariante
+      ? await this.lastAdmin.executarProtegido(companyId, (tx) =>
+          tx.user.update({ where: { id }, data, select: SELECT_SAFE }),
+        )
+      : await this.prisma.user.update({
+          where: { id },
+          data,
+          select: SELECT_SAFE,
+        });
 
     if (deactivating) {
-      // Pós-checagem anti-corrida: duas inativações simultâneas de admins
-      // globais podem AMBAS passar na pré-checagem (read committed). Se após
-      // persistir não restou NENHUM admin global ativo, tenta COMPENSAR
-      // (reativa o usuário) e rejeita a requisição. Isso MITIGA a corrida e
-      // restaura o estado nas colisões cobertas pelos testes — mas NÃO é uma
-      // garantia absoluta: sem serialização/lock/transação atômica (o pooler
-      // do Supabase em modo transação não suporta transação interativa com
-      // segurança), permanece uma janela residual excepcional se processo,
-      // banco ou conexão falharem entre a persistência e a compensação. O
-      // endurecimento definitivo (lock/serialização compatível com a infra)
-      // fica como débito técnico separado.
-      if (await this.isEffectiveGlobalAdmin(id)) {
-        const remaining = await this.countActiveGlobalAdmins(id);
-        if (remaining === 0) {
-          try {
-            await this.prisma.user.update({ where: { id }, data: { isActive: true } });
-          } catch (err) {
-            // Compensação falhou: o usuário ficou inativo SEM nenhum admin
-            // global ativo restante — estado inconsistente que exige ação
-            // manual. Nunca silencioso: log crítico estruturado (só IDs
-            // técnicos, sem dado sensível) e a requisição retorna erro.
-            this.logger.error(
-              JSON.stringify({
-                event: 'user_deactivate_last_admin_compensation_failed',
-                severity: 'critical',
-                userId: id,
-                actorId,
-                message: (err as Error).message,
-              }),
-            );
-            throw new ConflictException(
-              'Falha ao proteger o último administrador global: o usuário pode ter ficado ' +
-                'inativo. Reative-o imediatamente e contate o suporte.',
-            );
-          }
-          throw new ConflictException(
-            'Não é possível inativar o último administrador global ativo do sistema.',
-          );
-        }
-      }
-
-      // 3) Sessões: inativado não fica logado. Revoga TODAS (reason SECURITY
+      // Sessões: inativado não fica logado. Revoga TODAS (reason SECURITY
       // → denylist mata os access tokens imediatamente, não só o refresh).
       // Falha aqui NÃO desfaz a inativação nem fica silenciosa: o refresh já
       // é barrado pelo check de isActive (#221), então o resíduo máximo são
@@ -315,59 +284,4 @@ export class UserService {
     return updated;
   }
 
-  // ── Administrador global efetivo (IAM v2) ──────────────────────────────────
-  // "Efetivo" = vínculo NÃO expirado ao perfil system ADMIN_GLOBAL (RBAC v2).
-  // O enum legado SUPER_ADMIN sem vínculo v2 NÃO conta: o PermissionGuard é
-  // fail-closed sem vínculo, então esse usuário não conseguiria administrar
-  // usuários/permissões de qualquer forma (não serve como admin de resgate).
-  // Contagem é GLOBAL (todas as empresas): o perfil é de plataforma.
-
-  private assignmentActiveWhere(userId?: string) {
-    return {
-      ...(userId ? { userId } : {}),
-      role: { code: 'ADMIN_GLOBAL' },
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-    };
-  }
-
-  private async isEffectiveGlobalAdmin(userId: string): Promise<boolean> {
-    // tenant-lint: ok (escopo por userId: atribuições do próprio usuário)
-    const count = await this.prisma.userRoleAssignment.count({
-      where: this.assignmentActiveWhere(userId),
-    });
-    return count > 0;
-  }
-
-  /** Admins globais ATIVOS além do usuário excluído da contagem — DENTRO da
-   *  árvore do tenant (matriz + filiais). WP7 (#914): contar sem escopo de
-   *  tenant deixava o guard de "último admin" cego em multi-tenant — inativar
-   *  o único admin do tenant A passava porque o tenant B ainda tinha admins,
-   *  deixando A sem nenhum administrador. Sem tenant resolvido → 0
-   *  (fail-closed: trata como último admin e bloqueia). */
-  private async countActiveGlobalAdmins(excludeUserId: string): Promise<number> {
-    const alvo = await this.prisma.user.findUnique({
-      where: { id: excludeUserId },
-      select: { company: { select: { id: true, parentId: true } } },
-    });
-    const rootId = alvo?.company?.parentId ?? alvo?.company?.id;
-    if (!rootId) return 0;
-    return this.prisma.user.count({
-      where: {
-        id: { not: excludeUserId },
-        isActive: true,
-        company: { OR: [{ id: rootId }, { parentId: rootId }] },
-        roleAssignments: { some: this.assignmentActiveWhere() },
-      },
-    });
-  }
-
-  private async assertNotLastActiveGlobalAdmin(targetUserId: string): Promise<void> {
-    if (!(await this.isEffectiveGlobalAdmin(targetUserId))) return; // alvo não é admin global
-    const others = await this.countActiveGlobalAdmins(targetUserId);
-    if (others === 0) {
-      throw new ConflictException(
-        'Não é possível inativar o último administrador global ativo do sistema.',
-      );
-    }
-  }
 }

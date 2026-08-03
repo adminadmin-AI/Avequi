@@ -4,9 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, PermissionChangeType } from '@prisma/client';
+import { Prisma, AuditAction, PermissionChangeType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from './audit.service';
+import {
+  LastAdminInvariantService,
+  TEMP_ADMIN_ERROR_MESSAGE,
+} from './last-admin-invariant.service';
 import { PermissionService } from './permission.service';
 import { wouldLockOutOfRolesAdmin } from './access-lockout.util';
 import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
@@ -38,6 +42,7 @@ export class UserAccessService {
     private readonly prisma: PrismaService,
     private readonly permissionService: PermissionService,
     private readonly auditService: AuditService,
+    private readonly lastAdmin: LastAdminInvariantService,
   ) {}
 
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
@@ -98,7 +103,7 @@ export class UserAccessService {
       );
     }
 
-    const assignment = await this.prisma.$transaction(async (tx) => {
+    const criarAssignment = async (tx: Prisma.TransactionClient) => {
       const created = await tx.userRoleAssignment.create({
         data: {
           userId: target.id,
@@ -124,7 +129,23 @@ export class UserAccessService {
         },
       });
       return created;
-    });
+    };
+
+    // #752 (decisão Rafael 03/08/2026): ADMIN_GLOBAL TEMPORÁRIO só existe com
+    // lastro — o grupo precisa já ter um administrador PERPÉTUO. Sem isso, um
+    // grupo poderia ser "resolvido" com um admin que expira, ficando sem
+    // administração no vencimento (não há job de expiração). A checagem lê o
+    // estado do grupo, então roda DENTRO do mesmo lock: entre contar e criar,
+    // nenhuma outra operação do grupo tira o perpétuo do caminho.
+    const assignment =
+      role.code === 'ADMIN_GLOBAL' && dto.expiresAt
+        ? await this.lastAdmin.executarProtegido(actor.companyId, async (tx, ctx) => {
+            if (ctx.adminsPerpetuosAntes === 0) {
+              throw new BadRequestException(TEMP_ADMIN_ERROR_MESSAGE);
+            }
+            return criarAssignment(tx);
+          })
+        : await this.prisma.$transaction(criarAssignment);
 
     await this.permissionService.invalidateUser(target.id, actor.companyId);
 
@@ -174,7 +195,7 @@ export class UserAccessService {
       }
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const removerAssignment = async (tx: Prisma.TransactionClient) => {
       await tx.userRoleAssignment.delete({ where: { id: assignment.id } });
       await tx.permissionChangeLog.create({
         data: {
@@ -190,7 +211,15 @@ export class UserAccessService {
           },
         },
       });
-    });
+    };
+    // #752: remover um vínculo ADMIN_GLOBAL passa pelo mecanismo central —
+    // lock do grupo + invariante validada na MESMA transação (nunca deixa o
+    // grupo sem administrador global, nem em remoções concorrentes).
+    if (assignment.role.code === 'ADMIN_GLOBAL') {
+      await this.lastAdmin.executarProtegido(actor.companyId, removerAssignment);
+    } else {
+      await this.prisma.$transaction(removerAssignment);
+    }
 
     await this.permissionService.invalidateUser(target.id, actor.companyId);
 
@@ -242,11 +271,15 @@ export class UserAccessService {
     }
 
     if (!granted && permission.code.startsWith(ROLES_ADMIN_PREFIX)) {
-      // Sanidade 1: deny individual não pode trancar um SUPER_ADMIN fora da gestão
-      if (target.role === 'SUPER_ADMIN') {
+      // Sanidade 1: deny individual não pode trancar um administrador global
+      // fora da gestão. #752: além do enum legado SUPER_ADMIN, cobre quem é
+      // ADMIN_GLOBAL efetivo no RBAC v2 (o deny individual vence o grant de
+      // perfil — sem esta guarda, negar iam.roles.* ao último admin o
+      // deixaria incapaz de administrar, com o vínculo ainda de pé).
+      if (target.role === 'SUPER_ADMIN' || (await this.lastAdmin.ehAdminGlobalEfetivo(target.id))) {
         throw new BadRequestException(
           'Não é permitido negar permissões de gestão de perfis (iam.roles.*) a um ' +
-            'usuário SUPER_ADMIN — isso trancaria o administrador para fora da própria gestão.',
+            'administrador global — isso o trancaria para fora da própria gestão.',
         );
       }
       // Sanidade 2: deny em si mesmo não pode causar auto-lockout

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LgpdService } from './lgpd.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('LgpdService', () => {
@@ -42,6 +43,10 @@ describe('LgpdService', () => {
       providers: [
         LgpdService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: LastAdminInvariantService,
+          useValue: { executarProtegido: jest.fn(async (_c: string, op: any) => op(prisma)) },
+        },
       ],
     }).compile();
 
@@ -177,6 +182,40 @@ describe('LgpdService', () => {
       expect(updateCall.data.name).toMatch(/^ANONIMIZADO_/);
       // ID is NOT changed (referential integrity)
       expect(updateCall.where.id).toBe('c1');
+    });
+  });
+
+  describe('#752 — invariante do último ADMIN_GLOBAL', () => {
+    it('anonimização que derrubaria o último admin é bloqueada SEM estado parcial', async () => {
+      prisma.anonymizationRequest.findFirst.mockResolvedValue({
+        id: 'req-1',
+        companyId: 'co-1',
+        document: 'admin@gdr.com.br',
+        status: 'REQUESTED',
+      });
+      const modulo = await Test.createTestingModule({
+        providers: [
+          LgpdService,
+          { provide: PrismaService, useValue: prisma },
+          {
+            provide: LastAdminInvariantService,
+            useValue: {
+              executarProtegido: jest
+                .fn()
+                .mockRejectedValue(new BadRequestException('administrador global')),
+            },
+          },
+        ],
+      }).compile();
+      const svc = modulo.get(LgpdService);
+
+      await expect(svc.processAnonymization('req-1', 'co-1')).rejects.toThrow(
+        /administrador global/,
+      );
+      // Nenhuma escrita fora da transação protegida: nada foi persistido.
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+      expect(prisma.anonymizationRequest.update).not.toHaveBeenCalled();
     });
   });
 });

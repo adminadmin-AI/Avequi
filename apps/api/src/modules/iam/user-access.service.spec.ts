@@ -7,6 +7,7 @@ import {
 import { UserAccessService } from './user-access.service';
 import { PermissionService } from './permission.service';
 import { AuditService } from './audit.service';
+import { LastAdminInvariantService } from './last-admin-invariant.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -16,6 +17,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 const ACTOR = { id: 'admin-1', companyId: 'co-1' };
 const TARGET = { id: 'user-2', name: 'Fulano', email: 'f@gdr.com', role: 'COMMERCIAL' };
+
+let mockLastAdmin: any;
 
 function buildMockPrisma() {
   const prisma: any = {
@@ -41,6 +44,17 @@ function buildMockPrisma() {
     },
     permissionChangeLog: { create: jest.fn().mockResolvedValue({}) },
   };
+
+  // #752: mecanismo central mockado — caminho feliz executa a operação com
+  // o próprio mock de prisma como tx (mesmo contrato do $transaction abaixo).
+  mockLastAdmin = {
+    temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false),
+    ehAdminGlobalEfetivo: jest.fn().mockResolvedValue(false),
+    executarProtegido: jest.fn(async (_companyId: string, op: any) =>
+      op(prisma, { rootId: 'co-1', grupoIds: ['co-1'], adminsPerpetuosAntes: 1 }),
+    ),
+  };
+
   prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
   return prisma;
 }
@@ -69,6 +83,7 @@ describe('UserAccessService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: PermissionService, useValue: mockPermissionService },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: LastAdminInvariantService, useValue: mockLastAdmin },
       ],
     }).compile();
 
@@ -294,6 +309,155 @@ describe('UserAccessService', () => {
         }),
       );
       expect(mockPermissionService.invalidateUser).toHaveBeenCalledWith(TARGET.id, 'co-1');
+    });
+  });
+
+  describe('#752 — invariante do último ADMIN_GLOBAL', () => {
+    it('removeRole de vínculo ADMIN_GLOBAL passa pelo mecanismo central (lock + invariante)', async () => {
+      prisma.userRoleAssignment.findUnique.mockResolvedValue({
+        id: 'as-1',
+        branchId: null,
+        expiresAt: null,
+        role: { code: 'ADMIN_GLOBAL', name: 'Admin Global' },
+      });
+
+      await service.removeRole(ACTOR, TARGET.id, 'role-adm');
+
+      expect(mockLastAdmin.executarProtegido).toHaveBeenCalledWith(
+        ACTOR.companyId,
+        expect.any(Function),
+      );
+      expect(prisma.userRoleAssignment.delete).toHaveBeenCalledWith({ where: { id: 'as-1' } });
+    });
+
+    it('removeRole de perfil comum segue na transação normal, sem lock', async () => {
+      prisma.userRoleAssignment.findUnique.mockResolvedValue({
+        id: 'as-2',
+        branchId: null,
+        expiresAt: null,
+        role: { code: 'VENDEDOR', name: 'Vendedor' },
+      });
+
+      await service.removeRole(ACTOR, TARGET.id, 'role-vnd');
+
+      expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.userRoleAssignment.delete).toHaveBeenCalledWith({ where: { id: 'as-2' } });
+    });
+
+    it('mecanismo central rejeita (último admin) → remoção NÃO acontece e o 409 propaga', async () => {
+      prisma.userRoleAssignment.findUnique.mockResolvedValue({
+        id: 'as-1',
+        branchId: null,
+        expiresAt: null,
+        role: { code: 'ADMIN_GLOBAL', name: 'Admin Global' },
+      });
+      mockLastAdmin.executarProtegido.mockRejectedValue(
+        new ConflictException('administrador global'),
+      );
+
+      await expect(service.removeRole(ACTOR, TARGET.id, 'role-adm')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.userRoleAssignment.delete).not.toHaveBeenCalled();
+    });
+
+    it('deny FORA de iam.roles.* em admin global segue permitido (a proteção não vira bloqueio geral)', async () => {
+      // O laço de recuperação é preservado por iam.roles.assign, que não pode
+      // ser negado — com ele o admin desfaz qualquer outro deny. Então negar
+      // settings.users.update a um admin é decisão administrativa legítima.
+      prisma.permission.findUnique.mockResolvedValue({
+        id: 'p-2',
+        code: 'settings.users.update',
+        name: 'Editar usuários',
+      });
+      mockLastAdmin.ehAdminGlobalEfetivo.mockResolvedValue(true);
+      prisma.userPermission.findUnique.mockResolvedValue(null);
+      prisma.userPermission.upsert.mockResolvedValue({ id: 'up-1' });
+
+      await expect(
+        service.grantPermission(ACTOR, TARGET.id, {
+          permissionCode: 'settings.users.update',
+          granted: false,
+        } as any),
+      ).resolves.toBeDefined();
+      expect(prisma.userPermission.upsert).toHaveBeenCalled();
+    });
+
+    it('deny iam.roles.* em ADMIN_GLOBAL efetivo do v2 (mesmo sem enum SUPER_ADMIN) → 400', async () => {
+      prisma.permission.findUnique.mockResolvedValue({
+        id: 'p-1',
+        code: 'iam.roles.assign',
+        name: 'Atribuir perfis',
+      });
+      mockLastAdmin.ehAdminGlobalEfetivo.mockResolvedValue(true); // alvo é admin v2
+
+      await expect(
+        service.grantPermission(ACTOR, TARGET.id, {
+          permissionCode: 'iam.roles.assign',
+          granted: false,
+        } as any),
+      ).rejects.toThrow(/administrador global/);
+      expect(prisma.userPermission.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('#752 — ADMIN_GLOBAL temporário exige lastro perpétuo', () => {
+    const ADMIN_ROLE = { id: 'role-adm', code: 'ADMIN_GLOBAL', name: 'Admin Global' };
+    const amanha = new Date(Date.now() + 86_400_000).toISOString();
+
+    beforeEach(() => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE);
+      prisma.userRoleAssignment.findUnique.mockResolvedValue(null);
+      prisma.userRoleAssignment.create.mockResolvedValue({ id: 'as-novo' });
+    });
+
+    it('primeiro/único ADMIN_GLOBAL com expiresAt (grupo sem perpétuo) → bloqueado', async () => {
+      mockLastAdmin.executarProtegido.mockImplementation(async (_c: string, op: any) =>
+        op(prisma, { rootId: 'co-1', grupoIds: ['co-1'], adminsPerpetuosAntes: 0 }),
+      );
+
+      await expect(
+        service.assignRole(ACTOR, TARGET.id, { roleId: 'role-adm', expiresAt: amanha } as any),
+      ).rejects.toThrow(/administrador global permanente/);
+      expect(prisma.userRoleAssignment.create).not.toHaveBeenCalled();
+    });
+
+    it('ADMIN_GLOBAL temporário COM perpétuo existente → permitido, dentro do lock', async () => {
+      await service.assignRole(ACTOR, TARGET.id, {
+        roleId: 'role-adm',
+        expiresAt: amanha,
+      } as any);
+
+      expect(mockLastAdmin.executarProtegido).toHaveBeenCalledWith(
+        ACTOR.companyId,
+        expect.any(Function),
+      );
+      const data = prisma.userRoleAssignment.create.mock.calls[0][0].data;
+      expect(data.expiresAt).toEqual(new Date(amanha));
+    });
+
+    it('ADMIN_GLOBAL PERPÉTUO (sem expiresAt) não precisa do lock — só adiciona', async () => {
+      await service.assignRole(ACTOR, TARGET.id, { roleId: 'role-adm' } as any);
+
+      expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
+      expect(prisma.userRoleAssignment.create).toHaveBeenCalled();
+    });
+
+    it('perfil NÃO-admin com expiração segue inalterado (sem lock)', async () => {
+      prisma.role.findFirst.mockResolvedValue({
+        id: 'role-vnd',
+        code: 'VENDEDOR',
+        name: 'Vendedor',
+      });
+
+      await service.assignRole(ACTOR, TARGET.id, {
+        roleId: 'role-vnd',
+        expiresAt: amanha,
+      } as any);
+
+      expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
+      expect(prisma.userRoleAssignment.create).toHaveBeenCalled();
     });
   });
 });
