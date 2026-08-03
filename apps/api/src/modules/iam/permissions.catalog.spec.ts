@@ -120,7 +120,8 @@ describe('Catálogo de permissões (#338)', () => {
     //       do SaaS; troca de plano/override de tenant usa ops.tenants.manage).
     // 318 = 316 + ops.billing.{view,manage} (OPS WP5 #912 — assinaturas,
     //       faturas, baixa manual e régua de inadimplência).
-    expect(PERMISSIONS_CATALOG.length).toBe(318);
+    // 319 = 318 + ops.impersonation.execute (OPS WP6 #913 — visita read-only).
+    expect(PERMISSIONS_CATALOG.length).toBe(319);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

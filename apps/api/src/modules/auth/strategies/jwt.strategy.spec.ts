@@ -7,6 +7,33 @@ const mockDenylist = {
 };
 const mockSessions = { isSessionAliveAndTouch: jest.fn() };
 
+describe('JwtStrategy — impersonation (OPS WP6 #913)', () => {
+  const mockDeny = { isSessionDenylisted: jest.fn() };
+  const mockSess = { isSessionAliveAndTouch: jest.fn().mockResolvedValue(true) };
+  const { JwtStrategy: JS } = require('./jwt.strategy');
+  const strategy = new JS({ get: jest.fn().mockReturnValue('secret') }, mockDeny, mockSess);
+  const payload = {
+    sub: 'alvo', email: 'a@b.c', role: 'MANAGER', companyId: 'c1',
+    scope: 'impersonation', iid: 'iid-1', impersonatorId: 'op-1', readOnly: true,
+  };
+
+  it('aceita como access token do ALVO com contexto de impersonation', async () => {
+    mockDeny.isSessionDenylisted.mockResolvedValue(false);
+    const user = await strategy.validate(payload);
+    expect(user).toMatchObject({
+      id: 'alvo', companyId: 'c1',
+      impersonation: { iid: 'iid-1', impersonatorId: 'op-1', readOnly: true },
+    });
+    // sem sessionId: nem denylist de sessão nem idle-touch do usuário alvo
+    expect(mockSess.isSessionAliveAndTouch).not.toHaveBeenCalled();
+  });
+
+  it('iid na denylist (encerrada pelo operador) → 401', async () => {
+    mockDeny.isSessionDenylisted.mockResolvedValue(true);
+    await expect(strategy.validate(payload)).rejects.toThrow(/suporte encerrada/);
+  });
+});
+
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
 

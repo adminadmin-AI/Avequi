@@ -673,6 +673,13 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'POST /ops/plans, PATCH /ops/plans/:id (OPS WP4 #911; trocar plano/exceções de um tenant fica em ops.tenants.manage)',
     ],
   ]),
+  ...r('ops', 'impersonation', 'Operadora — ver como o cliente', [
+    [
+      'execute',
+      'iniciar/encerrar visita read-only',
+      'POST /ops/tenants/:id/impersonate, POST /ops/tenants/:id/impersonation/:iid/end (OPS WP6 #913 — token 30min, motivo obrigatório, auditado, visível ao cliente em GET /support-access)',
+    ],
+  ]),
   ...r('ops', 'billing', 'Operadora — billing (assinaturas e faturas)', [
     [
       'view',
