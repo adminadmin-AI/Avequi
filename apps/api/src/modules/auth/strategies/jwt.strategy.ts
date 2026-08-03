@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
 import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
+import { IMPERSONATION_SCOPE } from '../../ops/impersonation.constants';
 import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
 
 @Injectable()
@@ -35,6 +36,32 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // valem como access token.
     if (payload?.scope === MFA_PENDING_SCOPE || payload?.scope === PASSWORD_CHANGE_SCOPE) {
       throw new UnauthorizedException('Token restrito não é um access token');
+    }
+
+    // OPS WP6 (#913): token de IMPERSONATION vale como access token do usuário
+    // ALVO, com contexto anexado — o ImpersonationReadonlyGuard global rejeita
+    // toda mutação, e os guards de permissão resolvem pelo alvo (o operador vê
+    // exatamente o que o cliente vê). Sem sessionId de propósito: nenhuma
+    // sessão do cliente é tocada; revogação antecipada é pelo iid na denylist
+    // (Redis fora = fail-open com teto de 30 min, mesmo trade-off da #823).
+    if (payload?.scope === IMPERSONATION_SCOPE) {
+      if (payload?.iid) {
+        const ended = await this.denylist.isSessionDenylisted(payload.iid);
+        if (ended) {
+          throw new UnauthorizedException('Sessão de suporte encerrada.');
+        }
+      }
+      return {
+        id: payload.sub,
+        email: payload.email,
+        role: payload.role,
+        companyId: payload.companyId,
+        impersonation: {
+          iid: payload.iid,
+          impersonatorId: payload.impersonatorId,
+          readOnly: payload.readOnly !== false,
+        },
+      };
     }
 
     // #823: sessão revogada criticamente (SECURITY/ADMIN_REVOKE — inativação,

@@ -13,6 +13,7 @@ import { CompanyGuard } from './common/guards/company.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { EntitlementGuard } from './common/guards/entitlement.guard';
+import { ImpersonationReadonlyGuard } from './common/guards/impersonation-readonly.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
@@ -209,6 +210,12 @@ import { EntitlementModule } from './modules/entitlement/entitlement.module';
     {
       provide: APP_GUARD,
       useClass: EntitlementGuard,
+    },
+    // OPS WP6 (#913): sessão de suporte é somente-leitura — mutações sob
+    // impersonation morrem aqui, independente de permissão/entitlement.
+    {
+      provide: APP_GUARD,
+      useClass: ImpersonationReadonlyGuard,
     },
     // #349: rate limiting adaptativo — tracker por usuário quando autenticado,
     // teto global 2× p/ confiáveis; limites estritos de rota nunca inflam.
