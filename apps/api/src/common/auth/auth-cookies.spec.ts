@@ -2,6 +2,7 @@ import {
   clearAuthCookies,
   expiryToMs,
   gerarCsrfToken,
+  resolveSameSite,
   setAuthCookies,
 } from './auth-cookies';
 
@@ -87,5 +88,46 @@ describe('auth-cookies (#349)', () => {
     const b = gerarCsrfToken();
     expect(a).toMatch(/^[0-9a-f]{64}$/);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('SameSite por topologia (#349)', () => {
+  const OLD = process.env;
+  afterEach(() => {
+    process.env = OLD;
+  });
+
+  it('produção sem configuração: none — funciona em qualquer topologia', () => {
+    process.env = { ...OLD, NODE_ENV: 'production', AUTH_COOKIE_SAMESITE: undefined };
+    expect(resolveSameSite()).toBe('none');
+  });
+
+  it('AUTH_COOKIE_SAMESITE=lax liga o modo mesmo-site (app.avecchi.ai × api.avecchi.ai)', () => {
+    process.env = { ...OLD, NODE_ENV: 'production', AUTH_COOKIE_SAMESITE: 'lax' };
+    expect(resolveSameSite()).toBe('lax');
+
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as any;
+    setAuthCookies(res, { accessToken: 'AT', refreshToken: 'RT' });
+    // Secure continua ligado em produção, mesmo com lax.
+    expect(res.cookie.mock.calls[0][2]).toMatchObject({ sameSite: 'lax', secure: true });
+  });
+
+  it('valor inválido cai no default do ambiente — nunca num sameSite inventado', () => {
+    process.env = { ...OLD, NODE_ENV: 'production', AUTH_COOKIE_SAMESITE: 'strict' };
+    expect(resolveSameSite()).toBe('none');
+    process.env = { ...OLD, NODE_ENV: 'test', AUTH_COOKIE_SAMESITE: 'qualquer-coisa' };
+    expect(resolveSameSite()).toBe('lax');
+  });
+
+  it('aceita a configuração com espaço/maiúsculas (copiar e colar de painel)', () => {
+    process.env = { ...OLD, NODE_ENV: 'production', AUTH_COOKIE_SAMESITE: ' LAX ' };
+    expect(resolveSameSite()).toBe('lax');
+  });
+
+  it('none FORÇA Secure mesmo fora de produção — o browser recusaria o cookie sem isso', () => {
+    process.env = { ...OLD, NODE_ENV: 'test', AUTH_COOKIE_SAMESITE: 'none' };
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as any;
+    setAuthCookies(res, { accessToken: 'AT' });
+    expect(res.cookie.mock.calls[0][2]).toMatchObject({ sameSite: 'none', secure: true });
   });
 });

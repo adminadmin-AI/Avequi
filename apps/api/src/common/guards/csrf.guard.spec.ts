@@ -1,10 +1,17 @@
 import { ForbiddenException } from '@nestjs/common';
 import { CsrfGuard } from './csrf.guard';
 
-function ctx(req: any) {
+function ctx(req: any, res: any = { setHeader: jest.fn() }) {
   return {
-    switchToHttp: () => ({ getRequest: () => req }),
+    switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
+    getHandler: () => undefined,
+    getClass: () => undefined,
   } as any;
+}
+
+/** Reflector falso: responde a isenção que o teste pedir. */
+function reflectorQueIsenta(isento: boolean) {
+  return { getAllAndOverride: () => isento } as any;
 }
 
 describe('CsrfGuard (#349 — double-submit do canal cookie)', () => {
@@ -88,5 +95,49 @@ describe('CsrfGuard (#349 — double-submit do canal cookie)', () => {
         ),
       ).toThrow(ForbiddenException);
     }
+  });
+});
+
+describe('CsrfGuard — isenção e sinalização (fallbacks #349)', () => {
+  const CSRF = 'a'.repeat(64);
+  const mutacaoSemHeader = {
+    method: 'POST',
+    cookies: { gdr_access: 'jwt', gdr_csrf: CSRF },
+    headers: {},
+  };
+
+  it('@SkipCsrf() libera a rota mesmo sem o header — é a saída do trancamento', () => {
+    const guard = new CsrfGuard(reflectorQueIsenta(true));
+    expect(guard.canActivate(ctx(mutacaoSemHeader))).toBe(true);
+  });
+
+  it('sem isenção, a mesma requisição continua sendo barrada', () => {
+    const guard = new CsrfGuard(reflectorQueIsenta(false));
+    expect(() => guard.canActivate(ctx(mutacaoSemHeader))).toThrow(ForbiddenException);
+  });
+
+  it('marca a resposta com x-csrf-error para o cliente saber que dá para renovar', () => {
+    const guard = new CsrfGuard(reflectorQueIsenta(false));
+    const res = { setHeader: jest.fn() };
+    expect(() => guard.canActivate(ctx(mutacaoSemHeader, res))).toThrow(ForbiddenException);
+    expect(res.setHeader).toHaveBeenCalledWith('x-csrf-error', '1');
+  });
+
+  it('403 de permissão (outro guard) não leva o header — só o de CSRF é recuperável', () => {
+    const guard = new CsrfGuard(reflectorQueIsenta(false));
+    const res = { setHeader: jest.fn() };
+    // requisição válida passa direto: nenhum header de erro é marcado
+    guard.canActivate(
+      ctx(
+        { method: 'POST', cookies: { gdr_access: 'jwt', gdr_csrf: CSRF }, headers: { 'x-csrf-token': CSRF } },
+        res,
+      ),
+    );
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
+
+  it('sem reflector (uso direto nos specs antigos) nada é isento', () => {
+    const guard = new CsrfGuard();
+    expect(() => guard.canActivate(ctx(mutacaoSemHeader))).toThrow(ForbiddenException);
   });
 });

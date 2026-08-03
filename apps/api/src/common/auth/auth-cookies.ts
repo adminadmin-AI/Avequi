@@ -21,11 +21,19 @@ import { Response } from 'express';
  *   cross-site de qualquer forma. Um atacante em outra origem não lê o body
  *   da resposta nem o cookie, então não forja o header.
  *
- * Cross-site: em produção SameSite=None + Secure (front Vercel × API
- * Railway são sites distintos); em dev (localhost:3000 → localhost:3001)
- * Lax + sem Secure. Se um dia front e API forem para o mesmo domínio
- * (app.avecchi.com.br × api.avecchi.com.br), trocar para Lax é aperto
- * adicional — nada aqui impede.
+ * SameSite: depende da TOPOLOGIA, então é configuração, não constante.
+ *
+ * - `none` (default em produção): front e API em sites distintos. Funciona
+ *   em qualquer topologia, inclusive na mesma — por isso é o default: quem
+ *   esquecer de configurar não quebra nada.
+ * - `lax`: front e API no MESMO site (hoje `app.avecchi.ai` × `api.avecchi.ai`).
+ *   Mais restritivo, e imune ao bloqueio de cookies de TERCEIROS que Safari
+ *   aplica por padrão — é o que faz a sessão por cookie funcionar no iPhone.
+ *
+ * Ligue com `AUTH_COOKIE_SAMESITE=lax` no ambiente. Deixei explícito de
+ * propósito em vez de adivinhar comparando domínios: a heurística de
+ * "mesmo site" erra feio em sufixos compostos (`.com.br`), e errar aqui
+ * significa cookie que não vai — falha silenciosa e difícil de achar.
  */
 
 export const ACCESS_COOKIE = 'gdr_access';
@@ -53,12 +61,24 @@ export function expiryToMs(expiry: string | undefined, fallbackMs: number): numb
   return n * (m[2] ? unit[m[2]] : 1000);
 }
 
+/** 'lax' | 'none' — ver a nota de topologia no topo do arquivo. */
+export function resolveSameSite(): 'lax' | 'none' {
+  const prod = process.env.NODE_ENV === 'production';
+  const configurado = process.env.AUTH_COOKIE_SAMESITE?.trim().toLowerCase();
+  if (configurado === 'lax' || configurado === 'none') return configurado;
+  // Sem configuração: fora de produção é sempre mesmo host (localhost), então
+  // lax; em produção mantém o comportamento que funciona em qualquer topologia.
+  return prod ? 'none' : 'lax';
+}
+
 function baseOptions() {
   const prod = process.env.NODE_ENV === 'production';
+  const sameSite = resolveSameSite();
   return {
     httpOnly: true,
-    secure: prod,
-    sameSite: prod ? ('none' as const) : ('lax' as const),
+    // SameSite=None EXIGE Secure; com lax, secure segue o ambiente.
+    secure: prod || sameSite === 'none',
+    sameSite,
   };
 }
 
