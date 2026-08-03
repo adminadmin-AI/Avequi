@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.30.1] - 2026-08-03
+
+### Fixed
+- **Importador de centros de trabalho: timeout de 60s na transação (#873/#952)** — o default de 5s do Prisma não comportava ~34 creates seriais via pooler remoto e revertia o `--apply` inteiro; visto na carga real dos centros da GDR.
+
 ## [1.30.0] - 2026-08-03
 
 ### Added
@@ -389,7 +394,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...HEAD
+[1.30.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...v1.30.1
 [1.30.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...v1.30.0
 [1.29.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...v1.29.1
 [1.29.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...v1.29.0
