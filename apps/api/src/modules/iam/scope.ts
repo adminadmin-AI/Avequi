@@ -24,6 +24,34 @@
 /** Nível de recorte de dados do usuário na empresa. */
 export type ScopeLevel = 'COMPANY' | 'BRANCH' | 'OWN';
 
+/**
+ * Contexto de acesso (#347-B, decisão Rafael 03/08/2026): quem está operando?
+ *
+ * Serviço que consome escopo NÃO aceita `userId?` opcional — a ausência de
+ * usuário era ambígua ("esqueceram de passar" × "chamada do sistema") e uma
+ * rota nova que esquecesse o parâmetro ganharia visão da empresa em silêncio.
+ * Com o contexto obrigatório, esquecer é erro de COMPILAÇÃO e operar como
+ * sistema é uma escolha explícita e auditável no call site.
+ *
+ * - USER: request HTTP em nome de um usuário autenticado (userId do JWT,
+ *   NUNCA de body/query) → escopo resolvido e aplicado.
+ * - SYSTEM: listener/scheduler operando em nome do sistema (ex.: WMS marcando
+ *   venda como pronta) → visão da empresa, sem recorte. Use APENAS a
+ *   constante SYSTEM_CONTEXT — nunca construa a partir de input do cliente.
+ */
+export type AccessContext =
+  | { kind: 'USER'; userId: string }
+  | { kind: 'SYSTEM' };
+
+export type SystemContext = Extract<AccessContext, { kind: 'SYSTEM' }>;
+
+export const SYSTEM_CONTEXT: SystemContext = Object.freeze({ kind: 'SYSTEM' });
+
+/** Contexto de um request autenticado — `userId` deve vir do JWT. */
+export function userContext(userId: string): AccessContext {
+  return { kind: 'USER', userId };
+}
+
 /** Escopo efetivo resolvido para um par (usuário, empresa). */
 export interface EffectiveScope {
   level: ScopeLevel;

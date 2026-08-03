@@ -64,7 +64,34 @@ na filial) na 347-C; relatórios/exports respeitando escopo na 347-D.
 ## Roadmap
 
 - **347-A** ✅ infraestrutura (este doc) — shadow, zero mudança de comportamento.
-- **347-B** vendas/faturamento de loja (caso real: venda balcão #595).
+- **347-B** ✅ vendas/faturamento de loja (caso real: venda balcão #595) —
+  entregue em 03/08/2026: todo o `SalesService` consome `scopeWhere` (listagem,
+  detalhe e mutações por id respondem 404 fora do recorte; criar venda e listar
+  chassis do balcão em depósito de outra filial respondem 403) e `getUserScope`
+  ganhou cache Redis (TTL 5 min, invalidado junto com o de permissões).
+  - **Contexto obrigatório USER × SYSTEM** (decisão Rafael 03/08/2026): os
+    métodos do `SalesService` exigem `AccessContext` (`userContext(user.id)`
+    nos controllers; `SYSTEM_CONTEXT` no listener do WMS). Não há fallback por
+    ausência de argumento — esquecer o contexto é erro de compilação, nunca
+    visão da empresa silenciosa.
+  - **Assignments mistos** (decisão de produto reconfirmada 03/08/2026):
+    pelo menos um assignment COMPANY junto de BRANCH → **COMPANY prevalece**
+    (perfil corporativo não perde a visão da empresa por exercer função
+    local). Travado por teste em `scope.spec.ts`.
+  - **Backfill: SEM plano aprovado.** O retrato real de produção (03/08) não
+    bate com o rascunho de 01/08: GDR Reboques (…0115) só tem ALM-FAB;
+    LOJA-GUA pertence à empresa GDR Guarapuava (…0204); LOJA-CAS não existe;
+    há uma empresa demonstrativa "GDR Matriz" de CNPJ fictício (ver #730).
+    O script `scripts/backfill-warehouse-branches-347b.ts` agora opera por
+    plano JSON explícito POR EMPRESA (modo default = só imprime o retrato;
+    `--apply` sem `--plano` é erro). O plano será decidido pelo Rafael antes
+    de qualquer execução.
+  - **Invalidação futura obrigatória**: quando existir mutation de vínculo
+    depósito↔filial (347-C), ela DEVE chamar `invalidateCompany` — o TTL de
+    5 min só é aceito enquanto o vínculo mudar apenas por operação
+    administrativa excepcional.
+  - O recorte só ativa para quem receber assignment com `branchId` — sem
+    isso, comportamento de sempre.
 - **347-C** estoque/WMS/transferências.
 - **347-D** relatórios/exports.
 - **CRM** no bloco F, consumindo o mecanismo após reconciliar Company-por-loja.

@@ -22,6 +22,7 @@ import Redis from 'ioredis';
 export const PERMISSION_CACHE_TTL_SECONDS = 300;
 
 const KEY_PREFIX = 'iam:perms:';
+const SCOPE_KEY_PREFIX = 'iam:scope:';
 
 /** Payload versionado gravado no Redis (v permite migrar o formato sem lixo). */
 export interface CachedPermissionSet {
@@ -30,6 +31,26 @@ export interface CachedPermissionSet {
   roles: string[];
   /** Codes de permissão EFETIVOS (herança + exceções já aplicadas). */
   permissions: string[];
+}
+
+/**
+ * Escopo de dados cacheado (#347-B). Mesmo ciclo de vida do cache de
+ * permissões: TTL 5 min + invalidação ativa nos mesmos pontos (grant/revoke
+ * de assignment muda os DOIS).
+ *
+ * ⚠️ VÍNCULO DEPÓSITO↔FILIAL (Warehouse.branchId): hoje NÃO existe mutation
+ * de API para ele (só operação administrativa autorizada, via script) e o
+ * TTL de 5 min é o teto de staleness aceito pelo Rafael APENAS enquanto for
+ * assim. Qualquer futura mutation que vincule, desvincule ou transfira um
+ * depósito entre filiais (ex.: 347-C) DEVE chamar
+ * PermissionService.invalidateCompany na empresa afetada — invalidação
+ * imediata, não TTL.
+ */
+export interface CachedScope {
+  v: 1;
+  level: 'COMPANY' | 'BRANCH' | 'OWN';
+  branchIds: string[];
+  warehouseIds: string[];
 }
 
 @Injectable()
@@ -83,6 +104,48 @@ export class PermissionCacheService implements OnModuleDestroy {
     return `${KEY_PREFIX}${companyId}:${userId}`;
   }
 
+  private scopeKey(companyId: string, userId: string): string {
+    return `${SCOPE_KEY_PREFIX}${companyId}:${userId}`;
+  }
+
+  /** Lê o escopo cacheado (#347-B). `null` = miss OU Redis indisponível. */
+  async getScope(companyId: string, userId: string): Promise<CachedScope | null> {
+    const client = this.getClient();
+    if (!client) return null;
+    try {
+      const raw = await client.get(this.scopeKey(companyId, userId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as CachedScope;
+      if (
+        parsed?.v !== 1 ||
+        !['COMPANY', 'BRANCH', 'OWN'].includes(parsed.level) ||
+        !Array.isArray(parsed.branchIds) ||
+        !Array.isArray(parsed.warehouseIds)
+      ) {
+        return null; // formato desconhecido → trata como miss
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Grava o escopo com o mesmo TTL das permissões. Best-effort. */
+  async setScope(companyId: string, userId: string, value: CachedScope): Promise<void> {
+    const client = this.getClient();
+    if (!client) return;
+    try {
+      await client.set(
+        this.scopeKey(companyId, userId),
+        JSON.stringify(value),
+        'EX',
+        PERMISSION_CACHE_TTL_SECONDS,
+      );
+    } catch {
+      // best-effort
+    }
+  }
+
   /** Lê o conjunto cacheado. `null` = cache miss OU Redis indisponível. */
   async get(companyId: string, userId: string): Promise<CachedPermissionSet | null> {
     const client = this.getClient();
@@ -116,25 +179,27 @@ export class PermissionCacheService implements OnModuleDestroy {
     }
   }
 
-  /** Invalida o cache de UM usuário em UMA empresa. */
+  /** Invalida os caches (permissões + escopo) de UM usuário em UMA empresa. */
   async del(companyId: string, userId: string): Promise<void> {
     const client = this.getClient();
     if (!client) return;
     try {
-      await client.del(this.key(companyId, userId));
+      await client.del(this.key(companyId, userId), this.scopeKey(companyId, userId));
     } catch {
       // best-effort
     }
   }
 
-  /** Invalida o cache de um usuário em TODAS as empresas. */
+  /** Invalida os caches de um usuário em TODAS as empresas. */
   async delUserAllCompanies(userId: string): Promise<void> {
     await this.delByPattern(`${KEY_PREFIX}*:${userId}`);
+    await this.delByPattern(`${SCOPE_KEY_PREFIX}*:${userId}`);
   }
 
-  /** Invalida o cache de TODOS os usuários de uma empresa. */
+  /** Invalida os caches de TODOS os usuários de uma empresa. */
   async delCompany(companyId: string): Promise<void> {
     await this.delByPattern(`${KEY_PREFIX}${companyId}:*`);
+    await this.delByPattern(`${SCOPE_KEY_PREFIX}${companyId}:*`);
   }
 
   /** SCAN incremental (nunca KEYS — bloqueia o Redis) + DEL em lotes. */

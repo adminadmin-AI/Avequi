@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { SYSTEM_CONTEXT } from '../iam/scope';
 import { OnEvent } from '@nestjs/event-emitter';
 import { GOODS_RECEIVED_EVENT, GoodsReceivedEvent } from '../stock/events/goods-received.event';
 import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from '../sales/events/sale-confirmed.event';
@@ -32,7 +33,7 @@ export class WmsListener {
       const created = await this.wmsService.createPickingOrder(event);
       // #220: Non-WMS warehouses — skip picking, go straight to READY_TO_INVOICE
       if (!created) {
-        await this.salesService.markReadyToInvoice(event.salesOrderId);
+        await this.salesService.markReadyToInvoice(event.salesOrderId, SYSTEM_CONTEXT);
         this.logger.log(
           `SO ${event.salesOrderId} marcada como READY_TO_INVOICE (WMS desativado)`,
         );
@@ -47,7 +48,7 @@ export class WmsListener {
   @OnEvent(SALE_PICKED_EVENT, { async: true })
   async onSalePicked(event: SalePickedEvent): Promise<void> {
     try {
-      await this.salesService.markReadyToInvoice(event.salesOrderId);
+      await this.salesService.markReadyToInvoice(event.salesOrderId, SYSTEM_CONTEXT);
       this.logger.log(`SO ${event.salesOrderId} marcada como READY_TO_INVOICE após picking`);
     } catch (err) {
       this.logger.error(
