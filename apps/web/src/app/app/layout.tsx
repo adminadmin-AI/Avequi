@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui-store';
 import { Sidebar } from '@/components/shell/sidebar';
 import { Header } from '@/components/shell/header';
 import { BillingBanner } from '@/components/shell/billing-banner';
+import { ImpersonationBanner } from '@/components/shell/impersonation-banner';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { RouteGuard } from '@/components/shell/route-guard';
 import { ShortcutsHelp } from '@/components/shell/shortcuts-help';
@@ -133,6 +134,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       >
         <Header />
+        <ImpersonationBanner />
         <BillingBanner />
         <main id="conteudo" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
           {/* Guard de rota por role: usa o mesmo mapa do menu (nav-config.ts). */}

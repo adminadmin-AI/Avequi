@@ -9,6 +9,7 @@ import { resolveEffectivePermissions } from '../iam/roles.catalog';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
 import { BillingController } from './billing.controller';
+import { ImpersonationController } from './impersonation.controller';
 import { OpsPanelController } from './ops-panel.controller';
 import { OpsController } from './ops.controller';
 import { PlansController } from './plans.controller';
@@ -38,6 +39,7 @@ const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }>
   { name: 'OpsPanelController', cls: OpsPanelController },
   { name: 'PlansController', cls: PlansController },
   { name: 'BillingController', cls: BillingController },
+  { name: 'ImpersonationController', cls: ImpersonationController },
 ];
 
 function endpointsOf(cls: new (...args: any[]) => any): Endpoint[] {

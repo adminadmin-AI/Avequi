@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Ban,
+  Eye,
   History,
   LineChart,
   PlayCircle,
@@ -19,7 +20,10 @@ import {
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import * as impersonation from '@/lib/impersonation';
 import type {
+  ImpersonateResult,
+  StartImpersonationInput,
   TenantDetail,
   TenantHealth,
   TenantHealthUser,
@@ -30,6 +34,7 @@ import type {
   UpdateTenantStatusInput,
 } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
+import { Can } from '@/components/can';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -184,6 +189,86 @@ function ReasonDialog({
         </Label>
         <Textarea
           id="reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Explique o motivo — obrigatório, mínimo 5 caracteres"
+          rows={3}
+          error={touched && tooShort}
+        />
+        {touched && tooShort && (
+          <p className="mt-1 text-xs text-danger">Informe pelo menos 5 caracteres.</p>
+        )}
+      </form>
+    </FormDialog>
+  );
+}
+
+/**
+ * "Ver como" (impersonation, OPS WP6 #913) — mesmo mínimo de motivo (≥5) do
+ * ReasonDialog. Ao confirmar, dispara o POST e — no sucesso — entrega o
+ * resultado para `impersonation.start()`, que troca a sessão e navega para
+ * `/app` (o dialog não chega a fechar "normalmente": a página já mudou).
+ */
+function ImpersonateDialog({
+  open,
+  onOpenChange,
+  user,
+  tenantId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  user: TenantHealthUser | null;
+  tenantId: string;
+}) {
+  const toast = useToast();
+  const [reason, setReason] = useState('');
+  const [touched, setTouched] = useState(false);
+  const tooShort = reason.trim().length < 5;
+
+  const startImpersonation = useMutation({
+    mutationFn: (input: StartImpersonationInput) =>
+      apiClient.post<ImpersonateResult>(`${RESOURCE}/${tenantId}/impersonate`, input),
+    onSuccess: (res) => {
+      impersonation.start(res.data, tenantId);
+    },
+    onError: (err) =>
+      toast.error(mensagemDoErro(err) ?? 'Não foi possível iniciar a sessão de suporte'),
+  });
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          setReason('');
+          setTouched(false);
+        }
+        onOpenChange(v);
+      }}
+      title="Ver como"
+      description={user ? `Iniciar sessão de suporte visualizando a conta como "${user.name}".` : undefined}
+      formId="impersonate-reason"
+      submitLabel="Iniciar sessão"
+      loading={startImpersonation.isPending}
+    >
+      <form
+        id="impersonate-reason"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setTouched(true);
+          if (tooShort || !user) return;
+          startImpersonation.mutate({ userId: user.id, reason: reason.trim() });
+        }}
+      >
+        <p className="mb-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-warning">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          Sessão somente-leitura de 30 min, registrada e visível ao cliente.
+        </p>
+        <Label htmlFor="impersonate-reason-input" required>
+          Motivo
+        </Label>
+        <Textarea
+          id="impersonate-reason-input"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Explique o motivo — obrigatório, mínimo 5 caracteres"
@@ -452,6 +537,7 @@ function HealthTab({ tenantId }: { tenantId: string }) {
 // ─── Aba "Pessoas" ──────────────────────────────────────────────────────────
 function PeopleTab({ tenantId }: { tenantId: string }) {
   const healthQuery = useTenantHealth(tenantId);
+  const [impersonateUser, setImpersonateUser] = useState<TenantHealthUser | null>(null);
 
   if (healthQuery.isError) {
     return <InlineError message="Não foi possível carregar as pessoas da conta." />;
@@ -488,16 +574,40 @@ function PeopleTab({ tenantId }: { tenantId: string }) {
           <span title="nunca">—</span>
         ),
     },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (u) =>
+        u.isActive ? (
+          <Can permission="ops.impersonation.execute">
+            <Button variant="ghost" size="sm" onClick={() => setImpersonateUser(u)}>
+              <Eye size={14} />
+              Ver como
+            </Button>
+          </Can>
+        ) : null,
+    },
   ];
 
   return (
-    <DataTable
-      data={healthQuery.data?.users ?? []}
-      columns={columns}
-      loading={healthQuery.isLoading}
-      searchPlaceholder="Buscar por nome ou e-mail..."
-      empty={<EmptyState compact title="Nenhuma pessoa cadastrada" />}
-    />
+    <>
+      <DataTable
+        data={healthQuery.data?.users ?? []}
+        columns={columns}
+        loading={healthQuery.isLoading}
+        searchPlaceholder="Buscar por nome ou e-mail..."
+        empty={<EmptyState compact title="Nenhuma pessoa cadastrada" />}
+      />
+      <ImpersonateDialog
+        open={!!impersonateUser}
+        onOpenChange={(v) => {
+          if (!v) setImpersonateUser(null);
+        }}
+        user={impersonateUser}
+        tenantId={tenantId}
+      />
+    </>
   );
 }
 

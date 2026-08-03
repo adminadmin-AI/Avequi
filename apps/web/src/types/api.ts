@@ -1419,6 +1419,39 @@ export interface UpdateTenantStatusInput {
   reason?: string;
 }
 
+/** POST /ops/tenants/:id/impersonate — body (OPS WP6, #913). */
+export interface StartImpersonationInput {
+  userId: string;
+  /** obrigatório, mínimo 5 caracteres */
+  reason: string;
+}
+
+/** POST /ops/tenants/:id/impersonate — resposta. Token vale 30min como
+ *  access token do ALVO; toda mutação sob ele responde 403 (guard no backend). */
+export interface ImpersonateResult {
+  impersonationToken: string;
+  expiresAt: string;
+  iid: string;
+  target: { id: string; name: string; email: string; role: UserRole };
+}
+
+/** GET /support-access — transparência ao cliente das sessões de suporte
+ *  (impersonation) sobre o tenant dele. */
+export interface SupportAccessLog {
+  id: string;
+  /** iid da sessão de impersonation */
+  entityId: string;
+  action: 'EXECUTE' | 'CANCEL';
+  newValue: {
+    targetEmail?: string;
+    reason?: string;
+    expiresAt?: string;
+    endedEarly?: boolean;
+  } | null;
+  createdAt: string;
+  user: { name: string } | null;
+}
+
 /** POST /ops/tenants — passo 1 do onboarding (empresa raiz). */
 export interface CreateTenantInput {
   name: string;
