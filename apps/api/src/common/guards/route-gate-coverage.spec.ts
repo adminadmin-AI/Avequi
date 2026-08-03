@@ -42,6 +42,7 @@ const PUBLIC_ALLOWLIST = [
   'FiscalController.webhook', // Focus NFe (x-focus-token, timingSafeEqual)
   'SupportController.updateDiagnosis', // write-back triagem (#768, HMAC x-triage-signature, fail-closed)
   'VersionController.version', // GET /version — público por design
+  'InviteController.accept', // aceite de convite de tenant (OPS WP2 #909 — token sha256 uso único 72h, throttle 5/min, resposta única p/ token inválido)
 ].sort();
 
 /** Controllers com migração RBAC v2 PENDENTE — rotas sem gate toleradas até a

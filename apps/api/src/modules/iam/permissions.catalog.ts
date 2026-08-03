@@ -659,6 +659,11 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'suspender/reativar/marcar sandbox',
       'PATCH /ops/tenants/:id/status (suspensão revoga as sessões do tenant)',
     ],
+    [
+      'provision',
+      'provisionar conta nova (onboarding)',
+      'POST /ops/tenants, GET /ops/tenants/:id/provisioning, POST /ops/tenants/:id/provisioning/{admin,fiscal-check}, POST /ops/tenants/:id/activate (OPS WP2 #909)',
+    ],
   ]),
 ];
 

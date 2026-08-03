@@ -263,6 +263,16 @@ export const NAV: NavSection[] = [
       { href: '/app/support', label: 'Meus chamados', icon: LifeBuoy },
     ],
   },
+  {
+    key: 'operadora',
+    title: 'Operadora',
+    items: [
+      // Control plane cross-tenant da Avecchi (OPS WP1 #908 / WP2 #909) —
+      // NUNCA entra em perfil de tenant (tenantPermissionCodes() exclui o
+      // módulo `ops` inteiro); só quem tem ops.tenants.view vê este item.
+      { href: '/app/ops', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
+    ],
+  },
 ];
 
 /** Ações rápidas do command palette (#305). */

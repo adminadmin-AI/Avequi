@@ -1281,3 +1281,119 @@ export interface SupportIncident {
   updatedAt: string;
   updates?: SupportIncidentUpdate[];
 }
+
+// ─── Ops — control plane da operadora (OPS WP1 #908 / WP2 #909) ──────────────
+export type TenantStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CHURNED' | 'SANDBOX';
+
+/** GET /ops/tenants — item da lista de contas de cliente. */
+export interface Tenant {
+  id: string;
+  name: string;
+  razaoSocial: string;
+  cnpj: string;
+  tenantStatus: TenantStatus;
+  isSandbox: boolean;
+  trialEndsAt?: string | null;
+  suspendedAt?: string | null;
+  suspendReason?: string | null;
+  onboardedAt?: string | null;
+  createdAt: string;
+  _count: { users: number; branches: number };
+}
+
+/** GET /ops/tenants/:id — detalhe (raiz + filiais). */
+export interface TenantDetail extends Tenant {
+  branches: Array<{ id: string; name: string; cnpj: string; type: CompanyType }>;
+}
+
+/** PATCH /ops/tenants/:id/status */
+export interface UpdateTenantStatusInput {
+  status: TenantStatus;
+  /** obrigatório para SUSPENDED/CHURNED */
+  reason?: string;
+}
+
+/** POST /ops/tenants — passo 1 do onboarding (empresa raiz). */
+export interface CreateTenantInput {
+  name: string;
+  cnpj: string;
+  razaoSocial: string;
+  ie?: string;
+  crt?: 1 | 2 | 3;
+  taxRegime?: TaxRegime;
+  state?: string;
+  city?: string;
+  email?: string;
+}
+
+/** Checklist de onboarding — GET /ops/tenants/:id/provisioning. */
+export interface TenantProvisioningChecklist {
+  company: { done: true };
+  admin:
+    | {
+        done: boolean;
+        invited: true;
+        email: string;
+        emailSent: boolean;
+        accepted: boolean;
+        inviteExpiresAt: string | null;
+      }
+    | { done: false; invited: false };
+  /**
+   * `done` espelha `ok` quando já houve verificação (ok=false → done=false,
+   * mas os demais campos vêm preenchidos); antes da primeira verificação só
+   * `done: false` existe, sem os demais campos — por isso todos opcionais.
+   */
+  fiscal: {
+    done: boolean;
+    ok?: boolean;
+    tokenSource?: 'scoped' | 'missing';
+    checkedAt?: string;
+  };
+  activation: { done: boolean; completedAt: string | null };
+}
+
+/** GET /ops/tenants/:id/provisioning */
+export interface TenantProvisioning {
+  id: string;
+  companyId: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company: {
+    id: string;
+    name: string;
+    cnpj: string;
+    razaoSocial: string;
+    tenantStatus: TenantStatus;
+    onboardedAt: string | null;
+  };
+  checklist: TenantProvisioningChecklist;
+}
+
+/** POST /ops/tenants/:id/provisioning/admin */
+export interface InviteAdminInput {
+  name: string;
+  email: string;
+}
+export interface InviteAdminResult {
+  inviteId: string;
+  userId: string;
+  email: string;
+  expiresAt: string;
+  emailSent: boolean;
+  emailError?: string;
+}
+
+/** POST /ops/tenants/:id/provisioning/fiscal-check */
+export interface FiscalCheckResult {
+  ok: boolean;
+  tokenSource: 'scoped' | 'missing';
+  checkedAt: string;
+}
+
+/** POST /invite/accept */
+export interface AcceptInviteResult {
+  ok: true;
+  email: string;
+}

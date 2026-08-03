@@ -4,7 +4,9 @@ import { Reflector } from '@nestjs/core';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { resolveEffectivePermissions } from '../iam/roles.catalog';
+import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
 import { OpsController } from './ops.controller';
 
@@ -31,6 +33,10 @@ function endpointsOf(): Endpoint[] {
   const proto = OpsController.prototype as any;
   return Object.getOwnPropertyNames(proto)
     .filter((m) => m !== 'constructor' && typeof proto[m] === 'function')
+    // Só ROTAS de verdade (têm metadata 'path' do @Get/@Post/@Patch) — helpers
+    // privados do controller ficam fora, e uma rota SEM @RequirePermission
+    // continua sendo pega pelo primeiro teste (required undefined ≠ ops.*).
+    .filter((m) => Reflect.getMetadata('path', proto[m]) !== undefined)
     .map((m) => ({
       name: m,
       handler: proto[m],
@@ -120,4 +126,19 @@ describe('OPS WP1 (#908) — fronteira do control plane (PermissionGuard + metad
       }
     });
   }
+
+  // ── OPS WP2 (#909): aceite público de convite ──────────────────────────────
+
+  it('InviteController.accept é @Public (aceite acontece antes de existir credencial)', () => {
+    const isPublic = reflector.get<boolean>(
+      IS_PUBLIC_KEY,
+      InviteController.prototype.accept,
+    );
+    expect(isPublic).toBe(true);
+  });
+
+  it('InviteController NÃO tem o OpsMfaGuard (guard não respeita @Public, by design)', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, InviteController) ?? [];
+    expect(guards).not.toContain(OpsMfaGuard);
+  });
 });

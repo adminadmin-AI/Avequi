@@ -178,7 +178,53 @@ model Company {
   /// Estampado quando o provisionamento (WP2) conclui o checklist de go-live
   onboardedAt   DateTime?
 
+  // OPS WP2 (#909) — provisionamento e convites
+  provisioning  TenantProvisioning?
+  tenantInvites TenantInvite[]
+
   @@map("gdr_companies")
+}
+
+/// OPS WP2 (#909) — máquina de estados do onboarding de um tenant novo.
+/// UMA linha por tenant (companyId unique); cada passo grava seu resultado em
+/// `steps` (JSON) e é IDEMPOTENTE: reexecutar um passo concluído atualiza o
+/// registro sem duplicar efeito. O tenant nasce TRIAL e só vira ACTIVE no
+/// activate (gate manual do operador), que estampa Company.onboardedAt.
+model TenantProvisioning {
+  id          String    @id @default(cuid())
+  companyId   String    @unique
+  company     Company   @relation(fields: [companyId], references: [id])
+  /// { admin?: {userId, email, invitedAt, acceptedAt?}, fiscal?: {ok, tokenSource, checkedAt} }
+  steps       Json      @default("{}")
+  createdById String // operador (sem FK: preservado se o operador sair)
+  completedAt DateTime? // go-live concluído (espelha Company.onboardedAt)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_tenant_provisionings")
+}
+
+/// OPS WP2 (#909) — convite de primeiro acesso do admin do tenant.
+/// NUNCA senha provisória em texto: o e-mail leva um token de uso único
+/// (sha256 no banco, expira em 72h); o aceite público define a senha
+/// (política #345) e destrava o usuário. Reenviar convite revoga o anterior.
+model TenantInvite {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String    @unique // sha256 do token — o token em claro só existe no e-mail
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime? // reenvio revoga o convite anterior
+  createdById String // operador
+  createdAt   DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@map("gdr_tenant_invites")
 }
 
 enum CompanyType {
@@ -360,6 +406,7 @@ model User {
   creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
   workspaceLayout           UserWorkspaceLayout? // Workspace F2 — layout da Home por usuário
   quickNotes                UserQuickNote[] // Workspace — post-its pessoais
+  tenantInvites             TenantInvite[] // OPS WP2 (#909) — convites de primeiro acesso
 
   @@map("gdr_users")
 }
