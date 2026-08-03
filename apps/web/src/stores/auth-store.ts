@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, limparSessao, salvarSessao } from '@/lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -47,8 +47,9 @@ export const useAuthStore = create<AuthState>()(
             passwordExpired: !!data.passwordExpired,
           };
         }
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
+        // Mesma porta de entrada do refresh: grava o par completo. Guardar
+        // só o access foi o que derrubava a sessão a cada ~30 min.
+        salvarSessao(data);
         set({ user: data.user, isAuthenticated: true });
         return { passwordChangeRequired: false as const };
       },
@@ -60,8 +61,7 @@ export const useAuthStore = create<AuthState>()(
             await apiClient.post('/auth/logout', { refreshToken });
           } catch {}
         }
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        limparSessao();
         set({ user: null, isAuthenticated: false });
       },
     }),
