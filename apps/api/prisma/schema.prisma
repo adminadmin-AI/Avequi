@@ -187,8 +187,69 @@ model Company {
   planId               String?
   plan                 Plan?                      @relation(fields: [planId], references: [id])
   entitlementOverrides TenantEntitlementOverride[]
+  // OPS WP5 (#912) — billing da operadora (só na RAIZ)
+  subscription         Subscription?
+  invoices             Invoice[]
 
   @@map("gdr_companies")
+}
+
+// ─── OPS WP5 (#912) — Billing da operadora (F1: contrato + régua) ─────────────
+// F1 governa o ESTADO (assinatura, fatura, inadimplência); a cobrança em si
+// (PIX/boleto/cartão via gateway) é fase 2. Baixa de fatura é MANUAL e
+// auditada. SANDBOX nunca fatura. Suspensão por inadimplência é SEMPRE ação
+// explícita do operador (via PATCH /ops/tenants/:id/status do WP1) — a régua
+// só propõe (alerta D+20 no portal).
+
+/// Assinatura do tenant (1:1 com a empresa RAIZ). priceCents é o valor
+/// NEGOCIADO — pode diferir do preço de tabela do plano (Plan.priceCents).
+model Subscription {
+  id          String    @id @default(cuid())
+  companyId   String    @unique
+  company     Company   @relation(fields: [companyId], references: [id])
+  planId      String? // referência comercial; entitlements continuam em Company.planId (WP4)
+  priceCents  Int
+  /// Dia do vencimento (1–28 — evita fevereiro quebrar a régua)
+  billingDay  Int
+  startedAt   DateTime
+  canceledAt  DateTime?
+  createdById String // operador
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gdr_subscriptions")
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  OVERDUE
+  VOID
+}
+
+/// Fatura mensal da assinatura. UMA por (tenant, competência) — `period` é o
+/// primeiro dia do mês de competência (@db.Date) e a unique trava duplicata:
+/// o gerador é idempotente por construção. `notifiedAt` marca o aviso D+3
+/// (e-mail enviado UMA vez); banner e alertas são derivados, sem estado.
+model Invoice {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
+  period      DateTime      @db.Date
+  amountCents Int
+  dueDate     DateTime      @db.Date
+  status      InvoiceStatus @default(OPEN)
+  paidAt      DateTime?
+  /// Registro manual na F1: PIX | BOLETO | TRANSFER | OUTRO
+  method      String?
+  notifiedAt  DateTime?
+  voidReason  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([companyId, period])
+  @@index([status, dueDate])
+  @@map("gdr_invoices")
 }
 
 /// OPS WP4 (#911) — plano comercial do SaaS. `entitlements` é um JSON

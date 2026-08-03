@@ -673,6 +673,18 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'POST /ops/plans, PATCH /ops/plans/:id (OPS WP4 #911; trocar plano/exceções de um tenant fica em ops.tenants.manage)',
     ],
   ]),
+  ...r('ops', 'billing', 'Operadora — billing (assinaturas e faturas)', [
+    [
+      'view',
+      'ver MRR, aging e faturas',
+      'GET /ops/billing, GET /ops/tenants/:id/billing (OPS WP5 #912)',
+    ],
+    [
+      'manage',
+      'assinaturas, baixa manual e régua',
+      'PUT /ops/tenants/:id/subscription, POST .../subscription/cancel, POST /ops/billing/invoices/:id/{pay,void}, POST /ops/billing/run (OPS WP5 #912 — dinheiro: tudo auditado síncrono)',
+    ],
+  ]),
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

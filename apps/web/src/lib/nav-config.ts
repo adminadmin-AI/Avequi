@@ -299,6 +299,8 @@ export const NAV: NavSection[] = [
       { href: '/app/ops', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
       // OPS WP4 (#911): catálogo de planos/entitlements do SaaS.
       { href: '/app/ops/plans', label: 'Planos', icon: Crown, permission: 'ops.plans.view' },
+      // OPS WP5 (#912): billing da operadora — MRR, aging e faturas da carteira.
+      { href: '/app/ops/billing', label: 'Billing', icon: CreditCard, permission: 'ops.billing.view' },
     ],
   },
 ];
@@ -443,6 +445,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   reports: 'Relatórios',
   alerts: 'Alertas',
   dashboard: 'Dashboard',
+  billing: 'Billing',
 };
 
 export interface Crumb {

@@ -1594,3 +1594,111 @@ export interface SetTenantOverrideInput {
   /** mín. 5 caracteres — auditável */
   reason: string;
 }
+
+// ─── Ops — Billing (OPS WP5 #912) ─────────────────────────────────────────
+// F1 = contrato + régua, não gateway: fatura nasce sozinha (cron diário),
+// baixa é MANUAL e auditada. Todos os valores monetários em CENTAVOS.
+
+export type InvoiceStatus = 'OPEN' | 'OVERDUE' | 'PAID' | 'VOID';
+export type InvoiceMethod = 'PIX' | 'BOLETO' | 'TRANSFER' | 'OUTRO';
+
+/** Buckets de aging das faturas em aberto (OPEN/OVERDUE) — valores em centavos. */
+export interface BillingAging {
+  /** ainda dentro do vencimento */
+  current: number;
+  d1_15: number;
+  d16_30: number;
+  d31_plus: number;
+}
+
+/** Item de GET /ops/billing → openInvoices[]. */
+export interface OpsOpenInvoice {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  period: string;
+  dueDate: string;
+  amountCents: number;
+  status: Extract<InvoiceStatus, 'OPEN' | 'OVERDUE'>;
+  daysPastDue: number;
+}
+
+/** GET /ops/billing — MRR (total/por plano), aging e faturas em aberto da carteira. */
+export interface BillingOverview {
+  mrrCents: number;
+  /** code do plano → MRR em centavos; 'LEGADO' = conta sem plano. */
+  mrrByPlan: Record<string, number>;
+  activeSubscriptions: number;
+  aging: BillingAging;
+  openInvoices: OpsOpenInvoice[];
+}
+
+/** POST /ops/billing/run */
+export interface RunBillingResult {
+  invoicesCreated: number;
+  overdueMarked: number;
+  emailsSent: number;
+}
+
+/** POST /ops/billing/invoices/:invoiceId/pay */
+export interface PayInvoiceInput {
+  method: InvoiceMethod;
+}
+
+/** POST /ops/billing/invoices/:invoiceId/void */
+export interface VoidInvoiceInput {
+  /** mín. 5 caracteres — auditável */
+  reason: string;
+}
+
+/** Assinatura do tenant — parte de GET /ops/tenants/:id/billing. */
+export interface Subscription {
+  id: string;
+  companyId: string;
+  planId: string | null;
+  priceCents: number;
+  billingDay: number;
+  startedAt: string;
+  canceledAt: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Fatura do tenant — parte de GET /ops/tenants/:id/billing → invoices[]. */
+export interface Invoice {
+  id: string;
+  companyId: string;
+  period: string;
+  amountCents: number;
+  dueDate: string;
+  status: InvoiceStatus;
+  paidAt: string | null;
+  method: InvoiceMethod | null;
+  notifiedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /ops/tenants/:id/billing */
+export interface TenantBilling {
+  subscription: Subscription | null;
+  invoices: Invoice[];
+}
+
+/** PUT /ops/tenants/:id/subscription — editar reativa assinatura cancelada. */
+export interface UpsertSubscriptionInput {
+  /** null = sem vínculo comercial */
+  planId?: string | null;
+  priceCents: number;
+  /** 1–28 */
+  billingDay: number;
+  /** ISO; default = agora (ou mantém a vigência existente na edição) */
+  startedAt?: string;
+}
+
+/** GET /billing/me/status — banner de inadimplência do app do cliente. */
+export type MyBillingStatus =
+  | { level: 'none' }
+  | { level: 'notice' | 'banner'; dueDate: string; amountCents: number; daysPastDue: number; message: string };

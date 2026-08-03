@@ -12,6 +12,7 @@ import { ALERT_RULES, OpsPanelService } from './ops-panel.service';
 
 const mockPrisma = {
   company: { findMany: jest.fn(), findUnique: jest.fn() },
+  invoice: { findMany: jest.fn() },
   tenantUsageDaily: { findMany: jest.fn(), groupBy: jest.fn() },
   userSession: { findMany: jest.fn(), groupBy: jest.fn() },
   fiscalDocument: { findMany: jest.fn() },
@@ -40,6 +41,7 @@ describe('OpsPanelService (OPS WP3 #910)', () => {
     service = module.get(OpsPanelService);
     jest.clearAllMocks();
     // defaults vazios
+    mockPrisma.invoice.findMany.mockResolvedValue([]);
     mockPrisma.tenantUsageDaily.findMany.mockResolvedValue([]);
     mockPrisma.tenantUsageDaily.groupBy.mockResolvedValue([]);
     mockPrisma.userSession.findMany.mockResolvedValue([]);
@@ -159,6 +161,24 @@ describe('OpsPanelService (OPS WP3 #910)', () => {
       expect(alerts).toEqual([
         expect.objectContaining({ type: 'TRIAL_VENCENDO', severity: 'WARNING' }),
       ]);
+    });
+
+    it('fatura OVERDUE há ≥20 dias → SUSPENSAO_PROPOSTA (CRITICAL), 1 por tenant (WP5 #912)', async () => {
+      mockPrisma.company.findMany
+        .mockResolvedValueOnce([tenant()])
+        .mockResolvedValueOnce([{ id: 'root-1', branches: [] }]);
+      mockPrisma.userSession.groupBy.mockResolvedValue([
+        { companyId: 'root-1', _max: { createdAt: new Date() } },
+      ]);
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { companyId: 'root-1', dueDate: new Date(Date.now() - 25 * 24 * 3600 * 1000), amountCents: 149900 },
+        { companyId: 'root-1', dueDate: new Date(Date.now() - 55 * 24 * 3600 * 1000), amountCents: 149900 },
+      ]);
+      const alerts = await service.getAlerts();
+      const propostas = alerts.filter((a) => a.type === 'SUSPENSAO_PROPOSTA');
+      expect(propostas).toHaveLength(1);
+      expect(propostas[0]).toMatchObject({ severity: 'CRITICAL', tenantId: 'root-1' });
+      expect(propostas[0].message).toMatch(/decisão manual/);
     });
 
     it('carteira saudável → zero alertas', async () => {

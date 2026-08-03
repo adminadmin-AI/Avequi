@@ -143,6 +143,14 @@ export enum TenantStatus {
   SANDBOX = 'SANDBOX',
 }
 
+// OPS WP5 (#912) — fatura da assinatura (billing da operadora)
+export enum InvoiceStatus {
+  OPEN = 'OPEN',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+  VOID = 'VOID',
+}
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   DIRECTOR = 'DIRECTOR',
