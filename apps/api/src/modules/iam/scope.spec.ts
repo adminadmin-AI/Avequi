@@ -103,13 +103,17 @@ describe('Escopo por filial (#347-A)', () => {
       expect(scope.warehouseIds).toEqual([]);
     });
 
-    it('misto (um vínculo global + um por filial) → COMPANY (o mais amplo vence)', async () => {
+    it('mistos (COMPANY + BRANCH) → COMPANY prevalece (decisão de produto, reconfirmada 03/08/2026)', async () => {
+      // Perfil corporativo não perde a visão da empresa por também exercer
+      // função local: qualquer assignment sem branchId amplia para COMPANY.
       mockPrisma.userRoleAssignment.findMany.mockResolvedValue([
         { branchId: 'b1' },
         { branchId: null },
       ]);
       const scope = await service.getUserScope('u1', 'c1');
-      expect(scope.level).toBe('COMPANY');
+      expect(scope).toEqual(companyScope('u1'));
+      // COMPANY resolvido cedo: nem consulta depósitos
+      expect(mockPrisma.warehouse.findMany).not.toHaveBeenCalled();
     });
 
     it('uma filial → BRANCH com os depósitos ativos dela', async () => {
@@ -171,6 +175,45 @@ describe('Escopo por filial (#347-A)', () => {
       expect(scope).toEqual({ level: 'BRANCH', branchIds: ['b1'], warehouseIds: ['w1'], userId: 'u1' });
       expect(mockPrisma.userRoleAssignment.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.warehouse.findMany).not.toHaveBeenCalled();
+    });
+
+    // ── #347-B: multiempresa e falha de cache ──────────────────────
+
+    it('multiempresa: depósitos sempre filtrados pela empresa do par (userId, companyId)', async () => {
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([{ branchId: 'b1' }]);
+      mockPrisma.warehouse.findMany.mockResolvedValue([{ id: 'w1' }]);
+      await service.getUserScope('u1', 'c1');
+      // assignments da empresa c1...
+      expect(mockPrisma.userRoleAssignment.findMany.mock.calls[0][0].where.companyId).toBe('c1');
+      // ...e depósitos TAMBÉM presos a c1: branch de outra empresa nunca
+      // traria depósito de fora, mesmo com dado sujo no assignment.
+      expect(mockPrisma.warehouse.findMany.mock.calls[0][0].where.companyId).toBe('c1');
+    });
+
+    it('multiempresa: branch que não é da empresa → zero depósitos = fail-closed (nunca amplia)', async () => {
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([{ branchId: 'b-de-outra-empresa' }]);
+      mockPrisma.warehouse.findMany.mockResolvedValue([]); // filtro por companyId não acha nada
+      const scope = await service.getUserScope('u1', 'c1');
+      expect(scope.level).toBe('BRANCH');
+      expect(scope.warehouseIds).toEqual([]); // vê NADA — jamais vira COMPANY
+    });
+
+    it('Redis fora (getScope = null): resolve no banco e BRANCH continua BRANCH', async () => {
+      mockCache.getScope.mockResolvedValue(null); // é o que o cache devolve com Redis fora
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([{ branchId: 'b1' }]);
+      mockPrisma.warehouse.findMany.mockResolvedValue([{ id: 'w1' }]);
+      const scope = await service.getUserScope('u1', 'c1');
+      expect(scope.level).toBe('BRANCH');
+      expect(scope.warehouseIds).toEqual(['w1']);
+    });
+
+    it('setScope falhando não impede devolver o escopo calculado do banco', async () => {
+      mockCache.setScope.mockRejectedValue(new Error('redis down'));
+      mockPrisma.userRoleAssignment.findMany.mockResolvedValue([{ branchId: 'b1' }]);
+      mockPrisma.warehouse.findMany.mockResolvedValue([{ id: 'w1' }]);
+      const scope = await service.getUserScope('u1', 'c1');
+      expect(scope.level).toBe('BRANCH');
+      expect(scope.warehouseIds).toEqual(['w1']);
     });
 
     it('cache miss: resolve no banco e popula o cache (best-effort)', async () => {

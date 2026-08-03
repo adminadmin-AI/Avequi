@@ -121,9 +121,11 @@ export class PermissionService {
    *
    * Regras (decisões Rafael 11/07/2026; ver scope.ts e docs/iam/ESCOPO-FILIAL.md):
    * - Nenhum assignment ativo (usuário legado em fallback de enum) → COMPANY;
-   * - QUALQUER assignment sem branchId → COMPANY (o vínculo mais amplo vence —
-   *   e é o retrocompatível: hoje nenhum assignment tem branch, então todo
-   *   mundo permanece com a visão global que sempre teve);
+   * - QUALQUER assignment sem branchId → COMPANY. DECISÃO DE PRODUTO
+   *   (11/07/2026, reconfirmada pelo Rafael em 03/08/2026): em assignments
+   *   MISTOS (um corporativo + um de filial), o COMPANY prevalece — um perfil
+   *   corporativo não perde a visão da empresa por também exercer função
+   *   local. É também o retrocompatível: hoje nenhum assignment tem branch;
    * - Todos os assignments com branchId → BRANCH, com a união das filiais
    *   (gerente que acumula lojas = múltiplos assignments) e dos depósitos
    *   ativos dessas filiais (Warehouse.branchId, a ponte operacional).
@@ -143,12 +145,16 @@ export class PermissionService {
       };
     }
     const scope = await this.resolveScopeFromDatabase(userId, companyId);
-    await this.cache.setScope(companyId, userId, {
-      v: 1,
-      level: scope.level,
-      branchIds: scope.branchIds,
-      warehouseIds: scope.warehouseIds,
-    });
+    try {
+      await this.cache.setScope(companyId, userId, {
+        v: 1,
+        level: scope.level,
+        branchIds: scope.branchIds,
+        warehouseIds: scope.warehouseIds,
+      });
+    } catch {
+      // best-effort: falha de cache nunca impede devolver o escopo do banco
+    }
     return scope;
   }
 

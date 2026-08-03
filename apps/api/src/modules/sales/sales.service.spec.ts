@@ -10,7 +10,7 @@ import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { AcquirerService } from '../acquirer/acquirer.service';
 import { PaymentAuthorizationService } from '../payment-gateway/payment-authorization.service';
 import { PermissionService } from '../iam/permission.service';
-import { companyScope } from '../iam/scope';
+import { companyScope, SYSTEM_CONTEXT, userContext } from '../iam/scope';
 import { SALE_CONFIRMED_EVENT } from './events/sale-confirmed.event';
 import { SALE_INVOICED_EVENT } from './events/sale-invoiced.event';
 
@@ -134,19 +134,19 @@ describe('SalesService', () => {
 
     it('rejeita venda que não é do canal COUNTER', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({ ...counterOrder, channel: 'FACTORY' });
-      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/COUNTER/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/COUNTER/);
     });
 
     it('rejeita quando não está em DRAFT', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.INVOICED });
-      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(BadRequestException);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(BadRequestException);
     });
 
     it('bloqueia cliente com faturamento bloqueado (sem override DIRECTOR)', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...counterOrder, customer: { billingBlocked: true, billingBlockReason: 'inadimplente' },
       });
-      await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/bloqueado/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/bloqueado/);
     });
 
     it('DIRECTOR sobrepõe faturamento bloqueado e fecha a venda', async () => {
@@ -155,14 +155,14 @@ describe('SalesService', () => {
       });
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 5, reserved: 0 });
       mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
-      const res = await service.checkoutCounterSale('so-b', 'co-1', 'u1', 'DIRECTOR');
+      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'DIRECTOR');
       expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
     });
 
     it('rejeita estoque insuficiente', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 0, reserved: 0 });
-      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/insuficiente/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/insuficiente/);
     });
 
     // ── W16-40 (NT 2026.002): venda acima do limite exige cliente identificado ──
@@ -171,7 +171,7 @@ describe('SalesService', () => {
         ...counterOrder,
         items: [{ ...counterOrder.items[0], quantity: 1, unitPrice: 15000 }],
       });
-      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/W16-40/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/W16-40/);
     });
 
     it('W16-40: cliente sem CPF/CNPJ no cadastro também bloqueia acima do limite', async () => {
@@ -180,7 +180,7 @@ describe('SalesService', () => {
         customer: { document: null },
         items: [{ ...counterOrder.items[0], quantity: 1, unitPrice: 15000 }],
       });
-      await expect(service.checkoutCounterSale('so-b', 'co-1')).rejects.toThrow(/identificação/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/identificação/);
     });
 
     it('W16-40: venda > limite COM cliente documentado fecha normal', async () => {
@@ -191,7 +191,7 @@ describe('SalesService', () => {
       });
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 5, reserved: 0 });
       mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
-      const res = await service.checkoutCounterSale('so-b', 'co-1');
+      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'));
       expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
     });
 
@@ -201,7 +201,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
 
-      const res = await service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL');
+      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL');
 
       expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
       expect(mockStockService.reserveBalance).toHaveBeenCalledWith('wh-1', 'p-1', 1, 'co-1', mockPrisma);
@@ -217,7 +217,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 }); // ninguém flipou
-      await expect(service.checkoutCounterSale('so-b', 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
     });
   });
 
@@ -234,13 +234,13 @@ describe('SalesService', () => {
 
   describe('listCounterSerials (#595)', () => {
     it('exige productId e warehouseId', async () => {
-      await expect(service.listCounterSerials('co-1', '', 'wh-1')).rejects.toThrow(BadRequestException);
-      await expect(service.listCounterSerials('co-1', 'p-1', '')).rejects.toThrow(BadRequestException);
+      await expect(service.listCounterSerials('co-1', '', 'wh-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
+      await expect(service.listCounterSerials('co-1', 'p-1', '', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('lista só chassis IN_STOCK e livres do produto/depósito', async () => {
       mockPrisma.serialNumber.findMany.mockResolvedValue([{ id: 'sn-1', serial: 'VIN1' }]);
-      const res = await service.listCounterSerials('co-1', 'p-1', 'wh-1');
+      const res = await service.listCounterSerials('co-1', 'p-1', 'wh-1', userContext('user-1'));
       expect(res).toHaveLength(1);
       expect(mockPrisma.serialNumber.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -263,7 +263,7 @@ describe('SalesService', () => {
     it('exige chassi escaneado em item rastreável', async () => {
       mockPrisma.product.findMany.mockResolvedValue([trailer]);
       const dto = { ...dtoBase, items: [{ productId: 'p-1', quantity: 1, unitPrice: 100 }] };
-      await expect(service.createOrder(dto as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/escaneie o chassi/i);
+      await expect(service.createOrder(dto as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/escaneie o chassi/i);
     });
 
     it('rejeita chassi que não está IN_STOCK', async () => {
@@ -271,7 +271,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.findFirst.mockResolvedValue({
         id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-1', status: 'SOLD', salesOrderId: null,
       });
-      await expect(service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/não está disponível/);
+      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/não está disponível/);
     });
 
     it('rejeita chassi de outro depósito', async () => {
@@ -279,7 +279,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.findFirst.mockResolvedValue({
         id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-OUTRO', status: 'IN_STOCK', salesOrderId: null,
       });
-      await expect(service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL')).rejects.toThrow(/depósito/);
+      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/depósito/);
     });
 
     it('cria a venda balcão gravando canal e chassi no item', async () => {
@@ -290,7 +290,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.create.mockResolvedValue({ id: 'so-b', channel: 'COUNTER', items: [] });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.createOrder(dtoBase as any, 'co-1', 'u1', 'COMMERCIAL');
+      await service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL');
 
       const createArg = mockPrisma.salesOrder.create.mock.calls[0][0];
       expect(createArg.data.channel).toBe('COUNTER');
@@ -303,7 +303,7 @@ describe('SalesService', () => {
   describe('reserveOrder', () => {
     it('deve lançar NotFoundException quando OV não existe', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.reserveOrder('so-x', 'co-1', 'user-1')).rejects.toThrow(NotFoundException);
+      await expect(service.reserveOrder('so-x', 'co-1', userContext('user-1'))).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar BadRequestException quando OV não está em DRAFT', async () => {
@@ -311,27 +311,27 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.RESERVED,
       });
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar BadRequestException quando OV não tem itens', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({ ...baseOrder, items: [] });
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar BadRequestException quando estoque disponível é insuficiente', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
 
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/insuficiente/);
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(/insuficiente/);
     });
 
     it('deve lançar BadRequestException quando não há saldo cadastrado', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue(null);
 
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('deve reservar estoque e mudar status para RESERVED quando há saldo suficiente', async () => {
@@ -341,7 +341,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(reservedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.reserveOrder('so-1', 'co-1', 'user-1');
+      const result = await service.reserveOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.RESERVED);
       expect(mockStockService.reserveBalance).toHaveBeenCalledWith(
@@ -355,13 +355,13 @@ describe('SalesService', () => {
   describe('confirmOrder', () => {
     it('deve lançar NotFoundException quando OV não existe', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.confirmOrder('so-x', 'co-1', 'user-1')).rejects.toThrow(NotFoundException);
+      await expect(service.confirmOrder('so-x', 'co-1', userContext('user-1'))).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar BadRequestException quando OV não está RESERVED', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder); // DRAFT
-      await expect(service.confirmOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
-      await expect(service.confirmOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/RESERVADAS/);
+      await expect(service.confirmOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
+      await expect(service.confirmOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(/RESERVADAS/);
     });
 
     it('deve mudar status para AWAITING_PICKING e emitir SALE_CONFIRMED_EVENT', async () => {
@@ -382,7 +382,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(confirmedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.confirmOrder('so-1', 'co-1', 'user-1');
+      const result = await service.confirmOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
       expect(mockPrisma.stockBalance.update).not.toHaveBeenCalled();
@@ -406,7 +406,7 @@ describe('SalesService', () => {
 
     it('cliente bloqueado não confirma OV', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(blockedOrder);
-      await expect(service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL')).rejects.toThrow(
+      await expect(service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL')).rejects.toThrow(
         /faturamento bloqueado: Inadimplência/,
       );
       expect(mockPrisma.salesOrder.update).not.toHaveBeenCalled();
@@ -421,7 +421,7 @@ describe('SalesService', () => {
         warehouse: {},
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
-      const result = await service.confirmOrder('so-1', 'co-1', 'user-1', 'DIRECTOR');
+      const result = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'DIRECTOR');
       expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
     });
 
@@ -444,7 +444,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result: any = await service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL');
+      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL');
       expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
       expect(result.creditAlert).toMatch(/Limite de crédito excedido/);
       expect(result.creditAlert).toContain('800.00');
@@ -469,7 +469,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result: any = await service.confirmOrder('so-1', 'co-1', 'user-1', 'COMMERCIAL');
+      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL');
       expect(result.creditAlert).toBeUndefined();
     });
   });
@@ -479,7 +479,7 @@ describe('SalesService', () => {
   describe('markReadyToInvoice', () => {
     it('deve lançar NotFoundException quando OV não existe', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.markReadyToInvoice('so-x')).rejects.toThrow(NotFoundException);
+      await expect(service.markReadyToInvoice('so-x', SYSTEM_CONTEXT)).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar BadRequestException quando OV não está AWAITING_PICKING', async () => {
@@ -487,7 +487,7 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.CONFIRMED,
       });
-      await expect(service.markReadyToInvoice('so-1')).rejects.toThrow(BadRequestException);
+      await expect(service.markReadyToInvoice('so-1', SYSTEM_CONTEXT)).rejects.toThrow(BadRequestException);
     });
 
     it('picking concluído leva a AWAITING_CONFERENCE com pickedAt (#491)', async () => {
@@ -505,7 +505,7 @@ describe('SalesService', () => {
       };
       mockPrisma.salesOrder.update.mockResolvedValue(readyOrder);
 
-      const result = await service.markReadyToInvoice('so-1');
+      const result = await service.markReadyToInvoice('so-1', SYSTEM_CONTEXT);
 
       expect(result.status).toBe(SalesOrderStatus.AWAITING_CONFERENCE);
       expect(mockPrisma.salesOrder.update).toHaveBeenCalledWith(
@@ -528,7 +528,7 @@ describe('SalesService', () => {
         pickingOrder: null,
         items: [],
       });
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
+      await expect(service.invoiceOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar BadRequestException quando picking não está DONE', async () => {
@@ -537,8 +537,8 @@ describe('SalesService', () => {
         status: SalesOrderStatus.READY_TO_INVOICE,
         pickingOrder: { status: 'IN_PROGRESS' },
       });
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/Picking não concluído/);
+      await expect(service.invoiceOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
+      await expect(service.invoiceOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(/Picking não concluído/);
     });
 
     it('deve permitir faturamento sem picking order quando WMS desativado (#220)', async () => {
@@ -559,7 +559,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.invoiceOrder('so-1', 'co-1', 'user-1');
+      const result = await service.invoiceOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.status).toBe(SalesOrderStatus.INVOICED);
     });
 
@@ -576,7 +576,7 @@ describe('SalesService', () => {
       });
       mockTaxCalc.findBestRule.mockResolvedValue(null);
 
-      await expect(service.invoiceOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(
+      await expect(service.invoiceOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(
         /Nenhuma regra fiscal cadastrada para VENDA_INTERESTADUAL PR→SC/,
       );
       // nada de efeito colateral: estoque intacto
@@ -600,7 +600,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(invoicedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.invoiceOrder('so-1', 'co-1', 'user-1');
+      const result = await service.invoiceOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.INVOICED);
 
@@ -622,7 +622,7 @@ describe('SalesService', () => {
     it('deve lançar BadRequestException quando OV não está INVOICED', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(baseOrder); // DRAFT
       await expect(
-        service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1'),
+        service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, userContext('user-1')),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -636,7 +636,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(returnedOrder);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.returnOrder('so-1', 'co-1', { reason: 'Produto com defeito' }, 'user-1');
+      const result = await service.returnOrder('so-1', 'co-1', { reason: 'Produto com defeito' }, userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.RETURNED);
       expect(mockStockService.returnStock).toHaveBeenCalledWith(
@@ -666,7 +666,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, userContext('user-1'));
 
       expect(mockPrisma.financialEntry.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['fe-1'] } },
@@ -694,7 +694,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, userContext('user-1'));
 
       // CR PAID não é cancelada — apenas logado
       expect(mockPrisma.financialEntry.updateMany).not.toHaveBeenCalled();
@@ -722,7 +722,7 @@ describe('SalesService', () => {
         'so-1',
         'co-1',
         { reason: 'Defeito', justificativa: 'Devolução por defeito de fabricação confirmado' },
-        'user-1',
+        userContext('user-1'),
       );
 
       // O returnOrder NÃO mexe mais no documento fiscal (antes marcava
@@ -755,7 +755,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, 'user-1');
+      await service.returnOrder('so-1', 'co-1', { reason: 'Defeito' }, userContext('user-1'));
 
       expect(mockPrisma.fiscalDocument.update).not.toHaveBeenCalled();
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
@@ -774,11 +774,11 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.cancelOrder('so-1', 'co-1', 'user-1');
+      await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
       expect(mockPaymentAuth.voidCardPayments).toHaveBeenCalledWith('so-1', 'co-1');
 
       mockPaymentAuth.voidCardPayments.mockRejectedValueOnce(new Error('TEF offline'));
-      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      const result = await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
     });
 
@@ -787,8 +787,8 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.INVOICED,
       });
-      await expect(service.cancelOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
-      await expect(service.cancelOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(/devolução/);
+      await expect(service.cancelOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
+      await expect(service.cancelOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(/devolução/);
     });
 
     it('deve lançar BadRequestException para OV já cancelada', async () => {
@@ -796,7 +796,7 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.CANCELLED,
       });
-      await expect(service.cancelOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(BadRequestException);
+      await expect(service.cancelOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(BadRequestException);
     });
 
     it('deve cancelar OV em DRAFT sem alterar estoque', async () => {
@@ -805,7 +805,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      const result = await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
       expect(mockPrisma.stockBalance.update).not.toHaveBeenCalled();
     });
@@ -819,7 +819,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      const result = await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
       expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
@@ -834,7 +834,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      const result = await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
       expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
@@ -849,7 +849,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.update.mockResolvedValue(cancelled);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.cancelOrder('so-1', 'co-1', 'user-1');
+      const result = await service.cancelOrder('so-1', 'co-1', userContext('user-1'));
 
       expect(result.status).toBe(SalesOrderStatus.CANCELLED);
       expect(mockStockService.releaseBalance).toHaveBeenCalledWith('wh-1', 'p-1', 5, mockPrisma);
@@ -868,14 +868,14 @@ describe('SalesService', () => {
 
     it('COMPANY: findAll não adiciona filtro de depósito (comportamento de sempre)', async () => {
       mockPrisma.salesOrder.findMany.mockResolvedValue([]);
-      await service.findAll('co-1', {}, 'user-1');
+      await service.findAll('co-1', {}, userContext('user-1'));
       const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
       expect(where.warehouseId).toBeUndefined();
     });
 
-    it('sem userId (chamada interna): não resolve escopo e não filtra', async () => {
+    it('SYSTEM (chamada interna explícita): não resolve escopo e não filtra', async () => {
       mockPrisma.salesOrder.findMany.mockResolvedValue([]);
-      await service.findAll('co-1', {});
+      await service.findAll('co-1', {}, SYSTEM_CONTEXT);
       expect(mockPermissions.getUserScope).not.toHaveBeenCalled();
       const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
       expect(where.warehouseId).toBeUndefined();
@@ -884,15 +884,18 @@ describe('SalesService', () => {
     it('BRANCH: findAll recorta pelos depósitos das filiais do usuário', async () => {
       mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
       mockPrisma.salesOrder.findMany.mockResolvedValue([]);
-      await service.findAll('co-1', {}, 'user-1');
+      await service.findAll('co-1', {}, userContext('user-1'));
       const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
       expect(where.warehouseId).toEqual({ in: ['wh-1', 'wh-2'] });
+      // multiempresa: o recorte por filial NÃO substitui o isolamento por
+      // empresa — o companyId continua no where, sempre.
+      expect(where.companyId).toBe('co-1');
     });
 
     it('BRANCH: findOne de venda fora do escopo responde 404 (não revela existência)', async () => {
       mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.findOne('so-outra-filial', 'co-1', 'user-1')).rejects.toThrow(
+      await expect(service.findOne('so-outra-filial', 'co-1', userContext('user-1'))).rejects.toThrow(
         NotFoundException,
       );
       const where = mockPrisma.salesOrder.findFirst.mock.calls[0][0].where;
@@ -905,7 +908,7 @@ describe('SalesService', () => {
         service.createOrder(
           { warehouseId: 'wh-de-outra-filial', items: [] } as any,
           'co-1',
-          'user-1',
+          userContext('user-1'),
         ),
       ).rejects.toThrow(/fora do escopo da sua filial/);
       expect(mockPrisma.salesOrder.create).not.toHaveBeenCalled();
@@ -914,7 +917,7 @@ describe('SalesService', () => {
     it('BRANCH: balcão não lista chassis de depósito de outra filial', async () => {
       mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
       await expect(
-        service.listCounterSerials('co-1', 'p-1', 'wh-de-outra-filial', 'user-1'),
+        service.listCounterSerials('co-1', 'p-1', 'wh-de-outra-filial', userContext('user-1')),
       ).rejects.toThrow(/fora do escopo/);
       expect(mockPrisma.serialNumber.findMany).not.toHaveBeenCalled();
     });
@@ -922,7 +925,7 @@ describe('SalesService', () => {
     it('BRANCH: mutações por id (reservar) enxergam a venda pelo recorte — fora dele, 404', async () => {
       mockPermissions.getUserScope.mockResolvedValue(escopoFilial);
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.reserveOrder('so-1', 'co-1', 'user-1')).rejects.toThrow(
+      await expect(service.reserveOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(
         NotFoundException,
       );
       const where = mockPrisma.salesOrder.findFirst.mock.calls[0][0].where;
@@ -932,7 +935,7 @@ describe('SalesService', () => {
     it('BRANCH sem depósito vinculado é fail-closed: vê lista vazia, não a empresa', async () => {
       mockPermissions.getUserScope.mockResolvedValue({ ...escopoFilial, warehouseIds: [] });
       mockPrisma.salesOrder.findMany.mockResolvedValue([]);
-      await service.findAll('co-1', {}, 'user-1');
+      await service.findAll('co-1', {}, userContext('user-1'));
       const where = mockPrisma.salesOrder.findMany.mock.calls[0][0].where;
       expect(where.warehouseId).toEqual({ in: [] });
     });

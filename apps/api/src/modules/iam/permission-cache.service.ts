@@ -36,8 +36,15 @@ export interface CachedPermissionSet {
 /**
  * Escopo de dados cacheado (#347-B). Mesmo ciclo de vida do cache de
  * permissões: TTL 5 min + invalidação ativa nos mesmos pontos (grant/revoke
- * de assignment muda os DOIS). Mudança de vínculo depósito→filial
- * (Warehouse.branchId) é cadastro raro de admin — o TTL cobre.
+ * de assignment muda os DOIS).
+ *
+ * ⚠️ VÍNCULO DEPÓSITO↔FILIAL (Warehouse.branchId): hoje NÃO existe mutation
+ * de API para ele (só operação administrativa autorizada, via script) e o
+ * TTL de 5 min é o teto de staleness aceito pelo Rafael APENAS enquanto for
+ * assim. Qualquer futura mutation que vincule, desvincule ou transfira um
+ * depósito entre filiais (ex.: 347-C) DEVE chamar
+ * PermissionService.invalidateCompany na empresa afetada — invalidação
+ * imediata, não TTL.
  */
 export interface CachedScope {
   v: 1;

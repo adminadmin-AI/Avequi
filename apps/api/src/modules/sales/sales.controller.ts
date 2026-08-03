@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SalesOrderStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { userContext } from '../iam/scope';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SalesService } from './sales.service';
 import { DiscountPolicyService } from './discount-policy.service';
@@ -42,7 +43,7 @@ export class SalesController {
   @RequirePermission('sales.orders.create')
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    return this.salesService.createOrder(dto, user.companyId, user.id, user?.role);
+    return this.salesService.createOrder(dto, user.companyId, userContext(user.id), user?.role);
   }
 
   @Get()
@@ -59,7 +60,7 @@ export class SalesController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.salesService.findAll(user.companyId, { status, customerId, from, to }, user?.id);
+    return this.salesService.findAll(user.companyId, { status, customerId, from, to }, userContext(user.id));
   }
 
   @Get('discount-policies')
@@ -111,14 +112,14 @@ export class SalesController {
     @Query('productId') productId: string,
     @Query('warehouseId') warehouseId: string,
   ) {
-    return this.salesService.listCounterSerials(user.companyId, productId, warehouseId, user?.id);
+    return this.salesService.listCounterSerials(user.companyId, productId, warehouseId, userContext(user.id));
   }
 
   @Get(':id')
   @RequirePermission('sales.orders.view')
   @ApiOperation({ summary: 'Buscar venda por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.findOne(id, user.companyId, user?.id);
+    return this.salesService.findOne(id, user.companyId, userContext(user.id));
   }
 
   @Patch(':id/payments')
@@ -129,28 +130,28 @@ export class SalesController {
     @Body() dto: SetSalesPaymentsDto,
     @CurrentUser() user: any,
   ) {
-    return this.salesService.setPayments(id, user.companyId, dto.payments, user?.id);
+    return this.salesService.setPayments(id, user.companyId, dto.payments, userContext(user.id));
   }
 
   @Post(':id/authorize')
   @RequirePermission('sales.orders.authorize-cards')
   @ApiOperation({ summary: 'Autorizar cartões da venda no TEF/gateway (gate do faturamento) (#596)' })
   authorizeCards(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.authorizeCards(id, user.companyId, user?.id);
+    return this.salesService.authorizeCards(id, user.companyId, userContext(user.id));
   }
 
   @Patch(':id/reserve')
   @RequirePermission('sales.orders.reserve')
   @ApiOperation({ summary: 'Reservar estoque para a venda (DRAFT → RESERVED)' })
   reserve(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.reserveOrder(id, user.companyId, user?.id);
+    return this.salesService.reserveOrder(id, user.companyId, userContext(user.id));
   }
 
   @Patch(':id/confirm')
   @RequirePermission('sales.orders.confirm')
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.confirmOrder(id, user.companyId, user?.id, user?.role);
+    return this.salesService.confirmOrder(id, user.companyId, userContext(user.id), user?.role);
   }
 
   @Post(':id/counter-checkout')
@@ -160,21 +161,21 @@ export class SalesController {
       'Fechar venda balcão: reserva estoque + chassi e pula separação (DRAFT → READY_TO_INVOICE) (#595)',
   })
   counterCheckout(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.checkoutCounterSale(id, user.companyId, user?.id, user?.role);
+    return this.salesService.checkoutCounterSale(id, user.companyId, userContext(user.id), user?.role);
   }
 
   @Post(':id/conference')
   @RequirePermission('sales.orders.confer')
   @ApiOperation({ summary: 'Conferir a carga separada (AWAITING_CONFERENCE → READY_TO_INVOICE) (#491)' })
   confer(@Param('id') id: string, @Body() dto: ConferOrderDto, @CurrentUser() user: any) {
-    return this.salesService.conferOrder(id, user.companyId, dto, user?.id);
+    return this.salesService.conferOrder(id, user.companyId, dto, userContext(user.id));
   }
 
   @Patch(':id/invoice')
   @RequirePermission('sales.orders.invoice')
   @ApiOperation({ summary: 'Faturar venda: baixa estoque e gera NF-e (READY_TO_INVOICE → INVOICED)' })
   invoice(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.invoiceOrder(id, user.companyId, user?.id);
+    return this.salesService.invoiceOrder(id, user.companyId, userContext(user.id));
   }
 
   @Patch(':id/return')
@@ -185,13 +186,13 @@ export class SalesController {
     @Body() dto: ReturnOrderDto,
     @CurrentUser() user: any,
   ) {
-    return this.salesService.returnOrder(id, user.companyId, dto, user?.id);
+    return this.salesService.returnOrder(id, user.companyId, dto, userContext(user.id));
   }
 
   @Patch(':id/cancel')
   @RequirePermission('sales.orders.cancel')
   @ApiOperation({ summary: 'Cancelar venda (até CONFIRMED). Faturadas usam /return.' })
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.cancelOrder(id, user.companyId, user?.id);
+    return this.salesService.cancelOrder(id, user.companyId, userContext(user.id));
   }
 }

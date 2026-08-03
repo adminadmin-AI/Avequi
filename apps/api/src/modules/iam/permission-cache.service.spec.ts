@@ -109,6 +109,50 @@ describe('PermissionCacheService', () => {
     });
   });
 
+  describe('escopo (#347-B) — contrato de chave, TTL e isolamento por empresa', () => {
+    const escopo = { v: 1 as const, level: 'BRANCH' as const, branchIds: ['b1'], warehouseIds: ['w1'] };
+
+    it('getScope: lê a chave iam:scope:{companyId}:{userId}', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify(escopo));
+      await expect(service.getScope('c1', 'u1')).resolves.toEqual(escopo);
+      expect(mockRedis.get).toHaveBeenCalledWith('iam:scope:c1:u1');
+    });
+
+    it('setScope: grava com o mesmo TTL das permissões', async () => {
+      await service.setScope('c1', 'u1', escopo);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        'iam:scope:c1:u1',
+        JSON.stringify(escopo),
+        'EX',
+        PERMISSION_CACHE_TTL_SECONDS,
+      );
+    });
+
+    it('empresas diferentes usam chaves diferentes (sem colisão entre tenants)', async () => {
+      await service.setScope('c1', 'u1', escopo);
+      await service.setScope('c2', 'u1', escopo);
+      const chaves = mockRedis.set.mock.calls.map((c: any[]) => c[0]);
+      expect(chaves).toEqual(['iam:scope:c1:u1', 'iam:scope:c2:u1']);
+    });
+
+    it('getScope: payload de formato/nível desconhecido vira miss (não lança)', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ v: 2, level: 'BRANCH' }));
+      await expect(service.getScope('c1', 'u1')).resolves.toBeNull();
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({ v: 1, level: 'GALAXY', branchIds: [], warehouseIds: [] }),
+      );
+      await expect(service.getScope('c1', 'u1')).resolves.toBeNull();
+    });
+
+    it('Redis fora: getScope devolve null (resolução cai para o banco) e setScope vira no-op', async () => {
+      const down = new Error('connect ECONNREFUSED');
+      mockRedis.get.mockRejectedValue(down);
+      mockRedis.set.mockRejectedValue(down);
+      await expect(service.getScope('c1', 'u1')).resolves.toBeNull();
+      await expect(service.setScope('c1', 'u1', escopo)).resolves.toBeUndefined();
+    });
+  });
+
   describe('fallback gracioso — Redis fora do ar NUNCA lança', () => {
     beforeEach(() => {
       const down = new Error('connect ECONNREFUSED');

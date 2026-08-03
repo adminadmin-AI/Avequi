@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PaymentMethod, SalesOrderStatus } from '@prisma/client';
 import { SalesService } from './sales.service';
 import { PermissionService } from '../iam/permission.service';
-import { companyScope } from '../iam/scope';
+import { companyScope, userContext } from '../iam/scope';
 import { DiscountPolicyService } from './discount-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
@@ -60,7 +60,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
       await service.createOrder(
         { ...baseDto, paymentMethod: PaymentMethod.PIX },
         'co-1',
-        'user-1',
+        userContext('user-1'),
       );
       const data = mockPrisma.salesOrder.create.mock.calls[0][0].data;
       expect(data.paymentMethod).toBe(PaymentMethod.PIX);
@@ -75,6 +75,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
             payments: [{ method: PaymentMethod.PIX, amount: 9000 }],
           },
           'co-1',
+          userContext('user-1'),
         ),
       ).rejects.toThrow(/não fecha/);
     });
@@ -87,6 +88,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
           payments: [{ method: PaymentMethod.PIX, amount: 10500 }],
         },
         'co-1',
+        userContext('user-1'),
       );
       expect(mockPrisma.salesOrder.create).toHaveBeenCalled();
     });
@@ -101,6 +103,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
             ],
           },
           'co-1',
+          userContext('user-1'),
         ),
       ).rejects.toThrow(/adquirente/);
     });
@@ -121,6 +124,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
             ],
           },
           'co-1',
+          userContext('user-1'),
         ),
       ).rejects.toThrow(/taxa vigente/);
     });
@@ -143,6 +147,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
           ],
         },
         'co-1',
+        userContext('user-1'),
       );
 
       const data = mockPrisma.salesOrder.create.mock.calls[0][0].data;
@@ -172,7 +177,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
         freightValue: null,
       });
       await expect(
-        service.setPayments('so-1', 'co-1', [{ method: PaymentMethod.PIX, amount: 100 }] as any),
+        service.setPayments('so-1', 'co-1', [{ method: PaymentMethod.PIX, amount: 100 }] as any, userContext('user-1')),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -187,7 +192,7 @@ describe('SalesService — plano de pagamento (#584)', () => {
 
       await service.setPayments('so-1', 'co-1', [
         { method: PaymentMethod.PIX, amount: 1000 },
-      ] as any);
+      ] as any, userContext('user-1'));
 
       expect(tx.salesPayment.deleteMany).toHaveBeenCalledWith({ where: { salesOrderId: 'so-1' } });
       expect(tx.salesOrder.update).toHaveBeenCalledWith(
