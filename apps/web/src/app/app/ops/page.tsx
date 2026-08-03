@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Building2, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Building2, LogIn, Plus, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
@@ -253,6 +253,30 @@ export default function OpsTenantsPage() {
       header: 'Onboarding',
       sortable: true,
       cell: (t) => (t.onboardedAt ? formatDate(t.onboardedAt) : '—'),
+    },
+    {
+      // OPS F2 (pedido do Claudio): "entrar no ERP do cliente" a 1 clique da
+      // lista — atalho para a aba Pessoas, onde vivem os botões "Ver como"
+      // (impersonation WP6: escolhe O USUÁRIO, dá o motivo, sessão
+      // somente-leitura de 30 min visível ao cliente).
+      key: 'entrar',
+      header: '',
+      align: 'right',
+      cell: (t) => (
+        <Can permission="ops.impersonation.execute">
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // o clique na LINHA abre a visão geral
+              router.push(`/app/ops/${t.id}?tab=people`);
+            }}
+            title={`Entrar na conta ${t.name} (ver como o cliente)`}
+            aria-label={`Entrar na conta ${t.name} (ver como o cliente)`}
+            className="rounded-lg p-1.5 text-content-muted transition-colors duration-fast hover:bg-neutral-100 hover:text-brand-600 dark:hover:bg-neutral-800 dark:hover:text-brand-400"
+          >
+            <LogIn size={16} />
+          </button>
+        </Can>
+      ),
     },
   ];
 

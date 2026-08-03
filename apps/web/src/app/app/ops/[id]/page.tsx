@@ -667,11 +667,23 @@ function TimelineTab({ tenantId }: { tenantId: string }) {
   );
 }
 
+const ABAS_VALIDAS = ['overview', 'health', 'people', 'plan', 'financeiro', 'timeline'];
+
 export default function TenantDetailPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+
+  // OPS F2: deep-link de aba (?tab=people é o atalho "Entrar na conta" da
+  // lista — leva direto aos botões "Ver como" do WP6). Lido de
+  // window.location no initializer para não acoplar a página ao Suspense
+  // exigido pelo useSearchParams; a navegação entre abas segue não-controlada.
+  const [abaInicial] = useState(() => {
+    if (typeof window === 'undefined') return 'overview';
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return t && ABAS_VALIDAS.includes(t) ? t : 'overview';
+  });
 
   const { data: tenant, isLoading, isError, error, refetch } = useDetail<TenantDetail>(RESOURCE, id);
 
@@ -798,7 +810,7 @@ export default function TenantDetailPage() {
         </Link>
       )}
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={abaInicial}>
         <TabsList>
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="health">Saúde</TabsTrigger>
