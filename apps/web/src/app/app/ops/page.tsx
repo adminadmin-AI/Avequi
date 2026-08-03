@@ -264,16 +264,20 @@ export default function OpsTenantsPage() {
       align: 'right',
       cell: (t) => (
         <Can permission="ops.impersonation.execute">
+          {/* Botão COM RÓTULO de propósito (feedback do Claudio: ícone mudo
+              no canto da linha não se explica) — é a ação principal da
+              operadora sobre uma conta. */}
           <button
             onClick={(e) => {
               e.stopPropagation(); // o clique na LINHA abre a visão geral
               router.push(`/app/ops/${t.id}?tab=people`);
             }}
-            title={`Entrar na conta ${t.name} (ver como o cliente)`}
-            aria-label={`Entrar na conta ${t.name} (ver como o cliente)`}
-            className="rounded-lg p-1.5 text-content-muted transition-colors duration-fast hover:bg-neutral-100 hover:text-brand-600 dark:hover:bg-neutral-800 dark:hover:text-brand-400"
+            title={`Entrar no ERP de ${t.name} (ver como o cliente)`}
+            aria-label={`Entrar no ERP de ${t.name} (ver como o cliente)`}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-content-secondary transition-colors duration-fast hover:border-brand-400/50 hover:bg-brand-600/10 hover:text-brand-600 dark:hover:text-brand-400"
           >
-            <LogIn size={16} />
+            <LogIn size={14} />
+            Entrar no ERP
           </button>
         </Can>
       ),
