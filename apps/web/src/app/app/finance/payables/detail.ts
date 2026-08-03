@@ -105,6 +105,9 @@ export const ACTION_LABELS: Record<string, string> = {
   CREATE_RECEIVABLE: 'Criado (venda)',
   CREATE_RECEIVABLES_PLAN: 'Plano de recebimento criado',
   PAY: 'Baixado',
+  PAY_FULL: 'Baixado (pago)',
+  PAY_PARTIAL: 'Pagamento parcial',
+  CREATE_INSTALLMENTS: 'Parcelado',
   CANCEL: 'Cancelado',
   WRITE_OFF: 'Baixado como perda',
 };

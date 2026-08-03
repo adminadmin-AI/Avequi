@@ -329,9 +329,9 @@ export class FinanceController {
   pay(
     @Param('id') id: string,
     @Body() dto: PayEntryDto,
-    @Request() req: { user: { companyId: string } },
+    @Request() req: { user: { id?: string; companyId: string } },
   ) {
-    return this.financeService.pay(id, req.user.companyId, dto);
+    return this.financeService.pay(id, req.user.companyId, dto, req.user.id);
   }
 
   @Post(':id/installments')
@@ -340,16 +340,16 @@ export class FinanceController {
   createInstallments(
     @Param('id') id: string,
     @Body() dto: CreateInstallmentsDto,
-    @Request() req: { user: { companyId: string } },
+    @Request() req: { user: { id?: string; companyId: string } },
   ) {
-    return this.financeService.createInstallments(id, req.user.companyId, dto);
+    return this.financeService.createInstallments(id, req.user.companyId, dto, req.user.id);
   }
 
   @Patch(':id/cancel')
   @RequirePermission('finance.entries.cancel')
   @ApiOperation({ summary: 'Cancelar lançamento' })
-  cancel(@Param('id') id: string, @Request() req: { user: { companyId: string } }) {
-    return this.financeService.cancel(id, req.user.companyId);
+  cancel(@Param('id') id: string, @Request() req: { user: { id?: string; companyId: string } }) {
+    return this.financeService.cancel(id, req.user.companyId, req.user.id);
   }
 
   // ─── Contas bancárias ─────────────────────────────────────────────────────

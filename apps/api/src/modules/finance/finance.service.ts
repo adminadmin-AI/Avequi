@@ -587,7 +587,7 @@ export class FinanceService {
 
   // ─── S09.05: Registrar pagamento (parcial ou total) ───────────────────────
 
-  async pay(id: string, companyId: string, dto: PayEntryDto) {
+  async pay(id: string, companyId: string, dto: PayEntryDto, actorId?: string) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId },
       include: { payments: true },
@@ -648,6 +648,7 @@ export class FinanceService {
       }),
       this.prisma.auditLog.create({
         data: {
+          userId: actorId ?? null, // quem baixou — aparece no histórico do título
           companyId,
           entity: 'FinancialEntry',
           action: isFullyPaid ? 'PAY_FULL' : 'PAY_PARTIAL',
@@ -692,7 +693,7 @@ export class FinanceService {
 
   // ─── Parcelamento de títulos ─────────────────────────────────────────────
 
-  async createInstallments(id: string, companyId: string, dto: CreateInstallmentsDto) {
+  async createInstallments(id: string, companyId: string, dto: CreateInstallmentsDto, actorId?: string) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId },
       include: { installments: true },
@@ -739,6 +740,7 @@ export class FinanceService {
 
       await tx.auditLog.create({
         data: {
+          userId: actorId ?? null, // quem parcelou — aparece no histórico do título
           companyId,
           entity: 'FinancialEntry',
           action: 'CREATE_INSTALLMENTS',
@@ -762,7 +764,7 @@ export class FinanceService {
 
   // ─── Cancelar lançamento (preserva histórico, não deleta) ────────────────
 
-  async cancel(id: string, companyId: string): Promise<void> {
+  async cancel(id: string, companyId: string, actorId?: string): Promise<void> {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId },
     });
@@ -785,6 +787,7 @@ export class FinanceService {
 
     await this.prisma.auditLog.create({
       data: {
+        userId: actorId ?? null, // quem cancelou — aparece no histórico do título
         companyId,
         entity: 'FinancialEntry',
         action: 'CANCEL',
