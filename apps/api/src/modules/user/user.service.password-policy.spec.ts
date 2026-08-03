@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { UserService } from './user.service';
@@ -53,6 +54,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: mockSessionService },
+        { provide: EntitlementService, useValue: { limit: jest.fn().mockResolvedValue(null) } }, // WP4: legado ilimitado
       ],
     }).compile();
 

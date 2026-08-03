@@ -27,6 +27,9 @@ import { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
 /** Ator e contexto de request para a trilha de auditoria. */
 export interface OpsActionContext {
   userId: string;
+  /** Company do OPERADOR — usada como companyId de auditoria em eventos de
+   *  objetos globais (ex.: Plan, WP4 #911), onde não há tenant alvo. */
+  actorCompanyId: string;
   sessionId?: string;
   ipAddress?: string;
   userAgent?: string;

@@ -1503,3 +1503,94 @@ export interface AcceptInviteResult {
   ok: true;
   email: string;
 }
+
+// ─── Ops — Planos & Entitlements (OPS WP4 #911) ───────────────────────────
+
+export type EntitlementType = 'bool' | 'limit';
+/** bool = módulo ligado/desligado; number = limite; null = ilimitado. */
+export type EntitlementValue = boolean | number | null;
+
+/** Item do catálogo de entitlements — fonte da verdade das keys (código no backend). */
+export interface EntitlementDef {
+  key: string;
+  type: EntitlementType;
+  name: string;
+  description?: string;
+}
+
+/** Item de GET /ops/plans → plans[]. */
+export interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  entitlements: Record<string, EntitlementValue>;
+  priceCents: number | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count: { companies: number };
+}
+
+/** GET /ops/plans */
+export interface PlansCatalog {
+  catalog: EntitlementDef[];
+  plans: Plan[];
+}
+
+/** POST /ops/plans */
+export interface CreatePlanInput {
+  code: string;
+  name: string;
+  description?: string;
+  entitlements: Record<string, EntitlementValue>;
+  priceCents?: number;
+}
+
+/** PATCH /ops/plans/:id */
+export interface UpdatePlanInput {
+  name?: string;
+  description?: string;
+  entitlements?: Record<string, EntitlementValue>;
+  priceCents?: number;
+  active?: boolean;
+}
+
+/** Exceção de entitlement de um tenant — item de GET /ops/tenants/:id/entitlements → overrides[]. */
+export interface TenantEntitlementOverride {
+  key: string;
+  value: EntitlementValue;
+  reason: string;
+  createdById: string;
+  createdAt: string;
+}
+
+/** Mapa efetivo resolvido (override > plano > legado) — GET /entitlements/me e o
+ * campo `resolved` de GET /ops/tenants/:id/entitlements. */
+export interface ResolvedEntitlements {
+  /** null = tenant legado sem plano (tudo liberado) */
+  planCode: string | null;
+  values: Record<string, EntitlementValue>;
+  legacy: boolean;
+}
+
+/** GET /ops/tenants/:id/entitlements */
+export interface TenantEntitlements {
+  catalog: EntitlementDef[];
+  plan: { id: string; code: string; name: string; entitlements: Record<string, EntitlementValue> } | null;
+  overrides: TenantEntitlementOverride[];
+  resolved: ResolvedEntitlements;
+}
+
+/** PATCH /ops/tenants/:id/plan */
+export interface AssignTenantPlanInput {
+  /** null = volta ao legado (sem plano, tudo liberado) */
+  planId: string | null;
+}
+
+/** PUT /ops/tenants/:id/entitlements/:key */
+export interface SetTenantOverrideInput {
+  value: EntitlementValue;
+  /** mín. 5 caracteres — auditável */
+  reason: string;
+}

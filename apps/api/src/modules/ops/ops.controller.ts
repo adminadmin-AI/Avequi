@@ -43,11 +43,12 @@ export class OpsController {
   ) {}
 
   private ctx(
-    user: { id: string; sessionId?: string },
+    user: { id: string; companyId: string; sessionId?: string },
     req: Request,
   ): OpsActionContext {
     return {
       userId: user.id,
+      actorCompanyId: user.companyId,
       sessionId: user.sessionId,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -86,7 +87,7 @@ export class OpsController {
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateTenantStatusDto,
-    @CurrentUser() user: { id: string; sessionId?: string },
+    @CurrentUser() user: { id: string; companyId: string; sessionId?: string },
     @Req() req: Request,
   ) {
     return this.opsService.updateTenantStatus(id, dto, this.ctx(user, req));
@@ -103,7 +104,7 @@ export class OpsController {
   })
   createTenant(
     @Body() dto: CreateTenantDto,
-    @CurrentUser() user: { id: string; sessionId?: string },
+    @CurrentUser() user: { id: string; companyId: string; sessionId?: string },
     @Req() req: Request,
   ) {
     return this.provisioningService.createTenant(dto, this.ctx(user, req));
@@ -126,7 +127,7 @@ export class OpsController {
   inviteAdmin(
     @Param('id') id: string,
     @Body() dto: InviteAdminDto,
-    @CurrentUser() user: { id: string; sessionId?: string },
+    @CurrentUser() user: { id: string; companyId: string; sessionId?: string },
     @Req() req: Request,
   ) {
     return this.provisioningService.inviteAdmin(id, dto, this.ctx(user, req));
@@ -141,7 +142,7 @@ export class OpsController {
   })
   fiscalCheck(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string; sessionId?: string },
+    @CurrentUser() user: { id: string; companyId: string; sessionId?: string },
     @Req() req: Request,
   ) {
     return this.provisioningService.runFiscalCheck(id, this.ctx(user, req));
@@ -156,7 +157,7 @@ export class OpsController {
   })
   activate(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string; sessionId?: string },
+    @CurrentUser() user: { id: string; companyId: string; sessionId?: string },
     @Req() req: Request,
   ) {
     return this.provisioningService.activate(id, this.ctx(user, req));

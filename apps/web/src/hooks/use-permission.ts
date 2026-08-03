@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import type { NavAccess } from '@/lib/nav-config';
 import { permissionMatches } from '@/lib/permission-match';
 import { useAuthStore } from '@/stores/auth-store';
-import type { MyEffectivePermissions } from '@/types/api';
+import type { MyEffectivePermissions, ResolvedEntitlements } from '@/types/api';
 
 /**
  * Permissões efetivas do usuário logado no frontend — issue #351 (IAM F7.1).
@@ -108,16 +108,56 @@ export function usePermission(): UsePermissionResult {
 }
 
 /**
+ * Entitlements efetivos da CONTA logada — OPS WP4 (#911).
+ *
+ * Fonte: GET /entitlements/me — QUALQUER usuário autenticado pode ler (é o
+ * contrato comercial da própria conta, não segredo). Mesmo cache por
+ * TanStack Query dos demais hooks de sessão (chave por userId, 5 min).
+ *
+ * Semântica FAIL-CLOSED igual a `usePermission`: sem dado carregado (loading
+ * ou erro) → `useNavAccess.hasEntitlement` esconde o item. Conta LEGADO
+ * (`legacy: true`, sem plano) libera todos os entitlements.
+ */
+export const myEntitlementsKey = (userId: string | undefined) =>
+  ['auth', 'me', 'entitlements', userId ?? 'anonymous'] as const;
+
+export function useMyEntitlements() {
+  const user = useAuthStore((s) => s.user);
+  return useQuery<ResolvedEntitlements>({
+    queryKey: myEntitlementsKey(user?.id),
+    enabled: !!user,
+    staleTime: STALE_TIME_MS,
+    queryFn: async () => (await apiClient.get<ResolvedEntitlements>('/entitlements/me')).data,
+  });
+}
+
+/**
  * Contexto de acesso para filtrar o NAV (#351) — consumido por sidebar,
  * command palette e RouteGuard via `navItemAllowed`/`checkRouteAccess`.
  * Enquanto as permissões carregam, `can` fica undefined e os itens gated
  * por `permission` ficam ocultos / a rota segura render (fail-closed).
+ *
+ * `hasEntitlement` (OPS WP4 #911): sem dado de GET /entitlements/me (loading
+ * ou erro na chamada) → retorna false para qualquer key (fail-closed); conta
+ * legado (`legacy: true`) → retorna true para qualquer key.
  */
 export function useNavAccess(): NavAccess {
   const role = useAuthStore((s) => s.user?.role);
   const { can, isLoading } = usePermission();
+  const entitlementsQuery = useMyEntitlements();
+  const entitlements = entitlementsQuery.data;
+
+  const hasEntitlement = useCallback(
+    (key: string) => {
+      if (!entitlements) return false; // ainda carregando ou falhou — fail-closed
+      if (entitlements.legacy) return true; // legado: sem plano, tudo liberado
+      return entitlements.values[key] === true;
+    },
+    [entitlements],
+  );
+
   return useMemo(
-    () => ({ role, can: isLoading ? undefined : can }),
-    [role, can, isLoading],
+    () => ({ role, can: isLoading ? undefined : can, hasEntitlement }),
+    [role, can, isLoading, hasEntitlement],
   );
 }

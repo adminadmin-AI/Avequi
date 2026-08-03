@@ -183,8 +183,49 @@ model Company {
   tenantInvites TenantInvite[]
   // OPS WP3 (#910) — metering diário do tenant (linhas só na empresa RAIZ)
   usageDailies  TenantUsageDaily[]
+  // OPS WP4 (#911) — plano do tenant (só na RAIZ; null = legado, tudo liberado)
+  planId               String?
+  plan                 Plan?                      @relation(fields: [planId], references: [id])
+  entitlementOverrides TenantEntitlementOverride[]
 
   @@map("gdr_companies")
+}
+
+/// OPS WP4 (#911) — plano comercial do SaaS. `entitlements` é um JSON
+/// { key: valor } validado contra o catálogo em código
+/// (modules/entitlement/entitlements.catalog.ts — fonte da verdade das keys).
+/// bool = módulo ligado/desligado; number = limite (null = ilimitado).
+/// priceCents é REFERÊNCIA de tabela — billing real vem no WP5 (#912).
+model Plan {
+  id           String    @id @default(cuid())
+  code         String    @unique // ESSENCIAL, PROFISSIONAL, INDUSTRIAL
+  name         String
+  description  String?
+  entitlements Json      @default("{}")
+  priceCents   Int?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  companies    Company[]
+
+  @@map("gdr_plans")
+}
+
+/// OPS WP4 (#911) — exceção de entitlement por tenant (raiz), acima do plano.
+/// Resolução: override > plano > default DESLIGADO (fail-closed). `reason`
+/// obrigatório — exceção comercial sem justificativa não é auditável.
+model TenantEntitlementOverride {
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  key         String // ex: "renave" — validada contra o catálogo em código
+  value       Json // bool ou number, conforme o tipo da key
+  reason      String
+  createdById String // operador
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([companyId, key])
+  @@map("gdr_tenant_entitlement_overrides")
 }
 
 /// OPS WP3 (#910) — agregado DIÁRIO de uso por tenant (empresa RAIZ; os

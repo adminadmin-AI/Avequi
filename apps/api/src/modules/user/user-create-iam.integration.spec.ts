@@ -2,6 +2,7 @@ import { ForbiddenException, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { PermissionService } from '../iam/permission.service';
 import { PermissionCacheService } from '../iam/permission-cache.service';
 import {
@@ -63,6 +64,7 @@ describe('#738 — usuário criado funciona efetivamente no IAM v2 (integração
         { provide: PermissionCacheService, useValue: mockCache },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: { revokeAllSessions: jest.fn() } },
+        { provide: EntitlementService, useValue: { limit: jest.fn().mockResolvedValue(null) } }, // WP4: legado ilimitado
       ],
     }).compile();
     userService = module.get(UserService);

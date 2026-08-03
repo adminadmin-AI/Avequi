@@ -10,6 +10,8 @@ import { OpsPanelController } from './ops-panel.controller';
 import { OpsPanelService } from './ops-panel.service';
 import { OpsController } from './ops.controller';
 import { OpsService } from './ops.service';
+import { PlansController } from './plans.controller';
+import { PlansService } from './plans.service';
 import { ProvisioningService } from './provisioning.service';
 import { TenantInviteService } from './tenant-invite.service';
 import { UsageMeteringService } from './usage-metering.service';
@@ -27,11 +29,12 @@ import { UsageMeteringService } from './usage-metering.service';
  */
 @Module({
   imports: [ConfigModule, PrismaModule, IamModule, MailModule, UserModule],
-  controllers: [OpsController, OpsPanelController, InviteController],
+  controllers: [OpsController, OpsPanelController, PlansController, InviteController],
   providers: [
     OpsService,
     OpsMfaGuard,
     OpsPanelService,
+    PlansService,
     ProvisioningService,
     TenantInviteService,
     UsageMeteringService,

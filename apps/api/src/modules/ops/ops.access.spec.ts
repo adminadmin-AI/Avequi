@@ -10,6 +10,7 @@ import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
 import { OpsPanelController } from './ops-panel.controller';
 import { OpsController } from './ops.controller';
+import { PlansController } from './plans.controller';
 
 /**
  * OPS WP1 (#908) — fronteira do control plane provada contra a metadata REAL
@@ -34,6 +35,7 @@ interface Endpoint {
 const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }> = [
   { name: 'OpsController', cls: OpsController },
   { name: 'OpsPanelController', cls: OpsPanelController },
+  { name: 'PlansController', cls: PlansController },
 ];
 
 function endpointsOf(cls: new (...args: any[]) => any): Endpoint[] {
@@ -96,13 +98,14 @@ const PERFIS_DE_TENANT_AMOSTRA = [
 
 describe('OPS WP1/WP3 (#908/#910) — fronteira do control plane (PermissionGuard + metadata real)', () => {
   for (const { name, cls } of OPS_CONTROLLERS) {
-    it(`${name}: tem endpoints e TODOS exigem exatamente uma permissão ops.tenants.*`, () => {
+    it(`${name}: tem endpoints e TODOS exigem exatamente uma permissão ops.*`, () => {
       const endpoints = endpointsOf(cls);
       expect(endpoints.length).toBeGreaterThan(0);
       for (const ep of endpoints) {
         expect({ endpoint: ep.name, required: ep.required }).toEqual({
           endpoint: ep.name,
-          required: [expect.stringMatching(/^ops\.tenants\./)],
+          // WP4 (#911) somou ops.plans.* — o invariante segue: namespace ops.
+          required: [expect.stringMatching(/^ops\./)],
         });
       }
     });

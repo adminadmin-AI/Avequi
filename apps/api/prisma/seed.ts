@@ -2,6 +2,7 @@ import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, Custom
 import * as bcrypt from 'bcryptjs';
 import { CCLASSTRIB_TABLE } from '../src/modules/tax/data/cclasstrib.data';
 import { seedIam } from './seeds/iam.seed';
+import { seedPlans } from './seeds/plans.seed';
 
 const prisma = new PrismaClient();
 
@@ -417,6 +418,9 @@ async function main() {
 
   // IAM v2 (F2 — #338/#339): catálogo de permissões + perfis system + espelhamento
   await seedIam(prisma);
+
+  // OPS WP4 (#911): planos do SaaS (upsert por code; não atribui a tenants)
+  await seedPlans(prisma);
 
   console.log('✅ Seed concluído');
 }

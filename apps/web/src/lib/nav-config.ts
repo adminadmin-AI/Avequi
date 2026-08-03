@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  Crown,
   Factory,
   FileInput,
   FileSpreadsheet,
@@ -88,6 +89,20 @@ export interface NavItem {
    * Sem `roles` e sem `permission` = liberado para qualquer autenticado.
    */
   roles?: string[];
+  /**
+   * (OPS WP4 #911) Entitlement (key do catálogo, sempre `bool`) que a CONTA
+   * precisa ter contratado — checado em CIMA de `permission`/`roles` (E
+   * lógico, não substitui). Ex.: `entitlement: 'crm'` esconde o menu do CRM
+   * de contas sem o módulo, mesmo que o usuário tenha a permissão.
+   *
+   * Fail-closed igual ao `permission`: sem dado de entitlements carregado
+   * (ainda buscando ou falhou) → item oculto. Conta LEGADO (sem plano, ver
+   * GET /entitlements/me) libera todos os entitlements.
+   *
+   * ⚠️ Isso é defesa de UX — o backend sempre revalida (@RequireEntitlement +
+   * EntitlementGuard).
+   */
+  entitlement?: string;
 }
 
 /**
@@ -95,16 +110,25 @@ export interface NavItem {
  * (sidebar/palette/guard, via usePermission + useAuthStore).
  * `can` undefined = permissões ainda não carregadas → itens com `permission`
  * ficam ocultos (fail-closed); itens legados por `roles` seguem funcionando.
+ * `hasEntitlement` ausente/undefined = mesma semântica fail-closed para itens
+ * com `entitlement` (OPS WP4 #911).
  */
 export interface NavAccess {
   role?: string | null;
   can?: (code: string) => boolean;
+  hasEntitlement?: (key: string) => boolean;
 }
 
 /** O item deve aparecer/liberar para este contexto? (fonte única, #351) */
 export function navItemAllowed(item: NavItem, access: NavAccess): boolean {
-  if (item.permission) return access.can ? access.can(item.permission) : false;
-  if (item.roles) return !!access.role && item.roles.includes(access.role);
+  if (item.permission) {
+    if (!access.can || !access.can(item.permission)) return false;
+  } else if (item.roles) {
+    if (!access.role || !item.roles.includes(access.role)) return false;
+  }
+  if (item.entitlement) {
+    if (!access.hasEntitlement || !access.hasEntitlement(item.entitlement)) return false;
+  }
   return true;
 }
 
@@ -141,14 +165,16 @@ export const NAV: NavSection[] = [
     items: [
       // Bloco F (#624): CRM migrado do `roles` legado (e de itens sem gate)
       // para `permission:` — perfis sem CRM deixam de ver o menu (D4).
-      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle, permission: 'crm.conversations.view' },
-      { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare, permission: 'crm.leads.view' },
-      { href: '/app/crm/leads', label: 'Leads', icon: ClipboardList, permission: 'crm.leads.list' },
-      { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText, permission: 'crm.quick-replies.manage' },
-      { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, permission: 'crm.dashboard.view' },
-      { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, permission: 'crm.sdr.monitor' },
-      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, permission: 'crm.settings.view' },
-      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer, permission: 'crm.leads.view' },
+      // OPS WP4 (#911): + `entitlement: 'crm'` — some do menu quando a CONTA
+      // não contratou o módulo (backend espelha com @RequireEntitlement('crm')).
+      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle, permission: 'crm.conversations.view', entitlement: 'crm' },
+      { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare, permission: 'crm.leads.view', entitlement: 'crm' },
+      { href: '/app/crm/leads', label: 'Leads', icon: ClipboardList, permission: 'crm.leads.list', entitlement: 'crm' },
+      { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText, permission: 'crm.quick-replies.manage', entitlement: 'crm' },
+      { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, permission: 'crm.dashboard.view', entitlement: 'crm' },
+      { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, permission: 'crm.sdr.monitor', entitlement: 'crm' },
+      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, permission: 'crm.settings.view', entitlement: 'crm' },
+      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer, permission: 'crm.leads.view', entitlement: 'crm' },
       { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart, permission: 'sales.orders.view' },
       { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store, permission: 'sales.orders.create' },
       { href: '/app/quotations', label: 'Cotações', icon: FileText, permission: 'sales.quotations.view' },
@@ -271,6 +297,8 @@ export const NAV: NavSection[] = [
       // NUNCA entra em perfil de tenant (tenantPermissionCodes() exclui o
       // módulo `ops` inteiro); só quem tem ops.tenants.view vê este item.
       { href: '/app/ops', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
+      // OPS WP4 (#911): catálogo de planos/entitlements do SaaS.
+      { href: '/app/ops/plans', label: 'Planos', icon: Crown, permission: 'ops.plans.view' },
     ],
   },
 ];

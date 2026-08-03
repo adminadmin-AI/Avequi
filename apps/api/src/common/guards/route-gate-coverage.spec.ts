@@ -87,6 +87,9 @@ const SELF_SERVICE_OK = new Set([
   // qualquer usuário logado (self-service); gestão/triagem virá com permissão.
   'SupportController.create',
   'SupportController.listMine',
+  // OPS WP4 (#911) — o que a PRÓPRIA conta contratou: qualquer usuário logado
+  // lê (a nav esconde módulo não contratado); dados são do tenant dele.
+  'EntitlementController.me',
 ]);
 
 interface Route {
