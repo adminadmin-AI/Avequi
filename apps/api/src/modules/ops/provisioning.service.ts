@@ -30,20 +30,22 @@ import { TenantInviteService } from './tenant-invite.service';
  * Todos os passos gravam o resultado em TenantProvisioning.steps (JSON).
  */
 
-interface AdminStep {
+// Exportadas porque aparecem em tipos de retorno públicos do controller —
+// o `nest build` (declaration emit) exige nome nomeável (TS4053).
+export interface AdminStep {
   userId: string;
   email: string;
   invitedAt: string;
   emailSent: boolean;
 }
 
-interface FiscalStep {
+export interface FiscalStep {
   ok: boolean;
   tokenSource: 'scoped' | 'missing';
   checkedAt: string;
 }
 
-interface ProvisioningSteps {
+export interface ProvisioningSteps {
   admin?: AdminStep;
   fiscal?: FiscalStep;
 }
