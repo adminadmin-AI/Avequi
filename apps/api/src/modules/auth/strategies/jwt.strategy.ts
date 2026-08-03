@@ -3,13 +3,24 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
+import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
 import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  /**
+   * Última gravação de atividade por sessão, em memória. Sem isto, uma tela
+   * que dispara 10 chamadas geraria 10 UPDATEs no mesmo segundo. Dentro da
+   * janela de debounce a sessão só é LIDA (barato); passou da janela, grava.
+   * Cache local ao processo: com várias instâncias, o pior caso é gravar
+   * mais vezes — nunca deixar de expirar.
+   */
+  private readonly ultimaGravacao = new Map<string, number>();
+
   constructor(
     config: ConfigService,
     private readonly denylist: SessionDenylistService,
+    private readonly sessions: SessionService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -41,6 +52,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       if (denied) {
         throw new UnauthorizedException('Sessão inválida ou expirada. Faça login novamente.');
       }
+    }
+
+    // INATIVIDADE (#341): a sessão morre depois de SESSION_IDLE_TIMEOUT_MINUTES
+    // sem NENHUMA requisição. Aqui é o ponto por onde passa todo access token
+    // válido, então é onde a ociosidade é medida e a atividade registrada.
+    // Antes disto, `lastActivityAt` só mudava na rotação do refresh — ou seja,
+    // ninguém media atividade de verdade.
+    if (payload?.sessionId) {
+      const agora = Date.now();
+      const ultima = this.ultimaGravacao.get(payload.sessionId) ?? 0;
+      const dentroDoDebounce = agora - ultima < ACTIVITY_DEBOUNCE_MS;
+
+      const viva = await this.sessions.isSessionAliveAndTouch(payload.sessionId, dentroDoDebounce);
+      if (!viva) {
+        this.ultimaGravacao.delete(payload.sessionId);
+        throw new UnauthorizedException('Sessão encerrada por inatividade. Faça login novamente.');
+      }
+      if (!dentroDoDebounce) this.ultimaGravacao.set(payload.sessionId, agora);
     }
 
     return {
