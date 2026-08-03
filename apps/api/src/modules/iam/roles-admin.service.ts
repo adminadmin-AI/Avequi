@@ -431,7 +431,41 @@ export class RolesAdminService {
     return role;
   }
 
-  private assertNotSystem(role: { isSystem: boolean; name: string }, verbo: string) {
+  /**
+   * #752 — a role estrutural de recuperação administrativa é INTOCÁVEL.
+   *
+   * Decisão de produto (Rafael, 03/08/2026): enquanto ADMIN_GLOBAL for a
+   * role de recuperação do ERP, ela não pode ser desativada, excluída nem
+   * descaracterizada (renomeada / ter permissões trocadas).
+   *
+   * Por que não basta o `assertNotSystem`: aquela guarda depende da FLAG
+   * `isSystem` estar correta na linha do banco. Se a flag se perder (drift
+   * de seed, correção manual, importação), a role viraria editável e uma
+   * única desativação deixaria TODOS os grupos empresariais sem
+   * administração — dano cross-tenant que a invariante por grupo não
+   * cobre, justamente porque ela conta admins de um grupo só. Esta guarda
+   * é por CODE, não por flag: fail-closed por identidade.
+   */
+  private assertNotStructuralAdminRole(
+    role: { code: string; companyId: string | null; name: string },
+    verbo: string,
+  ) {
+    if (role.code === 'ADMIN_GLOBAL' && role.companyId === null) {
+      throw new ForbiddenException(
+        `O perfil '${role.name}' é o perfil estrutural de recuperação administrativa do ERP ` +
+          `e não pode ser desativado, excluído ou descaracterizado. ` +
+          `Para ${verbo} um perfil com base neste, DUPLIQUE-O como perfil personalizado.`,
+      );
+    }
+  }
+
+  private assertNotSystem(
+    role: { isSystem: boolean; code: string; companyId: string | null; name: string },
+    verbo: string,
+  ) {
+    // Identidade antes da flag (#752): a role de recuperação é protegida
+    // mesmo que `isSystem` esteja errado na linha.
+    this.assertNotStructuralAdminRole(role, verbo);
     if (role.isSystem) {
       throw new ForbiddenException(
         `O perfil '${role.name}' é um perfil de sistema e não pode ser alterado: ` +

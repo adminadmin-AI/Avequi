@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { SessionService } from '../iam/session.service';
 import { UserService } from './user.service';
 
@@ -40,6 +41,10 @@ describe('UserService — limite maxUsers (OPS WP4 #911)', () => {
         UserService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        {
+          provide: LastAdminInvariantService,
+          useValue: { temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false) },
+        },
         { provide: SessionService, useValue: { revokeAllSessions: jest.fn() } },
         { provide: EntitlementService, useValue: mockEntitlement },
       ],

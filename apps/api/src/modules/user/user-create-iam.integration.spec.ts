@@ -13,6 +13,7 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { UserService } from './user.service';
 
 /**
@@ -64,6 +65,10 @@ describe('#738 — usuário criado funciona efetivamente no IAM v2 (integração
         { provide: PermissionCacheService, useValue: mockCache },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: { revokeAllSessions: jest.fn() } },
+        {
+          provide: LastAdminInvariantService,
+          useValue: { temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false) },
+        },
         { provide: EntitlementService, useValue: { limit: jest.fn().mockResolvedValue(null) } }, // WP4: legado ilimitado
       ],
     }).compile();

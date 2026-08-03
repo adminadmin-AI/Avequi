@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -55,6 +56,10 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: mockSessionService },
         { provide: EntitlementService, useValue: { limit: jest.fn().mockResolvedValue(null) } }, // WP4: legado ilimitado
+        {
+          provide: LastAdminInvariantService,
+          useValue: { temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false) },
+        },
       ],
     }).compile();
 

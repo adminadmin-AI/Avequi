@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { randomBytes } from 'crypto';
 
 const ConsentStatus = {
@@ -24,7 +25,10 @@ const AnonymizationStatus = {
 export class LgpdService {
   private readonly logger = new Logger(LgpdService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lastAdmin: LastAdminInvariantService,
+  ) {}
 
   // ─── Consentimento ────────────────────────────────────────────────────────
 
@@ -172,80 +176,88 @@ export class LgpdService {
       throw new BadRequestException(`Requisição já está ${request.status}`);
     }
 
-    await this.prisma.anonymizationRequest.update({
-      where: { id: requestId },
-      data: { status: AnonymizationStatus.PROCESSING },
-    });
-
     const anonymized = this.generateAnonymousData();
-    const affected = { customers: 0, users: 0, suppliers: 0 };
 
-    // Anonimizar Customers
-    const customers = await this.prisma.customer.findMany({
-      where: { companyId, document: request.document },
-    });
-    for (const c of customers) {
-      await this.prisma.customer.update({
-        where: { id: c.id },
+    // #752: a anonimização roda INTEIRA na transação protegida pela
+    // invariante do último administrador global — inativar um usuário aqui
+    // não pode contornar a regra que o user.service aplica. Bônus: o fluxo
+    // deixou de gravar em 8 escritas soltas; falha em qualquer etapa desfaz
+    // tudo (nenhum estado parcial, requisição volta a REQUESTED).
+    const affected = await this.lastAdmin.executarProtegido(companyId, async (tx) => {
+      const contadores = { customers: 0, users: 0, suppliers: 0 };
+      await tx.anonymizationRequest.update({
+        where: { id: requestId },
+        data: { status: AnonymizationStatus.PROCESSING },
+      });
+
+      // Anonimizar Customers
+      const customers = await tx.customer.findMany({
+        where: { companyId, document: request.document },
+      });
+      for (const c of customers) {
+        await tx.customer.update({
+          where: { id: c.id },
+          data: {
+            name: `ANONIMIZADO_${anonymized.suffix}`,
+            email: null,
+            phone: null,
+            address: null,
+            document: `ANON_${anonymized.suffix}`,
+          },
+        });
+        contadores.customers++;
+      }
+
+      // Anonimizar Users (desativar + mascarar)
+      const users = await tx.user.findMany({
+        where: { companyId, email: request.document },
+      });
+      for (const u of users) {
+        await tx.user.update({
+          where: { id: u.id },
+          data: {
+            name: `ANONIMIZADO_${anonymized.suffix}`,
+            email: `anon_${anonymized.suffix}@removed.lgpd`,
+            isActive: false,
+          },
+        });
+        contadores.users++;
+      }
+
+      // Anonimizar Suppliers
+      const suppliers = await tx.supplier.findMany({
+        where: { companyId, cnpj: request.document },
+      });
+      for (const s of suppliers) {
+        await tx.supplier.update({
+          where: { id: s.id },
+          data: {
+            name: `ANONIMIZADO_${anonymized.suffix}`,
+            email: null,
+            phone: null,
+            cnpj: `ANON_${anonymized.suffix}`,
+          },
+        });
+        contadores.suppliers++;
+      }
+
+      // Revogar todos os consentimentos
+      await tx.consentRecord.updateMany({
+        where: { companyId, document: request.document, status: ConsentStatus.ACTIVE },
+        data: { status: ConsentStatus.REVOKED, revokedAt: new Date() },
+      });
+
+      // Finalizar requisição
+      await tx.anonymizationRequest.update({
+        where: { id: requestId },
         data: {
-          name: `ANONIMIZADO_${anonymized.suffix}`,
-          email: null,
-          phone: null,
-          address: null,
-          document: `ANON_${anonymized.suffix}`,
+          status: AnonymizationStatus.COMPLETED,
+          processedAt: new Date(),
+          entitiesAffected: contadores,
+          subjectName: null, // Apaga nome original
         },
       });
-      affected.customers++;
-    }
-
-    // Anonimizar Users (desativar + mascarar)
-    const users = await this.prisma.user.findMany({
-      where: { companyId, email: request.document },
-    });
-    for (const u of users) {
-      await this.prisma.user.update({
-        where: { id: u.id },
-        data: {
-          name: `ANONIMIZADO_${anonymized.suffix}`,
-          email: `anon_${anonymized.suffix}@removed.lgpd`,
-          isActive: false,
-        },
-      });
-      affected.users++;
-    }
-
-    // Anonimizar Suppliers
-    const suppliers = await this.prisma.supplier.findMany({
-      where: { companyId, cnpj: request.document },
-    });
-    for (const s of suppliers) {
-      await this.prisma.supplier.update({
-        where: { id: s.id },
-        data: {
-          name: `ANONIMIZADO_${anonymized.suffix}`,
-          email: null,
-          phone: null,
-          cnpj: `ANON_${anonymized.suffix}`,
-        },
-      });
-      affected.suppliers++;
-    }
-
-    // Revogar todos os consentimentos
-    await this.prisma.consentRecord.updateMany({
-      where: { companyId, document: request.document, status: ConsentStatus.ACTIVE },
-      data: { status: ConsentStatus.REVOKED, revokedAt: new Date() },
-    });
-
-    // Finalizar requisição
-    await this.prisma.anonymizationRequest.update({
-      where: { id: requestId },
-      data: {
-        status: AnonymizationStatus.COMPLETED,
-        processedAt: new Date(),
-        entitiesAffected: affected,
-        subjectName: null, // Apaga nome original
-      },
+      return contadores;
     });
 
     await this.prisma.auditLog.create({

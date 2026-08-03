@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
+import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -54,6 +55,13 @@ const SAFE_USER = {
   updatedAt: new Date(),
 };
 
+const mockLastAdmin = {
+  temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false),
+  ehAdminGlobalEfetivo: jest.fn().mockResolvedValue(false),
+  // Default: executa a operação passando o mockPrisma como tx (caminho feliz).
+  executarProtegido: jest.fn(async (_companyId: string, op: any) => op(mockPrisma)),
+};
+
 describe('UserService', () => {
   let service: UserService;
 
@@ -66,6 +74,7 @@ describe('UserService', () => {
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: SessionService, useValue: mockSessionService },
         { provide: EntitlementService, useValue: mockEntitlementService },
+        { provide: LastAdminInvariantService, useValue: mockLastAdmin },
       ],
     }).compile();
 
@@ -270,13 +279,12 @@ describe('UserService', () => {
       // Defaults das proteções: alvo NÃO é admin global; há 1 outro admin
       // ativo; revogação de sessões funciona. Cada teste sobrescreve o que
       // precisar — o beforeEach garante que um teste não vaza p/ o outro.
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(0);
-      mockPrisma.user.count.mockResolvedValue(1);
-      // WP7 (#914): a contagem de admins é escopada à ÁRVORE do tenant — o
-      // service resolve a empresa do alvo via findUnique antes de contar.
-      mockPrisma.user.findUnique.mockResolvedValue({
-        company: { id: 'co-1', parentId: null },
-      });
+      // #752: default = alvo NÃO conta na invariante; mecanismo central no
+      // caminho feliz (executa a operação e devolve o resultado).
+      mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(false);
+      mockLastAdmin.executarProtegido.mockImplementation(
+        async (_companyId: string, op: any) => op(mockPrisma),
+      );
       mockSessionService.revokeAllSessions.mockResolvedValue(0);
     });
 
@@ -341,87 +349,36 @@ describe('UserService', () => {
       expect(mockPrisma.user.update).toHaveBeenCalled();
     });
 
-    it('ÚLTIMO ADMIN GLOBAL ativo: inativação rejeitada com 409, nada persistido', async () => {
-      // alvo TEM vínculo ADMIN_GLOBAL efetivo; nenhum OUTRO admin ativo
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1);
-      mockPrisma.user.count.mockResolvedValue(0);
-
-      await expect(
-        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
-      ).rejects.toThrow(ConflictException);
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
-    });
-
-    it('admin global PODE ser inativado quando existe OUTRO admin global ativo', async () => {
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
-      mockPrisma.user.count.mockResolvedValue(1); // e existe outro ativo
+    it('#752: alvo com vínculo ADMIN_GLOBAL perpétuo → inativação roda no mecanismo central (lock)', async () => {
+      mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(true);
 
       await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+
+      expect(mockLastAdmin.executarProtegido).toHaveBeenCalledWith('co-1', expect.any(Function));
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.isActive).toBe(false);
     });
 
-    it('WP7 (#914): a contagem de admins é escopada à ÁRVORE do tenant (matriz+filiais), nunca global', async () => {
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
-      // alvo está numa FILIAL: raiz = parentId
-      mockPrisma.user.findUnique.mockResolvedValue({
-        company: { id: 'co-filial', parentId: 'co-raiz' },
-      });
+    it('#752: mecanismo central rejeita (último admin) → 409 propaga, sessões intactas', async () => {
+      mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(true);
+      mockLastAdmin.executarProtegido.mockRejectedValue(
+        new ConflictException('Não é possível concluir a operação'),
+      );
+
+      await expect(
+        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('#752: alvo que NÃO conta na invariante inativa direto, sem lock', async () => {
+      mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(false);
 
       await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
 
-      // O guard só conta admins DENTRO da árvore da raiz — admins de OUTROS
-      // tenants não podem mais mascarar o "último admin" (bug multi-tenant).
-      expect(mockPrisma.user.count).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            company: { OR: [{ id: 'co-raiz' }, { parentId: 'co-raiz' }] },
-          }),
-        }),
-      );
-    });
-
-    it('WP7 (#914): tenant do alvo não resolvido → fail-closed (bloqueia como último admin)', async () => {
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
-      mockPrisma.user.findUnique.mockResolvedValue(null); // empresa não resolvida
-
-      await expect(
-        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
-      ).rejects.toThrow(ConflictException);
-      expect(mockPrisma.user.count).not.toHaveBeenCalled();
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-    });
-
-    it('CORRIDA: pós-checagem zerou os admins → reverte a inativação e rejeita', async () => {
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
-      // pré-checagem vê 1 outro admin; pós-checagem (após persistir) vê 0
-      mockPrisma.user.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
-
-      await expect(
-        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
-      ).rejects.toThrow(ConflictException);
-      // 1ª chamada inativou; 2ª chamada é a COMPENSAÇÃO (isActive: true)
-      const calls = mockPrisma.user.update.mock.calls;
-      expect(calls[0][0].data.isActive).toBe(false);
-      expect(calls[1][0].data).toEqual({ isActive: true });
-      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
-    });
-
-    it('CORRIDA: compensação TAMBÉM falha → log crítico + erro ao cliente (nunca sucesso)', async () => {
-      mockPrisma.userRoleAssignment.count.mockResolvedValue(1); // alvo é admin
-      mockPrisma.user.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0); // corrida
-      // 1ª chamada (inativação) funciona; 2ª (compensação) falha
-      mockPrisma.user.update
-        .mockResolvedValueOnce(SAFE_USER)
-        .mockRejectedValueOnce(new Error('conexão caiu'));
-
-      await expect(
-        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
-      ).rejects.toThrow(/Falha ao proteger o último administrador global/);
-      // A compensação FOI tentada (2 updates) e a requisição NÃO retornou sucesso.
-      expect(mockPrisma.user.update).toHaveBeenCalledTimes(2);
-      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+      expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
+      const args = mockPrisma.user.update.mock.calls[0][0];
+      expect(args.data.isActive).toBe(false);
     });
 
     it('SESSÕES: inativar revoga TODAS as sessões do alvo (reason SECURITY)', async () => {
