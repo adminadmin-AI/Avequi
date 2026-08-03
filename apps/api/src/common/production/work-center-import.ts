@@ -146,7 +146,10 @@ export interface WorkCenterImportDb {
     create(args: { data: DesiredWorkCenter & { companyId: string } }): Promise<unknown>;
     update(args: { where: { id: string }; data: Partial<DesiredWorkCenter> }): Promise<unknown>;
   };
-  $transaction<T>(fn: (tx: WorkCenterImportDb) => Promise<T>): Promise<T>;
+  $transaction<T>(
+    fn: (tx: WorkCenterImportDb) => Promise<T>,
+    options?: { timeout?: number },
+  ): Promise<T>;
 }
 
 export interface ImportOptions {
@@ -197,6 +200,8 @@ export async function runWorkCenterImport(
     return { company, plan, applied: false, created: 0, updated: 0, deactivated: 0 };
   }
 
+  // 60s: o default de 5s do Prisma não comporta ~34 creates seriais via pooler
+  // remoto (Supabase 6543) — a transação expirava no meio e revertia tudo.
   const { created, updated, deactivated } = await db.$transaction(async (tx) => {
     let createdCount = 0;
     let updatedCount = 0;
@@ -219,7 +224,7 @@ export async function runWorkCenterImport(
       }
     }
     return { created: createdCount, updated: updatedCount, deactivated: deactivatedCount };
-  });
+  }, { timeout: 60_000 });
 
   return { company, plan, applied: true, created, updated, deactivated };
 }
