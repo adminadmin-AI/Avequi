@@ -8,6 +8,7 @@ import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { resolveEffectivePermissions } from '../iam/roles.catalog';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsPanelController } from './ops-panel.controller';
 import { OpsController } from './ops.controller';
 
 /**
@@ -29,8 +30,14 @@ interface Endpoint {
   roles?: string[];
 }
 
-function endpointsOf(): Endpoint[] {
-  const proto = OpsController.prototype as any;
+/** Controllers PROTEGIDOS do control plane — todo novo controller /ops entra aqui. */
+const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }> = [
+  { name: 'OpsController', cls: OpsController },
+  { name: 'OpsPanelController', cls: OpsPanelController },
+];
+
+function endpointsOf(cls: new (...args: any[]) => any): Endpoint[] {
+  const proto = cls.prototype as any;
   return Object.getOwnPropertyNames(proto)
     .filter((m) => m !== 'constructor' && typeof proto[m] === 'function')
     // Só ROTAS de verdade (têm metadata 'path' do @Get/@Post/@Patch) — helpers
@@ -45,10 +52,13 @@ function endpointsOf(): Endpoint[] {
     }));
 }
 
-function ctxFor(handler: Endpoint['handler']): ExecutionContext {
+function ctxFor(
+  cls: new (...args: any[]) => any,
+  handler: Endpoint['handler'],
+): ExecutionContext {
   return {
     getHandler: () => handler,
-    getClass: () => OpsController,
+    getClass: () => cls,
     switchToHttp: () => ({
       getRequest: () => ({ user: { id: 'u1', companyId: 'c1' } }),
     }),
@@ -56,6 +66,7 @@ function ctxFor(handler: Endpoint['handler']): ExecutionContext {
 }
 
 async function canAccess(
+  cls: new (...args: any[]) => any,
   handler: Endpoint['handler'],
   roleCode: string,
 ): Promise<boolean> {
@@ -67,7 +78,7 @@ async function canAccess(
   } as any;
   const guard = new PermissionGuard(reflector, permissionService);
   try {
-    return await guard.canActivate(ctxFor(handler));
+    return await guard.canActivate(ctxFor(cls, handler));
   } catch (e) {
     if (e instanceof ForbiddenException) return false;
     throw e;
@@ -83,48 +94,50 @@ const PERFIS_DE_TENANT_AMOSTRA = [
   'SOMENTE_LEITURA',
 ];
 
-describe('OPS WP1 (#908) — fronteira do control plane (PermissionGuard + metadata real)', () => {
-  it('o controller tem endpoints e TODOS exigem exatamente uma permissão ops.tenants.*', () => {
-    const endpoints = endpointsOf();
-    expect(endpoints.length).toBeGreaterThan(0);
-    for (const ep of endpoints) {
-      expect({ endpoint: ep.name, required: ep.required }).toEqual({
-        endpoint: ep.name,
-        required: [expect.stringMatching(/^ops\.tenants\./)],
-      });
-    }
-  });
-
-  it('nenhum endpoint usa @Roles (enum legado não gateia o control plane)', () => {
-    for (const ep of endpointsOf()) {
-      expect(ep.roles).toBeUndefined();
-    }
-  });
-
-  it('OpsMfaGuard está registrado na classe do controller (MFA duro)', () => {
-    const guards = Reflect.getMetadata(GUARDS_METADATA, OpsController) ?? [];
-    expect(guards).toContain(OpsMfaGuard);
-  });
-
-  it('AVECCHI_OPERATOR acessa todos os endpoints /ops', async () => {
-    for (const ep of endpointsOf()) {
-      expect({
-        endpoint: ep.name,
-        allowed: await canAccess(ep.handler, 'AVECCHI_OPERATOR'),
-      }).toEqual({ endpoint: ep.name, allowed: true });
-    }
-  });
-
-  for (const role of PERFIS_DE_TENANT_AMOSTRA) {
-    it(`🔒 ${role} (perfil de TENANT) é barrado em todos os endpoints /ops`, async () => {
-      for (const ep of endpointsOf()) {
-        expect({
+describe('OPS WP1/WP3 (#908/#910) — fronteira do control plane (PermissionGuard + metadata real)', () => {
+  for (const { name, cls } of OPS_CONTROLLERS) {
+    it(`${name}: tem endpoints e TODOS exigem exatamente uma permissão ops.tenants.*`, () => {
+      const endpoints = endpointsOf(cls);
+      expect(endpoints.length).toBeGreaterThan(0);
+      for (const ep of endpoints) {
+        expect({ endpoint: ep.name, required: ep.required }).toEqual({
           endpoint: ep.name,
-          role,
-          allowed: await canAccess(ep.handler, role),
-        }).toEqual({ endpoint: ep.name, role, allowed: false });
+          required: [expect.stringMatching(/^ops\.tenants\./)],
+        });
       }
     });
+
+    it(`${name}: nenhum endpoint usa @Roles (enum legado não gateia o control plane)`, () => {
+      for (const ep of endpointsOf(cls)) {
+        expect(ep.roles).toBeUndefined();
+      }
+    });
+
+    it(`${name}: OpsMfaGuard está registrado na classe (MFA duro)`, () => {
+      const guards = Reflect.getMetadata(GUARDS_METADATA, cls) ?? [];
+      expect(guards).toContain(OpsMfaGuard);
+    });
+
+    it(`${name}: AVECCHI_OPERATOR acessa todos os endpoints`, async () => {
+      for (const ep of endpointsOf(cls)) {
+        expect({
+          endpoint: ep.name,
+          allowed: await canAccess(cls, ep.handler, 'AVECCHI_OPERATOR'),
+        }).toEqual({ endpoint: ep.name, allowed: true });
+      }
+    });
+
+    for (const role of PERFIS_DE_TENANT_AMOSTRA) {
+      it(`🔒 ${name}: ${role} (perfil de TENANT) é barrado em todos os endpoints`, async () => {
+        for (const ep of endpointsOf(cls)) {
+          expect({
+            endpoint: ep.name,
+            role,
+            allowed: await canAccess(cls, ep.handler, role),
+          }).toEqual({ endpoint: ep.name, role, allowed: false });
+        }
+      });
+    }
   }
 
   // ── OPS WP2 (#909): aceite público de convite ──────────────────────────────

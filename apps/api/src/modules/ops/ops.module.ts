@@ -6,10 +6,13 @@ import { MailModule } from '../mail/mail.module';
 import { UserModule } from '../user/user.module';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsPanelController } from './ops-panel.controller';
+import { OpsPanelService } from './ops-panel.service';
 import { OpsController } from './ops.controller';
 import { OpsService } from './ops.service';
 import { ProvisioningService } from './provisioning.service';
 import { TenantInviteService } from './tenant-invite.service';
+import { UsageMeteringService } from './usage-metering.service';
 
 /**
  * OpsModule — control plane da operadora Avecchi (épico #915).
@@ -24,7 +27,14 @@ import { TenantInviteService } from './tenant-invite.service';
  */
 @Module({
   imports: [ConfigModule, PrismaModule, IamModule, MailModule, UserModule],
-  controllers: [OpsController, InviteController],
-  providers: [OpsService, OpsMfaGuard, ProvisioningService, TenantInviteService],
+  controllers: [OpsController, OpsPanelController, InviteController],
+  providers: [
+    OpsService,
+    OpsMfaGuard,
+    OpsPanelService,
+    ProvisioningService,
+    TenantInviteService,
+    UsageMeteringService,
+  ],
 })
 export class OpsModule {}

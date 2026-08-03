@@ -1,28 +1,56 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowRight, Ban, PlayCircle, ShieldAlert, TestTube2 } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  Ban,
+  History,
+  LineChart,
+  PlayCircle,
+  ShieldAlert,
+  TestTube2,
+} from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
-import type { TenantDetail, TenantProvisioning, TenantStatus, UpdateTenantStatusInput } from '@/types/api';
+import type {
+  TenantDetail,
+  TenantHealth,
+  TenantHealthUser,
+  TenantProvisioning,
+  TenantStatus,
+  TenantTimelineEntry,
+  TenantUsageSeries,
+  UpdateTenantStatusInput,
+} from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable, type Column } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { ErrorState } from '@/components/ui/error-state';
 import { FormDialog } from '@/components/ui/form-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
-import { formatCNPJ, formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import { formatCNPJ, formatDate, formatDateTime, formatNumber, formatRelativeTime } from '@/lib/format';
+import { USER_ROLE_LABELS } from '@/lib/enums';
+import { FISCAL_TYPE_LABEL } from '../../fiscal/fiscal-status';
 
 const RESOURCE = '/ops/tenants';
+const USAGE_DAYS = 90;
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   TRIAL: 'Trial',
@@ -39,6 +67,70 @@ const STATUS_VARIANT: Record<TenantStatus, BadgeVariant> = {
   CHURNED: 'neutral',
   SANDBOX: 'warning',
 };
+
+const SUPPORT_STATUS_LABEL: Record<string, string> = {
+  NEW: 'Novo',
+  TRIAGING: 'Em triagem',
+  TRIAGED: 'Triado',
+  IN_PROGRESS: 'Em andamento',
+  RESOLVED: 'Resolvido',
+  CLOSED: 'Fechado',
+};
+
+const SUPPORT_STATUS_VARIANT: Record<string, BadgeVariant> = {
+  NEW: 'info',
+  TRIAGING: 'info',
+  TRIAGED: 'info',
+  IN_PROGRESS: 'warning',
+  RESOLVED: 'success',
+  CLOSED: 'neutral',
+};
+
+/** AuditAction (schema v2) → rótulo pt-BR; ações fora do mapa mostram o code cru. */
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  CREATE: 'Criação',
+  UPDATE: 'Atualização',
+  DELETE: 'Exclusão',
+  APPROVE: 'Aprovação',
+  REJECT: 'Rejeição',
+  CANCEL: 'Cancelamento',
+  FINALIZE: 'Finalização',
+  REOPEN: 'Reabertura',
+  EXPORT: 'Exportação',
+  IMPORT: 'Importação',
+};
+function auditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABEL[action] ?? action;
+}
+
+/** Recharts fora do chunk inicial da rota — mesmo padrão dos widgets do workspace. */
+const UsageSparkline = dynamic(() => import('./usage-charts').then((m) => m.UsageSparkline), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[72px] w-full" />,
+});
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Resumo curto de mudança (ex.: "tenantStatus: TRIAL → ACTIVE") a partir do
+ * par oldValue/newValue do AuditLogV2 — só campos escalares que realmente
+ * mudaram; `null` quando não há como resumir com segurança (não são objetos
+ * comparáveis, ou nada escalar mudou).
+ */
+function summarizeChange(oldValue: unknown, newValue: unknown): string | null {
+  if (!isPlainObject(oldValue) || !isPlainObject(newValue)) return null;
+  const keys = new Set([...Object.keys(oldValue), ...Object.keys(newValue)]);
+  const diffs: string[] = [];
+  for (const key of keys) {
+    const ov = oldValue[key];
+    const nv = newValue[key];
+    if (ov === nv) continue;
+    if (typeof ov === 'object' || typeof nv === 'object') continue;
+    diffs.push(`${key}: ${ov ?? '—'} → ${nv ?? '—'}`);
+  }
+  return diffs.length > 0 ? diffs.join(' · ') : null;
+}
 
 /** Motivo obrigatório (Suspender/Encerrar) — mesmo mínimo do backend (#908). */
 function ReasonDialog({
@@ -101,6 +193,365 @@ function ReasonDialog({
         )}
       </form>
     </FormDialog>
+  );
+}
+
+/** Tile de KPI simples (mesmo padrão do dashboard fiscal). */
+function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'danger' }) {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{label}</p>
+        <p
+          className={cn(
+            'mt-1 text-2xl font-semibold tracking-tight',
+            tone === 'danger' ? 'text-danger' : 'text-content',
+          )}
+        >
+          {value}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SparkCard({
+  title,
+  sub,
+  data,
+  color,
+}: {
+  title: string;
+  sub?: string;
+  data: { date: string; value: number }[];
+  color: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-content-muted">{title}</p>
+          {sub && <span className="whitespace-nowrap text-helper text-content-muted">{sub}</span>}
+        </div>
+        <div className="mt-1">
+          <UsageSparkline data={data} color={color} label={title} formatter={formatNumber} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Aviso discreto reutilizado nos 3 sub-fetches do painel — erro não derruba a aba. */
+function InlineError({ message }: { message: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-sm text-content-muted">
+      <AlertTriangle size={14} />
+      {message}
+    </p>
+  );
+}
+
+// ─── Aba "Visão geral" ──────────────────────────────────────────────────────
+function OverviewTab({ tenant }: { tenant: TenantDetail }) {
+  const usageQuery = useQuery<TenantUsageSeries>({
+    queryKey: [RESOURCE, tenant.id, 'usage', USAGE_DAYS],
+    queryFn: async () =>
+      (
+        await apiClient.get<TenantUsageSeries>(`${RESOURCE}/${tenant.id}/usage`, {
+          params: { days: USAGE_DAYS },
+        })
+      ).data,
+  });
+
+  const hasData = (usageQuery.data?.series.length ?? 0) > 0;
+
+  return (
+    <div className="space-y-5">
+      {usageQuery.isError ? (
+        <InlineError message="Não foi possível carregar os dados de uso." />
+      ) : usageQuery.isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[76px] w-full" />
+          ))}
+        </div>
+      ) : !hasData ? (
+        <EmptyState
+          compact
+          icon={LineChart}
+          title="Sem dados de uso ainda — rode o metering"
+          description="Assim que o metering diário processar esta conta, KPIs e tendências aparecem aqui."
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="NF-e emitidas" value={formatNumber(usageQuery.data!.totals.nfeIssued)} />
+            <Kpi
+              label="NF-e rejeitadas"
+              value={formatNumber(usageQuery.data!.totals.nfeRejected)}
+              tone={usageQuery.data!.totals.nfeRejected > 0 ? 'danger' : 'neutral'}
+            />
+            <Kpi label="Leads CRM" value={formatNumber(usageQuery.data!.totals.crmLeads)} />
+            <Kpi
+              label="Erros 5xx"
+              value={formatNumber(usageQuery.data!.totals.errors5xx)}
+              tone={usageQuery.data!.totals.errors5xx > 0 ? 'danger' : 'neutral'}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <SparkCard
+              title="Usuários ativos"
+              sub={`pico ${USAGE_DAYS}d: ${formatNumber(usageQuery.data!.totals.peakActiveUsers)}`}
+              data={usageQuery.data!.series.map((p) => ({ date: p.date, value: p.activeUsers }))}
+              color="#22C55E"
+            />
+            <SparkCard
+              title="NF-e emitidas"
+              data={usageQuery.data!.series.map((p) => ({ date: p.date, value: p.nfeIssued }))}
+              color="var(--chart-1)"
+            />
+            <SparkCard
+              title="Erros 5xx"
+              data={usageQuery.data!.series.map((p) => ({ date: p.date, value: p.errors5xx }))}
+              color="#EF4444"
+            />
+          </div>
+        </>
+      )}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Dados da conta</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <Row label="CNPJ" value={formatCNPJ(tenant.cnpj)} />
+            <Row label="Usuários" value={String(tenant._count.users)} />
+            <Row label="Filiais" value={String(tenant._count.branches)} />
+            <Row label="Onboarding concluído em" value={tenant.onboardedAt ? formatDate(tenant.onboardedAt) : '—'} />
+            <Row label="Fim do trial" value={tenant.trialEndsAt ? formatDate(tenant.trialEndsAt) : '—'} />
+            {tenant.suspendedAt && (
+              <Row label="Suspensa em" value={formatDate(tenant.suspendedAt)} />
+            )}
+            {tenant.suspendReason && <Row label="Motivo" value={tenant.suspendReason} />}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Filiais ({tenant.branches.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tenant.branches.length === 0 ? (
+              <p className="text-sm text-content-muted">Nenhuma filial cadastrada.</p>
+            ) : (
+              <ul className="divide-y divide-line text-sm">
+                {tenant.branches.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between py-2">
+                    <span className="text-content">{b.name}</span>
+                    <span className="font-mono text-xs text-content-muted">{formatCNPJ(b.cnpj)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Aba "Saúde" ────────────────────────────────────────────────────────────
+function useTenantHealth(tenantId: string) {
+  return useQuery<TenantHealth>({
+    queryKey: [RESOURCE, tenantId, 'health'],
+    queryFn: async () => (await apiClient.get<TenantHealth>(`${RESOURCE}/${tenantId}/health`)).data,
+  });
+}
+
+function HealthTab({ tenantId }: { tenantId: string }) {
+  const healthQuery = useTenantHealth(tenantId);
+
+  if (healthQuery.isError) {
+    return <InlineError message="Não foi possível carregar a saúde da conta." />;
+  }
+  if (healthQuery.isLoading || !healthQuery.data) {
+    return (
+      <div className="grid gap-5 md:grid-cols-2">
+        <Skeleton className="h-56 w-full" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
+  }
+
+  const { recentRejections, recentErrors } = healthQuery.data;
+
+  return (
+    <div className="grid gap-5 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Rejeições SEFAZ recentes</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {recentRejections.length === 0 ? (
+            <p className="text-sm text-content-muted">Nenhuma rejeição/erro nos últimos 7 dias ✓</p>
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {recentRejections.map((r) => (
+                <li key={r.id} className="py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-content">{FISCAL_TYPE_LABEL[r.type]}</span>
+                    <span className="shrink-0 text-xs text-content-muted" title={formatDateTime(r.createdAt)}>
+                      {formatRelativeTime(r.createdAt)}
+                    </span>
+                  </div>
+                  {r.rejectionReason && (
+                    <p className="mt-0.5 text-content-secondary">{r.rejectionReason}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Erros 5xx recentes</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {recentErrors.length === 0 ? (
+            <p className="text-sm text-content-muted">Nenhuma rejeição/erro nos últimos 7 dias ✓</p>
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {recentErrors.map((e) => (
+                <li key={e.id} className="py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-medium text-content">{e.title}</span>
+                    <Badge variant={SUPPORT_STATUS_VARIANT[e.status] ?? 'neutral'}>
+                      {SUPPORT_STATUS_LABEL[e.status] ?? e.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-content-muted">
+                    <span className="font-mono">{e.protocol}</span>
+                    <span title={formatDateTime(e.createdAt)}>{formatRelativeTime(e.createdAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Aba "Pessoas" ──────────────────────────────────────────────────────────
+function PeopleTab({ tenantId }: { tenantId: string }) {
+  const healthQuery = useTenantHealth(tenantId);
+
+  if (healthQuery.isError) {
+    return <InlineError message="Não foi possível carregar as pessoas da conta." />;
+  }
+
+  const columns: Column<TenantHealthUser>[] = [
+    {
+      key: 'name',
+      header: 'Nome',
+      sortable: true,
+      cell: (u) => <span className="font-medium text-content">{u.name}</span>,
+    },
+    { key: 'email', header: 'E-mail' },
+    {
+      key: 'role',
+      header: 'Papel',
+      cell: (u) => USER_ROLE_LABELS[u.role] ?? u.role,
+    },
+    {
+      key: 'isActive',
+      header: 'Ativo',
+      align: 'center',
+      cell: (u) => <Badge variant={u.isActive ? 'success' : 'neutral'}>{u.isActive ? 'Sim' : 'Não'}</Badge>,
+    },
+    {
+      key: 'lastLoginAt',
+      header: 'Último acesso',
+      sortable: true,
+      accessor: (u) => u.lastLoginAt,
+      cell: (u) =>
+        u.lastLoginAt ? (
+          <span title={formatDateTime(u.lastLoginAt)}>{formatRelativeTime(u.lastLoginAt)}</span>
+        ) : (
+          <span title="nunca">—</span>
+        ),
+    },
+  ];
+
+  return (
+    <DataTable
+      data={healthQuery.data?.users ?? []}
+      columns={columns}
+      loading={healthQuery.isLoading}
+      searchPlaceholder="Buscar por nome ou e-mail..."
+      empty={<EmptyState compact title="Nenhuma pessoa cadastrada" />}
+    />
+  );
+}
+
+// ─── Aba "Linha do tempo" ───────────────────────────────────────────────────
+function TimelineTab({ tenantId }: { tenantId: string }) {
+  const timelineQuery = useQuery<TenantTimelineEntry[]>({
+    queryKey: [RESOURCE, tenantId, 'timeline'],
+    queryFn: async () =>
+      (await apiClient.get<TenantTimelineEntry[]>(`${RESOURCE}/${tenantId}/timeline`, { params: { take: 50 } }))
+        .data,
+  });
+
+  if (timelineQuery.isError) {
+    return <InlineError message="Não foi possível carregar a linha do tempo." />;
+  }
+  if (timelineQuery.isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (!timelineQuery.data || timelineQuery.data.length === 0) {
+    return (
+      <EmptyState
+        compact
+        icon={History}
+        title="Nenhum evento registrado"
+        description="Ações da operadora sobre esta conta (criação, suspensão, ativação, convites) aparecem aqui."
+      />
+    );
+  }
+
+  return (
+    <ul className="space-y-0">
+      {timelineQuery.data.map((entry) => {
+        const diff = summarizeChange(entry.oldValue, entry.newValue);
+        return (
+          <li key={entry.id} className="relative border-l border-line py-3 pl-5 last:pb-0">
+            <span className="absolute -left-[5px] top-4 h-2.5 w-2.5 rounded-full bg-brand-500" />
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-content">{auditActionLabel(entry.action)}</p>
+                {diff && <p className="mt-0.5 text-xs text-content-secondary">{diff}</p>}
+              </div>
+              <div className="shrink-0 text-right text-xs text-content-muted">
+                <p>{entry.user?.name ?? 'Sistema'}</p>
+                <p title={formatDateTime(entry.createdAt)}>{formatRelativeTime(entry.createdAt)}</p>
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -235,44 +686,27 @@ export default function TenantDetailPage() {
         </Link>
       )}
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Dados da conta</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Row label="CNPJ" value={formatCNPJ(tenant.cnpj)} />
-            <Row label="Usuários" value={String(tenant._count.users)} />
-            <Row label="Filiais" value={String(tenant._count.branches)} />
-            <Row label="Onboarding concluído em" value={tenant.onboardedAt ? formatDate(tenant.onboardedAt) : '—'} />
-            <Row label="Fim do trial" value={tenant.trialEndsAt ? formatDate(tenant.trialEndsAt) : '—'} />
-            {tenant.suspendedAt && (
-              <Row label="Suspensa em" value={formatDate(tenant.suspendedAt)} />
-            )}
-            {tenant.suspendReason && <Row label="Motivo" value={tenant.suspendReason} />}
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="health">Saúde</TabsTrigger>
+          <TabsTrigger value="people">Pessoas</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Filiais ({tenant.branches.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tenant.branches.length === 0 ? (
-              <p className="text-sm text-content-muted">Nenhuma filial cadastrada.</p>
-            ) : (
-              <ul className="divide-y divide-line text-sm">
-                {tenant.branches.map((b) => (
-                  <li key={b.id} className="flex items-center justify-between py-2">
-                    <span className="text-content">{b.name}</span>
-                    <span className="font-mono text-xs text-content-muted">{formatCNPJ(b.cnpj)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="overview">
+          <OverviewTab tenant={tenant} />
+        </TabsContent>
+        <TabsContent value="health">
+          <HealthTab tenantId={tenant.id} />
+        </TabsContent>
+        <TabsContent value="people">
+          <PeopleTab tenantId={tenant.id} />
+        </TabsContent>
+        <TabsContent value="timeline">
+          <TimelineTab tenantId={tenant.id} />
+        </TabsContent>
+      </Tabs>
 
       <ReasonDialog
         open={suspendOpen}

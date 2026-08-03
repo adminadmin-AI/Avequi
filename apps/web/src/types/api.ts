@@ -1285,6 +1285,18 @@ export interface SupportIncident {
 // ─── Ops — control plane da operadora (OPS WP1 #908 / WP2 #909) ──────────────
 export type TenantStatus = 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CHURNED' | 'SANDBOX';
 
+/**
+ * Resumo de uso embutido em cada item de GET /ops/tenants (OPS WP3 #910) —
+ * `null` quando o tenant ainda não tem linhas de metering (ex.: recém-criado,
+ * antes do primeiro cron rodar).
+ */
+export interface TenantUsageSummary {
+  activeUsers30d: number;
+  nfeMonth: number;
+  errors7d: number;
+  lastLoginAt: string | null;
+}
+
 /** GET /ops/tenants — item da lista de contas de cliente. */
 export interface Tenant {
   id: string;
@@ -1299,11 +1311,105 @@ export interface Tenant {
   onboardedAt?: string | null;
   createdAt: string;
   _count: { users: number; branches: number };
+  usage: TenantUsageSummary | null;
 }
 
 /** GET /ops/tenants/:id — detalhe (raiz + filiais). */
 export interface TenantDetail extends Tenant {
   branches: Array<{ id: string; name: string; cnpj: string; type: CompanyType }>;
+}
+
+// ─── Ops — painel de contas: uso, saúde, timeline, alertas (OPS WP3 #910) ─────
+
+/** Um ponto da série diária de GET /ops/tenants/:id/usage. */
+export interface TenantUsageDailyPoint {
+  date: string;
+  activeUsers: number;
+  nfeIssued: number;
+  nfeRejected: number;
+  crmLeads: number;
+  errors5xx: number;
+}
+
+/** Totais do período de GET /ops/tenants/:id/usage. */
+export interface TenantUsageTotals {
+  nfeIssued: number;
+  nfeRejected: number;
+  crmLeads: number;
+  errors5xx: number;
+  peakActiveUsers: number;
+}
+
+/** GET /ops/tenants/:id/usage?days=90 — série diária + totais (KPIs + sparklines). */
+export interface TenantUsageSeries {
+  series: TenantUsageDailyPoint[];
+  totals: TenantUsageTotals;
+}
+
+/** Rejeição SEFAZ recente — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthRejection {
+  id: string;
+  type: FiscalDocumentType;
+  createdAt: string;
+  rejectionReason: string | null;
+}
+
+/** Chamado de erro 5xx auto-aberto — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthError {
+  id: string;
+  protocol: string;
+  title: string;
+  status: SupportIncidentStatus;
+  createdAt: string;
+}
+
+/** Usuário do tenant com último acesso — parte de GET /ops/tenants/:id/health. */
+export interface TenantHealthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  lastLoginAt: string | null;
+}
+
+/** GET /ops/tenants/:id/health */
+export interface TenantHealth {
+  recentRejections: TenantHealthRejection[];
+  recentErrors: TenantHealthError[];
+  users: TenantHealthUser[];
+}
+
+/** GET /ops/tenants/:id/timeline?take=50 — eventos ops do AuditLogV2. */
+export interface TenantTimelineEntry {
+  id: string;
+  entity: string;
+  entityId: string;
+  action: string;
+  oldValue: unknown;
+  newValue: unknown;
+  createdAt: string;
+  user: { id: string; name: string } | null;
+}
+
+export type OpsAlertType = 'SEM_LOGIN' | 'PICO_5XX' | 'REJEICAO_SEFAZ' | 'TRIAL_VENCENDO';
+export type OpsAlertSeverity = 'WARNING' | 'CRITICAL';
+
+/** GET /ops/alerts — CRITICAL primeiro. */
+export interface OpsAlert {
+  type: OpsAlertType;
+  severity: OpsAlertSeverity;
+  tenantId: string;
+  tenantName: string;
+  message: string;
+}
+
+/** POST /ops/metering/run */
+export interface RunMeteringInput {
+  days?: number;
+}
+export interface RunMeteringResult {
+  processedDays: number;
 }
 
 /** PATCH /ops/tenants/:id/status */

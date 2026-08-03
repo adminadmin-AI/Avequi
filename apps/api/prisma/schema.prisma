@@ -181,8 +181,34 @@ model Company {
   // OPS WP2 (#909) — provisionamento e convites
   provisioning  TenantProvisioning?
   tenantInvites TenantInvite[]
+  // OPS WP3 (#910) — metering diário do tenant (linhas só na empresa RAIZ)
+  usageDailies  TenantUsageDaily[]
 
   @@map("gdr_companies")
+}
+
+/// OPS WP3 (#910) — agregado DIÁRIO de uso por tenant (empresa RAIZ; os
+/// números somam a árvore matriz + filiais). Populado pelo MeteringScheduler
+/// (cron 03:15) com upsert por (companyId, date) — reprocessar um dia
+/// sobrescreve, nunca duplica. Backfill de 90 dias na primeira execução.
+/// storageBytes fica 0 até existir fonte confiável (deferido no épico #915).
+model TenantUsageDaily {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  date         DateTime @db.Date
+  activeUsers  Int      @default(0) // usuários distintos com sessão criada no dia
+  nfeIssued    Int      @default(0) // FiscalDocument AUTHORIZED no dia (authorizedAt)
+  nfeRejected  Int      @default(0) // FiscalDocument REJECTED no dia (createdAt)
+  crmLeads     Int      @default(0) // Leads criados no dia
+  errors5xx    Int      @default(0) // SupportIncident source=AUTO_ERROR no dia
+  storageBytes BigInt   @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, date])
+  @@index([date])
+  @@map("gdr_tenant_usage_dailies")
 }
 
 /// OPS WP2 (#909) — máquina de estados do onboarding de um tenant novo.

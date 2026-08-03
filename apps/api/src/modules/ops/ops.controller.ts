@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { InviteAdminDto } from './dto/invite-admin.dto';
 import { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
 import { OpsMfaGuard } from './ops-mfa.guard';
+import { OpsPanelService } from './ops-panel.service';
 import { OpsActionContext, OpsService } from './ops.service';
 import { ProvisioningService } from './provisioning.service';
 
@@ -37,6 +39,7 @@ export class OpsController {
   constructor(
     private readonly opsService: OpsService,
     private readonly provisioningService: ProvisioningService,
+    private readonly panelService: OpsPanelService,
   ) {}
 
   private ctx(
@@ -53,9 +56,17 @@ export class OpsController {
 
   @Get()
   @RequirePermission('ops.tenants.view')
-  @ApiOperation({ summary: 'Operadora — lista as contas de cliente (tenants)' })
-  list() {
-    return this.opsService.listTenants();
+  @ApiOperation({
+    summary:
+      'Operadora — lista as contas de cliente (tenants) com resumo de uso ' +
+      '(ativos 30d, NF-e do mês, erros 7d, último login — OPS WP3 #910)',
+  })
+  async list() {
+    const [tenants, usage] = await Promise.all([
+      this.opsService.listTenants(),
+      this.panelService.listUsageSummary(),
+    ]);
+    return tenants.map((t) => ({ ...t, usage: usage[t.id] ?? null }));
   }
 
   @Get(':id')
@@ -149,5 +160,35 @@ export class OpsController {
     @Req() req: Request,
   ) {
     return this.provisioningService.activate(id, this.ctx(user, req));
+  }
+
+  // ── OPS WP3 (#910) — painel de contas ──────────────────────────────────────
+
+  @Get(':id/usage')
+  @RequirePermission('ops.tenants.view')
+  @ApiOperation({
+    summary: 'Operadora — série diária de uso do tenant (sparklines + totais)',
+  })
+  usage(@Param('id') id: string, @Query('days') days?: string) {
+    return this.panelService.getUsage(id, days ? Number(days) : undefined);
+  }
+
+  @Get(':id/health')
+  @RequirePermission('ops.tenants.view')
+  @ApiOperation({
+    summary:
+      'Operadora — saúde do tenant: rejeições SEFAZ e erros 5xx recentes + pessoas/último acesso',
+  })
+  health(@Param('id') id: string) {
+    return this.panelService.getHealth(id);
+  }
+
+  @Get(':id/timeline')
+  @RequirePermission('ops.tenants.view')
+  @ApiOperation({
+    summary: 'Operadora — linha do tempo do tenant (eventos ops do AuditLogV2)',
+  })
+  timeline(@Param('id') id: string, @Query('take') take?: string) {
+    return this.panelService.getTimeline(id, take ? Number(take) : undefined);
   }
 }
