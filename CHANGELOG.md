@@ -6,6 +6,16 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-08-03
+
+### Added
+- **Blindagem multi-tenant (OPS WP7, #914/#931)** — fecha o épico Portal Avecchi (#915): suíte de isolamento cross-tenant com matriz automática de rotas e três fronteiras de escalação provadas contra o PermissionGuard real; tenant-query-lint (AST) no CI — query Prisma multi-tenant sem noção de tenant bloqueia o merge, com fixtures dos incidentes históricos (#36/#63/#216/#218); hardening `/ops`: throttle dedicado 30/min, MFA runtime e `OpsSessionGuard` (idade máxima de sessão 8h, `OPS_SESSION_MAX_AGE_MINUTES`); smoke pós-deploy `npm run smoke:isolation` no checklist de release.
+- **Sessão em cookie httpOnly + proteção CSRF (#349/#903/#906)** — tokens saem do localStorage para cookies httpOnly (`gdr_access`/`gdr_refresh`) com CSRF double-submit (`gdr_csrf` + `x-csrf-token`, timingSafeEqual). Modo DUAL: canal Bearer segue funcionando e o front escolhe o canal pela resposta do login — nenhuma ordem de deploy quebra; sessões antigas migram sozinhas no primeiro refresh.
+
+### Fixed
+- **Guard de "último admin global" agora é por tenant (árvore matriz+filiais)** — contava admins de todos os tenants, permitindo inativar o único admin de uma conta enquanto outra tivesse admins (achado do tenant-query-lint, #914).
+- **Dedup da triagem de suporte por IA escopado por tenant** — o contexto enviado ao LLM misturava protocolo+título de incidentes de outros tenants (achado do tenant-query-lint, #914).
+
 ## [1.28.0] - 2026-08-03
 
 ### Adicionado
@@ -365,7 +375,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...HEAD
+[1.29.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.27.0...v1.28.0
 [1.27.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.25.0...v1.26.0
