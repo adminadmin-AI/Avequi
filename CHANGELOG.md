@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-08-04
+
+### Added
+- **Tela de MFA self-service (#936/#967)** — a verificação em duas etapas sai do curl e vira tela: `/app/account/security` com ativação por QR gerado no cliente (+ secret manual), confirmação TOTP, backup codes exibidos uma única vez (copiar/baixar, conclusão travada por confirmação de guarda), desativação com senha+código e regeneração de codes. Entradas pelo menu do avatar ("Segurança") e pelo botão "Ativar agora" nos acessos negados por MFA do console. API: `GET /auth/mfa/status` novo (nunca expõe secret).
+
 ## [1.32.0] - 2026-08-04
 
 ### Added
@@ -407,7 +412,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.32.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...HEAD
+[1.33.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.32.0...v1.33.0
 [1.32.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...v1.31.0
 [1.30.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...v1.30.1
