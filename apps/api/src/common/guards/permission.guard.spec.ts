@@ -8,7 +8,7 @@ import { PermissionService } from '../../modules/iam/permission.service';
 describe('PermissionGuard (#341)', () => {
   let reflector: jest.Mocked<Reflector>;
   let permissionService: jest.Mocked<
-    Pick<PermissionService, 'getUserPermissions'>
+    Pick<PermissionService, 'resolveWithLegacyFallback'>
   >;
   let guard: PermissionGuard;
 
@@ -34,26 +34,26 @@ describe('PermissionGuard (#341)', () => {
 
   beforeEach(() => {
     reflector = { getAllAndOverride: jest.fn() } as any;
-    permissionService = { getUserPermissions: jest.fn() } as any;
+    permissionService = { resolveWithLegacyFallback: jest.fn() } as any;
     guard = new PermissionGuard(reflector, permissionService as any);
   });
 
   it('libera rota @Public sem consultar o PermissionService', async () => {
     setMetadata({ isPublic: true, required: ['iam.audit-logs.view'] });
     await expect(guard.canActivate(makeContext())).resolves.toBe(true);
-    expect(permissionService.getUserPermissions).not.toHaveBeenCalled();
+    expect(permissionService.resolveWithLegacyFallback).not.toHaveBeenCalled();
   });
 
   it('libera rota SEM metadata @RequirePermission (nada muda para endpoints só com @Roles)', async () => {
     setMetadata({ required: undefined });
     await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
-    expect(permissionService.getUserPermissions).not.toHaveBeenCalled();
+    expect(permissionService.resolveWithLegacyFallback).not.toHaveBeenCalled();
   });
 
   it('libera com metadata vazia (lista [] não é exigência)', async () => {
     setMetadata({ required: [] });
     await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
-    expect(permissionService.getUserPermissions).not.toHaveBeenCalled();
+    expect(permissionService.resolveWithLegacyFallback).not.toHaveBeenCalled();
   });
 
   it('fail-closed: 403 se não há usuário no request (defesa contra reordenação de guards)', async () => {
@@ -61,7 +61,7 @@ describe('PermissionGuard (#341)', () => {
     await expect(guard.canActivate(makeContext(undefined))).rejects.toThrow(
       ForbiddenException,
     );
-    expect(permissionService.getUserPermissions).not.toHaveBeenCalled();
+    expect(permissionService.resolveWithLegacyFallback).not.toHaveBeenCalled();
   });
 
   it('fail-closed: 403 se o usuário não tem companyId', async () => {
@@ -73,22 +73,29 @@ describe('PermissionGuard (#341)', () => {
 
   it('libera quando o usuário tem a permissão exigida', async () => {
     setMetadata({ required: ['iam.audit-logs.view'] });
-    permissionService.getUserPermissions.mockResolvedValue({
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
       roles: ['ADMIN_GLOBAL'],
       permissions: ['iam.audit-logs.view', 'sales.orders.view'],
+    },
     });
     await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
-    expect(permissionService.getUserPermissions).toHaveBeenCalledWith(
+    expect(permissionService.resolveWithLegacyFallback).toHaveBeenCalledWith(
       'user-1',
       'company-1',
+      'MANAGER', // #946: o enum entra na resolução (fallback legado)
     );
   });
 
   it('bloqueia com 403 e mensagem pt-BR informando QUAL permissão faltou', async () => {
     setMetadata({ required: ['iam.audit-logs.view'] });
-    permissionService.getUserPermissions.mockResolvedValue({
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
       roles: ['VENDEDOR'],
       permissions: ['sales.orders.view'],
+    },
     });
     await expect(guard.canActivate(makeContext(userOk))).rejects.toThrow(
       /Você não tem permissão.*iam\.audit-logs\.view/,
@@ -97,9 +104,12 @@ describe('PermissionGuard (#341)', () => {
 
   it('semântica AND: exige TODAS — ter só uma das duas bloqueia e aponta a que falta', async () => {
     setMetadata({ required: ['finance.entries.view', 'finance.entries.pay'] });
-    permissionService.getUserPermissions.mockResolvedValue({
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
       roles: ['FINANCEIRO'],
       permissions: ['finance.entries.view'],
+    },
     });
     let erro: any;
     await guard.canActivate(makeContext(userOk)).catch((e) => (erro = e));
@@ -110,26 +120,32 @@ describe('PermissionGuard (#341)', () => {
 
   it('semântica AND: libera quando tem todas', async () => {
     setMetadata({ required: ['finance.entries.view', 'finance.entries.pay'] });
-    permissionService.getUserPermissions.mockResolvedValue({
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
       roles: ['GERENTE_FINANCEIRO'],
       permissions: ['finance.entries.view', 'finance.entries.pay'],
+    },
     });
     await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
   });
 
   it('resolve permissões UMA vez por request, mesmo com múltiplos codes', async () => {
     setMetadata({ required: ['finance.entries.view', 'finance.entries.pay'] });
-    permissionService.getUserPermissions.mockResolvedValue({
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
       roles: [],
       permissions: ['finance.entries.view', 'finance.entries.pay'],
+    },
     });
     await guard.canActivate(makeContext(userOk));
-    expect(permissionService.getUserPermissions).toHaveBeenCalledTimes(1);
+    expect(permissionService.resolveWithLegacyFallback).toHaveBeenCalledTimes(1);
   });
 
   it('fail-closed: erro na resolução (ex.: banco fora) → 403 genérico, nunca liberação', async () => {
     setMetadata({ required: ['iam.audit-logs.view'] });
-    permissionService.getUserPermissions.mockRejectedValue(
+    permissionService.resolveWithLegacyFallback.mockRejectedValue(
       new Error('ECONNREFUSED: banco fora do ar'),
     );
     await expect(guard.canActivate(makeContext(userOk))).rejects.toThrow(
@@ -139,12 +155,52 @@ describe('PermissionGuard (#341)', () => {
 
   it('fail-closed: o 403 de erro de infraestrutura NÃO vaza detalhes internos', async () => {
     setMetadata({ required: ['iam.audit-logs.view'] });
-    permissionService.getUserPermissions.mockRejectedValue(
+    permissionService.resolveWithLegacyFallback.mockRejectedValue(
       new Error('ECONNREFUSED 10.0.0.5:5432'),
     );
     let erro: any;
     await guard.canActivate(makeContext(userOk)).catch((e) => (erro = e));
     expect(erro).toBeInstanceOf(ForbiddenException);
     expect(erro.message).not.toContain('ECONNREFUSED');
+  });
+
+  // ── #946: guard e menu usam a MESMA resolução (fallback legado incluído) ──
+
+  it('usa resolveWithLegacyFallback com o enum do usuário — mesma regra do /auth/me', async () => {
+    setMetadata({ required: ['sales.orders.view'] });
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: true,
+      resolved: { roles: ['GERENTE_GERAL'], permissions: ['sales.orders.view'] },
+    } as any);
+
+    await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
+    expect(permissionService.resolveWithLegacyFallback).toHaveBeenCalledWith(
+      userOk.id,
+      userOk.companyId,
+      userOk.role,
+    );
+  });
+
+  it('usuário legado sem v2: o que o menu mostra a API concede (fim do 403 fantasma)', async () => {
+    setMetadata({ required: ['sales.orders.view'] });
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: true,
+      resolved: { roles: ['VENDEDOR'], permissions: ['sales.orders.view'] },
+    } as any);
+
+    await expect(guard.canActivate(makeContext(userOk))).resolves.toBe(true);
+  });
+
+  it('usuário COM v2: o fallback não entra e o deny do v2 continua valendo', async () => {
+    setMetadata({ required: ['iam.roles.manage'] });
+    // v2 configurado (sem a permissão exigida) → legacyFallback false
+    permissionService.resolveWithLegacyFallback.mockResolvedValue({
+      legacyFallback: false,
+      resolved: { roles: ['VENDEDOR'], permissions: ['sales.orders.view'] },
+    } as any);
+
+    await expect(guard.canActivate(makeContext(userOk))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });

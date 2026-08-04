@@ -34,13 +34,20 @@ import { formatDate } from '@/lib/format';
  * Fica AQUI (e não na página de usuários) para não conflitar com PRs pendentes
  * da tela settings/users.
  */
-export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
+export function AssignmentsTab({
+  roles,
+  userIdInicial,
+}: {
+  roles: IamRole[];
+  /** #946: usuário pré-selecionado quando se chega pela tela de usuários. */
+  userIdInicial?: string;
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const currentUser = useAuthStore((s) => s.user);
 
   const { data: users = [], isLoading: loadingUsers } = useList<User>('/users');
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState(userIdInicial ?? '');
   const selectedUser = users.find((u) => u.id === selectedUserId);
 
   const { data: assignments = [], isLoading: loadingAssignments } =

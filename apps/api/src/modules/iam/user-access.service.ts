@@ -11,6 +11,10 @@ import {
   LastAdminInvariantService,
   TEMP_ADMIN_ERROR_MESSAGE,
 } from './last-admin-invariant.service';
+import {
+  LegacyRoleMirrorService,
+  ResultadoEspelho,
+} from './legacy-role-mirror.service';
 import { PermissionService } from './permission.service';
 import { wouldLockOutOfRolesAdmin } from './access-lockout.util';
 import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
@@ -43,6 +47,7 @@ export class UserAccessService {
     private readonly permissionService: PermissionService,
     private readonly auditService: AuditService,
     private readonly lastAdmin: LastAdminInvariantService,
+    private readonly legacyMirror: LegacyRoleMirrorService,
   ) {}
 
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
@@ -103,6 +108,11 @@ export class UserAccessService {
       );
     }
 
+    // #946: o espelho legado é recalculado DENTRO da mesma transação do
+    // assignment — enum e perfis nunca ficam fora de sincronia por falha
+    // parcial. O resultado sai daqui para auditoria e para a resposta da UI.
+    let espelho: ResultadoEspelho | undefined;
+
     const criarAssignment = async (tx: Prisma.TransactionClient) => {
       const created = await tx.userRoleAssignment.create({
         data: {
@@ -114,6 +124,7 @@ export class UserAccessService {
           grantedBy: actor.id,
         },
       });
+      espelho = await this.legacyMirror.sincronizarNaTransacao(tx, target.id);
       await tx.permissionChangeLog.create({
         data: {
           companyId: actor.companyId,
@@ -125,6 +136,7 @@ export class UserAccessService {
             roleCode: role.code,
             branchId: dto.branchId ?? null,
             expiresAt: dto.expiresAt ?? null,
+            legacyRole: espelhoParaAuditoria(espelho),
           },
         },
       });
@@ -148,6 +160,10 @@ export class UserAccessService {
         : await this.prisma.$transaction(criarAssignment);
 
     await this.permissionService.invalidateUser(target.id, actor.companyId);
+    const sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
+      espelho!,
+      target.id,
+    );
 
     await this.auditService.logWithDiff(null, assignment, {
       companyId: actor.companyId,
@@ -158,7 +174,7 @@ export class UserAccessService {
       module: 'iam',
     });
 
-    return assignment;
+    return { ...assignment, legacyRole: { ...espelho!, sessoesRevogadas } };
   }
 
   async removeRole(actor: Actor, userId: string, roleId: string) {
@@ -195,8 +211,12 @@ export class UserAccessService {
       }
     }
 
+    let espelho: ResultadoEspelho | undefined;
+
     const removerAssignment = async (tx: Prisma.TransactionClient) => {
       await tx.userRoleAssignment.delete({ where: { id: assignment.id } });
+      // #946: espelho recalculado na MESMA transação da remoção.
+      espelho = await this.legacyMirror.sincronizarNaTransacao(tx, target.id);
       await tx.permissionChangeLog.create({
         data: {
           companyId: actor.companyId,
@@ -208,6 +228,7 @@ export class UserAccessService {
             roleCode: assignment.role.code,
             branchId: assignment.branchId,
             expiresAt: assignment.expiresAt?.toISOString() ?? null,
+            legacyRole: espelhoParaAuditoria(espelho),
           },
         },
       });
@@ -222,6 +243,10 @@ export class UserAccessService {
     }
 
     await this.permissionService.invalidateUser(target.id, actor.companyId);
+    const sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
+      espelho!,
+      target.id,
+    );
 
     await this.auditService.logWithDiff(assignment, null, {
       companyId: actor.companyId,
@@ -232,7 +257,7 @@ export class UserAccessService {
       module: 'iam',
     });
 
-    return { removed: true };
+    return { removed: true, legacyRole: { ...espelho!, sessoesRevogadas } };
   }
 
   // ─── Exceções individuais (grants/denies) ──────────────────────────────────
@@ -456,4 +481,21 @@ export class UserAccessService {
     }
     return user;
   }
+}
+
+/**
+ * #946: recorte do espelho legado gravado no PermissionChangeLog. Guarda o
+ * ANTES e o DEPOIS, o motivo quando não houve derivação e os perfis
+ * resultantes — para a auditoria mostrar que o RBAC v2 é o acesso real mesmo
+ * quando o enum ficou congelado. Campos JSON já existentes: sem migration.
+ */
+function espelhoParaAuditoria(espelho: ResultadoEspelho) {
+  return {
+    status: espelho.status,
+    before: espelho.enumAnterior,
+    after: espelho.enumResultante,
+    ...(espelho.motivo ? { frozenReason: espelho.motivo } : {}),
+    roles: espelho.perfis,
+    source: 'RBAC_V2',
+  };
 }

@@ -235,18 +235,48 @@ export class PermissionService {
     companyId: string,
     legacyEnumRole?: string,
   ): Promise<MyEffectivePermissions> {
+    const { resolved, legacyFallback } = await this.resolveWithLegacyFallback(
+      userId,
+      companyId,
+      legacyEnumRole,
+    );
+    return { ...resolved, legacyFallback, resolvedAt: new Date().toISOString() };
+  }
+
+  /**
+   * Resolução efetiva COM o fallback legado — ponto ÚNICO da regra (#946).
+   *
+   * Antes, o fallback existia só aqui (menu, via /auth/me/permissions) e o
+   * PermissionGuard resolvia sem ele: usuário legado sem RBAC v2 via o item
+   * no menu e tomava 403 na API. Agora guard e menu chamam o MESMO método —
+   * não há duas versões da regra para divergir.
+   *
+   * ⚠️ TEMPORÁRIO: o fallback existe enquanto o enum `User.role` for espelho
+   * de compatibilidade (#780). Sai na Fase D, junto com a aposentadoria do
+   * enum. NÃO usar fora deste mecanismo central de resolução.
+   *
+   * A regra de quando ele vale é a de sempre: só quando o usuário NÃO tem
+   * nada no v2 (nenhum perfil E nenhuma exceção). Qualquer configuração v2
+   * existente — inclusive um único deny — desliga o fallback, porque remover
+   * acessos de alguém é decisão administrativa que precisa valer.
+   */
+  async resolveWithLegacyFallback(
+    userId: string,
+    companyId: string,
+    legacyEnumRole?: string,
+  ): Promise<{ resolved: PermissionSet; legacyFallback: boolean }> {
     const resolved = await this.getUserPermissions(userId, companyId);
-    const resolvedAt = new Date().toISOString();
 
     const isEmptyInV2 = resolved.roles.length === 0 && resolved.permissions.length === 0;
     if (isEmptyInV2 && legacyEnumRole) {
       const mirrorCode = ENUM_ROLE_TO_SYSTEM_ROLE[legacyEnumRole];
       if (mirrorCode && findSystemRole(mirrorCode)) {
         return {
-          roles: [mirrorCode],
-          permissions: [...resolveEffectivePermissions(mirrorCode)].sort(),
+          resolved: {
+            roles: [mirrorCode],
+            permissions: [...resolveEffectivePermissions(mirrorCode)].sort(),
+          },
           legacyFallback: true,
-          resolvedAt,
         };
       }
       this.logger.warn(
@@ -255,7 +285,7 @@ export class PermissionService {
       );
     }
 
-    return { ...resolved, legacyFallback: false, resolvedAt };
+    return { resolved, legacyFallback: false };
   }
 
   // ─── Invalidação ativa (Decisão 2) ────────────────────────────────────────

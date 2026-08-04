@@ -13,6 +13,7 @@ import { OrgStructureService } from './org-structure.service';
 import { PasswordPolicyService } from './password-policy.service';
 import { PermissionCacheService } from './permission-cache.service';
 import { LastAdminInvariantService } from './last-admin-invariant.service';
+import { LegacyRoleMirrorService } from './legacy-role-mirror.service';
 import { PermissionService } from './permission.service';
 import { RolesAdminController } from './roles-admin.controller';
 import { RolesAdminService } from './roles-admin.service';
@@ -61,6 +62,7 @@ import { UserAccessService } from './user-access.service';
     EncryptionService,
     MfaService,
     LastAdminInvariantService,
+    LegacyRoleMirrorService,
     OrgStructureService,
     PasswordPolicyService,
     PermissionCacheService,
@@ -76,6 +78,7 @@ import { UserAccessService } from './user-access.service';
     AuditService,
     EncryptionService,
     LastAdminInvariantService,
+    LegacyRoleMirrorService,
     MfaService,
     PasswordPolicyService,
     PermissionCacheService,

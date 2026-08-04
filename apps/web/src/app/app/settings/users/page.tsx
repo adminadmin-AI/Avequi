@@ -13,6 +13,9 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { usePermission } from '@/hooks/use-permission';
+import { useUserRoles } from '@/hooks/use-iam';
+import Link from 'next/link';
+import { LEGACY_MIRRORED_ROLE_CODES } from './roles';
 import { canShowStatusToggle, canShowPasswordReset } from './permissions';
 import { resolveApiError } from './resolve-api-error';
 import { roleLabel, roleVariant } from './roles';
@@ -56,9 +59,11 @@ export default function UsersPage() {
 
   function handleSubmit(values: UserFormValues) {
     if (editing) {
-      // Na edição só enviamos nome e papel (e-mail é imutável; senha não muda aqui).
+      // #946: na edição só o nome. E-mail é imutável, senha tem fluxo próprio
+      // e o PAPEL saiu daqui — ele é derivado dos perfis RBAC v2 (a API
+      // rejeita `role` no PATCH). Acesso se muda em Perfis e Permissões.
       update.mutate(
-        { id: editing.id, data: { name: values.name, role: values.role } },
+        { id: editing.id, data: { name: values.name } },
         {
           onSuccess: () => {
             toast.success('Usuário atualizado');
@@ -243,9 +248,67 @@ export default function UsersPage() {
           }
           onSubmit={handleSubmit}
         />
+        {editing && <ResumoDeAcesso user={editing} />}
       </FormDialog>
 
       <ResetPasswordDialog user={resetTarget} open={resetOpen} onOpenChange={setResetOpen} />
+    </div>
+  );
+}
+
+/**
+ * #946: o acesso do usuário é definido pelos PERFIS RBAC v2 — o papel legado
+ * virou espelho. Este bloco aparece na edição para (a) mostrar os perfis que
+ * de fato valem, (b) levar direto à tela onde se muda acesso e (c) avisar
+ * quando o papel legado ficou congelado por não representar a combinação.
+ */
+function ResumoDeAcesso({ user }: { user: User }) {
+  const { data: perfis = [], isLoading } = useUserRoles(user.id);
+
+  // Congelado = o papel legado não representa integralmente o acesso: mais de
+  // um perfil, ou um perfil sem equivalente no vocabulário legado.
+  const oficiaisMapeados = perfis.filter((p) => LEGACY_MIRRORED_ROLE_CODES.includes(p.role.code));
+  const ambiguo = perfis.length > 1 || (perfis.length === 1 && oficiaisMapeados.length === 0);
+
+  return (
+    <div className="mt-4 space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">Acesso (perfis)</p>
+          <p className="text-xs text-muted-foreground">
+            O acesso é definido pelos perfis. O papel legado é apenas compatibilidade.
+          </p>
+        </div>
+        <Link
+          href={`/app/settings/roles?tab=atribuicoes&userId=${user.id}`}
+          className="shrink-0 text-sm font-medium text-primary hover:underline"
+        >
+          Gerenciar perfis
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Carregando perfis…</p>
+      ) : perfis.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Nenhum perfil atribuído — este usuário não tem acesso pelo RBAC v2.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {perfis.map((p) => (
+            <Badge key={p.id} variant="neutral">
+              {p.role.name}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {ambiguo && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          O acesso deste usuário é definido por múltiplos perfis. O papel legado é mantido
+          apenas para compatibilidade.
+        </p>
+      )}
     </div>
   );
 }
