@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-08-04
+
+### Added
+- **Ponte billing → financeiro da operadora (#960/#969)** — fatura de mensalidade espelha um título a receber no financeiro do tenant Avecchi (`OPERADORA_COMPANY_ID`; ausente = ponte desligada); baixa no portal liquida o título (anulação cancela); direção única (portal é a fonte); fail-soft com sweep diário idempotente de faturas órfãs. Migration aditiva `20260804060000` (via `db execute`, #640).
+
 ## [1.33.0] - 2026-08-04
 
 ### Added
@@ -412,7 +417,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.34.0...HEAD
+[1.34.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.32.0...v1.33.0
 [1.32.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...v1.31.0
