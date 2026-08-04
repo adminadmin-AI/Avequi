@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
@@ -49,6 +50,10 @@ export default function RolesPage() {
   const createRole = useCreateIamRole();
   const updateRole = useUpdateIamRole();
   const deleteRole = useDeleteIamRole();
+
+  const searchParams = useSearchParams();
+  const tabInicial = searchParams.get('tab') === 'atribuicoes' ? 'atribuicoes' : 'perfis';
+  const userIdInicial = searchParams.get('userId') ?? undefined;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<IamRole | null>(null);
@@ -271,7 +276,8 @@ export default function RolesPage() {
         }
       />
 
-      <Tabs defaultValue="perfis">
+      {/* #946: deep-link vindo da tela de usuários — ?tab=atribuicoes&userId=… */}
+      <Tabs defaultValue={tabInicial}>
         <TabsList className="mb-4">
           <TabsTrigger value="perfis">Perfis</TabsTrigger>
           <TabsTrigger value="atribuicoes">Atribuições</TabsTrigger>
@@ -289,7 +295,7 @@ export default function RolesPage() {
         </TabsContent>
 
         <TabsContent value="atribuicoes">
-          <AssignmentsTab roles={roles} />
+          <AssignmentsTab roles={roles} userIdInicial={userIdInicial} />
         </TabsContent>
       </Tabs>
 
