@@ -9,6 +9,7 @@ import {
   readPendingPasswordChange,
   type PendingPasswordChange,
 } from '@/lib/password-change';
+import { destinoPosLogin } from '@/lib/post-login-destination';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { PasswordChangeForm } from '@/components/password/password-change-form';
 
@@ -46,7 +47,10 @@ export default function ChangePasswordPage() {
     try {
       const result = await login(pending!.email, newPassword);
       if (!result.passwordChangeRequired) {
-        router.push('/app');
+        // Mesmo pouso do login normal: operador (ops.*) vai direto pro
+        // console — o primeiro acesso com senha provisória não pode ser a
+        // exceção que joga o operador no ERP (caso rafael@avecchi.ai, 04/08).
+        router.push(await destinoPosLogin());
         return;
       }
     } catch {
