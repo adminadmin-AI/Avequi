@@ -301,13 +301,23 @@ export class BillingService {
   /** Visão da carteira: MRR (total e por plano) + aging + vencidas. */
   async overview() {
     const now = new Date();
-    const [subscriptions, openInvoices] = await Promise.all([
+    const inicioDoMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    // Painel da Operadora (#957): série REAL de faturamento — soma das faturas
+    // por competência (não projeção de MRR). 6 competências: o suficiente pro
+    // sparkline sem varrer histórico inteiro.
+    const inicioDaSerie = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+    const [subscriptions, faturasDaSerie, openInvoices] = await Promise.all([
       this.prisma.subscription.findMany({
         where: {
           canceledAt: null,
           company: { isSandbox: false, tenantStatus: { notIn: [TenantStatus.CHURNED] } },
         },
         include: { company: { select: { id: true, name: true, plan: { select: { code: true } } } } },
+      }),
+      this.prisma.invoice.findMany({
+        // VOID fora: fatura anulada não é faturamento.
+        where: { period: { gte: inicioDaSerie }, status: { not: InvoiceStatus.VOID } },
+        select: { period: true, amountCents: true },
       }),
       this.prisma.invoice.findMany({
         where: { status: { in: [InvoiceStatus.OPEN, InvoiceStatus.OVERDUE] } },
@@ -323,6 +333,24 @@ export class BillingService {
       mrrByPlan[code] = (mrrByPlan[code] ?? 0) + s.priceCents;
     }
 
+    // Painel (#957): New MRR = assinaturas ATIVAS criadas na competência
+    // corrente (não confundir com a série de faturas: aqui é venda nova).
+    const newMrrMonthCents = subscriptions
+      .filter((s) => s.createdAt >= inicioDoMes)
+      .reduce((acc, s) => acc + s.priceCents, 0);
+
+    // Série mensal: uma entrada POR COMPETÊNCIA das últimas 6 (mês sem
+    // fatura aparece zerado — série honesta, sem interpolação).
+    const billedSeries: Array<{ period: string; amountCents: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const p = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const key = p.toISOString().slice(0, 7);
+      const total = faturasDaSerie
+        .filter((f) => f.period.toISOString().slice(0, 7) === key)
+        .reduce((acc, f) => acc + f.amountCents, 0);
+      billedSeries.push({ period: key, amountCents: total });
+    }
+
     const aging = { current: 0, d1_15: 0, d16_30: 0, d31_plus: 0 };
     for (const inv of openInvoices) {
       const past = daysPast(inv.dueDate, now);
@@ -336,6 +364,8 @@ export class BillingService {
       mrrCents,
       mrrByPlan,
       activeSubscriptions: subscriptions.length,
+      newMrrMonthCents,
+      billedSeries,
       aging,
       openInvoices: openInvoices.map((inv) => ({
         id: inv.id,

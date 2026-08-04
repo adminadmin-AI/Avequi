@@ -181,8 +181,24 @@ describe('console da operadora (OPS F2)', () => {
     expect(erpOps[0].permission).toBe('ops.tenants.view');
   });
 
-  it('o console lista as 4 rotas da operadora', () => {
-    expect(opsHrefs).toEqual(['/app/ops', '/app/ops/new', '/app/ops/plans', '/app/ops/billing']);
+  it('o console lista as 5 rotas da operadora, painel primeiro (#957)', () => {
+    expect(opsHrefs).toEqual([
+      '/app/ops',
+      '/app/ops/tenants',
+      '/app/ops/new',
+      '/app/ops/plans',
+      '/app/ops/billing',
+    ]);
+  });
+
+  it('a home do console é o Painel e a lista de contas mora em /app/ops/tenants (#957)', () => {
+    const byHref = new Map(OPS_NAV.flatMap((s) => s.items).map((i) => [i.href, i]));
+    expect(byHref.get('/app/ops')?.label).toBe('Painel');
+    expect(byHref.get('/app/ops/tenants')?.label).toBe('Contas de cliente');
+    // as duas metades do painel: a rota exige tenants.view; o financeiro se
+    // gateia dentro da página por ops.billing.view
+    expect(byHref.get('/app/ops')?.permission).toBe('ops.tenants.view');
+    expect(byHref.get('/app/ops/tenants')?.permission).toBe('ops.tenants.view');
   });
 
   it('as rotas ops continuam guardadas com o gate de cada uma (RouteGuard)', () => {
@@ -211,8 +227,24 @@ describe('console da operadora (OPS F2)', () => {
       status: 'denied',
       permission: 'ops.tenants.view',
     });
+    // #957: a lista mudou de casa e continua coberta pelo mapa de rotas
+    expect(checkRouteAccess('/app/ops/tenants', only('ops.tenants.view'))).toEqual({
+      status: 'allowed',
+    });
+    expect(checkRouteAccess('/app/ops/tenants', only('ops.billing.view'))).toMatchObject({
+      status: 'denied',
+      permission: 'ops.tenants.view',
+    });
     // fail-closed enquanto as permissões carregam
     expect(checkRouteAccess('/app/ops/billing', loading)).toEqual({ status: 'loading' });
+    expect(checkRouteAccess('/app/ops/tenants', loading)).toEqual({ status: 'loading' });
+  });
+
+  it('o item /app/ops/tenants não sequestra o detalhe de conta (#957)', () => {
+    // ids não são o literal "tenants"; e o prefixo só casa com barra
+    expect(resolveActiveHref('/app/ops/tenants')).toBe('/app/ops/tenants');
+    expect(resolveActiveHref('/app/ops/tenantsXYZ')).toBe('/app/ops');
+    expect(resolveActiveHref('/app/ops/clx000000000000000000000')).toBe('/app/ops');
   });
 
   it('quem não tem ops.tenants.view não vê nada da operadora no menu', () => {
@@ -234,6 +266,12 @@ describe('console da operadora (OPS F2)', () => {
       'Início',
       'Portal Avecchi',
       'Nova conta',
+    ]);
+    // #957: o segmento novo tem rótulo pt-BR próprio (não vira "Tenants")
+    expect(buildBreadcrumbs('/app/ops/tenants').map((c) => c.label)).toEqual([
+      'Início',
+      'Portal Avecchi',
+      'Contas de cliente',
     ]);
   });
 });

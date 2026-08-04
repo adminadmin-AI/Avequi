@@ -196,7 +196,7 @@ export default function NewTenantWizardPage() {
     mutationFn: () => apiClient.post(`${RESOURCE}/${companyId}/activate`),
     onSuccess: () => {
       toast.success('Conta ativada — go-live concluído');
-      router.push('/app/ops');
+      router.push('/app/ops/tenants');
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível ativar a conta'),
   });
@@ -216,7 +216,7 @@ export default function NewTenantWizardPage() {
         title="Nova conta de cliente"
         description="Onboarding de um tenant novo — pode ser retomado a qualquer momento pelo link com ?tenantId=."
         actions={
-          <Button variant="secondary" onClick={() => router.push('/app/ops')}>
+          <Button variant="secondary" onClick={() => router.push('/app/ops/tenants')}>
             <ArrowLeft size={16} />
             Voltar
           </Button>
@@ -488,7 +488,7 @@ export default function NewTenantWizardPage() {
 
       {/* navegação do wizard */}
       <div className="flex justify-between gap-3">
-        <Button variant="secondary" onClick={step === 0 ? () => router.push('/app/ops') : back}>
+        <Button variant="secondary" onClick={step === 0 ? () => router.push('/app/ops/tenants') : back}>
           {step === 0 ? 'Cancelar' : 'Voltar'}
         </Button>
         {step === 0 && !companyId ? (

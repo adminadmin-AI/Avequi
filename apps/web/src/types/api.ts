@@ -1657,14 +1657,45 @@ export interface OpsOpenInvoice {
   daysPastDue: number;
 }
 
+/** Faturamento de UMA competência (#957) — `period` no formato "YYYY-MM". */
+export interface BilledPeriod {
+  period: string;
+  amountCents: number;
+}
+
 /** GET /ops/billing — MRR (total/por plano), aging e faturas em aberto da carteira. */
 export interface BillingOverview {
   mrrCents: number;
   /** code do plano → MRR em centavos; 'LEGADO' = conta sem plano. */
   mrrByPlan: Record<string, number>;
   activeSubscriptions: number;
+  /**
+   * Painel da Operadora (#957): MRR das assinaturas ativas CRIADAS na
+   * competência corrente (venda nova do mês) — 0 quando não houve.
+   */
+  newMrrMonthCents: number;
+  /**
+   * Painel da Operadora (#957): faturamento REAL por competência nas últimas
+   * 6 (soma das faturas não anuladas). Mês sem fatura vem zerado — série
+   * honesta, sem interpolação.
+   */
+  billedSeries: BilledPeriod[];
   aging: BillingAging;
   openInvoices: OpsOpenInvoice[];
+}
+
+/**
+ * GET /ops/panel/kpis (#957) — KPIs de CARTEIRA (sem dinheiro; a metade
+ * financeira vem de GET /ops/billing, sob outra permissão).
+ * SANDBOX conta à parte: é conta de teste, não carteira — e por isso fica de
+ * fora tanto de `statusCounts` quanto de `totalTenants`.
+ */
+export interface OpsPanelKpis {
+  /** TenantStatus → nº de contas (sem SANDBOX); status sem conta pode faltar. */
+  statusCounts: Record<string, number>;
+  sandbox: number;
+  newTenantsMonth: number;
+  totalTenants: number;
 }
 
 /** POST /ops/billing/run */
