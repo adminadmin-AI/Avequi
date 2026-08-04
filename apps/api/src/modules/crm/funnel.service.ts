@@ -43,6 +43,9 @@ export class FunnelService {
           id: true,
           name: true,
           phone: true,
+          // #962: e-mail no card viabiliza o deep-link "lead ganho → wizard
+          // de onboarding do portal" com o contato pré-preenchido.
+          email: true,
           source: true,
           interest: true,
           estimatedValue: true,
@@ -72,6 +75,7 @@ export class FunnelService {
       id: l.id,
       name: l.name,
       phone: l.phone,
+      email: l.email,
       source: l.source,
       interest: l.interest,
       estimatedValue: l.estimatedValue,

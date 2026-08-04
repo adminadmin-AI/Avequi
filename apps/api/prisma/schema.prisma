@@ -163,6 +163,7 @@ model Company {
   discountPolicies      DiscountPolicy[] // alçadas de desconto (#391)
   workspaceLayouts      UserWorkspaceLayout[] // Workspace F2 — layouts da Home
   quickNotes            UserQuickNote[] // Workspace — post-its pessoais
+  uiPreferences         UserUiPreference[] // Sidebar por usuário (#975)
 
   // ── SaaS control plane — OPS WP1 (#908) ──
   // Campos de TENANT: só têm significado na empresa raiz (parentId null);
@@ -575,6 +576,7 @@ model User {
   creditApprovals           Customer[]             @relation("CustomerCreditApprover") // aprovador de limite (#388)
   workspaceLayout           UserWorkspaceLayout? // Workspace F2 — layout da Home por usuário
   quickNotes                UserQuickNote[] // Workspace — post-its pessoais
+  uiPreference              UserUiPreference? // Sidebar por usuário (#975)
   tenantInvites             TenantInvite[] // OPS WP2 (#909) — convites de primeiro acesso
 
   @@map("gdr_users")
@@ -601,6 +603,27 @@ model UserWorkspaceLayout {
 
   @@index([companyId])
   @@map("gdr_user_workspace_layouts")
+}
+
+/// Sidebar (#975) — favoritos e seções recolhidas POR USUÁRIO. Antes viviam
+/// só no localStorage (presos ao perfil do navegador): trocar de Chrome/máquina
+/// "perdia" os favoritos e dois logins no mesmo perfil compartilhavam. UMA
+/// linha por usuário; sem linha = sem favoritos (estado zero, não é erro).
+model UserUiPreference {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// hrefs favoritados, na ordem de exibição (validados contra o nav no front)
+  favorites Json     @default("[]")
+  /// keys das seções da sidebar que o usuário recolheu
+  collapsedSections Json @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("gdr_user_ui_preferences")
 }
 
 /// Workspace — post-its pessoais do widget "Notas rápidas". Anotações que o

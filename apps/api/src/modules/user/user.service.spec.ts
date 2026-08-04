@@ -24,6 +24,10 @@ const mockPrisma = {
   role: {
     findFirst: jest.fn(),
   },
+  userUiPreference: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  },
 };
 
 const mockSessionService = {
@@ -226,6 +230,57 @@ describe('UserService', () => {
       // um único lookup de role + o create; nenhuma rotina de seed acionada
       expect(mockPrisma.role.findFirst).toHaveBeenCalledTimes(1);
       expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('preferencias de UI (#975)', () => {
+    it('sem linha no banco devolve estado zero (arrays vazios), nao erro', async () => {
+      mockPrisma.userUiPreference.findUnique.mockResolvedValue(null);
+
+      const result = await service.getUiPreferences({ id: 'user-1' });
+
+      expect(mockPrisma.userUiPreference.findUnique).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+      });
+      expect(result).toEqual({ favorites: [], collapsedSections: [] });
+    });
+
+    it('com linha devolve os arrays persistidos', async () => {
+      mockPrisma.userUiPreference.findUnique.mockResolvedValue({
+        favorites: ['/sales', '/crm'],
+        collapsedSections: ['fiscal'],
+      });
+
+      const result = await service.getUiPreferences({ id: 'user-1' });
+
+      expect(result).toEqual({
+        favorites: ['/sales', '/crm'],
+        collapsedSections: ['fiscal'],
+      });
+    });
+
+    it('upsert escopado pelo userId do JWT, com companyId do JWT no create', async () => {
+      mockPrisma.userUiPreference.upsert.mockResolvedValue({
+        favorites: ['/crm'],
+        collapsedSections: [],
+      });
+
+      const result = await service.saveUiPreferences(
+        { id: 'user-1', companyId: 'co-1' },
+        { favorites: ['/crm'], collapsedSections: [] },
+      );
+
+      expect(mockPrisma.userUiPreference.upsert).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+        create: {
+          userId: 'user-1',
+          companyId: 'co-1',
+          favorites: ['/crm'],
+          collapsedSections: [],
+        },
+        update: { favorites: ['/crm'], collapsedSections: [] },
+      });
+      expect(result).toEqual({ favorites: ['/crm'], collapsedSections: [] });
     });
   });
 

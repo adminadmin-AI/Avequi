@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { GripVertical, Loader2, MessageCircle } from 'lucide-react';
+import { GripVertical, Loader2, MessageCircle, Rocket } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { Can } from '@/components/can';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
 import { useToast } from '@/components/ui/toast';
@@ -195,6 +196,25 @@ export default function FunnelPage() {
                             <MessageCircle className="h-3.5 w-3.5" />
                           </Link>
                         </div>
+                        {/* #962 — venda SaaS: na coluna ganha, quem provisiona
+                            tenants (ops.tenants.provision) abre o onboarding do
+                            portal com o contato do lead já preenchido. Site
+                            leads não têm conversa no inbox — o kanban é o único
+                            lugar deles, por isso o CTA vive aqui também. */}
+                        {column.stage.type === 'WON' && (
+                          <Can permission="ops.tenants.provision">
+                            <Link
+                              href={`/app/ops/new?${new URLSearchParams({
+                                ...(lead.name ? { adminName: lead.name } : {}),
+                                ...(lead.email ? { adminEmail: lead.email } : {}),
+                              }).toString()}`}
+                              className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:underline"
+                            >
+                              <Rocket className="h-3 w-3" />
+                              Abrir onboarding no portal
+                            </Link>
+                          </Can>
+                        )}
                       </div>
                     </div>
                   </div>

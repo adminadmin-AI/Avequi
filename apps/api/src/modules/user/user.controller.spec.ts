@@ -7,6 +7,8 @@ const mockUserService = {
   findAll: jest.fn(),
   findOne: jest.fn(),
   update: jest.fn(),
+  getUiPreferences: jest.fn(),
+  saveUiPreferences: jest.fn(),
 };
 
 const CURRENT_USER = {
@@ -101,6 +103,36 @@ describe('UserController', () => {
         'co-1',
         'user-1',
       );
+    });
+  });
+
+  describe('preferencias de UI (#975)', () => {
+    it('GET me/preferences escopa pelo user do JWT (dado pessoal)', async () => {
+      mockUserService.getUiPreferences.mockResolvedValue({
+        favorites: ['/sales'],
+        collapsedSections: [],
+      });
+
+      await controller.getUiPreferences(CURRENT_USER);
+
+      expect(mockUserService.getUiPreferences).toHaveBeenCalledWith(CURRENT_USER);
+    });
+
+    it('PUT me/preferences salva para o user do JWT, nunca para outro', async () => {
+      mockUserService.saveUiPreferences.mockResolvedValue({
+        favorites: ['/crm'],
+        collapsedSections: ['fiscal'],
+      });
+
+      await controller.saveUiPreferences(
+        { favorites: ['/crm'], collapsedSections: ['fiscal'] },
+        CURRENT_USER,
+      );
+
+      expect(mockUserService.saveUiPreferences).toHaveBeenCalledWith(CURRENT_USER, {
+        favorites: ['/crm'],
+        collapsedSections: ['fiscal'],
+      });
     });
   });
 
