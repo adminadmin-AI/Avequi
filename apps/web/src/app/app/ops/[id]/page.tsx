@@ -42,6 +42,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { ErrorState } from '@/components/ui/error-state';
+import { AtivarMfaLink } from '../ativar-mfa-link';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -737,6 +738,8 @@ export default function TenantDetailPage() {
             : (mensagemDoErro(error) ?? 'Tente novamente em instantes.')
         }
         onRetry={negado ? undefined : () => refetch()}
+        // #936 — o 403 do OpsMfaGuard tem saída: link direto pra ativar o MFA.
+        action={<AtivarMfaLink message={mensagemDoErro(error)} />}
       />
     );
   }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { ArrowLeftRight, Building2, ChevronDown, KeyRound, LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronDown, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { USER_ROLE_LABELS } from '@/lib/enums';
@@ -110,6 +110,15 @@ export function UserMenu() {
             onSelect={() => router.push('/app/account/password')}
           >
             Alterar senha
+          </DropdownMenuItem>
+          {/* #936 — MFA self-service: fica ao lado de "Alterar senha" porque é
+              a mesma pergunta do usuário ("como protejo minha conta?"), e é o
+              único caminho de UI para ativar o segundo fator. */}
+          <DropdownMenuItem
+            icon={<ShieldCheck />}
+            onSelect={() => router.push('/app/account/security')}
+          >
+            Segurança
           </DropdownMenuItem>
           <DropdownMenuItem
             icon={<Settings />}

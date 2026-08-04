@@ -80,6 +80,46 @@ describe('MfaService (#344)', () => {
 
   // ─── setup ─────────────────────────────────────────────────────────────────
 
+  describe('status (#936 — tela de segurança)', () => {
+    it('habilitado → enabled + verifiedAt + contagem de backup codes (nunca o conteúdo)', async () => {
+      const verifiedAt = new Date('2026-08-03');
+      mockPrisma.userMFA.findUnique.mockResolvedValue({
+        enabled: true,
+        verifiedAt,
+        backupCodes: ['h1', 'h2', 'h3'],
+      });
+      const s = await service.status('u1');
+      expect(s).toEqual({ enabled: true, verifiedAt, backupCodesRemaining: 3 });
+      // leitura restrita: secret NUNCA sai do select
+      expect(mockPrisma.userMFA.findUnique).toHaveBeenCalledWith({
+        where: { userId: 'u1' },
+        select: { enabled: true, verifiedAt: true, backupCodes: true },
+      });
+    });
+
+    it('sem registro (nunca configurou) → disabled limpo', async () => {
+      mockPrisma.userMFA.findUnique.mockResolvedValue(null);
+      expect(await service.status('u1')).toEqual({
+        enabled: false,
+        verifiedAt: null,
+        backupCodesRemaining: 0,
+      });
+    });
+
+    it('setup iniciado mas NÃO confirmado (enabled=false) → disabled (não vaza estado parcial)', async () => {
+      mockPrisma.userMFA.findUnique.mockResolvedValue({
+        enabled: false,
+        verifiedAt: null,
+        backupCodes: [],
+      });
+      expect(await service.status('u1')).toEqual({
+        enabled: false,
+        verifiedAt: null,
+        backupCodesRemaining: 0,
+      });
+    });
+  });
+
   describe('setup', () => {
     it('should generate secret + otpauth URI and store ENCRYPTED secret with enabled=false', async () => {
       mockPrisma.userMFA.findUnique.mockResolvedValue(null);

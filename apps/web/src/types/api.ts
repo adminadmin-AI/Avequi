@@ -1767,3 +1767,28 @@ export interface UpsertSubscriptionInput {
 export type MyBillingStatus =
   | { level: 'none' }
   | { level: 'notice' | 'banner'; dueDate: string; amountCents: number; daysPastDue: number; message: string };
+
+// ─── MFA self-service — verificação em duas etapas (#936) ─────────────────────
+
+/** GET /auth/mfa/status — estado do MFA do PRÓPRIO usuário logado. */
+export interface MfaStatus {
+  enabled: boolean;
+  /** ISO de quando o MFA foi confirmado; null enquanto desligado. */
+  verifiedAt: string | null;
+  backupCodesRemaining: number;
+}
+
+/** POST /auth/mfa/setup — segredo pendente + URI para o QR (gerado no cliente). */
+export interface MfaSetup {
+  secret: string;
+  otpauthUri: string;
+}
+
+/**
+ * POST /auth/mfa/confirm e POST /auth/mfa/backup-codes/regenerate.
+ * O backend guarda só o hash: esta é a ÚNICA vez que os códigos existem em
+ * texto claro — a tela é obrigada a entregá-los ao usuário antes de fechar.
+ */
+export interface MfaBackupCodes {
+  backupCodes: string[];
+}
