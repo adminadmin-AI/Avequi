@@ -7,14 +7,17 @@ import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
 import { formatBRL, formatDate } from '@/lib/format';
 import type {
+  CreateProposalInput,
   Invoice,
   InvoiceMethod,
   Plan,
   PlansCatalog,
   Subscription,
+  SubscriptionProposal,
   TenantBilling,
   UpsertSubscriptionInput,
 } from '@/types/api';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { Can } from '@/components/can';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { usePermission } from '@/hooks/use-permission';
@@ -37,6 +41,14 @@ import {
   VoidInvoiceDialog,
   formatPeriod,
 } from '../billing/billing-shared';
+import {
+  PROPOSAL_STATUS_LABEL,
+  PROPOSAL_STATUS_VARIANT,
+  acoesDaProposta,
+  ehNegociado,
+  statusExibido,
+  validadeParaISO,
+} from './proposal-shared';
 
 const RESOURCE = '/ops/tenants';
 
@@ -409,6 +421,509 @@ function InvoicesCard({ tenantId, invoices }: { tenantId: string; invoices: Invo
   );
 }
 
+// ─── Propostas comerciais (#963) ─────────────────────────────────────────────
+
+/** Rótulo do plano no select — o preço de TABELA fica visível na escolha. */
+function labelDoPlano(p: Plan) {
+  const preco = p.priceCents != null ? formatBRL(p.priceCents / 100) : 'sem preço de tabela';
+  return `${p.name} (${p.code}) · ${preco}`;
+}
+
+function NovaPropostaDialog({
+  open,
+  onOpenChange,
+  plans,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  /** Planos ATIVOS do catálogo. */
+  plans: Plan[];
+  loading: boolean;
+  onSubmit: (input: CreateProposalInput) => void;
+}) {
+  const [planId, setPlanId] = useState('');
+  const [priceCents, setPriceCents] = useState<number | undefined>(undefined);
+  const [billingDay, setBillingDay] = useState(5);
+  const [conditions, setConditions] = useState('');
+  const [validUntil, setValidUntil] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  const tabela = plans.find((p) => p.id === planId)?.priceCents ?? null;
+
+  /** Escolher o plano PUXA o preço de tabela — negociar é editar, não digitar do zero. */
+  function pickPlan(id: string) {
+    setPlanId(id);
+    setPriceCents(plans.find((p) => p.id === id)?.priceCents ?? undefined);
+  }
+
+  const planInvalid = !planId;
+  const priceInvalid = priceCents == null || priceCents <= 0;
+  const dayInvalid = !Number.isInteger(billingDay) || billingDay < 1 || billingDay > 28;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTouched(true);
+    if (planInvalid || priceInvalid || dayInvalid) return;
+    onSubmit({
+      planId,
+      // Contrato do endpoint: priceCents AUSENTE = preço de tabela do plano.
+      // Só mandamos o valor quando ele é de fato o desvio — assim a trilha de
+      // auditoria distingue "fechou na tabela" de "negociou".
+      priceCents: priceCents === tabela ? undefined : priceCents,
+      billingDay,
+      conditions: conditions.trim() || undefined,
+      validUntil: validadeParaISO(validUntil),
+    });
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Nova proposta"
+      description="O valor nasce do preço de tabela do plano — edite só o que for negociado."
+      formId="proposal-form"
+      submitLabel="Criar proposta"
+      size="lg"
+      loading={loading}
+    >
+      <form id="proposal-form" onSubmit={handleSubmit} className="space-y-4 py-1">
+        <Field
+          label="Plano"
+          required
+          error={touched && planInvalid ? 'Escolha o plano da proposta.' : undefined}
+        >
+          <Select
+            value={planId}
+            error={touched && planInvalid}
+            onChange={(e) => pickPlan(e.target.value)}
+          >
+            <option value="">— Selecione —</option>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {labelDoPlano(p)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field
+          label="Valor mensal da proposta"
+          required
+          error={touched && priceInvalid ? 'Informe um valor válido.' : undefined}
+        >
+          {/* `key` pelo plano: o campo de moeda é não-controlado (defaultValue),
+              então trocar de plano precisa remontá-lo para exibir a tabela. */}
+          <MaskedInput
+            key={planId || 'sem-plano'}
+            mask="currency"
+            defaultValue={priceCents != null ? String(priceCents) : ''}
+            placeholder="R$ 0,00"
+            error={touched && priceInvalid}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '');
+              setPriceCents(digits ? Number(digits) : undefined);
+            }}
+          />
+          {planId && (
+            <p className="mt-1 text-xs text-content-muted">
+              {tabela != null
+                ? `Preço de tabela: ${formatBRL(tabela / 100)}`
+                : 'Este plano não tem preço de tabela — informe o valor negociado.'}
+            </p>
+          )}
+        </Field>
+
+        <Field
+          label="Dia do vencimento"
+          required
+          error={touched && dayInvalid ? 'Informe um dia entre 1 e 28.' : undefined}
+        >
+          <Input
+            type="number"
+            min={1}
+            max={28}
+            step={1}
+            value={billingDay}
+            error={touched && dayInvalid}
+            onChange={(e) => setBillingDay(Math.trunc(Number(e.target.value) || 0))}
+          />
+        </Field>
+
+        <Field label="Condições comerciais">
+          <Textarea
+            value={conditions}
+            maxLength={2000}
+            rows={3}
+            placeholder="Prazo de implantação, descontos, carência — o que foi combinado."
+            onChange={(e) => setConditions(e.target.value)}
+          />
+        </Field>
+
+        <Field label="Válida até">
+          <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+          <p className="mt-1 text-xs text-content-muted">
+            Opcional. Depois desta data a proposta não pode mais ser aceita.
+          </p>
+        </Field>
+      </form>
+    </FormDialog>
+  );
+}
+
+function AceitarPropostaDialog({
+  proposal,
+  onOpenChange,
+  loading,
+  onConfirm,
+}: {
+  proposal: SubscriptionProposal | null;
+  onOpenChange: (v: boolean) => void;
+  loading: boolean;
+  onConfirm: (decidedNote?: string) => void;
+}) {
+  const [note, setNote] = useState('');
+  const [touched, setTouched] = useState(false);
+  // Nota é opcional, mas o backend exige mín. 5 caracteres quando enviada.
+  const noteInvalid = note.trim().length > 0 && note.trim().length < 5;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTouched(true);
+    if (noteInvalid) return;
+    onConfirm(note.trim() || undefined);
+  }
+
+  return (
+    <FormDialog
+      open={!!proposal}
+      onOpenChange={onOpenChange}
+      title="Aceitar proposta"
+      formId="accept-proposal-form"
+      submitLabel="Aceitar proposta"
+      loading={loading}
+    >
+      <form id="accept-proposal-form" onSubmit={handleSubmit} className="space-y-4 py-1">
+        <Alert
+          variant="warning"
+          title="O aceite cria/atualiza a assinatura e o plano da conta"
+          description={
+            proposal
+              ? `Assinatura de ${formatBRL(proposal.priceCents / 100)}/mês com vencimento no dia ${proposal.billingDay}, e o plano ${proposal.plan?.name ?? 'da proposta'} passa a valer para a conta (efeito em até 60s). Proposta aceita é imutável.`
+              : undefined
+          }
+        />
+        <Field
+          label="Observação da decisão"
+          error={touched && noteInvalid ? 'Mínimo de 5 caracteres (ou deixe em branco).' : undefined}
+        >
+          <Textarea
+            value={note}
+            maxLength={500}
+            rows={3}
+            placeholder="Opcional — quem aprovou, referência do contrato."
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </Field>
+      </form>
+    </FormDialog>
+  );
+}
+
+function RecusarPropostaDialog({
+  proposal,
+  onOpenChange,
+  loading,
+  onConfirm,
+}: {
+  proposal: SubscriptionProposal | null;
+  onOpenChange: (v: boolean) => void;
+  loading: boolean;
+  onConfirm: (decidedNote: string) => void;
+}) {
+  const [note, setNote] = useState('');
+  const [touched, setTouched] = useState(false);
+  const noteInvalid = note.trim().length < 5;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTouched(true);
+    if (noteInvalid) return;
+    onConfirm(note.trim());
+  }
+
+  return (
+    <FormDialog
+      open={!!proposal}
+      onOpenChange={onOpenChange}
+      title="Recusar proposta"
+      description="A recusa é definitiva — uma nova negociação exige uma proposta nova."
+      formId="decline-proposal-form"
+      submitLabel="Recusar proposta"
+      loading={loading}
+    >
+      <form id="decline-proposal-form" onSubmit={handleSubmit} className="space-y-4 py-1">
+        <Field
+          label="Motivo da recusa"
+          required
+          error={touched && noteInvalid ? 'Informe o motivo (mín. 5 caracteres).' : undefined}
+        >
+          <Textarea
+            value={note}
+            maxLength={500}
+            rows={3}
+            placeholder="Ex.: cliente optou por concorrente / valor acima do orçamento."
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </Field>
+      </form>
+    </FormDialog>
+  );
+}
+
+function ProposalsCard({ tenantId }: { tenantId: string }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const { can } = usePermission();
+  // Criar proposta exige escolher um plano — sem ops.plans.view não há
+  // catálogo para escolher, então o botão não é oferecido (igual ao vínculo
+  // de plano da assinatura, que some sem a permissão).
+  const canPickPlan = can('ops.plans.view');
+  const canManage = can('ops.billing.manage');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogNonce, setDialogNonce] = useState(0);
+  const [acceptTarget, setAcceptTarget] = useState<SubscriptionProposal | null>(null);
+  const [declineTarget, setDeclineTarget] = useState<SubscriptionProposal | null>(null);
+
+  const proposalsQuery = useQuery<SubscriptionProposal[]>({
+    queryKey: [RESOURCE, tenantId, 'proposals'],
+    queryFn: async () =>
+      (await apiClient.get<SubscriptionProposal[]>(`${RESOURCE}/${tenantId}/proposals`)).data,
+  });
+
+  const plansQuery = useQuery<PlansCatalog>({
+    queryKey: ['/ops/plans'],
+    queryFn: async () => (await apiClient.get<PlansCatalog>('/ops/plans')).data,
+    enabled: dialogOpen && canPickPlan,
+    retry: false,
+  });
+
+  const invalidateProposals = () =>
+    qc.invalidateQueries({ queryKey: [RESOURCE, tenantId, 'proposals'] });
+
+  /**
+   * Aceite mexe em assinatura E plano/entitlements do tenant — a chave de
+   * prefixo derruba tudo o que é desta conta (billing, entitlements, saúde),
+   * para o efeito aparecer na hora sem recarregar a página.
+   */
+  const invalidateConta = () => qc.invalidateQueries({ queryKey: [RESOURCE, tenantId] });
+
+  function openDialog() {
+    setDialogNonce((n) => n + 1);
+    setDialogOpen(true);
+  }
+
+  const create = useMutation({
+    mutationFn: (input: CreateProposalInput) =>
+      apiClient.post(`${RESOURCE}/${tenantId}/proposals`, input),
+    onSuccess: () => {
+      toast.success('Proposta criada');
+      invalidateProposals();
+      setDialogOpen(false);
+    },
+    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível criar a proposta'),
+  });
+
+  const send = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/ops/proposals/${id}/send`),
+    onSuccess: () => {
+      toast.success('Proposta marcada como enviada');
+      invalidateProposals();
+    },
+    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível enviar a proposta'),
+  });
+
+  const accept = useMutation({
+    mutationFn: ({ id, decidedNote }: { id: string; decidedNote?: string }) =>
+      apiClient.post(`/ops/proposals/${id}/accept`, { decidedNote }),
+    onSuccess: () => {
+      toast.success('Proposta aceita — assinatura e plano atualizados');
+      invalidateConta();
+      setAcceptTarget(null);
+    },
+    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível aceitar a proposta'),
+  });
+
+  const decline = useMutation({
+    mutationFn: ({ id, decidedNote }: { id: string; decidedNote: string }) =>
+      apiClient.post(`/ops/proposals/${id}/decline`, { decidedNote }),
+    onSuccess: () => {
+      toast.success('Proposta recusada');
+      invalidateProposals();
+      setDeclineTarget(null);
+    },
+    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível recusar a proposta'),
+  });
+
+  const proposals = proposalsQuery.data ?? [];
+  const planosAtivos = (plansQuery.data?.plans ?? []).filter((p) => p.active);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">Propostas</CardTitle>
+        {canManage && canPickPlan && (
+          <Button size="sm" onClick={openDialog}>
+            <Plus size={15} />
+            Nova proposta
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="pt-0">
+        {proposalsQuery.isError ? (
+          <InlineError
+            message={
+              ehNegativaDeAcesso(proposalsQuery.error)
+                ? (mensagemDoErro(proposalsQuery.error) ??
+                  'Você não tem permissão para ver as propostas desta conta.')
+                : 'Não foi possível carregar as propostas desta conta.'
+            }
+          />
+        ) : proposalsQuery.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : proposals.length === 0 ? (
+          <EmptyState
+            compact
+            title="Nenhuma proposta ainda"
+            description="A proposta nasce do preço de tabela do plano; ao ser aceita vira a assinatura da conta."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-content-muted">
+                  <th className="py-2 pr-4 font-medium">Plano</th>
+                  <th className="py-2 pr-4 font-medium">Valor</th>
+                  <th className="py-2 pr-4 font-medium">Vencimento</th>
+                  <th className="py-2 pr-4 font-medium">Válida até</th>
+                  <th className="py-2 pr-4 font-medium">Status</th>
+                  <th className="py-2 pr-4 font-medium">Condições / decisão</th>
+                  <th className="py-2 pr-4 font-medium text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {proposals.map((p) => {
+                  const status = statusExibido(p);
+                  const { podeEnviar, podeDecidir } = acoesDaProposta(p);
+                  return (
+                    <tr key={p.id}>
+                      <td className="py-2.5 pr-4">
+                        <span className="font-medium text-content">{p.plan?.name ?? '—'}</span>
+                        {p.plan?.code && (
+                          <span className="ml-1.5 text-xs text-content-muted">{p.plan.code}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <span className="tabular-nums">{formatBRL(p.priceCents / 100)}</span>
+                        {ehNegociado(p) && (
+                          <Badge variant="info" className="ml-1.5">
+                            negociado
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-4 tabular-nums">dia {p.billingDay}</td>
+                      <td className="py-2.5 pr-4">
+                        {p.validUntil ? formatDate(p.validUntil) : '—'}
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <Badge variant={PROPOSAL_STATUS_VARIANT[status]}>
+                          {PROPOSAL_STATUS_LABEL[status]}
+                        </Badge>
+                      </td>
+                      <td className="max-w-xs py-2.5 pr-4 text-content-secondary">
+                        {p.decidedNote ?? p.conditions ?? '—'}
+                      </td>
+                      <td className="py-2.5 pr-4 text-right">
+                        {canManage && (podeEnviar || podeDecidir) && (
+                          <div className="flex justify-end gap-1">
+                            {podeEnviar && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                loading={send.isPending && send.variables === p.id}
+                                onClick={() => send.mutate(p.id)}
+                              >
+                                Enviar
+                              </Button>
+                            )}
+                            {podeDecidir && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setAcceptTarget(p)}
+                                >
+                                  Aceitar
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeclineTarget(p)}
+                                >
+                                  Recusar
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      {canManage && canPickPlan && (
+        <NovaPropostaDialog
+          key={dialogNonce}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          plans={planosAtivos}
+          loading={create.isPending}
+          onSubmit={(input) => create.mutate(input)}
+        />
+      )}
+      {canManage && (
+        <>
+          <AceitarPropostaDialog
+            key={`accept-${acceptTarget?.id ?? 'none'}`}
+            proposal={acceptTarget}
+            onOpenChange={(v) => !v && setAcceptTarget(null)}
+            loading={accept.isPending}
+            onConfirm={(decidedNote) =>
+              acceptTarget && accept.mutate({ id: acceptTarget.id, decidedNote })
+            }
+          />
+          <RecusarPropostaDialog
+            key={`decline-${declineTarget?.id ?? 'none'}`}
+            proposal={declineTarget}
+            onOpenChange={(v) => !v && setDeclineTarget(null)}
+            loading={decline.isPending}
+            onConfirm={(decidedNote) =>
+              declineTarget && decline.mutate({ id: declineTarget.id, decidedNote })
+            }
+          />
+        </>
+      )}
+    </Card>
+  );
+}
+
 // ─── Aba "Financeiro" ────────────────────────────────────────────────────────
 export function FinanceiroTab({ tenantId }: { tenantId: string }) {
   const billingQuery = useQuery<TenantBilling>({
@@ -443,6 +958,7 @@ export function FinanceiroTab({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-5">
       <SubscriptionCard tenantId={tenantId} subscription={subscription} />
+      <ProposalsCard tenantId={tenantId} />
       <InvoicesCard tenantId={tenantId} invoices={invoices} />
     </div>
   );

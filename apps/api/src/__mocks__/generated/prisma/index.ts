@@ -731,3 +731,11 @@ export enum SupportIncidentSeverity {
   P2 = 'P2',
   P3 = 'P3',
 }
+
+export enum ProposalStatus {
+  DRAFT = 'DRAFT',
+  SENT = 'SENT',
+  ACCEPTED = 'ACCEPTED',
+  DECLINED = 'DECLINED',
+  EXPIRED = 'EXPIRED',
+}

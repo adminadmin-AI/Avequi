@@ -190,6 +190,7 @@ model Company {
   // OPS WP5 (#912) — billing da operadora (só na RAIZ)
   subscription         Subscription?
   invoices             Invoice[]
+  subscriptionProposals SubscriptionProposal[]
 
   @@map("gdr_companies")
 }
@@ -218,6 +219,39 @@ model Subscription {
   updatedAt   DateTime  @updatedAt
 
   @@map("gdr_subscriptions")
+}
+
+/// AVECCHI P2 (#963) — proposta comercial de assinatura: plano + valor
+/// (default = tabela do plano, negociavel) + condicoes. Aceite converte em
+/// Subscription + Plan do tenant SEM digitacao dupla. Historico de
+/// upgrades/downgrades = a lista de propostas aceitas da conta.
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model SubscriptionProposal {
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  planId      String
+  plan        Plan           @relation(fields: [planId], references: [id])
+  priceCents  Int
+  billingDay  Int            @default(5)
+  conditions  String?
+  validUntil  DateTime?
+  status      ProposalStatus @default(DRAFT)
+  decidedAt   DateTime?
+  decidedNote String?
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([companyId, status])
+  @@map("gdr_subscription_proposals")
 }
 
 enum InvoiceStatus {
@@ -274,6 +308,7 @@ model Plan {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   companies    Company[]
+  proposals    SubscriptionProposal[]
 
   @@map("gdr_plans")
 }
