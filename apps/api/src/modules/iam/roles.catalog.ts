@@ -51,6 +51,25 @@ function dedupe(codes: string[]): string[] {
   return [...new Set(codes)];
 }
 
+/**
+ * Poderes de EXCEÇÃO do módulo sales (#947) — os que antes moravam no enum
+ * legado (DIRECTOR/SUPER_ADMIN hardcoded no código).
+ *
+ * Existem numa lista própria porque vários perfis recebem vendas por varredura
+ * (`moduleCodes('sales')`), e varredura não distingue "operar vendas" de
+ * "furar a regra de vendas". Sem esta exclusão, ADMIN_FILIAL e
+ * GERENTE_COMERCIAL herdariam os dois poderes sem ninguém ter decidido isso —
+ * exatamente o tipo de alargamento silencioso que o #947 existe para acabar.
+ *
+ * Quem os tem, tem por LISTA EXPLÍCITA (hoje: DIRETOR e, dinamicamente, o
+ * ADMIN_GLOBAL/ADMIN_EMPRESA via tenantPermissionCodes()).
+ */
+const PODERES_EXCECAO_SALES = ['sales.discount.override', 'sales.orders.billing-block-override'];
+
+/** Remove os poderes de exceção de uma varredura ampla do módulo sales (#947). */
+const semExcecoesDeVendas = (codes: string[]) =>
+  codes.filter((c) => !PODERES_EXCECAO_SALES.includes(c));
+
 /** Dashboards operacionais (todos exceto o financeiro, que é leitura restrita 🔒) */
 const DASHBOARDS_OPERACIONAIS = [
   'dashboard.executive.view',
@@ -164,11 +183,17 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     code: 'ADMIN_EMPRESA',
     name: 'Administrador da Empresa',
     description:
-      'Tudo dentro da empresa, exceto ações globais do sistema (criar empresas, sincronizar tabela cClassTrib).',
+      'Tudo dentro da empresa, exceto ações globais do sistema (criar empresas, sincronizar tabela cClassTrib, ampliar o escopo para o grupo).',
     permissions: tenantPermissionCodes().filter(
       (code) =>
         code !== 'settings.companies.create' &&
-        code !== 'fiscal.tributary-classifications.sync',
+        code !== 'fiscal.tributary-classifications.sync' &&
+        // #947: o escopo de GRUPO é do ADMIN_GLOBAL. O administrador DA
+        // EMPRESA administra a própria empresa — deixá-lo atravessar as
+        // demais empresas do grupo contradiz o próprio nome do perfil.
+        // Exclusão EXPLÍCITA porque tenantPermissionCodes() é dinâmico:
+        // sem esta linha, a capability entraria aqui sozinha.
+        code !== 'iam.tenant-scope.cross-company',
     ),
   },
   {
@@ -183,7 +208,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...DASHBOARDS_OPERACIONAIS,
       'dashboard.finance.view',
       ...resourceCodes('dashboard', 'alerts'),
-      ...moduleCodes('sales', 'purchases', 'stock', 'production'),
+      // #947: varredura ampla NÃO traz os poderes de exceção de vendas.
+      ...semExcecoesDeVendas(moduleCodes('sales', 'purchases', 'stock', 'production')),
       'products.catalog.view',
       'products.pricing.view',
       ...moduleCodes('customers'),
@@ -235,6 +261,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'sales.quotations.approve',
       'sales.commissions.approve',
       'sales.commissions.configure',
+      // #947: os dois poderes comerciais de exceção que ANTES vinham do enum
+      // DIRECTOR hardcoded no código. Agora são permissões — o DIRETOR os tem
+      // porque o PERFIL os tem, não porque o enum diz "DIRECTOR".
+      // Note que a alçada de desconto continua a ser CONFIGURADA pela gerência
+      // comercial (sales.discount-policies.configure, decisão Rafael #621):
+      // quem define o teto e quem pode ultrapassá-lo são papéis diferentes.
+      'sales.discount.override',
+      'sales.orders.billing-block-override',
       'approvals.requests.approve',
       // #623 (E1, decisão Rafael): aprovar investimento é alçada da diretoria
       // (quem gerencia o projeto NÃO aprova); management book é leitura
@@ -425,8 +459,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...resourceCodes('dashboard', 'alerts'),
       // #625 (bloco G, decisão Rafael): atualizar STATUS de entrega é
       // operação de expedição/loja — comercial acompanha (view), não executa.
-      ...moduleCodes('sales', 'customers').filter(
-        (c) => c !== 'sales.deliveries.update',
+      // #947: além da entrega, a varredura também não traz desconto
+      // excepcional nem override de faturamento bloqueado — comercial VENDE,
+      // a exceção comercial é da diretoria.
+      ...semExcecoesDeVendas(
+        moduleCodes('sales', 'customers').filter((c) => c !== 'sales.deliveries.update'),
       ),
       'products.catalog.view',
       'products.catalog.update',

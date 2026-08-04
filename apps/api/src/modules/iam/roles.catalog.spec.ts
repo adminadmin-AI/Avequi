@@ -91,7 +91,56 @@ describe('Catálogo de perfis system (#339)', () => {
     const admin = findSystemRole('ADMIN_EMPRESA')!;
     expect(admin.permissions).not.toContain('settings.companies.create');
     expect(admin.permissions).not.toContain('fiscal.tributary-classifications.sync');
-    expect(admin.permissions.length).toBe(tenantPermissionCodes().length - 2);
+    // #947: a capability de escopo empresarial é a terceira exclusão — quem
+    // administra UMA empresa não atravessa as outras do grupo.
+    expect(admin.permissions).not.toContain('iam.tenant-scope.cross-company');
+    expect(admin.permissions.length).toBe(tenantPermissionCodes().length - 3);
+  });
+
+  // ── #947: os três poderes que saíram do enum legado ────────────────────────
+  describe('#947 — poderes críticos migrados do enum para o RBAC v2', () => {
+    const CROSS_COMPANY = 'iam.tenant-scope.cross-company';
+    const DISCOUNT = 'sales.discount.override';
+    const BILLING_BLOCK = 'sales.orders.billing-block-override';
+
+    it('DIRETOR recebe os dois poderes comerciais de exceção', () => {
+      const diretor = findSystemRole('DIRETOR')!;
+      expect(diretor.permissions).toContain(DISCOUNT);
+      expect(diretor.permissions).toContain(BILLING_BLOCK);
+    });
+
+    it('DIRETOR NÃO recebe o escopo cross-company', () => {
+      expect(findSystemRole('DIRETOR')!.permissions).not.toContain(CROSS_COMPANY);
+    });
+
+    it('a capability cross-company é EXCLUSIVA do ADMIN_GLOBAL', () => {
+      const comCapability = SYSTEM_ROLES.filter((r) => r.permissions.includes(CROSS_COMPANY)).map(
+        (r) => r.code,
+      );
+      expect(comCapability).toEqual(['ADMIN_GLOBAL']);
+    });
+
+    it('AVECCHI_OPERATOR não recebe nenhum dos três por este mecanismo', () => {
+      const operador = findSystemRole('AVECCHI_OPERATOR')!;
+      expect(operador.permissions).not.toContain(CROSS_COMPANY);
+      expect(operador.permissions).not.toContain(DISCOUNT);
+      expect(operador.permissions).not.toContain(BILLING_BLOCK);
+    });
+
+    it('perfis comerciais NÃO ganham o override de desconto de brinde', () => {
+      for (const code of ['GERENTE_GERAL', 'GERENTE_COMERCIAL', 'VENDEDOR', 'COORDENADOR_COMERCIAL']) {
+        const role = findSystemRole(code)!;
+        expect(role.permissions).not.toContain(DISCOUNT);
+        expect(role.permissions).not.toContain(BILLING_BLOCK);
+      }
+    });
+
+    it('quem CONFIGURA a alçada não é necessariamente quem a ultrapassa', () => {
+      // GERENTE_GERAL configura a tabela de tetos, mas não passa por cima dela
+      const gerente = findSystemRole('GERENTE_GERAL')!;
+      expect(gerente.permissions).toContain('sales.discount-policies.configure');
+      expect(gerente.permissions).not.toContain(DISCOUNT);
+    });
   });
 
   // ── OPS WP1 (#908): fronteira do control plane ─────────────────────────────
