@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { getQueueToken } from '@nestjs/bull';
@@ -56,6 +56,38 @@ describe('SiteLeadController (F1.6 #512)', () => {
     } as any);
     expect(res).toEqual({ ok: true });
     expect(intake.intake).not.toHaveBeenCalled();
+  });
+});
+
+describe('StoreResolver — escopo de tenant (#984)', () => {
+  const prisma = { company: { findFirst: jest.fn() } };
+  let resolver: StoreResolver;
+
+  beforeEach(() => {
+    prisma.company.findFirst.mockReset().mockResolvedValue({ id: 'loja-1' });
+    process.env.CRM_CONNECTOR_TENANT_ID = 'root-gdr';
+    resolver = new StoreResolver(prisma as any);
+  });
+  afterEach(() => {
+    delete process.env.CRM_CONNECTOR_TENANT_ID;
+  });
+
+  it('resolve o slug SÓ dentro da árvore matriz+filiais do tenant da env', async () => {
+    await expect(resolver.resolve('cascavel')).resolves.toBe('loja-1');
+    const where = prisma.company.findFirst.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ id: 'root-gdr' }, { parentId: 'root-gdr' }]);
+    expect(where.name).toEqual({ contains: 'cascavel', mode: 'insensitive' });
+  });
+
+  it('sem CRM_CONNECTOR_TENANT_ID → 503 fail-closed, nunca varre o banco inteiro', async () => {
+    delete process.env.CRM_CONNECTOR_TENANT_ID;
+    await expect(resolver.resolve('cascavel')).rejects.toThrow(ServiceUnavailableException);
+    expect(prisma.company.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('sem slug → null sem tocar no banco', async () => {
+    await expect(resolver.resolve('')).resolves.toBeNull();
+    expect(prisma.company.findFirst).not.toHaveBeenCalled();
   });
 });
 
