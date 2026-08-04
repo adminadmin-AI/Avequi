@@ -6,6 +6,15 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-08-04
+
+### Added
+- feat(sidebar): favoritos e seções recolhidas por usuário, não por navegador (#975) (#977)
+- feat(crm): venda SaaS — lead ganho abre onboarding do portal pré-preenchido (#962) (#976)
+
+### Fixed
+- fix(web): pouso por papel também no primeiro acesso com senha provisória (#973) (#974)
+
 ## [1.35.0] - 2026-08-04
 
 ### Added
@@ -422,7 +431,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.35.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...HEAD
+[1.36.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.32.0...v1.33.0
