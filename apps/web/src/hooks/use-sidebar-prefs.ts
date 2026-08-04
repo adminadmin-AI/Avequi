@@ -53,12 +53,18 @@ export function useSidebarPrefs() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
 
-  // Boot instantâneo pelo cache escopado (troca de usuário re-hidrata)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Boot instantâneo pelo cache escopado (troca de usuário re-hidrata).
+  // Cleanup: PUT pendente de um usuário nunca dispara na sessão do próximo.
   useEffect(() => {
     if (!userId) return;
     setFavorites(readLocal(favKey(userId)));
     setCollapsedSections(readLocal(collapsedKey(userId)));
     setHydrated(true);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
   }, [userId]);
 
   const server = useQuery({
@@ -69,7 +75,6 @@ export function useSidebarPrefs() {
     staleTime: 60_000,
   });
 
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persist = useCallback(
     (next: UiPreferences) => {
       if (!userId) return;
@@ -85,11 +90,12 @@ export function useSidebarPrefs() {
   );
 
   // Servidor respondeu: reconcilia (regras em lib/sidebar-prefs.ts — servidor
-  // vence; migra o legado pré-#975 uma única vez quando o servidor está vazio)
-  const syncedRef = useRef(false);
+  // vence; migra o legado pré-#975 uma única vez quando o servidor está vazio).
+  // Guarda POR USUÁRIO: logout→login de outra pessoa sem reload re-sincroniza.
+  const syncedForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!userId || !server.data || syncedRef.current) return;
-    syncedRef.current = true;
+    if (!userId || !server.data || syncedForRef.current === userId) return;
+    syncedForRef.current = userId;
 
     const decision = resolveServerSync(
       server.data,
