@@ -13,6 +13,7 @@ import { ImpersonationController } from './impersonation.controller';
 import { OpsPanelController } from './ops-panel.controller';
 import { OpsController } from './ops.controller';
 import { PlansController } from './plans.controller';
+import { ProposalsController } from './proposals.controller';
 
 /**
  * OPS WP1 (#908) — fronteira do control plane provada contra a metadata REAL
@@ -44,6 +45,7 @@ const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }>
   { name: 'PlansController', cls: PlansController },
   { name: 'BillingController', cls: BillingController },
   { name: 'ImpersonationController', cls: ImpersonationController },
+  { name: 'ProposalsController', cls: ProposalsController },
 ];
 
 /** Self-service/público por design (cada um valida a si próprio; sem visão

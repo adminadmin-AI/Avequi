@@ -181,7 +181,7 @@ export function PlanForm({
         />
       </Field>
 
-      <Field label="Preço de tabela (referência)">
+      <Field label="Preço de tabela (R$/mês)">
         <MaskedInput
           mask="currency"
           defaultValue={priceCents != null ? String(priceCents) : ''}

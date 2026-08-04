@@ -22,6 +22,8 @@ import { OpsController } from './ops.controller';
 import { OpsService } from './ops.service';
 import { PlansController } from './plans.controller';
 import { PlansService } from './plans.service';
+import { ProposalsController } from './proposals.controller';
+import { ProposalsService } from './proposals.service';
 import { ProvisioningService } from './provisioning.service';
 import { TenantInviteService } from './tenant-invite.service';
 import { UsageMeteringService } from './usage-metering.service';
@@ -58,6 +60,7 @@ import { UsageMeteringService } from './usage-metering.service';
     BillingController,
     BillingStatusController,
     ImpersonationController,
+    ProposalsController,
     SupportAccessController,
     InviteController,
   ],
@@ -69,6 +72,7 @@ import { UsageMeteringService } from './usage-metering.service';
     OpsPanelService,
     OpsSessionGuard,
     PlansService,
+    ProposalsService,
     ProvisioningService,
     TenantInviteService,
     UsageMeteringService,

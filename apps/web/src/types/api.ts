@@ -1763,6 +1763,51 @@ export interface UpsertSubscriptionInput {
   startedAt?: string;
 }
 
+// ─── AVECCHI P2 (#963) — propostas comerciais ────────────────────────────────
+// O PLANO tem preço de TABELA (Plan.priceCents); a proposta nasce dele e o
+// valor por conta é o DESVIO. Aceite converte em assinatura + plano do tenant.
+
+export type ProposalStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+
+/** GET /ops/tenants/:id/proposals — item da lista (o POST devolve sem `plan`). */
+export interface SubscriptionProposal {
+  id: string;
+  companyId: string;
+  planId: string;
+  /** Valor da proposta (tabela do plano por default, ou o negociado). */
+  priceCents: number;
+  /** Dia do vencimento da futura assinatura (1–28). */
+  billingDay: number;
+  conditions: string | null;
+  /** ISO; null = sem prazo de validade. */
+  validUntil: string | null;
+  status: ProposalStatus;
+  decidedAt: string | null;
+  decidedNote: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Só vem no GET da lista (include) — ausente na resposta das ações. */
+  plan?: { code: string; name: string; priceCents: number | null };
+}
+
+/** POST /ops/tenants/:id/proposals */
+export interface CreateProposalInput {
+  planId: string;
+  /** Ausente = preço de TABELA do plano. Plano sem tabela exige o valor. */
+  priceCents?: number;
+  /** 1–28; default 5 no backend. */
+  billingDay?: number;
+  conditions?: string;
+  /** ISO */
+  validUntil?: string;
+}
+
+/** POST /ops/proposals/:id/accept | /decline — nota (obrigatória na recusa). */
+export interface DecideProposalInput {
+  decidedNote?: string;
+}
+
 /** GET /billing/me/status — banner de inadimplência do app do cliente. */
 export type MyBillingStatus =
   | { level: 'none' }
