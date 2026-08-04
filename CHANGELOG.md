@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-08-04
+
+### Added
+- **Painel da Operadora — home do console com KPIs SaaS (#957/#965)** — a home do console vira o painel de negócio: MRR (+New MRR do mês), ticket médio, contas por status (+novas no mês, sandbox à parte), inadimplência com tom pela idade do atraso, série de faturamento por competência (6 meses reais das faturas — sem interpolação), MRR por plano e alertas da carteira; CAC/LTV entram como slots "aguardando funil comercial" (épico #958). Metade financeira gateada por `ops.billing.view`. Lista de contas move para `/app/ops/tenants`. API: `GET /ops/panel/kpis` novo + `newMrrMonthCents`/`billedSeries` no `GET /ops/billing`.
+
 ## [1.31.0] - 2026-08-04
 
 ### Added
@@ -402,7 +407,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.31.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.32.0...HEAD
+[1.32.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...v1.31.0
 [1.30.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...v1.30.1
 [1.30.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...v1.30.0
