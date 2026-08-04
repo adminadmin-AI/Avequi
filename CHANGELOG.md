@@ -6,6 +6,12 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-08-04
+
+### Added
+- feat(crm): conector de site multi-tenant — LP avecchi.ai capta lead pro tenant Avecchi (#962) (#989)
+- feat(ux): escrita humana onda 1 — nav, títulos de página e skill avecchi-voice (#987) (#988)
+
 ## [1.37.0] - 2026-08-04
 
 ### Added
@@ -440,7 +446,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.37.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.38.0...HEAD
+[1.38.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.34.0...v1.35.0
