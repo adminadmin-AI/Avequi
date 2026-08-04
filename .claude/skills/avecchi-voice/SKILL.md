@@ -34,15 +34,22 @@ um ERP que emite nota fiscal.
   "Emitir NF-e". Nunca substantivo solto nem "(kill switch)" entre parênteses.
 - **Nunca "&"** em texto de UI — sempre "e".
 - **Sem abreviações truncadas** ("Próxima manut." → "Próxima manutenção").
+- **Sem travessão (—) em texto de UI** (decisão Claudio 04/08). É a marca
+  registrada de texto de máquina e quase sempre esconde um título preguiçoso.
+  Alternativas, nesta ordem: campo de subtítulo do PageHeader ("MRP" +
+  subtítulo "Planejamento de materiais"), parênteses ("Cobranças (boleto e
+  PIX)"), dois-pontos, ou reescrever como frase ("Baixa registrada no título
+  #482"). Exceção: intervalos numéricos/horários usam MEIA-RISCA ("seg–sex",
+  "8h–18h") — isso é tipografia, não vício.
 - Datas, moeda e número no padrão brasileiro.
 
 ## Fórmulas de mensagem
 
 **Erro** — o que houve + por quê (se souber) + o que fazer:
 > "Não conseguimos [ação + objeto]. [Motivo, se conhecido]. [Próximo passo]."
-> Ex.: "Não conseguimos assumir a conversa. Tente de novo — se continuar, avise o suporte."
+> Ex.: "Não conseguimos assumir a conversa. Tente de novo. Se continuar, avise o suporte."
 
-**Sucesso** — objeto + o que aconteceu: "Baixa registrada — título #482".
+**Sucesso** — objeto + o que aconteceu: "Baixa registrada no título #482".
 
 **Confirmação destrutiva** — título com verbo + objeto; consequência em voz
 ativa: "Cancelar o título? Você não vai conseguir desfazer isso."
@@ -60,7 +67,7 @@ sempre com a explicação curada ao lado — nunca o código sozinho.
 |---|---|
 | Pagáveis / Recebíveis | A pagar / A receber (menu) · Contas a pagar/receber (título de página) |
 | Pagável, Conta, Lançamento (a entidade financeira) | **título** ("título a pagar", "título #482") |
-| "Pagamento registrado" (na baixa) | "Baixa registrada — título #X" (nas duas carteiras) |
+| "Pagamento registrado" (na baixa) | "Baixa registrada no título #X" (nas duas carteiras) |
 | Aging | Faixas de atraso |
 | Forecast | Projeção ("Projeção financeira") |
 | Budget / Drivers | Orçamento / Direcionadores ("Orçamento por direcionadores") |
@@ -100,4 +107,4 @@ custeio por absorção, dar baixa, conciliação, alçada.
 
 1. Algum termo da coluna "Nunca escreva"? 2. Botão começa com verbo?
 3. Erro diz o que fazer? 4. Sucesso nomeia o objeto? 5. Capitalização de frase?
-6. Vazou jargão de engenharia? 7. "&" em texto?
+6. Vazou jargão de engenharia? 7. "&" em texto? 8. Travessão (—) em string de UI?
