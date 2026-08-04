@@ -69,7 +69,7 @@ export default function ReceivePOPage() {
   if (isLoading || !po) {
     return (
       <div>
-        <PageHeader title="Recebimento de Mercadoria" />
+        <PageHeader title="Recebimento de mercadoria" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -80,7 +80,7 @@ export default function ReceivePOPage() {
   return (
     <div>
       <PageHeader
-        title="Recebimento de Mercadoria"
+        title="Recebimento de mercadoria"
         description={`PO #${id.slice(-6).toUpperCase()} — ${po.supplier?.name ?? 'Sem fornecedor'}`}
         actions={
           <Button variant="secondary" onClick={() => router.push(`/app/purchases/${id}`)}>

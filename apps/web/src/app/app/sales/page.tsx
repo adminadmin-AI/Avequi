@@ -122,7 +122,7 @@ export default function SalesPage() {
   return (
     <div>
       <PageHeader
-        title="Ordens de Venda"
+        title="Vendas"
         description="Pipeline comercial — do rascunho ao faturamento."
         actions={
           <div className="flex items-center gap-2">

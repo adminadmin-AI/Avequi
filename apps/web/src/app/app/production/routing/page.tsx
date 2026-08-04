@@ -115,7 +115,7 @@ export default function RoutingPage() {
   return (
     <div>
       <PageHeader
-        title="Roteiros de Produção"
+        title="Roteiros de produção"
         description="Sequência de operações de produção por produto."
         actions={
           productId ? (

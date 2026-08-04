@@ -173,7 +173,7 @@ export default function WmsTasksPage() {
 
   return (
     <div>
-      <PageHeader title="Tarefas WMS" description="Alocação (putaway) e separação (pick) pendentes." />
+      <PageHeader title="Tarefas do depósito" description="Alocação (putaway) e separação (pick) pendentes." />
 
       <Tabs tab={tab} setTab={setTab} />
 

@@ -127,7 +127,7 @@ export default function OpsBillingPage() {
     const negado = ehNegativaDeAcesso(error);
     return (
       <div>
-        <PageHeader title="Billing" description="MRR, aging e faturas da carteira Avecchi." />
+        <PageHeader title="Cobrança" description="MRR, aging e faturas da carteira Avecchi." />
         <ErrorState
           fullPage={false}
           title={negado ? 'Acesso negado' : 'Não foi possível carregar o billing'}
@@ -222,7 +222,7 @@ export default function OpsBillingPage() {
   return (
     <div>
       <PageHeader
-        title="Billing"
+        title="Cobrança"
         description="MRR, aging e faturas em aberto da carteira Avecchi."
         actions={
           <Can permission="ops.billing.manage">

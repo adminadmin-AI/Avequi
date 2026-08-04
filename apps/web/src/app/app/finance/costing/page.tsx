@@ -71,7 +71,7 @@ export default function CostingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Custeio por Absorção" description="Material + MOD + CIF rateado, com comparativo com/sem CIF (#396)" />
+      <PageHeader title="Custeio por absorção" description="Material + MOD + CIF rateado, com comparativo com/sem CIF" />
 
       {/* Taxa CIF da empresa */}
       <Card>

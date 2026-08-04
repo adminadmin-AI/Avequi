@@ -52,7 +52,7 @@ export default function SlaPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="SLA & Alertas"
+        title="SLA e alertas"
         description={
           data
             ? `Primeira resposta em até ${data.slaMinutes}min · esfriando após ${data.coolingHours}h`

@@ -233,7 +233,7 @@ export default function CollectionToolsPage() {
   return (
     <div>
       <PageHeader
-        title="Cobranças — Boleto e PIX"
+        title="Cobranças — boleto e PIX"
         description="Emissão e acompanhamento de boletos e cobranças PIX."
         actions={
           tab === 'boletos' ? (

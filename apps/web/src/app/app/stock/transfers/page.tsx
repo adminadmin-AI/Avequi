@@ -115,7 +115,7 @@ export default function TransfersPage() {
   return (
     <div>
       <PageHeader
-        title="Transferências entre Depósitos"
+        title="Transferências entre depósitos"
         description="Movimentação de estoque entre depósitos/lojas."
         actions={
           <Button onClick={() => router.push('/app/stock/transfers/new')}>

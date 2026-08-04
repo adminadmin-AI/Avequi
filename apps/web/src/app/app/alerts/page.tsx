@@ -147,7 +147,7 @@ export default function AlertsPage() {
   return (
     <div>
       <PageHeader
-        title="Central de Alertas"
+        title="Central de alertas"
         description="Avisos operacionais de estoque, financeiro, produção e fiscal."
         actions={
           <Button variant="secondary" onClick={handleRunCheck} loading={runCheck.isPending}>

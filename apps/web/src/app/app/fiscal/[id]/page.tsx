@@ -123,7 +123,7 @@ export default function FiscalDetailPage() {
   if (isLoading || !doc) {
     return (
       <div>
-        <PageHeader title="Documento Fiscal" />
+        <PageHeader title="Documento fiscal" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>

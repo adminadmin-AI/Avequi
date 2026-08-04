@@ -123,7 +123,7 @@ export default function MrpPage() {
   return (
     <div>
       <PageHeader
-        title="MRP — Planejamento de Materiais"
+        title="MRP — planejamento de materiais"
         description="Calcula necessidades de compra e produção."
         actions={
           <Button onClick={calcMrp} loading={run.isPending}>

@@ -87,7 +87,7 @@ export default function NewPurchaseOrderPage() {
   return (
     <div>
       <PageHeader
-        title="Novo Pedido de Compra"
+        title="Novo pedido de compra"
         description="Cria a PO em rascunho; a aprovação é feita no detalhe."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/purchases')}>

@@ -92,7 +92,7 @@ export default function SdrPanelPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="SDR IA" description="Supervisão do atendente de IA: métricas, custo, descartes e incidentes" />
+      <PageHeader title="Antonella (SDR IA)" description="Supervisão do atendente de IA: métricas, custo, descartes e incidentes" />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

@@ -88,7 +88,7 @@ export default function NewTransferPage() {
   return (
     <div>
       <PageHeader
-        title="Nova Transferência"
+        title="Nova transferência"
         description="Transfere itens entre dois depósitos."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/stock/transfers')}>

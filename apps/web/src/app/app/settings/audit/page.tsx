@@ -88,7 +88,7 @@ export default function AuditLogPage() {
   if (!isSuperAdmin) {
     return (
       <div>
-        <PageHeader title="Log de Auditoria" />
+        <PageHeader title="Trilha de auditoria" />
         {/* Transparência do suporte (#913): independe de SUPER_ADMIN — gate
             próprio por permissão (iam.audit-logs.view) dentro do card. */}
         <div className="mb-5">
@@ -106,7 +106,7 @@ export default function AuditLogPage() {
 
   return (
     <div>
-      <PageHeader title="Log de Auditoria" description="Registro de alterações realizadas no sistema." />
+      <PageHeader title="Trilha de auditoria" description="Registro de alterações realizadas no sistema." />
 
       <div className="mb-5">
         <SupportAccessCard />

@@ -229,7 +229,7 @@ export default function RolesPage() {
     return (
       <div>
         <PageHeader
-          title="Perfis e Permissões"
+          title="Perfis e permissões"
           description="Gestão de perfis de acesso (RBAC) e permissões granulares."
         />
         <div className="space-y-3">
@@ -244,7 +244,7 @@ export default function RolesPage() {
     return (
       <div>
         <PageHeader
-          title="Perfis e Permissões"
+          title="Perfis e permissões"
           description="Gestão de perfis de acesso (RBAC) e permissões granulares."
         />
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface py-16 text-center">
@@ -264,7 +264,7 @@ export default function RolesPage() {
   return (
     <div>
       <PageHeader
-        title="Perfis e Permissões"
+        title="Perfis e permissões"
         description="Perfis de acesso (RBAC v2), permissões granulares e atribuições por usuário."
         actions={
           <Can permission="iam.roles.manage">

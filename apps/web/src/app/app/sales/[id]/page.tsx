@@ -209,7 +209,7 @@ export default function SalesDetailPage() {
   if (isLoading || !order) {
     return (
       <div>
-        <PageHeader title="Ordem de Venda" />
+        <PageHeader title="Pedido de venda" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -223,7 +223,7 @@ export default function SalesDetailPage() {
   return (
     <div>
       <PageHeader
-        title={`OV #${shortId(order.id)}`}
+        title={`Pedido #${shortId(order.id)}`}
         description={order.customer?.name ?? 'Sem cliente'}
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/sales')}>

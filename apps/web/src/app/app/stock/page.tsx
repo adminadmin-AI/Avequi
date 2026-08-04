@@ -85,7 +85,7 @@ export default function StockPage() {
 
   return (
     <div>
-      <PageHeader title="Saldos de Estoque" description="Posição de estoque por produto e depósito." />
+      <PageHeader title="Saldos de estoque" description="Posição de estoque por produto e depósito." />
 
       <StatGroup
         className="mb-6"

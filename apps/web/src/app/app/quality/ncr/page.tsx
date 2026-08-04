@@ -168,7 +168,7 @@ export default function NcrPage() {
   return (
     <div>
       <PageHeader
-        title="Não Conformidades (NCR)"
+        title="Não conformidades (NCR)"
         description="Registro e tratamento de não conformidades."
         actions={
           <Button onClick={() => setOpen(true)}>

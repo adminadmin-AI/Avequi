@@ -159,7 +159,7 @@ export default function InspectionsPage() {
   return (
     <div>
       <PageHeader
-        title="Inspeções de Qualidade"
+        title="Inspeções de qualidade"
         description="Controle de inspeções de recebimento, processo e final."
         actions={
           <Button onClick={() => setOpen(true)}>

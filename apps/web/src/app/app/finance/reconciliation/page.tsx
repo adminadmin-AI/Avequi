@@ -126,7 +126,7 @@ export default function ReconciliationPage() {
   return (
     <div>
       <PageHeader
-        title="Conciliação Bancária"
+        title="Conciliação bancária"
         description="Importe os retornos CNAB e acompanhe as transações ainda não conciliadas."
       />
 

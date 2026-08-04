@@ -93,7 +93,7 @@ export default function LocationsPage() {
   return (
     <div>
       <PageHeader
-        title="Localizações WMS"
+        title="Endereços"
         description="Endereços de armazenagem por depósito."
         actions={
           <Button onClick={() => setOpen(true)}>

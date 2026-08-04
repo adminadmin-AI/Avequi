@@ -113,7 +113,7 @@ export default function PurchaseAutomationPage() {
   return (
     <div>
       <PageHeader
-        title="Automação de Compras"
+        title="Automação de compras"
         description="Monitor de estoque mínimo para reposição."
       />
 

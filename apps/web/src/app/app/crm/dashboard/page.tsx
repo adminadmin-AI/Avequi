@@ -117,7 +117,7 @@ export default function CrmDashboardPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Dashboard CRM"
+        title="Painel do CRM"
         description="Conversão por origem, vendedor e tempo de resposta"
         actions={
           <div className="flex items-center gap-2">

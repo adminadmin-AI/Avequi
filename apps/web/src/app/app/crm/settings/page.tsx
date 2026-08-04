@@ -125,7 +125,7 @@ export default function CrmSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Configuração do CRM" description="SLA, rodízio, WhatsApp e follow-up" />
+      <PageHeader title="Ajustes do CRM" description="SLA, rodízio, WhatsApp e follow-up" />
 
       <PushSettings />
 

@@ -177,7 +177,7 @@ export default function QuotationsPage() {
   return (
     <div>
       <PageHeader
-        title="Cotações"
+        title="Orçamentos"
         description="Propostas comerciais para clientes — do rascunho à conversão em venda."
         actions={
           <Button onClick={() => router.push('/app/quotations/new')}>

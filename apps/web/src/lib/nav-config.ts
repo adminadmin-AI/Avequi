@@ -168,17 +168,23 @@ export const NAV: NavSection[] = [
       // para `permission:` — perfis sem CRM deixam de ver o menu (D4).
       // OPS WP4 (#911): + `entitlement: 'crm'` — some do menu quando a CONTA
       // não contratou o módulo (backend espelha com @RequireEntitlement('crm')).
-      { href: '/app/crm/inbox', label: 'Inbox WhatsApp', icon: MessageCircle, permission: 'crm.conversations.view', entitlement: 'crm' },
+      // Rótulos seguem o glossário avecchi-voice (#987): Conversas (não
+      // "Inbox"), Painel (não "Dashboard"), Antonella é a marca do SDR.
+      { href: '/app/crm/inbox', label: 'Conversas', icon: MessageCircle, permission: 'crm.conversations.view', entitlement: 'crm' },
       { href: '/app/crm/funnel', label: 'Funil', icon: KanbanSquare, permission: 'crm.leads.view', entitlement: 'crm' },
       { href: '/app/crm/leads', label: 'Leads', icon: ClipboardList, permission: 'crm.leads.list', entitlement: 'crm' },
       { href: '/app/crm/quick-replies', label: 'Respostas rápidas', icon: MessageSquareText, permission: 'crm.quick-replies.manage', entitlement: 'crm' },
-      { href: '/app/crm/dashboard', label: 'Dashboard CRM', icon: BarChart3, permission: 'crm.dashboard.view', entitlement: 'crm' },
-      { href: '/app/crm/sdr', label: 'SDR IA', icon: Bot, permission: 'crm.sdr.monitor', entitlement: 'crm' },
-      { href: '/app/crm/settings', label: 'Config CRM', icon: Settings2, permission: 'crm.settings.view', entitlement: 'crm' },
-      { href: '/app/crm/sla', label: 'SLA & Alertas', icon: Timer, permission: 'crm.leads.view', entitlement: 'crm' },
-      { href: '/app/sales', label: 'Ordens de Venda', icon: ShoppingCart, permission: 'sales.orders.view' },
-      { href: '/app/sales/counter', label: 'Venda Balcão', icon: Store, permission: 'sales.orders.create' },
-      { href: '/app/quotations', label: 'Cotações', icon: FileText, permission: 'sales.quotations.view' },
+      { href: '/app/crm/dashboard', label: 'Painel do CRM', icon: BarChart3, permission: 'crm.dashboard.view', entitlement: 'crm' },
+      { href: '/app/crm/sdr', label: 'Antonella (SDR IA)', icon: Bot, permission: 'crm.sdr.monitor', entitlement: 'crm' },
+      { href: '/app/crm/settings', label: 'Ajustes do CRM', icon: Settings2, permission: 'crm.settings.view', entitlement: 'crm' },
+      { href: '/app/crm/sla', label: 'SLA e alertas', icon: Timer, permission: 'crm.leads.view', entitlement: 'crm' },
+      // #987: módulo é "Vendas"; a entidade é "pedido de venda" ("Pedido #123").
+      // "Ordem de Venda"/"OV" foram aposentados do vocabulário.
+      { href: '/app/sales', label: 'Vendas', icon: ShoppingCart, permission: 'sales.orders.view' },
+      { href: '/app/sales/counter', label: 'Venda balcão', icon: Store, permission: 'sales.orders.create' },
+      // #987: proposta ao cliente = "orçamento"; "cotação" fica reservado à
+      // RFQ de compras (rota /quotations não muda).
+      { href: '/app/quotations', label: 'Orçamentos', icon: FileText, permission: 'sales.quotations.view' },
       { href: '/app/shipping', label: 'Expedição', icon: PackageCheck, permission: 'sales.deliveries.view' },
     ],
   },
@@ -189,19 +195,19 @@ export const NAV: NavSection[] = [
       { href: '/app/stock', label: 'Saldos', icon: Boxes, permission: 'stock.balances.view' },
       { href: '/app/stock/movements', label: 'Movimentações', icon: ArrowLeftRight, permission: 'stock.movements.view' },
       { href: '/app/stock/transfers', label: 'Transferências', icon: Truck, permission: 'stock.transfers.view' },
-      { href: '/app/stock/locations', label: 'Localizações', icon: MapPin, permission: 'stock.warehouses.view' },
-      { href: '/app/stock/wms', label: 'Tarefas WMS', icon: ClipboardList, permission: 'stock.wms.view' },
+      { href: '/app/stock/locations', label: 'Endereços', icon: MapPin, permission: 'stock.warehouses.view' },
+      { href: '/app/stock/wms', label: 'Tarefas do depósito', icon: ClipboardList, permission: 'stock.wms.view' },
     ],
   },
   {
     key: 'producao',
     title: 'Produção',
     items: [
-      { href: '/app/production', label: 'Ordens de Produção', icon: Factory, permission: 'production.orders.view' },
-      { href: '/app/production/bom', label: 'BOM', icon: Network, permission: 'production.bom.view' },
+      { href: '/app/production', label: 'Ordens de produção', icon: Factory, permission: 'production.orders.view' },
+      { href: '/app/production/bom', label: 'Estruturas (BOM)', icon: Network, permission: 'production.bom.view' },
       { href: '/app/production/mrp', label: 'MRP', icon: Calculator, permission: 'production.mrp.view' },
       { href: '/app/production/routing', label: 'Roteiros', icon: Workflow, permission: 'production.routing.view' },
-      { href: '/app/production/work-centers', label: 'Centros de Trabalho', icon: Gauge, permission: 'production.work-centers.view' },
+      { href: '/app/production/work-centers', label: 'Centros de trabalho', icon: Gauge, permission: 'production.work-centers.view' },
       { href: '/app/production/chassis', label: 'Chassis', icon: ScanBarcode, permission: 'production.chassi.view' },
     ],
   },
@@ -209,9 +215,9 @@ export const NAV: NavSection[] = [
     key: 'suprimentos',
     title: 'Suprimentos',
     items: [
-      { href: '/app/purchases', label: 'Pedidos de Compra', icon: PackageOpen, permission: 'purchases.orders.view' },
+      { href: '/app/purchases', label: 'Pedidos de compra', icon: PackageOpen, permission: 'purchases.orders.view' },
       { href: '/app/purchases/automation', label: 'Automação', icon: Zap },
-      { href: '/app/purchases/inbound-nfe', label: 'NF-e de Entrada', icon: FileInput, permission: 'purchases.inbound-nfe.view' },
+      { href: '/app/purchases/inbound-nfe', label: 'NF-e de entrada', icon: FileInput, permission: 'purchases.inbound-nfe.view' },
       { href: '/app/approvals', label: 'Aprovações', icon: BadgeCheck, permission: 'approvals.requests.view' },
     ],
   },
@@ -219,22 +225,22 @@ export const NAV: NavSection[] = [
     key: 'qualidade',
     title: 'Qualidade',
     items: [
-      { href: '/app/quality', label: 'Dashboard', icon: ShieldCheck, permission: 'quality.reports.view' },
+      { href: '/app/quality', label: 'Painel', icon: ShieldCheck, permission: 'quality.reports.view' },
       { href: '/app/quality/inspections', label: 'Inspeções', icon: ClipboardCheck, permission: 'quality.inspections.view' },
-      { href: '/app/quality/ncr', label: 'Não Conformidades', icon: AlertTriangle, permission: 'quality.ncr.view' },
+      { href: '/app/quality/ncr', label: 'Não conformidades', icon: AlertTriangle, permission: 'quality.ncr.view' },
     ],
   },
   {
     key: 'manutencao',
     title: 'Manutenção',
-    items: [{ href: '/app/maintenance', label: 'Ordens de Manutenção', icon: Wrench, permission: 'maintenance.orders.view' }],
+    items: [{ href: '/app/maintenance', label: 'Ordens de manutenção', icon: Wrench, permission: 'maintenance.orders.view' }],
   },
   {
     key: 'fiscal',
     title: 'Fiscal',
     items: [
-      { href: '/app/fiscal', label: 'Documentos Fiscais', icon: ScrollText, permission: 'fiscal.documents.view' },
-      { href: '/app/fiscal/rules', label: 'Regras Fiscais', icon: Scale, permission: 'fiscal.tax-rules.view' },
+      { href: '/app/fiscal', label: 'Documentos fiscais', icon: ScrollText, permission: 'fiscal.documents.view' },
+      { href: '/app/fiscal/rules', label: 'Regras fiscais', icon: Scale, permission: 'fiscal.tax-rules.view' },
       { href: '/app/fiscal/compliance', label: 'Conformidade', icon: ShieldCheck, permission: 'fiscal.documents.view' },
     ],
   },
@@ -242,28 +248,30 @@ export const NAV: NavSection[] = [
     key: 'financeiro',
     title: 'Financeiro',
     items: [
-      { href: '/app/finance/receivables', label: 'Recebíveis', icon: Wallet, permission: 'finance.entries.view' },
-      { href: '/app/finance/payables', label: 'Pagáveis', icon: CreditCard, permission: 'finance.entries.view' },
-      { href: '/app/finance/cash-flow', label: 'Fluxo de Caixa', icon: LineChart, permission: 'finance.reports.view' },
-      { href: '/app/finance/pricing', label: 'Formação de Preço', icon: Tags, permission: 'products.pricing.view' },
-      { href: '/app/finance/costing', label: 'Custeio por Absorção', icon: Layers, permission: 'products.pricing.view' },
-      { href: '/app/finance/forecast', label: 'Forecast Financeiro', icon: TrendingUp, permission: 'finance.reports.view' },
-      { href: '/app/finance/budget-plans', label: 'Budget por Drivers', icon: Target, permission: 'finance.budget-plans.view' },
-      { href: '/app/finance/investments', label: 'Análise de Investimentos', icon: Coins, permission: 'finance.investments.view' },
-      { href: '/app/finance/bank-accounts', label: 'Contas Bancárias', icon: Landmark, permission: 'finance.bank-accounts.view' },
-      { href: '/app/finance/acquirers', label: 'Adquirentes & Taxas', icon: Percent, permission: 'finance.acquirers.view' },
+      // #987: "Pagáveis/Recebíveis" (calque de payables/receivables) viraram
+      // "A pagar"/"A receber" — a seção "Financeiro" completa o contexto.
+      { href: '/app/finance/receivables', label: 'A receber', icon: Wallet, permission: 'finance.entries.view' },
+      { href: '/app/finance/payables', label: 'A pagar', icon: CreditCard, permission: 'finance.entries.view' },
+      { href: '/app/finance/cash-flow', label: 'Fluxo de caixa', icon: LineChart, permission: 'finance.reports.view' },
+      { href: '/app/finance/pricing', label: 'Formação de preço', icon: Tags, permission: 'products.pricing.view' },
+      { href: '/app/finance/costing', label: 'Custeio por absorção', icon: Layers, permission: 'products.pricing.view' },
+      { href: '/app/finance/forecast', label: 'Projeção financeira', icon: TrendingUp, permission: 'finance.reports.view' },
+      { href: '/app/finance/budget-plans', label: 'Orçamento por direcionadores', icon: Target, permission: 'finance.budget-plans.view' },
+      { href: '/app/finance/investments', label: 'Análise de investimentos', icon: Coins, permission: 'finance.investments.view' },
+      { href: '/app/finance/bank-accounts', label: 'Contas bancárias', icon: Landmark, permission: 'finance.bank-accounts.view' },
+      { href: '/app/finance/acquirers', label: 'Adquirentes e taxas', icon: Percent, permission: 'finance.acquirers.view' },
       { href: '/app/finance/reconciliation', label: 'Conciliação', icon: Scale, permission: 'finance.banking.view' },
       { href: '/app/finance/collection-tools', label: 'Cobranças', icon: Barcode, permission: 'finance.boletos.view' },
-      { href: '/app/finance/collection', label: 'Monitor de Cobrança', icon: Activity, permission: 'finance.billing.view' },
-      { href: '/app/finance/scheduled-payments', label: 'Agendamentos', icon: CalendarClock, permission: 'finance.payment-schedules.view' },
-      { href: '/app/finance/settings', label: 'Categorias / CC', icon: SlidersHorizontal, permission: 'finance.categories.view' },
+      { href: '/app/finance/collection', label: 'Monitor de cobrança', icon: Activity, permission: 'finance.billing.view' },
+      { href: '/app/finance/scheduled-payments', label: 'Pagamentos agendados', icon: CalendarClock, permission: 'finance.payment-schedules.view' },
+      { href: '/app/finance/settings', label: 'Categorias e centros de custo', icon: SlidersHorizontal, permission: 'finance.categories.view' },
     ],
   },
   {
     key: 'inteligencia',
     title: 'Inteligência',
     items: [
-      { href: '/app/analytics', label: 'Analytics', icon: BarChart3, permission: 'analytics.dashboards.view' },
+      { href: '/app/analytics', label: 'Indicadores', icon: BarChart3, permission: 'analytics.dashboards.view' },
       { href: '/app/reports', label: 'Relatórios', icon: FileSpreadsheet, permission: 'analytics.reports.view' },
       { href: '/app/alerts', label: 'Alertas', icon: Bell, permission: 'dashboard.alerts.view' },
     ],
@@ -273,11 +281,11 @@ export const NAV: NavSection[] = [
     title: 'Configurações',
     items: [
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog, permission: 'settings.users.view' },
-      { href: '/app/settings/roles', label: 'Perfis e Permissões', icon: KeyRound, permission: 'iam.roles.view' },
+      { href: '/app/settings/roles', label: 'Perfis e permissões', icon: KeyRound, permission: 'iam.roles.view' },
       { href: '/app/settings/organization', label: 'Organização', icon: Network, permission: 'iam.org.view' },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, permission: 'settings.companies.view' },
-      { href: '/app/settings/audit', label: 'Log de Auditoria', icon: History, permission: 'iam.audit-logs.view' },
+      { href: '/app/settings/audit', label: 'Trilha de auditoria', icon: History, permission: 'iam.audit-logs.view' },
     ],
   },
   {
@@ -346,7 +354,7 @@ export const OPS_NAV: NavSection[] = [
       // OPS WP4 (#911): catálogo de planos/entitlements do SaaS.
       { href: '/app/ops/plans', label: 'Planos', icon: Crown, permission: 'ops.plans.view' },
       // OPS WP5 (#912): billing da operadora — MRR, aging e faturas da carteira.
-      { href: '/app/ops/billing', label: 'Billing', icon: CreditCard, permission: 'ops.billing.view' },
+      { href: '/app/ops/billing', label: 'Cobrança', icon: CreditCard, permission: 'ops.billing.view' },
     ],
   },
 ];
@@ -380,12 +388,12 @@ export interface QuickAction {
 }
 
 export const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'Nova Ordem de Venda', href: '/app/sales/new', icon: Plus },
-  { label: 'Nova Cotação', href: '/app/quotations/new', icon: Plus },
-  { label: 'Novo Pedido de Compra', href: '/app/purchases/new', icon: Plus },
-  { label: 'Novo Produto', href: '/app/products', icon: Plus },
-  { label: 'Novo Cliente', href: '/app/customers', icon: Plus },
-  { label: 'Nova Transferência', href: '/app/stock/transfers/new', icon: Plus },
+  { label: 'Novo pedido de venda', href: '/app/sales/new', icon: Plus },
+  { label: 'Novo orçamento', href: '/app/quotations/new', icon: Plus },
+  { label: 'Novo pedido de compra', href: '/app/purchases/new', icon: Plus },
+  { label: 'Novo produto', href: '/app/products', icon: Plus },
+  { label: 'Novo cliente', href: '/app/customers', icon: Plus },
+  { label: 'Nova transferência', href: '/app/stock/transfers/new', icon: Plus },
 ];
 
 /**

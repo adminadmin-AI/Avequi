@@ -204,7 +204,7 @@ export default function CollectionMonitorPage() {
   return (
     <div>
       <PageHeader
-        title="Monitor de Cobrança"
+        title="Monitor de cobrança"
         description="Recebíveis vencidos, régua de cobrança e cobranças (boleto/PIX) emitidas."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/finance/collection-tools')}>

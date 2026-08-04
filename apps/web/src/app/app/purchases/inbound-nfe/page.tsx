@@ -222,7 +222,7 @@ export default function InboundNfePage() {
   return (
     <div>
       <PageHeader
-        title="NF-e de Entrada"
+        title="NF-e de entrada"
         description="Notas fiscais de fornecedores — importação e vínculo com pedidos de compra."
         actions={
           <Button onClick={() => setImportOpen(true)}>

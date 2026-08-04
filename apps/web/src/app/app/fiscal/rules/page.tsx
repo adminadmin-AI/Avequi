@@ -249,7 +249,7 @@ export default function TaxRulesPage() {
   return (
     <div>
       <PageHeader
-        title="Regras Fiscais"
+        title="Regras fiscais"
         description="Parametrização tributária por operação, NCM e UF — o motor escolhe a regra mais específica vigente na data de emissão."
         actions={
           <Button onClick={openCreate}>

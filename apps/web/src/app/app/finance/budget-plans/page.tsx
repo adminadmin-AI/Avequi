@@ -226,8 +226,8 @@ export default function BudgetPlansPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Budget por Drivers"
-        description="Orçamento dirigido por premissas operacionais: Volume × Preço × Mix (#398)"
+        title="Orçamento por direcionadores"
+        description="Orçamento dirigido por premissas operacionais: Volume × Preço × Mix"
         actions={
           <Button onClick={openNewPlan}>
             <Plus className="mr-1.5 h-4 w-4" /> Novo plano

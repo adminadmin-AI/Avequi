@@ -204,7 +204,7 @@ export default function CashFlowPage() {
   return (
     <div>
       <PageHeader
-        title="Fluxo de Caixa"
+        title="Fluxo de caixa"
         description="Projeção de entradas e saídas previstas (em aberto e vencidas)."
         actions={
           <div className="flex rounded-lg border border-line bg-surface p-0.5">

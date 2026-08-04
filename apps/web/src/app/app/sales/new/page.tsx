@@ -171,8 +171,8 @@ export default function NewSalePage() {
   return (
     <div>
       <PageHeader
-        title="Nova Ordem de Venda"
-        description="Cria a OV em rascunho. As etapas do pipeline são feitas no detalhe."
+        title="Novo pedido de venda"
+        description="Cria o pedido em rascunho. As etapas do pipeline são feitas no detalhe."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/sales')}>
             <ArrowLeft size={16} />

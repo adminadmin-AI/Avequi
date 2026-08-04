@@ -75,7 +75,7 @@ export default function QualityDashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard de Qualidade"
+        title="Painel de qualidade"
         description="Indicadores de inspeções e não conformidades."
         actions={
           <div className="flex items-center gap-2">

@@ -126,7 +126,7 @@ export default function MovementsPage() {
   return (
     <div>
       <PageHeader
-        title="Movimentações de Estoque"
+        title="Movimentações de estoque"
         description="Histórico de entradas, saídas e ajustes."
         actions={<NewMovementDialog />}
       />

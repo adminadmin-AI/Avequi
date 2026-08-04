@@ -60,7 +60,7 @@ export default function NewProductionOrderPage() {
   return (
     <div>
       <PageHeader
-        title="Nova Ordem de Produção"
+        title="Nova ordem de produção"
         description="Cria a OP em rascunho (planejada)."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/production')}>
