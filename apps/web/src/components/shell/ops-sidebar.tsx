@@ -2,12 +2,10 @@
 
 import { useMemo } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, PanelLeft, PanelLeftClose, X } from 'lucide-react';
+import { PanelLeft, PanelLeftClose, X } from 'lucide-react';
 import { OPS_NAV, navItemAllowed, resolveActiveHref } from '@/lib/nav-config';
 import { useNavAccess, usePermission } from '@/hooks/use-permission';
-import { useCurrentCompany } from '@/hooks/use-current-company';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavLink } from '@/components/shell/nav-link';
@@ -38,7 +36,6 @@ function OpsSidebarInner({ mini, onToggleMini, onClose, showClose }: SidebarFram
   const pathname = usePathname();
   const access = useNavAccess();
   const { isLoading: permsLoading } = usePermission();
-  const companyName = useCurrentCompany();
 
   const activeHref = useMemo(() => resolveActiveHref(pathname), [pathname]);
 
@@ -120,32 +117,10 @@ function OpsSidebarInner({ mini, onToggleMini, onClose, showClose }: SidebarFram
         </button>
       )}
 
-      {/* ─── Switcher de console: a porta de volta para o ERP do usuário ─── */}
-      <div className={cn('pt-3', mini ? 'px-2' : 'px-3')}>
-        <Link
-          href="/app"
-          onClick={onClose}
-          title={companyName ? `Voltar ao ERP ${companyName}` : 'Voltar ao ERP'}
-          aria-label={companyName ? `Voltar ao ERP ${companyName}` : 'Voltar ao ERP'}
-          className={cn(
-            'group flex items-center rounded-lg bg-neutral-500/[0.045] text-content-secondary transition-colors duration-fast hover:bg-neutral-500/[0.09] hover:text-content focus-ring',
-            mini ? 'h-10 justify-center' : 'gap-2.5 px-3 py-2',
-          )}
-        >
-          <ArrowLeft
-            size={16}
-            className="shrink-0 text-content-muted transition-transform duration-flow ease-precise group-hover:-translate-x-0.5"
-          />
-          {!mini && (
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block text-caption text-content-muted">Voltar ao ERP</span>
-              {companyName && (
-                <span className="block truncate text-[13px] font-medium">{companyName}</span>
-              )}
-            </span>
-          )}
-        </Link>
-      </div>
+      {/* OPS F2 (feedback do Claudio): SEM switcher "Voltar ao ERP" aqui —
+          era saída acidental do console. A volta pro ERP do próprio usuário
+          mora no menu do avatar ("Ir para o meu ERP"); a entrada nos ERPs
+          dos CLIENTES é o "Entrar no ERP" de cada conta. */}
 
       {/* ─── Navegação do console ─── */}
       <nav className="avequi-scroll flex-1 space-y-4 overflow-y-auto px-3 py-3">
