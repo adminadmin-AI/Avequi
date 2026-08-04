@@ -8,6 +8,7 @@ import { Cron } from '@nestjs/schedule';
 import {
   AuditAction,
   InvoiceStatus,
+  PaymentMethod,
   TenantStatus,
   UserRole,
 } from '@prisma/client';
@@ -70,6 +71,9 @@ export class BillingService {
   async runDaily(): Promise<void> {
     try {
       await this.generateInvoices(new Date());
+      // AVECCHI P1 (#960): liga faturas órfãs ao financeiro da operadora —
+      // cobre falha pontual da ponte e faturas anteriores ao deploy dela.
+      await this.bridgeOrphanInvoices();
       await this.runDunning(new Date());
     } catch (err) {
       // Cron nunca derruba o app; recuperável via POST /ops/billing/run.
@@ -106,7 +110,7 @@ export class BillingService {
       });
       if (exists) continue;
       try {
-        await this.prisma.invoice.create({
+        const inv = await this.prisma.invoice.create({
           data: {
             companyId: sub.companyId,
             period,
@@ -115,6 +119,11 @@ export class BillingService {
           },
         });
         created++;
+        // AVECCHI P1 (#960): espelha no financeiro da operadora — fail-soft
+        // (o sweep de órfãs reconcilia se falhar aqui).
+        await this.bridgeInvoiceToFinance(inv.id).catch((err) =>
+          this.logger.warn(`Ponte da fatura ${inv.id} falhou: ${(err as Error).message}`),
+        );
       } catch (err) {
         // corrida com outra instância: a unique resolve — segue o baile
         this.logger.warn(
@@ -128,6 +137,131 @@ export class BillingService {
       );
     }
     return created;
+  }
+
+  // ─── AVECCHI P1 (#960): ponte billing → financeiro da operadora ────────────
+  //
+  // Cada fatura de mensalidade espelha um título RECEIVABLE no financeiro do
+  // tenant da OPERADORA (env OPERADORA_COMPANY_ID) — o MRR do painel vira
+  // contas a receber de verdade, no fluxo de caixa da Avecchi.
+  //
+  // Direção ÚNICA: o portal é a fonte. Fatura criada → título criado; baixa
+  // no portal → título PAID; anulação → título CANCELLED. Ninguém edita o
+  // título do lado do financeiro esperando refletir na fatura.
+  //
+  // FAIL-SOFT em tudo: ponte quebrada nunca impede faturar o cliente — o
+  // sweep de órfãs do runDaily reconcilia depois.
+
+  /** Tenant da operadora — ponte DESLIGADA sem a env (deploy-safe). */
+  private operadoraCompanyId(): string | null {
+    return process.env.OPERADORA_COMPANY_ID?.trim() || null;
+  }
+
+  /** Cria o título no financeiro da operadora e liga à fatura (idempotente). */
+  private async bridgeInvoiceToFinance(invoiceId: string): Promise<boolean> {
+    const operadoraId = this.operadoraCompanyId();
+    if (!operadoraId) return false;
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        id: true,
+        companyId: true,
+        financialEntryId: true,
+        amountCents: true,
+        dueDate: true,
+        period: true,
+        status: true,
+        company: { select: { name: true } },
+      },
+    });
+    if (!invoice || invoice.financialEntryId || invoice.status === InvoiceStatus.VOID) {
+      return false;
+    }
+    // Fatura da própria operadora (não deveria existir — ela é isSandbox) não
+    // vira título contra si mesma.
+    if (invoice.companyId === operadoraId) return false;
+
+    const competencia = `${String(invoice.period.getUTCMonth() + 1).padStart(2, '0')}/${invoice.period.getUTCFullYear()}`;
+    const entry = await this.prisma.financialEntry.create({
+      data: {
+        companyId: operadoraId,
+        type: 'RECEIVABLE',
+        status: 'OPEN',
+        amount: (invoice.amountCents / 100).toFixed(2),
+        dueDate: invoice.dueDate,
+        issueDate: new Date(),
+        documentNumber: invoice.id,
+        source: 'MANUAL',
+        description: `Mensalidade ${invoice.company.name} — competência ${competencia}`,
+      },
+    });
+    // Link em duas fases (o pooler não suporta transação interativa): se outra
+    // instância ganhou a corrida (updateMany = 0), remove o título excedente.
+    const linked = await this.prisma.invoice.updateMany({
+      where: { id: invoice.id, financialEntryId: null },
+      data: { financialEntryId: entry.id },
+    });
+    if (linked.count === 0) {
+      await this.prisma.financialEntry.delete({ where: { id: entry.id } }).catch(() => undefined);
+      return false;
+    }
+    return true;
+  }
+
+  /** Sweep idempotente: toda fatura não-VOID sem título ganha o seu. */
+  async bridgeOrphanInvoices(): Promise<number> {
+    const operadoraId = this.operadoraCompanyId();
+    if (!operadoraId) return 0;
+    const orfas = await this.prisma.invoice.findMany({
+      where: { financialEntryId: null, status: { not: InvoiceStatus.VOID } },
+      select: { id: true },
+    });
+    let bridged = 0;
+    for (const { id } of orfas) {
+      try {
+        if (await this.bridgeInvoiceToFinance(id)) bridged++;
+      } catch (err) {
+        this.logger.warn(`Ponte da fatura ${id} falhou: ${(err as Error).message}`);
+      }
+    }
+    if (bridged > 0) {
+      this.logger.log(JSON.stringify({ event: 'ops_billing_bridge', bridged }));
+    }
+    return bridged;
+  }
+
+  /** Propaga baixa/anulação da fatura para o título ligado (fail-soft). */
+  private async propagateToFinance(
+    invoiceId: string,
+    to: 'PAID' | 'CANCELLED',
+    method?: string,
+  ): Promise<void> {
+    try {
+      const invoice = await this.prisma.invoice.findUnique({
+        where: { id: invoiceId },
+        select: { financialEntryId: true },
+      });
+      if (!invoice?.financialEntryId) return;
+      const paymentMethod =
+        to === 'PAID'
+          ? (({ PIX: 'PIX', BOLETO: 'BOLETO', TRANSFER: 'TED' } as Record<string, PaymentMethod>)[
+              method ?? ''
+            ] ?? null)
+          : undefined;
+      await this.prisma.financialEntry.update({
+        where: { id: invoice.financialEntryId },
+        data:
+          to === 'PAID'
+            ? { status: 'PAID', ...(paymentMethod ? { paymentMethod } : {}) }
+            : { status: 'CANCELLED' },
+      });
+    } catch (err) {
+      // Título dessincronizado é reconciliável à mão; a baixa da fatura não
+      // pode falhar por causa do espelho.
+      this.logger.warn(
+        `Propagação ${to} da fatura ${invoiceId} falhou: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -279,6 +413,8 @@ export class BillingService {
     await this.audit(ctx, invoice.companyId, 'Invoice', invoiceId, AuditAction.APPROVE, {
       status: invoice.status,
     }, { status: InvoiceStatus.PAID, method });
+    // AVECCHI P1 (#960): espelha a baixa no título da operadora (fail-soft).
+    await this.propagateToFinance(invoiceId, 'PAID', method);
     return updated;
   }
 
@@ -295,6 +431,8 @@ export class BillingService {
     await this.audit(ctx, invoice.companyId, 'Invoice', invoiceId, AuditAction.CANCEL, {
       status: invoice.status,
     }, { status: InvoiceStatus.VOID, reason: reason.trim() });
+    // AVECCHI P1 (#960): título espelho é cancelado junto (fail-soft).
+    await this.propagateToFinance(invoiceId, 'CANCELLED');
     return updated;
   }
 

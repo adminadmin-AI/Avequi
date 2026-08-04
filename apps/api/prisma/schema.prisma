@@ -244,6 +244,12 @@ model Invoice {
   method      String?
   notifiedAt  DateTime?
   voidReason  String?
+  /// AVECCHI P1 (#960) — ponte billing→financeiro: título RECEIVABLE no
+  /// tenant da OPERADORA (env OPERADORA_COMPANY_ID) espelhando esta fatura.
+  /// Nullable: ponte desligada (env ausente) ou fatura anterior à ponte —
+  /// a varredura idempotente do runDaily liga as órfãs.
+  financialEntryId String? @unique @map("financial_entry_id")
+  financialEntry   FinancialEntry? @relation(fields: [financialEntryId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -1663,6 +1669,8 @@ enum DebtorType {
 
 model FinancialEntry {
   id                  String                 @id @default(cuid())
+  /// AVECCHI P1 (#960): fatura de mensalidade que originou este título
+  opsInvoice          Invoice?
   companyId           String
   company             Company                @relation(fields: [companyId], references: [id])
   type                FinancialEntryType
