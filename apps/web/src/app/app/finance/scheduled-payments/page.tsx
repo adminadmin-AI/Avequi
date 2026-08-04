@@ -172,7 +172,7 @@ export default function ScheduledPaymentsPage() {
   return (
     <div>
       <PageHeader
-        title="Agendamento de Pagamentos"
+        title="Pagamentos agendados"
         description="Programe débitos de contas a pagar em datas futuras."
         actions={
           <Button onClick={() => setDialogOpen(true)}>

@@ -216,7 +216,7 @@ export default function CounterSalePage() {
   return (
     <div>
       <PageHeader
-        title="Venda Balcão"
+        title="Venda balcão"
         description="Cliente presente na loja: escaneie o chassi, monte o pagamento e fature direto — sem separação."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/sales')}>

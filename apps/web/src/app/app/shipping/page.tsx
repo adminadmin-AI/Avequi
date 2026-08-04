@@ -226,7 +226,7 @@ export default function ShippingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Expedição" description="Entregas pós-NF-e, documentos regulatórios e pendências (#496)" />
+      <PageHeader title="Expedição" description="Entregas pós-NF-e, documentos regulatórios e pendências" />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

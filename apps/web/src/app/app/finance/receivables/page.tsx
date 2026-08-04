@@ -327,7 +327,7 @@ export default function ReceivablesPage() {
   return (
     <div>
       <PageHeader
-        title="Carteira de Recebíveis"
+        title="Contas a receber"
         description="Contas a receber, vencimentos e baixas."
         actions={<ManualEntryDialog defaultType="RECEIVABLE" />}
       />

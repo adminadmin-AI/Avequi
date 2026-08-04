@@ -155,7 +155,7 @@ export default function ChassisPage() {
   return (
     <div>
       <PageHeader
-        title="Chassis Gravados"
+        title="Chassis gravados"
         description="Gravações de número de chassi feitas pela marcadora (ferramenta OpenClaw no chão de fábrica)."
         actions={
           <Button variant="outline" onClick={() => setInstalarAberto(true)}>

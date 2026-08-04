@@ -88,7 +88,7 @@ export default function NewQuotationPage() {
   return (
     <div>
       <PageHeader
-        title="Nova Cotação"
+        title="Novo orçamento"
         description="Proposta comercial em rascunho."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/quotations')}>

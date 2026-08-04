@@ -183,7 +183,7 @@ export default function WorkCentersPage() {
   return (
     <div>
       <PageHeader
-        title="Centros de Trabalho"
+        title="Centros de trabalho"
         description="Recursos produtivos: capacidade, operadores e eficiência usados no planejamento de capacidade."
         actions={
           <Button onClick={openNew}>

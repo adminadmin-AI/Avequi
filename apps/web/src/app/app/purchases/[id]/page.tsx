@@ -104,7 +104,7 @@ export default function PurchaseDetailPage() {
   if (isLoading || !po) {
     return (
       <div>
-        <PageHeader title="Pedido de Compra" />
+        <PageHeader title="Pedido de compra" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>

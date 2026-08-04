@@ -161,7 +161,7 @@ export default function AcquirersPage() {
   return (
     <div>
       <PageHeader
-        title="Adquirentes & Taxas"
+        title="Adquirentes e taxas"
         description="Credenciadoras de cartão, taxas MDR e prazo de liquidação — a taxa vigente é congelada em cada venda."
         actions={
           <Button

@@ -206,8 +206,8 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Análise de Investimentos"
-        description="VPL, TIR, payback simples e descontado — com alçada de aprovação (#399)"
+        title="Análise de investimentos"
+        description="VPL, TIR, payback simples e descontado — com alçada de aprovação"
       />
 
       <Tabs value={tab} onValueChange={setTab}>

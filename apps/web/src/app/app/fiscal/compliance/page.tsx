@@ -144,7 +144,7 @@ export default function CompliancePage() {
   return (
     <div>
       <PageHeader
-        title="Conformidade Fiscal"
+        title="Conformidade fiscal"
         description="Compliance Center: prontidão pra Reforma, cobertura de regras, saúde de emissão e pendências — em tempo real."
         actions={
           <Link href="/app/fiscal/rules">

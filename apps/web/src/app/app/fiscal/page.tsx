@@ -175,7 +175,7 @@ export default function FiscalPage() {
   return (
     <div>
       <PageHeader
-        title="Documentos Fiscais"
+        title="Documentos fiscais"
         description="NF-e e NFC-e emitidas pela empresa."
         actions={
           <div className="flex items-center gap-2">

@@ -98,7 +98,7 @@ export default function BomPage() {
 
   return (
     <div>
-      <PageHeader title="BOM — Lista Técnica" description="Estrutura de componentes por produto (versionada)." />
+      <PageHeader title="Estruturas (BOM)" description="Estrutura de componentes por produto (versionada)." />
 
       <Card className="mb-5">
         <CardContent className="py-5">

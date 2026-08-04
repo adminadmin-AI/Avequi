@@ -126,7 +126,7 @@ export default function ProductionDetailPage() {
   if (isLoading || !order) {
     return (
       <div>
-        <PageHeader title="Ordem de Produção" />
+        <PageHeader title="Ordem de produção" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>

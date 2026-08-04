@@ -359,7 +359,7 @@ export default function PayablesPage() {
   return (
     <div>
       <PageHeader
-        title="Carteira de Pagáveis"
+        title="Contas a pagar"
         description="Contas a pagar, vencimentos e baixas."
         actions={<ManualEntryDialog defaultType="PAYABLE" />}
       />

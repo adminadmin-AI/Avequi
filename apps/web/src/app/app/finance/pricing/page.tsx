@@ -87,7 +87,7 @@ export default function PricingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Formação de Preço" description="Custo + impostos + margem desejada (#395)" />
+      <PageHeader title="Formação de preço" description="Custo + impostos + margem desejada" />
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         {/* ─── Parâmetros ─────────────────────────────────────────────── */}

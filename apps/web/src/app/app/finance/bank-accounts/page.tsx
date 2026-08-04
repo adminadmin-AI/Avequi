@@ -180,7 +180,7 @@ export default function BankAccountsPage() {
   return (
     <div>
       <PageHeader
-        title="Contas Bancárias"
+        title="Contas bancárias"
         description="Contas da empresa e saldos."
         actions={
           <Button

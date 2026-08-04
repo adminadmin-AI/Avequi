@@ -109,7 +109,7 @@ export default function FiscalDashboardPage() {
   if (isLoading) {
     return (
       <div>
-        <PageHeader title="Dashboard Fiscal" />
+        <PageHeader title="Painel fiscal" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -120,7 +120,7 @@ export default function FiscalDashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard Fiscal"
+        title="Painel fiscal"
         description="Visão gerencial das emissões fiscais."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/fiscal')}>

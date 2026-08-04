@@ -92,7 +92,7 @@ export default function ProductionPage() {
   return (
     <div>
       <PageHeader
-        title="Ordens de Produção"
+        title="Ordens de produção"
         description="Planejamento e acompanhamento da produção."
         actions={
           <Button onClick={() => router.push('/app/production/new')}>

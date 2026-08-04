@@ -219,7 +219,7 @@ export default function AnalyticsPage() {
   return (
     <div>
       <PageHeader
-        title="Analytics"
+        title="Indicadores"
         description="Indicadores gerenciais de vendas, produção e estoque."
         actions={
           <div className="inline-flex rounded-lg border border-line p-0.5">

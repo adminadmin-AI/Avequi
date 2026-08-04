@@ -89,7 +89,7 @@ export default function PurchasesPage() {
   return (
     <div>
       <PageHeader
-        title="Pedidos de Compra"
+        title="Pedidos de compra"
         description="Ordens de compra a fornecedores — do rascunho ao recebimento."
         actions={
           <Button onClick={() => router.push('/app/purchases/new')}>
