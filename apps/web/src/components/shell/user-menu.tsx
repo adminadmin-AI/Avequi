@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Building2, ChevronDown, KeyRound, LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronDown, KeyRound, LogOut, Moon, Settings, Sun } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCurrentCompany } from '@/hooks/use-current-company';
 import { USER_ROLE_LABELS } from '@/lib/enums';
@@ -24,6 +24,7 @@ function roleLabel(role?: string): string {
 
 export function UserMenu() {
   const router = useRouter();
+  const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const companyName = useCurrentCompany();
@@ -95,6 +96,15 @@ export function UserMenu() {
           >
             {isDark ? 'Tema claro' : 'Tema escuro'}
           </DropdownMenuItem>
+          {/* OPS F2 (feedback do Claudio): a volta pro ERP do PRÓPRIO usuário
+              saiu da sidebar do console (era ruído/saída acidental) e mora
+              aqui, discreta — a sessão própria com escrita continua a um
+              clique quando precisar (impersonation é somente-leitura). */}
+          {(pathname === '/app/ops' || pathname.startsWith('/app/ops/')) && (
+            <DropdownMenuItem icon={<ArrowLeftRight />} onSelect={() => router.push('/app')}>
+              Ir para o meu ERP{companyName ? ` (${companyName})` : ''}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             icon={<KeyRound />}
             onSelect={() => router.push('/app/account/password')}

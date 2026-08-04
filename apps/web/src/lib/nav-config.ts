@@ -8,6 +8,7 @@ import {
   Bell,
   Bot,
   Boxes,
+  Building,
   Building2,
   CalendarClock,
   Calculator,
@@ -296,7 +297,39 @@ export const NAV: NavSection[] = [
       // Control plane cross-tenant da Avecchi (OPS WP1 #908 / WP2 #909) —
       // NUNCA entra em perfil de tenant (tenantPermissionCodes() exclui o
       // módulo `ops` inteiro); só quem tem ops.tenants.view vê este item.
+      //
+      // OPS F2: as rotas do control plane saíram daqui e viraram um console
+      // próprio (OPS_NAV + OpsSidebar) — "mesma conta, consoles separados".
+      // No ERP do tenant sobra UMA porta de entrada, com o mesmo gate de
+      // antes: quem não tem ops.tenants.view continua sem ver nada.
+      { href: '/app/ops', label: 'Portal Avecchi', icon: Building, permission: 'ops.tenants.view' },
+    ],
+  },
+];
+
+/**
+ * Navegação do CONSOLE DA OPERADORA (OPS F2) — control plane SaaS da
+ * Avecchi, renderizado pela `OpsSidebar` quando o pathname está sob
+ * `/app/ops`. Vive FORA do `NAV` de propósito: controlar clientes SaaS não
+ * é um menu dentro do ERP de um cliente (padrão Google Admin/Stripe).
+ *
+ * Os gates são os MESMOS que o backend exige em cada rota — nada aqui
+ * afrouxa permissão: `ops.tenants.view` (listagem/detalhe),
+ * `ops.tenants.provision` (wizard de onboarding, = @RequirePermission dos
+ * endpoints de provisionamento), `ops.plans.view` e `ops.billing.view`.
+ *
+ * Continua participando da resolução de rota/breadcrumbs via
+ * `ALL_NAV_ITEMS` — o RouteGuard segue guardando as rotas ops mesmo elas
+ * não estando mais no menu do ERP.
+ */
+export const OPS_NAV: NavSection[] = [
+  {
+    key: 'ops',
+    items: [
       { href: '/app/ops', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
+      // OPS WP2 (#909): wizard de onboarding — gate espelha o backend
+      // (POST /ops/tenants/** exige ops.tenants.provision).
+      { href: '/app/ops/new', label: 'Nova conta', icon: Plus, permission: 'ops.tenants.provision' },
       // OPS WP4 (#911): catálogo de planos/entitlements do SaaS.
       { href: '/app/ops/plans', label: 'Planos', icon: Crown, permission: 'ops.plans.view' },
       // OPS WP5 (#912): billing da operadora — MRR, aging e faturas da carteira.
@@ -304,6 +337,25 @@ export const NAV: NavSection[] = [
     ],
   },
 ];
+
+/**
+ * Todos os itens de navegação conhecidos — ERP (`NAV`) + console da
+ * operadora (`OPS_NAV`) —, deduplicados por href: a porta de entrada no ERP
+ * e a home do console apontam ambas para `/app/ops`, e quem vence é a do
+ * ERP (declarada primeiro). É a fonte de resolução de rota, breadcrumbs e
+ * command palette; sem isto as rotas ops perderiam o gate do RouteGuard ao
+ * saírem do menu do ERP (OPS F2).
+ */
+const ALL_NAV_ITEMS: NavItem[] = (() => {
+  const seen = new Set<string>();
+  const items: NavItem[] = [];
+  for (const item of [...NAV, ...OPS_NAV].flatMap((s) => s.items)) {
+    if (seen.has(item.href)) continue;
+    seen.add(item.href);
+    items.push(item);
+  }
+  return items;
+})();
 
 /** Ações rápidas do command palette (#305). */
 export interface QuickAction {
@@ -321,9 +373,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { label: 'Nova Transferência', href: '/app/stock/transfers/new', icon: Plus },
 ];
 
-/** Todos os itens de navegação achatados (busca da sidebar + command palette). */
+/**
+ * Todos os itens de navegação achatados (busca da sidebar + command palette).
+ * Inclui o console da operadora (OPS F2) — o palette é global e atravessa os
+ * dois consoles; o filtro por permissão é quem esconde o que não é do usuário.
+ */
 export function flatNav(access: NavAccess): NavItem[] {
-  return NAV.flatMap((s) => s.items).filter((it) => navItemAllowed(it, access));
+  return ALL_NAV_ITEMS.filter((it) => navItemAllowed(it, access));
 }
 
 export function isActive(pathname: string, href: string): boolean {
@@ -350,7 +406,7 @@ export function resolveActiveHref(pathname: string): string | null {
  */
 export function resolveRouteItem(pathname: string): NavItem | null {
   let best: NavItem | null = null;
-  for (const item of NAV.flatMap((s) => s.items)) {
+  for (const item of ALL_NAV_ITEMS) {
     if (!isActive(pathname, item.href)) continue;
     if (best === null || item.href.length > best.href.length) best = item;
   }
@@ -457,7 +513,7 @@ export interface Crumb {
 
 /** Gera breadcrumbs a partir do pathname (#305). */
 export function buildBreadcrumbs(pathname: string): Crumb[] {
-  const hrefByItem = new Map(NAV.flatMap((s) => s.items).map((it) => [it.href, it.label]));
+  const hrefByItem = new Map(ALL_NAV_ITEMS.map((it) => [it.href, it.label]));
   const segments = pathname.split('/').filter(Boolean);
   const crumbs: Crumb[] = [];
   let acc = '';

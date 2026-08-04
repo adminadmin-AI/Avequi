@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
+import { apiClient } from '@/lib/api-client';
 import { clearPendingPasswordChange, storePendingPasswordChange } from '@/lib/password-change';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ const REMEMBER_KEY = 'avequi:remember-email';
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const verifyMfa = useAuthStore((s) => s.verifyMfa);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +26,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [errorKey, setErrorKey] = useState(0); // força re-trigger da animação de shake
   const [notice, setNotice] = useState<'expired' | 'password-changed' | 'password-change-expired' | null>(null);
+  // 2º passo do login MFA (#344): com desafio pendente, o card troca o
+  // formulário de credenciais pelo de código. O token vive só neste estado
+  // (2 min de validade — nunca em storage nem URL).
+  const [mfaPendingToken, setMfaPendingToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
 
   // Carrega e-mail lembrado + detecta avisos vindos por ?reason= (sessão
   // expirada, senha recém-trocada, handoff de troca de senha vencido).
@@ -64,7 +71,14 @@ export default function LoginPage() {
         router.push('/change-password');
         return;
       }
-      router.push('/app');
+      // MFA ativo (#344): senha conferiu, falta o 2º fator — troca o card
+      // para o formulário de código sem sair da página.
+      if (result.mfaRequired) {
+        setMfaPendingToken(result.mfaPendingToken);
+        setMfaCode('');
+        return;
+      }
+      router.push(await destinoPosLogin());
     } catch (err: unknown) {
       const message = resolveError(err);
       setError(message);
@@ -72,6 +86,52 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mfaPendingToken) return;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await verifyMfa(mfaPendingToken, mfaCode.trim());
+      // Gate de senha roda DEPOIS do 2º fator (#345) — mesmo handoff do login.
+      if (result.passwordChangeRequired) {
+        storePendingPasswordChange(window.sessionStorage, {
+          passwordChangeToken: result.passwordChangeToken,
+          email,
+          passwordExpired: result.passwordExpired,
+        });
+        router.push('/change-password');
+        return;
+      }
+      router.push(await destinoPosLogin());
+    } catch (err: unknown) {
+      // O mfaPendingToken vive 2 min: vencido, o backend responde 401 com
+      // instrução de refazer o login — devolve o card de credenciais.
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      const message = e?.response?.data?.message ?? '';
+      if (e?.response?.status === 401 && /expirado|inválido.*login/i.test(message)) {
+        setMfaPendingToken(null);
+        setMfaCode('');
+        setError('O tempo para digitar o código acabou. Entre novamente.');
+      } else {
+        setError(
+          e?.response?.status === 401
+            ? 'Código inválido. Confira o autenticador e tente de novo.'
+            : resolveError(err),
+        );
+      }
+      setErrorKey((k) => k + 1);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function backToCredentials() {
+    setMfaPendingToken(null);
+    setMfaCode('');
+    setError('');
   }
 
   return (
@@ -157,6 +217,77 @@ export default function LoginPage() {
               aria-hidden
               className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
             />
+            {mfaPendingToken ? (
+              /* ─── 2º passo: código do autenticador (#344) ─── */
+              <>
+                <div className="mb-7">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#3D2CE6]/25 text-[#818CF8]">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <h1 className="text-[22px] font-semibold tracking-tight text-white">
+                    Verificação em duas etapas
+                  </h1>
+                  <p className="mt-1.5 text-sm font-light text-white/55">
+                    Digite o código de 6 dígitos do seu app autenticador
+                    <br />
+                    ou um dos seus backup codes.
+                  </p>
+                </div>
+
+                <form onSubmit={handleMfaSubmit} className="space-y-4" noValidate>
+                  <div>
+                    <Label htmlFor="mfa-code" className="text-[13px] text-white/70">
+                      Código
+                    </Label>
+                    <Input
+                      id="mfa-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value)}
+                      placeholder="000000"
+                      error={!!error}
+                      required
+                      maxLength={9 /* TOTP (6) ou backup code xxxx-xxxx (9) */}
+                      className="border-white/10 bg-white/[0.05] text-center text-[20px] tracking-[0.4em] text-white placeholder:tracking-[0.4em] placeholder:text-white/20 hover:border-white/20 focus:border-[#818CF8]/60"
+                    />
+                  </div>
+
+                  {error && (
+                    <div
+                      key={errorKey}
+                      role="alert"
+                      className="flex animate-shake items-start gap-2 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-[13px] text-red-300"
+                    >
+                      <AlertCircle size={16} className="mt-px shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    loading={loading}
+                    disabled={mfaCode.trim().length < 6}
+                    className="w-full transition-all duration-300 shadow-[0_0_20px_rgba(61,44,230,0.35)] hover:shadow-[0_0_32px_rgba(61,44,230,0.5),0_4px_24px_rgba(0,194,168,0.15)] focus-visible:ring-offset-black"
+                  >
+                    {loading ? 'Verificando…' : 'Verificar'}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={backToCredentials}
+                    className="mx-auto flex items-center gap-1.5 text-[13px] text-white/45 transition-colors hover:text-white/80"
+                  >
+                    <ArrowLeft size={14} />
+                    Voltar e entrar de novo
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
             <div className="mb-7">
               <h1 className="text-[22px] font-semibold tracking-tight text-white">
                 Bem-vindo de volta
@@ -274,6 +405,8 @@ export default function LoginPage() {
                 {loading ? 'Entrando…' : 'Entrar'}
               </Button>
             </form>
+              </>
+            )}
           </div>
 
           {/* Reset de senha é feito pelo administrador (#468) — sem fluxo self-service */}
@@ -286,6 +419,24 @@ export default function LoginPage() {
       </main>
     </div>
   );
+}
+
+/**
+ * Pouso pós-login por papel (OPS F2, decisão do Claudio 03/08): quem opera o
+ * SaaS (qualquer permissão ops.*) entra DIRETO no console da operadora — o
+ * ERP do tenant vira o destino secundário, alcançável pelo switcher
+ * "Voltar ao ERP". Fail-soft: se a consulta falhar, cai no /app de sempre
+ * (o RouteGuard cobre o resto). O custo é ~zero: o endpoint tem cache no
+ * backend e é a primeira coisa que o app pediria ao montar de qualquer jeito.
+ */
+async function destinoPosLogin(): Promise<string> {
+  try {
+    const { data } = await apiClient.get<{ permissions?: string[] }>('/auth/me/permissions');
+    if ((data?.permissions ?? []).some((p) => p.startsWith('ops.'))) return '/app/ops';
+  } catch {
+    /* indeterminado → destino padrão */
+  }
+  return '/app';
 }
 
 /** Traduz o erro do login em mensagem amigável (credenciais × servidor fora). */

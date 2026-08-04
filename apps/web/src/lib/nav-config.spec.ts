@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Package } from 'lucide-react';
 import {
   NAV,
+  OPS_NAV,
+  buildBreadcrumbs,
   checkRouteAccess,
   flatNav,
   navItemAllowed,
+  resolveActiveHref,
   type NavAccess,
   type NavItem,
 } from './nav-config';
@@ -154,15 +157,83 @@ describe('flatNav (#351)', () => {
 });
 
 describe('consistência do NAV', () => {
+  const allItems = [...NAV, ...OPS_NAV].flatMap((s) => s.items);
+
   it('nenhum item declara permission E roles ao mesmo tempo (permission substitui)', () => {
-    const both = NAV.flatMap((s) => s.items).filter((i) => i.permission && i.roles);
+    const both = allItems.filter((i) => i.permission && i.roles);
     expect(both.map((i) => i.href)).toEqual([]);
   });
 
   it('permission codes seguem o formato modulo.recurso.acao', () => {
-    const bad = NAV.flatMap((s) => s.items)
+    const bad = allItems
       .filter((i) => i.permission)
       .filter((i) => !/^[a-z-]+\.[a-z-]+\.[a-z-]+$/.test(i.permission!));
     expect(bad.map((i) => i.href)).toEqual([]);
+  });
+});
+
+describe('console da operadora (OPS F2)', () => {
+  const opsHrefs = OPS_NAV.flatMap((s) => s.items).map((i) => i.href);
+
+  it('o NAV do ERP guarda só a porta de entrada do console', () => {
+    const erpOps = NAV.flatMap((s) => s.items).filter((i) => i.href.startsWith('/app/ops'));
+    expect(erpOps.map((i) => i.href)).toEqual(['/app/ops']);
+    expect(erpOps[0].permission).toBe('ops.tenants.view');
+  });
+
+  it('o console lista as 4 rotas da operadora', () => {
+    expect(opsHrefs).toEqual(['/app/ops', '/app/ops/new', '/app/ops/plans', '/app/ops/billing']);
+  });
+
+  it('as rotas ops continuam guardadas com o gate de cada uma (RouteGuard)', () => {
+    // sair do menu do ERP não pode afrouxar o guard — cada rota mantém a
+    // SUA permissão, não a herança de /app/ops
+    const only = (code: string): NavAccess => ({ role: 'SUPER_ADMIN', can: (c) => c === code });
+
+    expect(checkRouteAccess('/app/ops', only('ops.tenants.view'))).toEqual({ status: 'allowed' });
+    expect(checkRouteAccess('/app/ops/plans', only('ops.tenants.view'))).toMatchObject({
+      status: 'denied',
+      permission: 'ops.plans.view',
+    });
+    expect(checkRouteAccess('/app/ops/billing', only('ops.tenants.view'))).toMatchObject({
+      status: 'denied',
+      permission: 'ops.billing.view',
+    });
+    expect(checkRouteAccess('/app/ops/new', only('ops.tenants.view'))).toMatchObject({
+      status: 'denied',
+      permission: 'ops.tenants.provision',
+    });
+    expect(checkRouteAccess('/app/ops/plans', only('ops.plans.view'))).toEqual({
+      status: 'allowed',
+    });
+    // detalhe da conta herda o item pai (/app/ops)
+    expect(checkRouteAccess('/app/ops/abc123', canNone)).toMatchObject({
+      status: 'denied',
+      permission: 'ops.tenants.view',
+    });
+    // fail-closed enquanto as permissões carregam
+    expect(checkRouteAccess('/app/ops/billing', loading)).toEqual({ status: 'loading' });
+  });
+
+  it('quem não tem ops.tenants.view não vê nada da operadora no menu', () => {
+    expect(flatNav(canNone).map((i) => i.href).filter((h) => h.startsWith('/app/ops'))).toEqual([]);
+  });
+
+  it('/app/ops aparece uma única vez no flatNav (palette não duplica a porta e a home)', () => {
+    const hrefs = flatNav(canAll).map((i) => i.href).filter((h) => h === '/app/ops');
+    expect(hrefs).toHaveLength(1);
+  });
+
+  it('o item ativo do console resolve pela rota mais específica', () => {
+    expect(resolveActiveHref('/app/ops/plans')).toBe('/app/ops/plans');
+    expect(resolveActiveHref('/app/ops/abc123')).toBe('/app/ops');
+  });
+
+  it('breadcrumbs das rotas do console não quebram', () => {
+    expect(buildBreadcrumbs('/app/ops/new').map((c) => c.label)).toEqual([
+      'Início',
+      'Portal Avecchi',
+      'Nova conta',
+    ]);
   });
 });

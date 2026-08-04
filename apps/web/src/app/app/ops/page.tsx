@@ -1,13 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Building2, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Building2, LogIn, Plus, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
 import type { OpsAlert, RunMeteringResult, Tenant, TenantStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
+import { EntrarNaContaDialog } from './entrar-na-conta-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +18,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Can } from '@/components/can';
+import { usePermission } from '@/hooks/use-permission';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -120,6 +123,12 @@ export default function OpsTenantsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  // OPS F2: mesmo gate do <Can> do cabeçalho — o CTA do estado vazio é uma
+  // prop (não dá pra envolver em <Can>), então decide pela permissão aqui.
+  const { can } = usePermission();
+  // OPS F2: conta selecionada no botão "Entrar no ERP" da linha — abre o
+  // diálogo de entrada (usuário + motivo) sem sair da lista.
+  const [entrarTenant, setEntrarTenant] = useState<{ id: string; name: string } | null>(null);
   const { data: tenants = [], isLoading, isError, error, refetch } = useList<Tenant>(RESOURCE);
 
   const runMetering = useMutation({
@@ -250,6 +259,35 @@ export default function OpsTenantsPage() {
       sortable: true,
       cell: (t) => (t.onboardedAt ? formatDate(t.onboardedAt) : '—'),
     },
+    {
+      // OPS F2 (pedido do Claudio): "entrar no ERP do cliente" a 1 clique da
+      // lista — atalho para a aba Pessoas, onde vivem os botões "Ver como"
+      // (impersonation WP6: escolhe O USUÁRIO, dá o motivo, sessão
+      // somente-leitura de 30 min visível ao cliente).
+      key: 'entrar',
+      header: '',
+      align: 'right',
+      cell: (t) => (
+        <Can permission="ops.impersonation.execute">
+          {/* Botão COM RÓTULO de propósito (feedback do Claudio: ícone mudo
+              no canto da linha não se explica) — é a ação principal da
+              operadora sobre uma conta. Abre o diálogo de entrada AQUI
+              mesmo (usuário + motivo) e cai dentro do ERP do cliente. */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // o clique na LINHA abre a visão geral
+              setEntrarTenant({ id: t.id, name: t.name });
+            }}
+            title={`Entrar no ERP de ${t.name} (ver como o cliente)`}
+            aria-label={`Entrar no ERP de ${t.name} (ver como o cliente)`}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-content-secondary transition-colors duration-fast hover:border-brand-400/50 hover:bg-brand-600/10 hover:text-brand-600 dark:hover:text-brand-400"
+          >
+            <LogIn size={14} />
+            Entrar no ERP
+          </button>
+        </Can>
+      ),
+    },
   ];
 
   return (
@@ -270,10 +308,15 @@ export default function OpsTenantsPage() {
                 Reprocessar métricas
               </Button>
             </Can>
-            <Button onClick={() => router.push('/app/ops/new')}>
-              <Plus size={16} />
-              Nova conta
-            </Button>
+            {/* OPS F2: /app/ops/new entrou no mapa de rotas (nav-config) com o
+                gate do backend (ops.tenants.provision) — o atalho some para
+                quem não provisiona, em vez de levar a um "Acesso negado". */}
+            <Can permission="ops.tenants.provision">
+              <Button onClick={() => router.push('/app/ops/new')}>
+                <Plus size={16} />
+                Nova conta
+              </Button>
+            </Can>
           </div>
         }
       />
@@ -291,10 +334,16 @@ export default function OpsTenantsPage() {
             icon={Building2}
             title="Nenhuma conta cadastrada"
             description="Comece o onboarding de uma nova conta de cliente."
-            action={{ label: 'Nova conta', icon: <Plus size={16} />, onClick: () => router.push('/app/ops/new') }}
+            action={
+              can('ops.tenants.provision')
+                ? { label: 'Nova conta', icon: <Plus size={16} />, onClick: () => router.push('/app/ops/new') }
+                : undefined
+            }
           />
         }
       />
+
+      <EntrarNaContaDialog tenant={entrarTenant} onClose={() => setEntrarTenant(null)} />
     </div>
   );
 }

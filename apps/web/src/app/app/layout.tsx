@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUiStore } from '@/stores/ui-store';
 import { Sidebar } from '@/components/shell/sidebar';
+import { OpsSidebar } from '@/components/shell/ops-sidebar';
 import { Header } from '@/components/shell/header';
 import { BillingBanner } from '@/components/shell/billing-banner';
 import { ImpersonationBanner } from '@/components/shell/impersonation-banner';
@@ -26,6 +27,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setShortcutsOpen,
   } = useUiStore();
   const [mounted, setMounted] = useState(false);
+
+  /**
+   * OPS F2 — casca por CONSOLE: sob /app/ops o usuário está no control
+   * plane da Avecchi (contas de clientes SaaS), não no ERP do tenant dele.
+   * Só a sidebar troca: header, banners (billing/impersonation), palette e
+   * RouteGuard seguem globais — a sessão é a mesma, o que muda é o contexto.
+   */
+  const isOpsConsole = pathname === '/app/ops' || pathname.startsWith('/app/ops/');
 
   // Aguarda a rehidratação do zustand/persist antes de decidir o guard.
   useEffect(() => setMounted(true), []);
@@ -123,7 +132,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         Pular para o conteúdo
       </a>
-      <Sidebar />
+      {isOpsConsole ? <OpsSidebar /> : <Sidebar />}
       <CommandPalette />
       <ShortcutsHelp />
 
