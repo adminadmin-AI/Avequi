@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MrpService } from './mrp.service';
+import { BomExplosionService } from '../../common/production/bom-explosion.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -26,16 +27,21 @@ const pSemiFinished = { id: 'p-semi', type: 'SEMI_FINISHED' };
 const pRaw = { id: 'p-raw', type: 'RAW_MATERIAL' };
 
 // BOM: Finished → Semi (2 un) → Raw (3 un)
+// #980: `version`, `id` do item e `routingStepId` foram acrescentados — o núcleo
+// de explosão agora emite um ledger de arestas, e a aresta carrega o item de BOM.
 const boms = [
   {
     id: 'bom-1',
     productId: 'p-finished',
+    version: 1,
     isActive: true,
     items: [
       {
+        id: 'bi-1',
         componentId: 'p-semi',
         quantity: '2',
         scrapPct: '0',
+        routingStepId: null,
         component: pSemiFinished,
       },
     ],
@@ -43,12 +49,15 @@ const boms = [
   {
     id: 'bom-2',
     productId: 'p-semi',
+    version: 1,
     isActive: true,
     items: [
       {
+        id: 'bi-2',
         componentId: 'p-raw',
         quantity: '3',
         scrapPct: '10', // 10% de perda
+        routingStepId: null,
         component: pRaw,
       },
     ],
@@ -60,7 +69,14 @@ describe('MrpService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [MrpService, { provide: PrismaService, useValue: mockPrisma }],
+      // #980: o BomExplosionService REAL entra aqui de propósito — ele é a
+      // lógica extraída do próprio MRP. Mocká-lo tornaria os testes de explosão
+      // deste arquivo inúteis como regressão.
+      providers: [
+        MrpService,
+        BomExplosionService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
     }).compile();
 
     service = module.get<MrpService>(MrpService);
