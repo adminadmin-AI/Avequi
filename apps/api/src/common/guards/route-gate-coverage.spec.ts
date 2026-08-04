@@ -94,6 +94,10 @@ const SELF_SERVICE_OK = new Set([
   // OPS WP5 (#912) — status de cobrança da PRÓPRIA conta (banner de
   // inadimplência do app); situação financeira da conta do próprio usuário.
   'BillingStatusController.myStatus',
+  // Sidebar (#975) — favoritos/seções recolhidas do PRÓPRIO usuário (escopo
+  // por userId do JWT); preferência pessoal de UI, sem permissão de catálogo.
+  'UserController.getUiPreferences',
+  'UserController.saveUiPreferences',
 ]);
 
 interface Route {
