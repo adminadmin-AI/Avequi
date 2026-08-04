@@ -64,7 +64,16 @@ export class LeadIntakeService {
    * Entrada de lead. companyId = loja resolvida pelo chamador (JWT no manual,
    * número/anúncio no conector); null/undefined → fila de triagem da matriz.
    */
-  async intake(companyId: string | null, dto: IntakeLeadDto): Promise<IntakeResult> {
+  async intake(
+    companyId: string | null,
+    dto: IntakeLeadDto,
+    /**
+     * #962 — matriz de triagem quando a loja não foi resolvida. Conector
+     * multi-site passa a raiz do PRÓPRIO site; ausente, vale a env default.
+     * A semântica de triagem não muda: lead sem loja fica SEM vendedor.
+     */
+    triageCompanyId?: string,
+  ): Promise<IntakeResult> {
     const phone = this.normalizePhone(dto.phone);
     if (!phone && !dto.externalRef) {
       throw new BadRequestException(
@@ -72,7 +81,7 @@ export class LeadIntakeService {
       );
     }
 
-    const targetCompanyId = companyId ?? this.resolveTriageCompanyId();
+    const targetCompanyId = companyId ?? triageCompanyId ?? this.resolveTriageCompanyId();
 
     // dedup secundário por ref externa (origens sem telefone, ex: pergunta ML)
     if (!phone && dto.externalRef) {

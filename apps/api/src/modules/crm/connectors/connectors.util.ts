@@ -17,26 +17,38 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class StoreResolver {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Company raiz do tenant dono dos conectores públicos — fail-closed. */
-  tenantRootId(): string {
-    const id = process.env.CRM_CONNECTOR_TENANT_ID?.trim();
+  /**
+   * Company raiz do tenant dono dos conectores públicos — fail-closed.
+   *
+   * Multi-site (#962): um `site` explícito ("avecchi") resolve pela env
+   * indexada `CRM_CONNECTOR_TENANT_ID__<SITE>` (mesmo padrão das envs
+   * FOCUS_NFE_TOKEN__*). Sem `site` vale a env default — o formulário da GDR
+   * segue funcionando sem mudança. Site desconhecido = 503, NUNCA cai no
+   * default: silêncio aqui mandaria lead de um site pro tenant de outro.
+   */
+  tenantRootId(site?: string | null): string {
+    const clean = site?.trim().toLowerCase();
+    const envKey = clean
+      ? `CRM_CONNECTOR_TENANT_ID__${clean.toUpperCase().replace(/-/g, '_')}`
+      : 'CRM_CONNECTOR_TENANT_ID';
+    const id = process.env[envKey]?.trim();
     if (!id) {
       throw new ServiceUnavailableException(
-        'Conector de leads indisponível: a env CRM_CONNECTOR_TENANT_ID não está configurada no servidor.',
+        `Conector de leads indisponível: a env ${envKey} não está configurada no servidor.`,
       );
     }
     return id;
   }
 
-  async resolve(slug?: string | null): Promise<string | null> {
+  async resolve(slug?: string | null, rootId?: string): Promise<string | null> {
     const clean = slug?.trim();
     if (!clean) return null;
-    const rootId = this.tenantRootId();
+    const root = rootId ?? this.tenantRootId();
     const company = await this.prisma.company.findFirst({
       where: {
         name: { contains: clean, mode: 'insensitive' },
         // árvore do tenant dono dos conectores: matriz ou filial direta
-        OR: [{ id: rootId }, { parentId: rootId }],
+        OR: [{ id: root }, { parentId: root }],
       },
       select: { id: true },
     });
