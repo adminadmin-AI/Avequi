@@ -87,7 +87,9 @@ async function canAccess(
 }
 
 /** Matriz rota → permissão aprovada pelo Rafael (issue #625, decisões 10/07). */
-const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
+// valor null = rota self-service do PRÓPRIO usuário, SEM gate de catálogo de
+// propósito (a classificação consciente vive no route-gate-coverage.spec)
+const MATRIZ: Array<[Ctor, string, Record<string, string | null>]> = [
   [AlertController, 'alert', {
     listActive: 'dashboard.alerts.view',
     listAll: 'dashboard.alerts.view',
@@ -114,6 +116,10 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findAll: 'settings.users.view',
     findOne: 'settings.users.view',
     update: 'settings.users.update',
+    // #975: preferências de UI do PRÓPRIO usuário — self-service consciente
+    // (null = sem gate de catálogo; classificação no route-gate-coverage)
+    getUiPreferences: null,
+    saveUiPreferences: null,
   }],
   [VehicleTrackingController, 'vehicle-tracking', {
     createBin: 'vehicle-tracking.bin.create',
@@ -174,7 +180,11 @@ describe('#341 parte 2 (bloco G) — matriz satélites (issue #625)', () => {
         const eps = methodsOf(Ctrl);
         expect(eps.map((e) => e.name).sort()).toEqual(Object.keys(esperado).sort());
         for (const ep of eps) {
-          expect(ep.required).toEqual([esperado[ep.name]]);
+          if (esperado[ep.name] === null) {
+            expect(ep.required).toBeUndefined();
+          } else {
+            expect(ep.required).toEqual([esperado[ep.name]]);
+          }
           expect(ep.roles).toBeUndefined();
         }
       });

@@ -1,20 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, X } from 'lucide-react';
 import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
 import { useNavAccess, usePermission } from '@/hooks/use-permission';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSidebarCounts } from '@/hooks/use-sidebar-counts';
+import { useSidebarPrefs } from '@/hooks/use-sidebar-prefs';
 import { NavLink } from '@/components/shell/nav-link';
 import { SidebarFrame, SidebarVersionFooter } from '@/components/shell/sidebar-frame';
 import Image from 'next/image';
 import { AvecchiWordmark } from '@/components/auth/avecchi-wordmark';
 import { cn } from '@/lib/utils';
-
-const FAV_KEY = 'avequi:sidebar:favorites';
-const COLLAPSED_SECTIONS_KEY = 'avequi:sidebar:collapsed-sections';
 
 export function Sidebar() {
   // A casca (coluna fixa + drawer mobile + Ctrl+B) é compartilhada com o
@@ -38,37 +36,11 @@ function SidebarInner({
   const { isLoading: permsLoading } = usePermission();
   const counts = useSidebarCounts();
 
-  const [hydrated, setHydrated] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
+  // Favoritos e seções recolhidas seguem o LOGIN, não o navegador (#975)
+  const { hydrated, favorites, collapsedSections, toggleFav, toggleSection } = useSidebarPrefs();
   const [search, setSearch] = useState('');
 
   const activeHref = useMemo(() => resolveActiveHref(pathname), [pathname]);
-
-  useEffect(() => {
-    try {
-      setFavorites(JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'));
-      setCollapsedSections(JSON.parse(localStorage.getItem(COLLAPSED_SECTIONS_KEY) ?? '[]'));
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
-  }, []);
-
-  function persistFav(next: string[]) {
-    setFavorites(next);
-    localStorage.setItem(FAV_KEY, JSON.stringify(next));
-  }
-  function toggleFav(href: string) {
-    persistFav(favorites.includes(href) ? favorites.filter((h) => h !== href) : [...favorites, href]);
-  }
-  function toggleSection(key: string) {
-    const next = collapsedSections.includes(key)
-      ? collapsedSections.filter((k) => k !== key)
-      : [...collapsedSections, key];
-    setCollapsedSections(next);
-    localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify(next));
-  }
 
   const sections = useMemo(
     () =>

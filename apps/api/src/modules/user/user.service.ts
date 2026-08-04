@@ -14,6 +14,7 @@ import { SessionService } from '../iam/session.service';
 import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { ENUM_ROLE_TO_SYSTEM_ROLE } from '../iam/roles.catalog';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUiPreferencesDto } from './dto/update-ui-preferences.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 const SELECT_SAFE = {
@@ -149,6 +150,43 @@ export class UserService {
       );
     }
     return role.id;
+  }
+
+  // ─── Preferências de UI (#975) — sempre do PRÓPRIO usuário (JWT) ──────────
+
+  /** Sem linha = estado zero (arrays vazios), não é erro. */
+  async getUiPreferences(user: { id: string }) {
+    // tenant-lint: ok (escopo por userId do JWT (dado pessoal do próprio usuário))
+    const row = await this.prisma.userUiPreference.findUnique({
+      where: { userId: user.id },
+    });
+    return {
+      favorites: (row?.favorites as string[]) ?? [],
+      collapsedSections: (row?.collapsedSections as string[]) ?? [],
+    };
+  }
+
+  async saveUiPreferences(
+    user: { id: string; companyId: string },
+    dto: UpdateUiPreferencesDto,
+  ) {
+    const row = await this.prisma.userUiPreference.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        companyId: user.companyId,
+        favorites: dto.favorites,
+        collapsedSections: dto.collapsedSections,
+      },
+      update: {
+        favorites: dto.favorites,
+        collapsedSections: dto.collapsedSections,
+      },
+    });
+    return {
+      favorites: row.favorites as string[],
+      collapsedSections: row.collapsedSections as string[],
+    };
   }
 
   async findAll(requestingUser: { role: string; companyId: string }) {

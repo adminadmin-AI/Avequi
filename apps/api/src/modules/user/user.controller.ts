@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Request,
 } from '@nestjs/common';
 import {
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUiPreferencesDto } from './dto/update-ui-preferences.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -44,6 +46,22 @@ export class UserController {
   @ApiOperation({ summary: 'Listar usuários (filtro por empresa, exceto SUPER_ADMIN)' })
   findAll(@CurrentUser() user: any) {
     return this.userService.findAll(user);
+  }
+
+  // ── Preferências de UI (#975) — dado do PRÓPRIO usuário, qualquer
+  // autenticado (mesmo espírito do entitlements/me; sem settings.users.*).
+  // Rotas ESTÁTICAS declaradas antes de :id — sentinela #699.
+
+  @Get('me/preferences')
+  @ApiOperation({ summary: 'Preferências de UI do usuário logado (favoritos da sidebar)' })
+  getUiPreferences(@CurrentUser() user: any) {
+    return this.userService.getUiPreferences(user);
+  }
+
+  @Put('me/preferences')
+  @ApiOperation({ summary: 'Salvar preferências de UI do usuário logado' })
+  saveUiPreferences(@Body() dto: UpdateUiPreferencesDto, @CurrentUser() user: any) {
+    return this.userService.saveUiPreferences(user, dto);
   }
 
   @Get(':id')
