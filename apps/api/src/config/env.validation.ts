@@ -133,6 +133,10 @@ export const envValidationSchema = Joi.object({
   // AVECCHI P1 (#960): tenant da operadora — liga a ponte billing->financeiro
   // (fatura de mensalidade vira titulo a receber). Ausente = ponte desligada.
   OPERADORA_COMPANY_ID: Joi.string().allow('').optional(),
+  // #984: company RAIZ dona dos conectores públicos de lead (site/Meta/OLX/ML).
+  // Escopa a resolução de loja e a fila de triagem à árvore desse tenant.
+  // Ausente = conectores públicos indisponíveis (fail-closed, 503).
+  CRM_CONNECTOR_TENANT_ID: Joi.string().allow('').optional(),
 
   // ─── Regras que a main ganhou depois da extração (rebase 09/07) ───
 
