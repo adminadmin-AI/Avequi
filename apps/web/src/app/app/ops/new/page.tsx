@@ -66,6 +66,30 @@ const companySchema = z.object({
 });
 type CompanyFormValues = z.infer<typeof companySchema>;
 
+/**
+ * Pré-preenchimento vindo do CRM (#962): lead ganho → onboarding com os dados
+ * já digitados. Lido uma vez no initializer (window.location, sem
+ * useSearchParams — evita o Suspense do Next, padrão do deep-link de abas).
+ * Só vale na CRIAÇÃO: com ?tenantId= (retomada) o backend é a fonte e o
+ * prefill é ignorado. cnpj/razaoSocial já são aceitos pensando no formulário
+ * da LP (sourceMeta) — hoje o CRM manda só nome/e-mail do contato.
+ */
+function readPrefill() {
+  if (typeof window === 'undefined') return null;
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('tenantId')) return null;
+  const take = (k: string) => p.get(k)?.trim() || undefined;
+  const prefill = {
+    name: take('name'),
+    cnpj: take('cnpj'),
+    razaoSocial: take('razaoSocial'),
+    email: take('email'),
+    adminName: take('adminName'),
+    adminEmail: take('adminEmail'),
+  };
+  return Object.values(prefill).some(Boolean) ? prefill : null;
+}
+
 /** Primeiro passo ainda pendente do checklist — onde o wizard retomável posiciona. */
 function firstPendingStep(checklist: TenantProvisioning['checklist']): number {
   if (!checklist.admin.done) return 1;
@@ -89,6 +113,7 @@ export default function NewTenantWizardPage() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [positioned, setPositioned] = useState(false);
+  const [prefill] = useState(readPrefill);
 
   // Lido no mount — mesmo padrão do resto do app p/ deep-link via query string.
   useEffect(() => {
@@ -117,7 +142,17 @@ export default function NewTenantWizardPage() {
   }
 
   // ── Passo 1 — Empresa ────────────────────────────────────────────────────
-  const companyForm = useForm<CompanyFormValues>({ resolver: zodResolver(companySchema) });
+  const companyForm = useForm<CompanyFormValues>({
+    resolver: zodResolver(companySchema),
+    defaultValues: prefill
+      ? {
+          name: prefill.name ?? '',
+          cnpj: prefill.cnpj ?? '',
+          razaoSocial: prefill.razaoSocial ?? '',
+          email: prefill.email ?? '',
+        }
+      : undefined,
+  });
 
   const createTenant = useMutation({
     mutationFn: (values: CompanyFormValues) => {
@@ -147,8 +182,8 @@ export default function NewTenantWizardPage() {
   });
 
   // ── Passo 2 — Admin ──────────────────────────────────────────────────────
-  const [adminName, setAdminName] = useState('');
-  const [adminEmail, setAdminEmail] = useState('');
+  const [adminName, setAdminName] = useState(prefill?.adminName ?? '');
+  const [adminEmail, setAdminEmail] = useState(prefill?.adminEmail ?? '');
 
   useEffect(() => {
     const admin = provisioning?.checklist.admin;

@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { FileText, Loader2, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react';
+import { FileText, Loader2, Rocket, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { Can } from '@/components/can';
 import { useToast } from '@/components/ui/toast';
 import {
   ACTIVITY_LABEL,
@@ -239,6 +240,28 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
               </Button>
             </div>
           </div>
+        )}
+
+        {/* #962 — venda SaaS (CRM da operadora): lead ganho → wizard de
+            onboarding do portal em 1 clique, com contato pré-preenchido.
+            Gate por ops.tenants.provision: no CRM dos tenants clientes o
+            botão simplesmente não existe (UX; enforcement segue no backend). */}
+        {lead.stage?.type === 'WON' && (
+          <Can permission="ops.tenants.provision">
+            <Button
+              className="w-full"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (lead.name) params.set('adminName', lead.name);
+                if (lead.email) params.set('adminEmail', lead.email);
+                const qs = params.toString();
+                router.push(`/app/ops/new${qs ? `?${qs}` : ''}`);
+              }}
+            >
+              <Rocket className="mr-2 h-4 w-4" />
+              Abrir onboarding no portal
+            </Button>
+          </Can>
         )}
 
         <Button

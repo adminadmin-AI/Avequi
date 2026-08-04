@@ -15,6 +15,8 @@ export interface BoardLead {
   id: string;
   name: string | null;
   phone: string | null;
+  /** #962 — alimenta o deep-link "lead ganho → onboarding do portal" */
+  email: string | null;
   source: string;
   interest: string | null;
   estimatedValue: string | null;
