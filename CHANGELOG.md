@@ -6,6 +6,14 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-08-04
+
+### Added
+- **Console dedicado da operadora (OPS F2, #951/#953)** — sob `/app/ops` a casca troca para o console da Avecchi (wordmark + tag Operadora, navegação exclusiva); quem tem `ops.*` cai DIRETO no console após o login; **"Entrar no ERP"** em cada conta da lista abre o diálogo de entrada (usuário pré-selecionado + motivo) e cai dentro do ERP do cliente via impersonation WP6 (auditada, somente-leitura, 30 min); volta ao próprio ERP pelo menu do avatar. Sidebar do ERP ganha a porta única "Portal Avecchi".
+
+### Fixed
+- **Etapa de MFA no login (web)** — o front nunca tratou a resposta `mfaRequired` do `/auth/login`: conta com MFA ativo "logava" sem credencial e caía em loop de login. Agora o card troca para a verificação em duas etapas (TOTP/backup code) e segue o mesmo caminho de sessão do login normal (#953).
+
 ## [1.30.1] - 2026-08-03
 
 ### Fixed
@@ -394,7 +402,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.31.0...HEAD
+[1.31.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.1...v1.31.0
 [1.30.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.30.0...v1.30.1
 [1.30.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.1...v1.30.0
 [1.29.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.29.0...v1.29.1
