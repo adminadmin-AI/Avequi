@@ -130,6 +130,9 @@ export const envValidationSchema = Joi.object({
   // 32 bytes = 64 chars hex. Opcional enquanto o EncryptionService não
   // está no main; o formato já é validado para evitar chave inválida.
   BANK_ENCRYPTION_KEY: Joi.string().hex().length(64).allow('').optional(),
+  // AVECCHI P1 (#960): tenant da operadora — liga a ponte billing->financeiro
+  // (fatura de mensalidade vira titulo a receber). Ausente = ponte desligada.
+  OPERADORA_COMPANY_ID: Joi.string().allow('').optional(),
 
   // ─── Regras que a main ganhou depois da extração (rebase 09/07) ───
 

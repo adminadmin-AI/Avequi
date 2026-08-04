@@ -30,6 +30,7 @@ const mockPrisma = {
     updateMany: jest.fn(),
   },
   company: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() },
+  financialEntry: { create: jest.fn(), update: jest.fn(), delete: jest.fn() },
   user: { findMany: jest.fn() },
 };
 const mockAudit = { persist: jest.fn() };
@@ -257,6 +258,90 @@ describe('BillingService (OPS WP5 #912)', () => {
       mockPrisma.company.findUnique.mockResolvedValue({ parentId: null });
       mockPrisma.subscription.findUnique.mockResolvedValue(null);
       await expect(service.cancelSubscription('root-1', CTX)).rejects.toThrow(/sem assinatura/);
+    });
+  });
+
+  describe('ponte billing→financeiro (AVECCHI P1 #960)', () => {
+    const OP = 'op-avecchi';
+    const FATURA = {
+      id: 'inv-1',
+      companyId: 'gdr',
+      financialEntryId: null,
+      amountCents: 150000,
+      dueDate: new Date('2026-08-10'),
+      period: new Date(Date.UTC(2026, 7, 1)),
+      status: 'OPEN',
+      company: { name: 'GDR Reboques' },
+    };
+    beforeEach(() => {
+      process.env.OPERADORA_COMPANY_ID = OP;
+    });
+    afterEach(() => {
+      delete process.env.OPERADORA_COMPANY_ID;
+    });
+
+    it('fatura órfã vira título RECEIVABLE no tenant da operadora e é ligada', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([{ id: 'inv-1' }]);
+      mockPrisma.invoice.findUnique.mockResolvedValue(FATURA);
+      mockPrisma.financialEntry.create.mockResolvedValue({ id: 'fe-1' });
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
+
+      expect(await service.bridgeOrphanInvoices()).toBe(1);
+      expect(mockPrisma.financialEntry.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          companyId: OP,
+          type: 'RECEIVABLE',
+          status: 'OPEN',
+          amount: '1500.00',
+          documentNumber: 'inv-1',
+          source: 'MANUAL',
+          description: 'Mensalidade GDR Reboques — competência 08/2026',
+        }),
+      });
+      expect(mockPrisma.invoice.updateMany).toHaveBeenCalledWith({
+        where: { id: 'inv-1', financialEntryId: null },
+        data: { financialEntryId: 'fe-1' },
+      });
+    });
+
+    it('sem OPERADORA_COMPANY_ID a ponte é no-op (deploy-safe)', async () => {
+      delete process.env.OPERADORA_COMPANY_ID;
+      expect(await service.bridgeOrphanInvoices()).toBe(0);
+      expect(mockPrisma.financialEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('corrida no link (updateMany=0) remove o título excedente', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([{ id: 'inv-1' }]);
+      mockPrisma.invoice.findUnique.mockResolvedValue(FATURA);
+      mockPrisma.financialEntry.create.mockResolvedValue({ id: 'fe-dup' });
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 0 });
+
+      expect(await service.bridgeOrphanInvoices()).toBe(0);
+      expect(mockPrisma.financialEntry.delete).toHaveBeenCalledWith({ where: { id: 'fe-dup' } });
+    });
+
+    it('baixa da fatura propaga PAID ao título (TRANSFER vira TED)', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'inv-1', companyId: 'gdr', status: 'OPEN' });
+      mockPrisma.invoice.update.mockResolvedValue({ id: 'inv-1', status: 'PAID' });
+      mockPrisma.invoice.findUnique.mockResolvedValue({ financialEntryId: 'fe-1' });
+
+      await service.markPaid('inv-1', 'TRANSFER', { actorId: 'u1' } as any);
+      expect(mockPrisma.financialEntry.update).toHaveBeenCalledWith({
+        where: { id: 'fe-1' },
+        data: { status: 'PAID', paymentMethod: 'TED' },
+      });
+    });
+
+    it('anulação propaga CANCELLED ao título', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'inv-1', companyId: 'gdr', status: 'OPEN' });
+      mockPrisma.invoice.update.mockResolvedValue({ id: 'inv-1', status: 'VOID' });
+      mockPrisma.invoice.findUnique.mockResolvedValue({ financialEntryId: 'fe-1' });
+
+      await service.voidInvoice('inv-1', 'emitida em duplicidade', { actorId: 'u1' } as any);
+      expect(mockPrisma.financialEntry.update).toHaveBeenCalledWith({
+        where: { id: 'fe-1' },
+        data: { status: 'CANCELLED' },
+      });
     });
   });
 
