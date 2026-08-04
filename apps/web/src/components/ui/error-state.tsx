@@ -10,6 +10,13 @@ export interface ErrorStateProps {
   error?: (Error & { digest?: string }) | null;
   /** callback de retry (ex.: reset() do error boundary do Next) */
   onRetry?: () => void;
+  /**
+   * Ação extra ao lado do "Tentar novamente" — para negativas que TÊM saída
+   * (ex.: 403 do OpsMfaGuard, que se resolve ativando o MFA no perfil, #936).
+   * Sem isto um "Acesso negado" é um beco: o usuário lê o que falta e não
+   * tem para onde clicar.
+   */
+  action?: React.ReactNode;
   /** false = variante inline (cards/widgets); default = página cheia */
   fullPage?: boolean;
   className?: string;
@@ -25,6 +32,7 @@ export function ErrorState({
   description = 'Ocorreu um erro inesperado ao carregar esta área. Tente novamente.',
   error,
   onRetry,
+  action,
   fullPage = true,
   className,
 }: ErrorStateProps) {
@@ -52,15 +60,15 @@ export function ErrorState({
         </pre>
       )}
 
-      {onRetry && (
-        <Button
-          variant="secondary"
-          onClick={onRetry}
-          leftIcon={<RotateCw size={16} />}
-          className="mt-5"
-        >
-          Tentar novamente
-        </Button>
+      {(onRetry || action) && (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          {onRetry && (
+            <Button variant="secondary" onClick={onRetry} leftIcon={<RotateCw size={16} />}>
+              Tentar novamente
+            </Button>
+          )}
+          {action}
+        </div>
       )}
     </div>
   );

@@ -199,6 +199,16 @@ export class AuthController {
     return result;
   }
 
+  @Get('mfa/status')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Estado do MFA do PRÓPRIO usuário (tela de segurança #936) — habilitado, desde quando e quantos backup codes restam',
+  })
+  async mfaStatus(@CurrentUser() user: any) {
+    return this.mfaService.status(user.id);
+  }
+
   @Post('mfa/setup')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()

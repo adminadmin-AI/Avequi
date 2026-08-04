@@ -81,6 +81,22 @@ export class MfaService {
     return code.trim().toLowerCase().replace(/\s/g, '');
   }
 
+  /**
+   * Estado do MFA do próprio usuário — leitura da tela de segurança (#936).
+   * Nunca expõe secret/hashes: só o que a UI precisa pra se desenhar.
+   */
+  async status(userId: string) {
+    const row = await this.prisma.userMFA.findUnique({
+      where: { userId },
+      select: { enabled: true, verifiedAt: true, backupCodes: true },
+    });
+    return {
+      enabled: row?.enabled === true,
+      verifiedAt: row?.enabled ? row.verifiedAt : null,
+      backupCodesRemaining: row?.enabled ? row.backupCodes.length : 0,
+    };
+  }
+
   /** MFA está habilitado (setup CONFIRMADO) para o usuário? */
   async isEnabled(userId: string): Promise<boolean> {
     const row = await this.prisma.userMFA.findUnique({

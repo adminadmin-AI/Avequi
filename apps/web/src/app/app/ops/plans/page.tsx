@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
+import { AtivarMfaLink } from '../ativar-mfa-link';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { Can } from '@/components/can';
 import { useToast } from '@/components/ui/toast';
@@ -124,6 +125,8 @@ export default function OpsPlansPage() {
               : (mensagemDoErro(error) ?? 'Tente novamente em instantes.')
           }
           onRetry={negado ? undefined : () => refetch()}
+          // #936 — o 403 do OpsMfaGuard tem saída: link direto pra ativar o MFA.
+          action={<AtivarMfaLink message={mensagemDoErro(error)} />}
         />
       </div>
     );

@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
+import { AtivarMfaLink } from '../ativar-mfa-link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Can } from '@/components/can';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -136,6 +137,8 @@ export default function OpsBillingPage() {
               : (mensagemDoErro(error) ?? 'Tente novamente em instantes.')
           }
           onRetry={negado ? undefined : () => refetch()}
+          // #936 — o 403 do OpsMfaGuard tem saída: link direto pra ativar o MFA.
+          action={<AtivarMfaLink message={mensagemDoErro(error)} />}
         />
       </div>
     );

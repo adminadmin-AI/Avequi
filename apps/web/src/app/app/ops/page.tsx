@@ -27,6 +27,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePermission } from '@/hooks/use-permission';
 import { cn } from '@/lib/utils';
+import { AtivarMfaLink } from './ativar-mfa-link';
 import { CARTEIRA_STATUS_ORDER, STATUS_LABEL, STATUS_VARIANT } from './tenant-status';
 import { agingTone, inadimplenciaCents, temFaturamento, ticketMedioCents } from './panel-format';
 
@@ -92,6 +93,8 @@ export default function OpsPanelPage() {
               : (mensagemDoErro(kpisQ.error) ?? 'Tente novamente em instantes.')
           }
           onRetry={negado ? undefined : () => kpisQ.refetch()}
+          // #936 — o 403 do OpsMfaGuard tem saída: link direto pra ativar o MFA.
+          action={<AtivarMfaLink message={mensagemDoErro(kpisQ.error)} />}
         />
       </div>
     );

@@ -61,6 +61,7 @@ const SELF_SERVICE_OK = new Set([
   // AuthController — operações do PRÓPRIO usuário logado
   'AuthController.logout',
   'AuthController.myPermissions',
+  'AuthController.mfaStatus', // #936 — estado do MFA do próprio usuário (tela de segurança)
   'AuthController.setupMfa',
   'AuthController.confirmMfa',
   'AuthController.disableMfa',
