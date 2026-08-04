@@ -43,6 +43,10 @@ export class SalesController {
   @RequirePermission('sales.orders.create')
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
+    // #947: `user.role` aqui NÃO é autorização — é só a chave de busca do TETO
+    // na tabela `DiscountPolicy`, que segue indexada pelo enum nesta fase
+    // (migrar o eixo para perfil v2 é #948). Quem PODE ultrapassar o teto é
+    // decidido por permissão dentro do DiscountPolicyService.
     return this.salesService.createOrder(dto, user.companyId, userContext(user.id), user?.role);
   }
 
@@ -151,7 +155,7 @@ export class SalesController {
   @RequirePermission('sales.orders.confirm')
   @ApiOperation({ summary: 'Confirmar venda e iniciar picking (RESERVED → AWAITING_PICKING)' })
   confirm(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.confirmOrder(id, user.companyId, userContext(user.id), user?.role);
+    return this.salesService.confirmOrder(id, user.companyId, userContext(user.id));
   }
 
   @Post(':id/counter-checkout')
@@ -161,7 +165,7 @@ export class SalesController {
       'Fechar venda balcão: reserva estoque + chassi e pula separação (DRAFT → READY_TO_INVOICE) (#595)',
   })
   counterCheckout(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.salesService.checkoutCounterSale(id, user.companyId, userContext(user.id), user?.role);
+    return this.salesService.checkoutCounterSale(id, user.companyId, userContext(user.id));
   }
 
   @Post(':id/conference')

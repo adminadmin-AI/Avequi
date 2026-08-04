@@ -30,6 +30,9 @@ import { SALE_CONFIRMED_EVENT, SaleConfirmedEvent } from './events/sale-confirme
 import { SALE_INVOICED_EVENT, SaleInvoicedEvent } from './events/sale-invoiced.event';
 import { SALE_RETURNED_EVENT, SaleReturnedEvent } from './events/sale-returned.event';
 
+/** Permissão que autoriza vender para cliente com faturamento bloqueado (#947). */
+export const BILLING_BLOCK_OVERRIDE_PERMISSION = 'sales.orders.billing-block-override';
+
 @Injectable()
 export class SalesService {
   private readonly logger = new Logger(SalesService.name);
@@ -77,6 +80,48 @@ export class SalesService {
         'Depósito fora do escopo da sua filial. Selecione um depósito da sua loja/filial.',
       );
     }
+  }
+
+  // ─── Faturamento bloqueado (#475 → permissão no #947) ─────────────────────
+
+  /**
+   * Cliente com faturamento bloqueado só passa para quem tem
+   * `sales.orders.billing-block-override`.
+   *
+   * ANTES isto era `userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN'`,
+   * duplicado em dois métodos — e a mensagem já mentia, citando só o DIRECTOR
+   * enquanto o código também liberava o SUPER_ADMIN. Agora é UMA regra, e ela
+   * pergunta ao RBAC v2.
+   *
+   * ⚠️ Usa `hasAnyPermission` (RBAC v2 puro), SEM o fallback legado do #946:
+   * o espelho do enum SUPER_ADMIN é o ADMIN_GLOBAL, que tem esta permissão —
+   * honrar o fallback devolveria pelo enum o poder que o #947 tira dele.
+   *
+   * `userId` ausente = contexto SYSTEM (listener/scheduler). Sistema NÃO
+   * sobrepõe bloqueio comercial: não há decisão humana por trás, e liberar
+   * aqui seria uma porta de bypass sem dono na auditoria.
+   */
+  private async negarClienteBloqueado(
+    customer: unknown,
+    companyId: string,
+    userId: string | undefined,
+    acao: 'fechar' | 'confirmar',
+  ): Promise<void> {
+    const cust = customer as { billingBlocked?: boolean; billingBlockReason?: string } | null;
+    if (!cust?.billingBlocked) return;
+
+    const podeSobrepor = userId
+      ? await this.permissions.hasAnyPermission(userId, companyId, [
+          BILLING_BLOCK_OVERRIDE_PERMISSION,
+        ])
+      : false;
+    if (podeSobrepor) return;
+
+    throw new BadRequestException(
+      `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
+        `Só é possível ${acao} a venda mesmo assim com a permissão ` +
+        `"${BILLING_BLOCK_OVERRIDE_PERMISSION}" — solicite ao administrador.`,
+    );
   }
 
   // ─── Autorização de cartão (#596) ─────────────────────────────────────────
@@ -359,7 +404,7 @@ export class SalesService {
    * (IN_STOCK → RESERVED_FOR_SALE). A partir daqui segue o fluxo normal:
    * autorizar cartão (#596) → faturar (#492 exige o chassi, já vinculado).
    */
-  async checkoutCounterSale(id: string, companyId: string, ctx: AccessContext, userRole?: string) {
+  async checkoutCounterSale(id: string, companyId: string, ctx: AccessContext) {
     const userId = SalesService.usuarioDe(ctx);
     const scope = await this.escopoDe(companyId, ctx);
     const order = await this.prisma.salesOrder.findFirst({
@@ -383,14 +428,9 @@ export class SalesService {
       throw new BadRequestException('Venda sem itens não pode ser fechada');
     }
 
-    // #475/#591: cliente com faturamento bloqueado não fecha. DIRECTOR sobrepõe.
-    const cust = order.customer as any;
-    if (cust?.billingBlocked && userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN') {
-      throw new BadRequestException(
-        `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
-          'Somente DIRECTOR pode fechar a venda mesmo assim.',
-      );
-    }
+    // #475/#591/#947: cliente com faturamento bloqueado não fecha, salvo quem
+    // tem a permissão de exceção.
+    await this.negarClienteBloqueado(order.customer, companyId, userId, 'fechar');
 
     // W16-40 (NT 2026.002, em produção na SEFAZ desde 15/06/2026): acima do
     // limite, documento fiscal SEM CPF/CNPJ do destinatário é rejeitado.
@@ -401,6 +441,7 @@ export class SalesService {
       0,
     );
     const limit = nfceUnidentifiedLimit();
+    const cust = order.customer as { document?: string } | null;
     if (total > limit && !cust?.document) {
       throw new BadRequestException(
         `Venda de R$ ${total.toFixed(2)} exige identificação do cliente (CPF/CNPJ) — ` +
@@ -603,7 +644,7 @@ export class SalesService {
   //   Confirmação comercial. Dispara criação de PickingOrder via evento.
   //   Picking deve ser concluído antes do faturamento.
 
-  async confirmOrder(id: string, companyId: string, ctx: AccessContext, userRole?: string) {
+  async confirmOrder(id: string, companyId: string, ctx: AccessContext) {
     const userId = SalesService.usuarioDe(ctx);
     const scope = await this.escopoDe(companyId, ctx);
     const order = await this.prisma.salesOrder.findFirst({
@@ -619,15 +660,9 @@ export class SalesService {
       );
     }
 
-    // #475: cliente com faturamento bloqueado não confirma OV.
-    // DIRECTOR/SUPER_ADMIN podem sobrepor (decisão comercial consciente).
-    const cust = order.customer as any;
-    if (cust?.billingBlocked && userRole !== 'DIRECTOR' && userRole !== 'SUPER_ADMIN') {
-      throw new BadRequestException(
-        `Cliente com faturamento bloqueado${cust.billingBlockReason ? `: ${cust.billingBlockReason}` : ''}. ` +
-          'Somente DIRECTOR pode confirmar a venda mesmo assim.',
-      );
-    }
+    // #475/#947: cliente com faturamento bloqueado não confirma OV, salvo quem
+    // tem a permissão de exceção (decisão comercial consciente).
+    await this.negarClienteBloqueado(order.customer, companyId, userId, 'confirmar');
 
     const confirmed = await this.prisma.salesOrder.update({
       where: { id },

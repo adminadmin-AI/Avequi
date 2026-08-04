@@ -155,6 +155,24 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['set-payments', 'definir plano de pagamento', 'PATCH /sales/:id/payments (#584)'],
     ['authorize-cards', 'autorizar cartões no TEF/gateway', 'POST /sales/:id/authorize (#596)'],
     ['confer', 'conferir carga separada', 'POST /sales/:id/conference (#491)'],
+    // #947: poder crítico que ANTES era do enum legado (DIRECTOR/SUPER_ADMIN
+    // hardcoded no sales.service). Não é uma rota própria — é uma exceção
+    // DENTRO de PATCH /sales/:id/confirm e POST /sales/:id/counter-checkout.
+    [
+      'billing-block-override',
+      'confirmar/faturar cliente bloqueado',
+      'exceção em PATCH /sales/:id/confirm e POST /sales/:id/counter-checkout (#947)',
+    ],
+  ]),
+  // #947: desconto acima da alçada configurada. Recurso próprio (`discount`)
+  // e não uma ação de `discount-policies`, porque quem PODE ultrapassar o teto
+  // não é necessariamente quem configura a tabela de tetos — e vice-versa.
+  ...r('sales', 'discount', 'Desconto', [
+    [
+      'override',
+      'ultrapassar a alçada de desconto',
+      'exceção em POST /sales (DiscountPolicyService.assertWithinLimit) (#947)',
+    ],
   ]),
   // Alçadas de desconto (#391) — configurar é gestão comercial, não diretoria
   // (decisão Rafael #621: DIRETOR vê, não configura).
@@ -612,6 +630,25 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /iam/roles, /iam/roles/:id/permissions, /iam/permissions, /iam/users/:userId/{roles,permissions} (leitura restrita 🔒)'],
     ['manage', 'criar/editar/excluir perfis', 'POST/PATCH/DELETE /iam/roles, PUT /iam/roles/:id/permissions'],
     ['assign', 'atribuir perfis e exceções a usuários', 'POST/DELETE /iam/users/:userId/roles, POST/DELETE /iam/users/:userId/permissions'],
+  ]),
+
+  // ── iam ── (#947) 🔒🔒 CAPABILITY ESTRUTURAL — não é gate de rota
+  //
+  // Ampliação EXPLÍCITA do recorte empresarial: sem ela, toda consulta segue
+  // filtrada pela empresa do JWT. Com ela, os pontos que pedem escopo de
+  // grupo (GET /companies, GET /users) passam a enxergar a árvore da empresa
+  // raiz — e SÓ ela: nunca "todas as empresas do banco", nunca outro grupo.
+  //
+  // ⚠️ Exclusiva do ADMIN_GLOBAL. O ADMIN_EMPRESA a remove explicitamente
+  // (roles.catalog) e o TenantScopeService só a aceita vinda de perfil
+  // ESTRUTURAL (isSystem, companyId null) — perfil customizado de tenant com
+  // este código não atravessa empresa nenhuma.
+  ...r('iam', 'tenant-scope', 'Escopo empresarial', [
+    [
+      'cross-company',
+      'ampliar consultas para todas as empresas do grupo',
+      'ampliação explícita em GET /companies e GET /users (#947)',
+    ],
   ]),
 
   // ── iam ── (iam/org-structure.controller.ts, #347 F5.2 fase 1) 🔒

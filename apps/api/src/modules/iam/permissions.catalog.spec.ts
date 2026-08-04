@@ -121,7 +121,12 @@ describe('Catálogo de permissões (#338)', () => {
     // 318 = 316 + ops.billing.{view,manage} (OPS WP5 #912 — assinaturas,
     //       faturas, baixa manual e régua de inadimplência).
     // 319 = 318 + ops.impersonation.execute (OPS WP6 #913 — visita read-only).
-    expect(PERMISSIONS_CATALOG.length).toBe(319);
+    // 322 = 319 + os TRÊS poderes críticos que saíram do enum legado (#947):
+    //       sales.discount.override, sales.orders.billing-block-override e
+    //       iam.tenant-scope.cross-company. As duas primeiras não são rotas
+    //       próprias — são exceções DENTRO de rotas existentes; a terceira é
+    //       capability estrutural de escopo, exclusiva do ADMIN_GLOBAL.
+    expect(PERMISSIONS_CATALOG.length).toBe(322);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

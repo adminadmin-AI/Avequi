@@ -6,6 +6,7 @@ import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { UserService } from './user.service';
 
 const mockPrisma = {
@@ -55,6 +56,11 @@ const SAFE_USER = {
   updatedAt: new Date(),
 };
 
+// #947: escopo empresarial resolvido por capability, não pelo enum.
+const mockTenantScope = {
+  resolverEscopo: jest.fn(),
+};
+
 const mockLastAdmin = {
   temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false),
   ehAdminGlobalEfetivo: jest.fn().mockResolvedValue(false),
@@ -67,6 +73,10 @@ describe('UserService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // padrão: sem ampliação — só a própria empresa
+    mockTenantScope.resolverEscopo.mockImplementation((_u: string, companyId: string) =>
+      Promise.resolve({ companyIds: [companyId], ampliado: false }),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
@@ -75,6 +85,7 @@ describe('UserService', () => {
         { provide: SessionService, useValue: mockSessionService },
         { provide: EntitlementService, useValue: mockEntitlementService },
         { provide: LastAdminInvariantService, useValue: mockLastAdmin },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
 
@@ -222,27 +233,49 @@ describe('UserService', () => {
     it('escopa por companyId para users comuns', async () => {
       mockPrisma.user.findMany.mockResolvedValue([SAFE_USER]);
 
-      await service.findAll({ role: 'MANAGER', companyId: 'co-1' });
+      await service.findAll({ id: 'u-1', companyId: 'co-1' });
 
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { companyId: 'co-1' } }),
+        expect.objectContaining({ where: { companyId: { in: ['co-1'] } } }),
       );
     });
 
-    it('SUPER_ADMIN enxerga todas as empresas (where vazio)', async () => {
+    it('#947: com a capability enxerga o GRUPO — e o filtro NUNCA vira where vazio', async () => {
       mockPrisma.user.findMany.mockResolvedValue([SAFE_USER]);
+      mockTenantScope.resolverEscopo.mockResolvedValue({
+        companyIds: ['co-1', 'co-1-filial'],
+        ampliado: true,
+      });
 
-      await service.findAll({ role: 'SUPER_ADMIN', companyId: 'co-1' });
+      await service.findAll({ id: 'u-admin', companyId: 'co-1' });
 
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
+        expect.objectContaining({ where: { companyId: { in: ['co-1', 'co-1-filial'] } } }),
+      );
+      // a regressão que este teste pega: voltar a `where: {}` (todos os tenants)
+      const arg = mockPrisma.user.findMany.mock.calls[0][0];
+      expect(arg.where.companyId).toBeDefined();
+    });
+
+    it('#947: o ENUM sozinho não amplia mais nada', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([SAFE_USER]);
+      // sem capability, mesmo que o usuário fosse SUPER_ADMIN no enum
+      mockTenantScope.resolverEscopo.mockResolvedValue({
+        companyIds: ['co-1'],
+        ampliado: false,
+      });
+
+      await service.findAll({ id: 'u-legado', companyId: 'co-1' });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: { in: ['co-1'] } } }),
       );
     });
 
     it('nunca seleciona passwordHash na listagem', async () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
 
-      await service.findAll({ role: 'MANAGER', companyId: 'co-1' });
+      await service.findAll({ id: 'u-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.findMany.mock.calls[0][0];
       expect(args.select.passwordHash).toBeUndefined();

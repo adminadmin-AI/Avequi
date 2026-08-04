@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SalesOrderStatus } from '@prisma/client';
-import { SalesService } from './sales.service';
+import { BILLING_BLOCK_OVERRIDE_PERMISSION, SalesService } from './sales.service';
 import { DiscountPolicyService } from './discount-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StockService } from '../stock/stock.service';
@@ -65,6 +65,8 @@ const mockPrisma = {
 // #347-B: default = visão da empresa (comportamento de sempre)
 const mockPermissions = {
   getUserScope: jest.fn(),
+  // #947: override de faturamento bloqueado agora é permissão
+  hasAnyPermission: jest.fn(),
 };
 
 const mockPaymentAuth = {
@@ -120,6 +122,8 @@ describe('SalesService', () => {
     mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 }); // #595 happy path
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
     mockPermissions.getUserScope.mockResolvedValue(companyScope('user-1')); // #347-B
+    // #947: padrão = SEM o override; quem sobrepõe declara no próprio teste
+    mockPermissions.hasAnyPermission.mockResolvedValue(false);
   });
 
   // ─── checkoutCounterSale (#595) — venda balcão ────────────────────────────
@@ -142,21 +146,25 @@ describe('SalesService', () => {
       await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(BadRequestException);
     });
 
-    it('bloqueia cliente com faturamento bloqueado (sem override DIRECTOR)', async () => {
+    it('bloqueia cliente com faturamento bloqueado (sem a permissão de exceção)', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...counterOrder, customer: { billingBlocked: true, billingBlockReason: 'inadimplente' },
       });
-      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/bloqueado/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/bloqueado/);
     });
 
-    it('DIRECTOR sobrepõe faturamento bloqueado e fecha a venda', async () => {
+    it('#947: com a permissão sobrepõe o bloqueio e fecha a venda', async () => {
+      mockPermissions.hasAnyPermission.mockResolvedValue(true);
       mockPrisma.salesOrder.findFirst.mockResolvedValue({
         ...counterOrder, customer: { billingBlocked: true },
       });
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 5, reserved: 0 });
       mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
-      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'DIRECTOR');
+      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'));
       expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
+      expect(mockPermissions.hasAnyPermission).toHaveBeenCalledWith('u1', 'co-1', [
+        BILLING_BLOCK_OVERRIDE_PERMISSION,
+      ]);
     });
 
     it('rejeita estoque insuficiente', async () => {
@@ -201,7 +209,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.salesOrder.update.mockResolvedValue({ ...counterOrder, status: SalesOrderStatus.READY_TO_INVOICE, payments: [] });
 
-      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL');
+      const res = await service.checkoutCounterSale('so-b', 'co-1', userContext('u1'));
 
       expect(res.status).toBe(SalesOrderStatus.READY_TO_INVOICE);
       expect(mockStockService.reserveBalance).toHaveBeenCalledWith('wh-1', 'p-1', 1, 'co-1', mockPrisma);
@@ -217,7 +225,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(counterOrder);
       mockPrisma.stockBalance.findUnique.mockResolvedValue({ available: 3, reserved: 0 });
       mockPrisma.serialNumber.updateMany.mockResolvedValue({ count: 0 }); // ninguém flipou
-      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/não está mais disponível/);
+      await expect(service.checkoutCounterSale('so-b', 'co-1', userContext('u1'))).rejects.toThrow(/não está mais disponível/);
     });
   });
 
@@ -406,13 +414,14 @@ describe('SalesService', () => {
 
     it('cliente bloqueado não confirma OV', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(blockedOrder);
-      await expect(service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL')).rejects.toThrow(
+      await expect(service.confirmOrder('so-1', 'co-1', userContext('user-1'))).rejects.toThrow(
         /faturamento bloqueado: Inadimplência/,
       );
       expect(mockPrisma.salesOrder.update).not.toHaveBeenCalled();
     });
 
-    it('DIRECTOR pode sobrepor o bloqueio', async () => {
+    it('#947: quem tem a permissão pode sobrepor o bloqueio', async () => {
+      mockPermissions.hasAnyPermission.mockResolvedValue(true);
       mockPrisma.salesOrder.findFirst.mockResolvedValue(blockedOrder);
       mockPrisma.customer.findFirst.mockResolvedValue({ creditLimit: null, name: 'Cliente X' });
       mockPrisma.salesOrder.update.mockResolvedValue({
@@ -421,7 +430,7 @@ describe('SalesService', () => {
         warehouse: {},
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
-      const result = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'DIRECTOR');
+      const result = await service.confirmOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
     });
 
@@ -444,7 +453,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL');
+      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.status).toBe(SalesOrderStatus.AWAITING_PICKING);
       expect(result.creditAlert).toMatch(/Limite de crédito excedido/);
       expect(result.creditAlert).toContain('800.00');
@@ -469,7 +478,7 @@ describe('SalesService', () => {
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'), 'COMMERCIAL');
+      const result: any = await service.confirmOrder('so-1', 'co-1', userContext('user-1'));
       expect(result.creditAlert).toBeUndefined();
     });
   });

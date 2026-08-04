@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { SessionService } from '../iam/session.service';
 import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
 import { UserService } from './user.service';
@@ -60,6 +61,8 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
           provide: LastAdminInvariantService,
           useValue: { temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false) },
         },
+        // #947: escopo empresarial por capability
+        { provide: TenantScopeService, useValue: { resolverEscopo: jest.fn().mockResolvedValue({ companyIds: ['co-1'], ampliado: false }) } },
       ],
     }).compile();
 
