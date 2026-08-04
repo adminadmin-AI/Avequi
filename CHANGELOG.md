@@ -6,6 +6,15 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-08-04
+
+### Added
+- feat(iam): torna RBAC v2 a fonte de verdade para papéis (#946) (#978)
+
+### Fixed
+- fix(iam): remove poderes críticos do enum legado (#947) (#982)
+- fix(crm): conectores públicos de lead escopados ao tenant dono (#984) (#985)
+
 ## [1.36.0] - 2026-08-04
 
 ### Added
@@ -431,7 +440,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.37.0...HEAD
+[1.37.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...v1.34.0
