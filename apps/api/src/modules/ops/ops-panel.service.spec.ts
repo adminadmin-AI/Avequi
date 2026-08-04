@@ -28,6 +28,39 @@ const ROOT = {
   branches: [{ id: 'filial-1' }],
 };
 
+describe('OpsPanelService — getPortfolioKpis (Painel da Operadora #957)', () => {
+  let service: OpsPanelService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [OpsPanelService, { provide: PrismaService, useValue: mockPrisma }],
+    }).compile();
+    service = module.get(OpsPanelService);
+    jest.clearAllMocks();
+  });
+
+  it('conta por status, sandbox separado e novas do mês (raiz apenas)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-15T12:00:00Z'));
+    mockPrisma.company.findMany.mockResolvedValue([
+      { tenantStatus: TenantStatus.ACTIVE, isSandbox: false, createdAt: new Date('2026-06-01') },
+      { tenantStatus: TenantStatus.ACTIVE, isSandbox: false, createdAt: new Date('2026-08-03') }, // nova no mês
+      { tenantStatus: TenantStatus.TRIAL, isSandbox: false, createdAt: new Date('2026-08-10') }, // nova no mês
+      { tenantStatus: TenantStatus.CHURNED, isSandbox: false, createdAt: new Date('2026-01-01') },
+      { tenantStatus: TenantStatus.ACTIVE, isSandbox: true, createdAt: new Date('2026-08-01') }, // sandbox: fora de tudo
+    ]);
+
+    const k = await service.getPortfolioKpis();
+    jest.useRealTimers();
+
+    expect(k.statusCounts).toEqual({ ACTIVE: 2, TRIAL: 1, CHURNED: 1 });
+    expect(k.sandbox).toBe(1);
+    expect(k.newTenantsMonth).toBe(2); // sandbox de agosto NÃO conta
+    expect(k.totalTenants).toBe(4);
+    // só tenants raiz entram na consulta
+    expect(mockPrisma.company.findMany.mock.calls[0][0].where).toEqual({ parentId: null });
+  });
+});
+
 describe('OpsPanelService (OPS WP3 #910)', () => {
   let service: OpsPanelService;
 

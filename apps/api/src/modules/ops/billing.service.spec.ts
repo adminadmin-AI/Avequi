@@ -283,6 +283,52 @@ describe('BillingService (OPS WP5 #912)', () => {
       expect(o.mrrByPlan).toEqual({ INDUSTRIAL: 100000, LEGADO: 50000 });
       expect(o.aging).toEqual({ current: 100, d1_15: 200, d16_30: 0, d31_plus: 400 });
     });
+
+    // Painel da Operadora (#957)
+    it('newMrrMonthCents conta só assinaturas criadas na competência corrente', async () => {
+      jest.useFakeTimers().setSystemTime(NOW); // 2026-08-15
+      mockPrisma.subscription.findMany.mockResolvedValue([
+        { priceCents: 100000, createdAt: new Date('2026-08-02'), company: { id: 't1', name: 'GDR', plan: null } },
+        { priceCents: 50000, createdAt: new Date('2026-06-10'), company: { id: 't2', name: 'CRD', plan: null } },
+      ]);
+      mockPrisma.invoice.findMany.mockResolvedValue([]);
+
+      const o = await service.overview();
+      jest.useRealTimers();
+
+      expect(o.newMrrMonthCents).toBe(100000); // só a de agosto
+      expect(o.mrrCents).toBe(150000); // MRR total não muda
+    });
+
+    it('billedSeries: 6 competências, mês sem fatura = zero (série honesta), VOID fora do filtro', async () => {
+      jest.useFakeTimers().setSystemTime(NOW); // 2026-08-15
+      mockPrisma.subscription.findMany.mockResolvedValue([]);
+      // 1ª chamada (série) e 2ª (abertas) usam o mesmo mock — sem faturas
+      // abertas o resultado da 2ª é ignorado pelo aging.
+      mockPrisma.invoice.findMany
+        .mockResolvedValueOnce([
+          { period: new Date(Date.UTC(2026, 7, 1)), amountCents: 300 },
+          { period: new Date(Date.UTC(2026, 7, 1)), amountCents: 200 },
+          { period: new Date(Date.UTC(2026, 5, 1)), amountCents: 100 },
+        ])
+        .mockResolvedValueOnce([]);
+
+      const o = await service.overview();
+      jest.useRealTimers();
+
+      expect(o.billedSeries).toEqual([
+        { period: '2026-03', amountCents: 0 },
+        { period: '2026-04', amountCents: 0 },
+        { period: '2026-05', amountCents: 0 },
+        { period: '2026-06', amountCents: 100 },
+        { period: '2026-07', amountCents: 0 },
+        { period: '2026-08', amountCents: 500 }, // soma da competência
+      ]);
+      // filtro da série exclui VOID e recorta as 6 competências
+      const where = mockPrisma.invoice.findMany.mock.calls[0][0].where;
+      expect(where.status).toEqual({ not: 'VOID' });
+      expect(where.period.gte).toEqual(new Date(Date.UTC(2026, 2, 1)));
+    });
   });
 
   describe('myBillingStatus', () => {

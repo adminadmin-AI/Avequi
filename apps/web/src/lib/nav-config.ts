@@ -314,9 +314,14 @@ export const NAV: NavSection[] = [
  * é um menu dentro do ERP de um cliente (padrão Google Admin/Stripe).
  *
  * Os gates são os MESMOS que o backend exige em cada rota — nada aqui
- * afrouxa permissão: `ops.tenants.view` (listagem/detalhe),
+ * afrouxa permissão: `ops.tenants.view` (painel, listagem e detalhe),
  * `ops.tenants.provision` (wizard de onboarding, = @RequirePermission dos
  * endpoints de provisionamento), `ops.plans.view` e `ops.billing.view`.
+ *
+ * ⚠️ O painel (#957) fica em `ops.tenants.view` de propósito: a metade
+ * FINANCEIRA da tela se gateia sozinha por `ops.billing.view` (componente
+ * por componente, via usePermission) — quem não fatura vê o painel de
+ * carteira, não um "Acesso negado".
  *
  * Continua participando da resolução de rota/breadcrumbs via
  * `ALL_NAV_ITEMS` — o RouteGuard segue guardando as rotas ops mesmo elas
@@ -326,7 +331,15 @@ export const OPS_NAV: NavSection[] = [
   {
     key: 'ops',
     items: [
-      { href: '/app/ops', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
+      // Painel da Operadora (#957): a home do console virou o painel de
+      // negócio do SaaS (MRR, carteira, inadimplência, alertas) e a lista de
+      // contas desceu para /app/ops/tenants. `/app/ops` segue sendo o pouso
+      // pós-login de quem tem permissão `ops.*` (ver login/page.tsx).
+      { href: '/app/ops', label: 'Painel', icon: Gauge, permission: 'ops.tenants.view' },
+      // A lista tem item PRÓPRIO (não é sub-rota herdada): sem ele, o
+      // RouteGuard resolveria /app/ops/tenants pelo item pai — funciona, mas
+      // o menu não acenderia certo e o breadcrumb sairia "Tenants".
+      { href: '/app/ops/tenants', label: 'Contas de cliente', icon: Building2, permission: 'ops.tenants.view' },
       // OPS WP2 (#909): wizard de onboarding — gate espelha o backend
       // (POST /ops/tenants/** exige ops.tenants.provision).
       { href: '/app/ops/new', label: 'Nova conta', icon: Plus, permission: 'ops.tenants.provision' },
@@ -341,10 +354,12 @@ export const OPS_NAV: NavSection[] = [
 /**
  * Todos os itens de navegação conhecidos — ERP (`NAV`) + console da
  * operadora (`OPS_NAV`) —, deduplicados por href: a porta de entrada no ERP
- * e a home do console apontam ambas para `/app/ops`, e quem vence é a do
- * ERP (declarada primeiro). É a fonte de resolução de rota, breadcrumbs e
- * command palette; sem isto as rotas ops perderiam o gate do RouteGuard ao
- * saírem do menu do ERP (OPS F2).
+ * ("Portal Avecchi") e a home do console ("Painel", #957) apontam ambas para
+ * `/app/ops`, e quem vence é a do ERP (declarada primeiro) — por isso o
+ * breadcrumb do console diz "Portal Avecchi". As duas exigem a MESMA
+ * permissão (`ops.tenants.view`), então a dedup não afrouxa gate nenhum.
+ * É a fonte de resolução de rota, breadcrumbs e command palette; sem isto as
+ * rotas ops perderiam o gate do RouteGuard ao saírem do menu do ERP (OPS F2).
  */
 const ALL_NAV_ITEMS: NavItem[] = (() => {
   const seen = new Set<string>();

@@ -43,6 +43,17 @@ export class OpsPanelController {
     private readonly meteringService: UsageMeteringService,
   ) {}
 
+  @Get('panel/kpis')
+  @RequirePermission('ops.tenants.view')
+  @ApiOperation({
+    summary:
+      'Painel da Operadora (#957) — KPIs de carteira (contas por status, novas no mês); ' +
+      'a metade financeira vem de GET /ops/billing (ops.billing.view)',
+  })
+  portfolioKpis() {
+    return this.panelService.getPortfolioKpis();
+  }
+
   @Get('alerts')
   @RequirePermission('ops.tenants.view')
   @ApiOperation({

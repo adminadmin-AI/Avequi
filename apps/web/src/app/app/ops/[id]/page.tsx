@@ -28,7 +28,6 @@ import type {
   TenantHealth,
   TenantHealthUser,
   TenantProvisioning,
-  TenantStatus,
   TenantTimelineEntry,
   TenantUsageSeries,
   UpdateTenantStatusInput,
@@ -53,27 +52,13 @@ import { cn } from '@/lib/utils';
 import { formatCNPJ, formatDate, formatDateTime, formatNumber, formatRelativeTime } from '@/lib/format';
 import { USER_ROLE_LABELS } from '@/lib/enums';
 import { FISCAL_TYPE_LABEL } from '../../fiscal/fiscal-status';
+// Rótulos/cores do ciclo de vida da conta: fonte única do console (#957).
+import { STATUS_LABEL, STATUS_VARIANT } from '../tenant-status';
 import { EntitlementsTab } from './entitlements-tab';
 import { FinanceiroTab } from './financeiro-tab';
 
 const RESOURCE = '/ops/tenants';
 const USAGE_DAYS = 90;
-
-const STATUS_LABEL: Record<TenantStatus, string> = {
-  TRIAL: 'Trial',
-  ACTIVE: 'Ativa',
-  SUSPENDED: 'Suspensa',
-  CHURNED: 'Encerrada',
-  SANDBOX: 'Sandbox',
-};
-
-const STATUS_VARIANT: Record<TenantStatus, BadgeVariant> = {
-  TRIAL: 'info',
-  ACTIVE: 'success',
-  SUSPENDED: 'danger',
-  CHURNED: 'neutral',
-  SANDBOX: 'warning',
-};
 
 const SUPPORT_STATUS_LABEL: Record<string, string> = {
   NEW: 'Novo',
@@ -761,7 +746,7 @@ export default function TenantDetailPage() {
       <PageHeader
         title={tenant.name}
         description={tenant.razaoSocial}
-        backHref="/app/ops"
+        backHref="/app/ops/tenants"
         meta={<Badge variant={STATUS_VARIANT[tenant.tenantStatus]}>{STATUS_LABEL[tenant.tenantStatus]}</Badge>}
         actions={
           <div className="flex flex-wrap items-center gap-2">

@@ -239,6 +239,38 @@ export class OpsPanelService {
   }
 
   /**
+   * KPIs de carteira do Painel da Operadora (#957) — contagens sobre o
+   * CADASTRO (tenants raiz), sem dinheiro: a parte financeira (MRR, aging,
+   * série) vive no BillingService.overview() sob ops.billing.view, e o front
+   * compõe as duas metades conforme a permissão de quem olha.
+   * SANDBOX conta separado (é conta de teste, não carteira).
+   */
+  async getPortfolioKpis() {
+    const inicioDoMes = new Date();
+    inicioDoMes.setUTCDate(1);
+    inicioDoMes.setUTCHours(0, 0, 0, 0);
+
+    const roots = await this.prisma.company.findMany({
+      where: { parentId: null },
+      select: { tenantStatus: true, isSandbox: true, createdAt: true },
+    });
+
+    const statusCounts: Record<string, number> = {};
+    let sandbox = 0;
+    let newTenantsMonth = 0;
+    for (const t of roots) {
+      if (t.isSandbox) {
+        sandbox += 1;
+        continue;
+      }
+      statusCounts[t.tenantStatus] = (statusCounts[t.tenantStatus] ?? 0) + 1;
+      if (t.createdAt >= inicioDoMes) newTenantsMonth += 1;
+    }
+
+    return { statusCounts, sandbox, newTenantsMonth, totalTenants: roots.length - sandbox };
+  }
+
+  /**
    * Alertas da operadora — computados on-demand sobre o metering + cadastro.
    * SANDBOX e CHURNED fora. Certificado A1 fica DEFERIDO: o certificado vive
    * na Focus por CNPJ (#695) e não temos a validade em banco — entra quando
