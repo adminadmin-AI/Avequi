@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, CheckCircle2, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export default function BomPage() {
           setDialogOpen(false);
           setItems([]);
         },
-        onError: () => toast.error('Erro ao criar versão'),
+        onError: (e) => toast.error(erroDeAcao('criar a versão da estrutura', e)),
       },
     );
   }
@@ -167,7 +168,7 @@ export default function BomPage() {
                   onClick={() =>
                     activate.mutate(selected.id, {
                       onSuccess: () => toast.success(`Versão v${selected.version} ativada`),
-                      onError: () => toast.error('Erro ao ativar'),
+                      onError: (e) => toast.error(erroDeAcao('ativar a versão', e)),
                     })
                   }
                   loading={activate.isPending}

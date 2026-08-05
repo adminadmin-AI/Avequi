@@ -47,14 +47,14 @@ function resolveDrop(
   if (targetColumn === 'reserved' && current === 'DRAFT')
     return { endpoint: 'reserve', label: 'Reservar estoque' };
   if (targetColumn === 'confirmed' && current === 'RESERVED')
-    return { endpoint: 'confirm', label: 'Confirmar OV' };
+    return { endpoint: 'confirm', label: 'Confirmar pedido' };
   if (targetColumn === 'invoiced' && current === 'READY_TO_INVOICE')
     return { endpoint: 'invoice', label: 'Faturar (emitir NF-e)' };
   if (
     targetColumn === 'cancelled' &&
     ['DRAFT', 'CREDIT_HOLD', 'RESERVED', 'CONFIRMED', 'AWAITING_PICKING'].includes(current)
   )
-    return { endpoint: 'cancel', label: 'Cancelar OV' };
+    return { endpoint: 'cancel', label: 'Cancelar pedido' };
   return null;
 }
 
@@ -100,7 +100,7 @@ export function SalesKanban({ orders }: { orders: SalesOrder[] }) {
     }
     const ok = await confirm({
       title: resolved.label + '?',
-      description: `OV #${shortId(order.id)}: ${SALES_STATUS[order.status].label} → ${resolved.label}.`,
+      description: `Pedido #${shortId(order.id)}: ${SALES_STATUS[order.status].label} → ${resolved.label}.`,
       confirmLabel: 'Confirmar',
       variant: resolved.endpoint === 'cancel' ? 'danger' : 'primary',
     });

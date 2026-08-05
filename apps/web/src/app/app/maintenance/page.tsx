@@ -6,6 +6,7 @@ import { Plus, Play, Check, X, Pencil, PowerOff, Info, LayoutList, CalendarDays 
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type {
   Equipment,
   EquipmentStatus,
@@ -180,7 +181,7 @@ export default function MaintenancePage() {
           toast.success('Ordem de manutenção criada');
           setOmOpen(false);
         },
-        onError: () => toast.error('Erro ao criar ordem de manutenção'),
+        onError: (e) => toast.error(erroDeAcao('criar a ordem de manutenção', e)),
       },
     );
   }
@@ -205,7 +206,7 @@ export default function MaintenancePage() {
           setResolution('');
           setCost('');
         },
-        onError: () => toast.error('Não foi possível concluir a ordem'),
+        onError: (e) => toast.error(erroDeAcao('concluir a ordem', e)),
       },
     );
   }
@@ -215,7 +216,7 @@ export default function MaintenancePage() {
         ok &&
         orderAction.mutate(
           { id: o.id, endpoint: 'start' },
-          { onSuccess: () => toast.success('Ordem iniciada'), onError: () => toast.error('Erro ao iniciar') },
+          { onSuccess: () => toast.success('Ordem iniciada'), onError: (e) => toast.error(erroDeAcao('iniciar a ordem', e)) },
         ),
     );
   }
@@ -225,7 +226,7 @@ export default function MaintenancePage() {
         ok &&
         orderAction.mutate(
           { id: o.id, endpoint: 'cancel' },
-          { onSuccess: () => toast.success('Ordem cancelada'), onError: () => toast.error('Erro ao cancelar') },
+          { onSuccess: () => toast.success('Ordem cancelada'), onError: (e) => toast.error(erroDeAcao('cancelar a ordem', e)) },
         ),
     );
   }
@@ -339,7 +340,7 @@ export default function MaintenancePage() {
         toast.success(editEq ? 'Equipamento atualizado' : 'Equipamento cadastrado');
         setEqOpen(false);
       },
-      onError: () => toast.error('Erro ao salvar equipamento'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar o equipamento', e)),
     };
     if (editEq) {
       updateEquipment.mutate(
@@ -375,7 +376,10 @@ export default function MaintenancePage() {
     confirm({ title: 'Desativar equipamento?', description: `"${e.name}" ficará inativo.`, confirmLabel: 'Desativar', variant: 'danger' }).then(
       (ok) =>
         ok &&
-        deactivateEquipment.mutate(e.id, { onSuccess: () => toast.success('Equipamento desativado'), onError: () => toast.error('Erro ao desativar') }),
+        deactivateEquipment.mutate(e.id, {
+          onSuccess: () => toast.success('Equipamento desativado'),
+          onError: (err) => toast.error(erroDeAcao('desativar o equipamento', err)),
+        }),
     );
   }
 

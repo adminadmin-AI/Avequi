@@ -42,16 +42,16 @@ export function PushSettings() {
         const result = await subscribeToPush();
         if (result === 'ok') {
           setState('on');
-          toast.success('Push ativado neste dispositivo');
+          toast.success('Notificações push ativadas neste dispositivo');
         } else if (result === 'denied') {
           toast.error('Permissão negada. Libere as notificações nas configurações do navegador.');
         } else if (result === 'disabled') {
-          toast.error('Push desativado no servidor (VAPID não configurado)');
+          toast.error('Notificações push desativadas no servidor (VAPID não configurado)');
         }
       } else {
         await unsubscribeFromPush();
         setState('off');
-        toast.info('Push desativado neste dispositivo');
+        toast.info('Notificações push desativadas neste dispositivo');
       }
     } catch (e) {
       toast.error(erroDeAcao('alterar as notificações push', e));

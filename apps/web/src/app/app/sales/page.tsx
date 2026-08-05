@@ -160,8 +160,8 @@ export default function SalesPage() {
       <StatGroup
         className="mb-6"
         stats={[
-          { label: 'OVs abertas', value: String(kpis.openCount) },
-          { label: 'Em OVs confirmadas', value: formatBRL(kpis.confirmedValue) },
+          { label: 'Pedidos abertos', value: String(kpis.openCount) },
+          { label: 'Em pedidos confirmados', value: formatBRL(kpis.confirmedValue) },
           { label: 'Faturado no mês', value: formatBRL(kpis.invoicedMonth) },
         ]}
       />
@@ -210,7 +210,7 @@ export default function SalesPage() {
         loading={isLoading}
         onRowClick={(o) => router.push(`/app/sales/${o.id}`)}
         searchPlaceholder="Buscar por cliente..."
-        emptyMessage="Nenhuma ordem de venda encontrada."
+        emptyMessage="Nenhum pedido de venda encontrado."
       />
       </>
       )}

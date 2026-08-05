@@ -180,7 +180,7 @@ export function EditEntryDialog({
     <FormDialog
       open={!!entry}
       onOpenChange={onOpenChange}
-      title="Editar lançamento"
+      title="Editar título"
       description={entry?.description ?? 'Alterar título em aberto'}
       formId="edit-entry-form"
       submitLabel="Salvar alterações"

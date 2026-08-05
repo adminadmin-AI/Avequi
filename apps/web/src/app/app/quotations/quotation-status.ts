@@ -8,7 +8,7 @@ export const QUOTATION_STATUS: Record<QuotationStatus, { label: string; variant:
   APPROVED: { label: 'Aprovada', variant: 'brand' },
   REJECTED: { label: 'Rejeitada', variant: 'danger' },
   EXPIRED: { label: 'Expirada', variant: 'warning' },
-  CONVERTED: { label: 'Convertida em OV', variant: 'success' },
+  CONVERTED: { label: 'Convertida em pedido', variant: 'success' },
 };
 
 export const QUOTATION_STATUS_OPTIONS = Object.entries(QUOTATION_STATUS).map(([value, meta]) => ({
@@ -45,7 +45,7 @@ export function availableQuotationActions(status: QuotationStatus): QuotationAct
         { endpoint: 'reject', label: 'Rejeitar', variant: 'danger' },
       ];
     case 'APPROVED':
-      return [{ endpoint: 'convert', label: 'Converter em OV', variant: 'primary' }];
+      return [{ endpoint: 'convert', label: 'Converter em pedido de venda', variant: 'primary' }];
     default:
       return [];
   }

@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/select';
 import { formatBRL } from '@/lib/format';
 
 const schema = z.object({
-  financialEntryId: z.string().min(1, 'Selecione o pagável'),
+  financialEntryId: z.string().min(1, 'Selecione o título'),
   bankAccountId: z.string().min(1, 'Selecione a conta'),
   scheduledDate: z.string().min(1, 'Informe a data'),
 });
@@ -44,12 +44,12 @@ export function ScheduleForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
-      <Field label="Pagável (em aberto)" required error={errors.financialEntryId?.message}>
+      <Field label="Título (em aberto)" required error={errors.financialEntryId?.message}>
         <Select {...register('financialEntryId')} error={!!errors.financialEntryId}>
           <option value="">Selecione</option>
           {payables.map((p) => {
             const supplier = p.purchaseOrder?.supplier?.name;
-            const label = `${p.description ?? 'Lançamento'}${supplier ? ` · ${supplier}` : ''} (${formatBRL(Number(p.amount))})`;
+            const label = `${p.description ?? 'Título'}${supplier ? ` · ${supplier}` : ''} (${formatBRL(Number(p.amount))})`;
             return (
               <option key={p.id} value={p.id}>
                 {label}

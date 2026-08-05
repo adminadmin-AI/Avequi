@@ -61,7 +61,7 @@ export function CarrierForm({
         <Field label="Nome fantasia" required error={errors.name?.message}>
           <Input {...register('name')} error={!!errors.name} placeholder="Nome da transportadora" />
         </Field>
-        <Field label="CNPJ / CPF" error={errors.document?.message}>
+        <Field label="CPF/CNPJ" error={errors.document?.message}>
           <Controller
             name="document"
             control={control}

@@ -86,7 +86,7 @@ export default function LocationsPage() {
           setCode('');
           setDescription('');
         },
-        onError: () => toast.error('Erro ao criar localização'),
+        onError: (e) => toast.error(erroDeAcao('criar o endereço', e)),
       },
     );
   }

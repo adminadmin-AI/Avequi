@@ -87,8 +87,8 @@ export default function QuotationsPage() {
       send: { ok: 'Orçamento enviado', acao: 'enviar o orçamento' },
       approve: { ok: 'Orçamento aprovado', acao: 'aprovar o orçamento' },
       convert: {
-        ok: 'Convertida em OV',
-        confirm: 'Converter este orçamento em uma ordem de venda?',
+        ok: 'Convertida em pedido',
+        confirm: 'Converter este orçamento em um pedido de venda?',
         acao: 'converter o orçamento em pedido',
       },
     };

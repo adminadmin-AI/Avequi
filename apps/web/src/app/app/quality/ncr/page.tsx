@@ -91,7 +91,7 @@ export default function NcrPage() {
           setOpen(false);
           setForm({ title: '', description: '', severity: 'MAJOR', responsibleId: '' });
         },
-        onError: () => toast.error('Erro ao abrir NCR'),
+        onError: (e) => toast.error(erroDeAcao('abrir a NCR', e)),
       },
     );
   }
@@ -129,7 +129,7 @@ export default function NcrPage() {
           toast.success('NCR atualizada');
           setEditTarget(null);
         },
-        onError: () => toast.error('Erro ao atualizar'),
+        onError: (e) => toast.error(erroDeAcao('atualizar a NCR', e)),
       },
     );
   }

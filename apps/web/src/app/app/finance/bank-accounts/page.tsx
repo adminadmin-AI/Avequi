@@ -146,7 +146,7 @@ export default function BankAccountsPage() {
               e.stopPropagation();
               setConfigTarget(a);
             }}
-            title="Configurar cobrança (provider, PIX, saldo mínimo)"
+            title="Configurar cobrança (instituição, PIX, saldo mínimo)"
             className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
           >
             <Settings2 size={15} />

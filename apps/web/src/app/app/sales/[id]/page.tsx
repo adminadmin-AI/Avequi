@@ -174,7 +174,7 @@ export default function SalesDetailPage() {
       confirm({
         title: 'Cancelar o pedido?',
         description: 'Você não vai conseguir desfazer isso.',
-        confirmLabel: 'Cancelar OV',
+        confirmLabel: 'Cancelar pedido',
         variant: 'danger',
       }).then((ok) => ok && doIt());
     } else {
@@ -497,7 +497,7 @@ export default function SalesDetailPage() {
                 href="/app/finance/receivables"
                 className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
-                <ExternalLink size={14} /> Ver em Recebíveis
+                <ExternalLink size={14} /> Ver em Contas a receber
               </Link>
             </div>
           )}

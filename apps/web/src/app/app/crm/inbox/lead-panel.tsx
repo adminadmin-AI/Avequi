@@ -275,7 +275,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           ) : (
             <ShoppingCart className="mr-2 h-4 w-4" />
           )}
-          {lead.customer ? 'Nova venda' : 'Converter em orçamento'}
+          {lead.customer ? 'Nova venda' : 'Converter em pedido de venda'}
         </Button>
         {lead.customer && (
           <p className="text-center text-[11px] text-content-muted">
@@ -289,7 +289,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           className="w-full"
           onClick={() => {
             if (!lead.customer) {
-              toast.info('Converta o lead em cliente primeiro. A proposta sai de uma cotação do cliente.');
+              toast.info('Converta o lead em cliente primeiro. A proposta sai de um orçamento do cliente.');
               return;
             }
             setShowProposals((v) => !v);
@@ -301,10 +301,10 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         {showProposals && (
           <div className="space-y-2 rounded-md bg-neutral-500/[0.04] p-2.5">
             {loadingProposals ? (
-              <p className="py-2 text-center text-xs text-content-muted">Carregando cotações…</p>
+              <p className="py-2 text-center text-xs text-content-muted">Carregando orçamentos…</p>
             ) : (proposalOptions?.quotations.length ?? 0) === 0 ? (
               <p className="py-2 text-center text-xs text-content-muted">
-                Nenhuma cotação deste cliente. Crie uma em Comercial → Cotações.
+                Nenhum orçamento deste cliente. Crie um em Comercial → Orçamentos.
               </p>
             ) : (
               proposalOptions!.quotations.map((qt) => (

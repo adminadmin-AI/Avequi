@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product, Warehouse, StockBalance, StoreTransfer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,7 @@ export default function NewTransferPage() {
           toast.success('Transferência criada');
           router.push('/app/stock/transfers');
         },
-        onError: () => toast.error('Erro ao criar transferência'),
+        onError: (e) => toast.error(erroDeAcao('criar a transferência', e)),
       },
     );
   }

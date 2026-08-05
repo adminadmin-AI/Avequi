@@ -140,7 +140,7 @@ export default function CustomersPage() {
     { key: 'name', header: 'Nome / Razão social', sortable: true },
     {
       key: 'document',
-      header: 'CPF / CNPJ',
+      header: 'CPF/CNPJ',
       cell: (c) => (c.document ? <span className="font-mono text-xs">{formatCpfCnpj(c.document)}</span> : '—'),
     },
     {

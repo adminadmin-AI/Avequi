@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, Check, Info, ExternalLink } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -59,7 +60,7 @@ export default function ApprovalsPage() {
     if (!ok) return;
     approve.mutate(item.id, {
       onSuccess: () => toast.success('Pedido aprovado'),
-      onError: () => toast.error('Não foi possível aprovar'),
+      onError: (e) => toast.error(erroDeAcao('aprovar o pedido', e)),
     });
   }
 

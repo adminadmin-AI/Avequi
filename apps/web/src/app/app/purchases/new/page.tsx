@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Supplier, Product, PurchaseOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,7 @@ export default function NewPurchaseOrderPage() {
         toast.success('Pedido de compra criado');
         router.push(`/app/purchases/${res.data.id}`);
       },
-      onError: () => toast.error('Erro ao criar pedido de compra'),
+      onError: (e) => toast.error(erroDeAcao('criar o pedido de compra', e)),
     });
   }
 

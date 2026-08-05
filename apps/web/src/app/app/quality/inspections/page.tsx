@@ -83,7 +83,7 @@ export default function InspectionsPage() {
           setOpen(false);
           setNotes('');
         },
-        onError: () => toast.error('Erro ao criar inspeção'),
+        onError: (e) => toast.error(erroDeAcao('criar a inspeção', e)),
       },
     );
   }

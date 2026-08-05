@@ -116,7 +116,7 @@ export default function ScheduledPaymentsPage() {
   const columns: Column<ScheduledPayment>[] = [
     {
       key: 'entry',
-      header: 'Pagável vinculado',
+      header: 'Título vinculado',
       cell: (s) => (
         <div>
           <p className="text-sm text-content">{s.financialEntry?.description ?? '—'}</p>
@@ -194,7 +194,7 @@ export default function ScheduledPaymentsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         title="Novo agendamento"
-        description="Programe o débito de um pagável em aberto."
+        description="Programe o débito de um título em aberto."
         formId="schedule-form"
         submitLabel="Agendar"
         loading={create.isPending}

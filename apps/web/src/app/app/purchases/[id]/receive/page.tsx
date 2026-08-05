@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail, useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { PurchaseOrder, Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,7 @@ export default function ReceivePOPage() {
           toast.success('Recebimento registrado');
           router.push(`/app/purchases/${id}`);
         },
-        onError: () => toast.error('Erro ao registrar recebimento'),
+        onError: (e) => toast.error(erroDeAcao('registrar o recebimento', e)),
       },
     );
   }

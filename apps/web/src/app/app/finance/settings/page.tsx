@@ -256,7 +256,7 @@ export default function FinanceSettingsPage() {
     <div>
       <PageHeader
         title="Configurações financeiras"
-        description="Categorias e centros de custo para classificar lançamentos."
+        description="Categorias e centros de custo para classificar títulos."
         actions={
           tab === 'categories' ? (
             <Button

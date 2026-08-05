@@ -193,7 +193,7 @@ export default function FiscalPage() {
             </Button>
             <Button variant="secondary" onClick={() => router.push('/app/fiscal/dashboard')}>
               <LayoutDashboard size={16} />
-              Dashboard
+              Painel
             </Button>
             {/* #758 (extra) — inutilização de faixa de numeração */}
             <Can permission="fiscal.nfe.void-range">

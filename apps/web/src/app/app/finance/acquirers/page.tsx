@@ -163,7 +163,7 @@ export default function AcquirersPage() {
     <div>
       <PageHeader
         title="Adquirentes e taxas"
-        description="Credenciadoras de cartão, taxas MDR e prazo de liquidação. A taxa vigente é congelada em cada venda."
+        description="Adquirentes de cartão, taxas MDR e prazo de liquidação. A taxa vigente é congelada em cada venda."
         actions={
           <Button
             onClick={() => {
@@ -184,7 +184,7 @@ export default function AcquirersPage() {
         <Card>
           <CardContent className="py-10 text-center text-sm text-content-muted">
             <CreditCard className="mx-auto mb-2" size={24} />
-            Nenhuma adquirente cadastrada. Cadastre a credenciadora (Cielo, Rede, Stone…) e as taxas
+            Nenhuma adquirente cadastrada. Cadastre a adquirente (Cielo, Rede, Stone…) e as taxas
             contratadas. Sem taxa vigente a venda com cartão é bloqueada.
           </CardContent>
         </Card>
@@ -315,7 +315,7 @@ export default function AcquirersPage() {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cielo, Rede, Stone…" />
           </div>
           <div>
-            <Label>CNPJ da credenciadora</Label>
+            <Label>CNPJ da adquirente</Label>
             <Input
               value={cnpj}
               onChange={(e) => setCnpj(e.target.value.replace(/\D/g, ''))}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus, LifeBuoy } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useList, useCreate } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { SupportIncident, SupportIncidentStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -49,7 +50,7 @@ export default function SupportPage() {
         toast.success(`Recebemos seu reporte: protocolo ${data.protocol}`);
         setDialogOpen(false);
       },
-      onError: () => toast.error('Erro ao enviar o reporte'),
+      onError: (e) => toast.error(erroDeAcao('enviar o reporte', e)),
     });
   }
 
