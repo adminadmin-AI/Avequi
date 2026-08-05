@@ -76,8 +76,39 @@ describe('#817 — acesso ao POST /production/dispatch (guard + metadata reais)'
     expect(PERMISSIONS_CATALOG.filter((p) => p.code === PERMISSAO)).toHaveLength(1);
   });
 
-  it('o PCP — quem monta o despacho — tem acesso', async () => {
-    expect(await podeAcessar('OPERADOR_PCP')).toBe(true);
+  /**
+   * Decisão de produto do Rafael (05/08/2026): a OPERAÇÃO DA FÁBRICA vê o
+   * despacho, não só o PCP. A OS/OC por setor é exatamente o papel que o
+   * operador consulta para saber o que produzir e o que receber; restringir a
+   * leitura ao planejamento não faria sentido. A permissão não concede criar,
+   * alterar, liberar nem administrar Ordem de Produção.
+   *
+   * Este bloco TRAVA a decisão: se alguém remover o grant do operador, ou
+   * quebrar a herança do supervisor, o teste cai.
+   */
+  describe('decisão de produto — a operação da fábrica enxerga o despacho', () => {
+    it('OPERADOR_PCP tem acesso (concessão explícita — é quem monta o despacho)', async () => {
+      expect(await podeAcessar('OPERADOR_PCP')).toBe(true);
+    });
+
+    it('OPERADOR_PRODUCAO tem acesso (concessão explícita — chão de fábrica)', async () => {
+      expect(await podeAcessar('OPERADOR_PRODUCAO')).toBe(true);
+    });
+
+    it('SUPERVISOR_PRODUCAO tem acesso (herda de OPERADOR_PRODUCAO)', async () => {
+      expect(await podeAcessar('SUPERVISOR_PRODUCAO')).toBe(true);
+    });
+
+    it('e nenhum dos três ganha poder de escrita junto', () => {
+      for (const role of ['OPERADOR_PCP', 'OPERADOR_PRODUCAO', 'SUPERVISOR_PRODUCAO']) {
+        const efetivo = resolveEffectivePermissions(role);
+        expect(efetivo).toContain(PERMISSAO);
+        // O despacho é leitura. Quem já podia criar/liberar OP continua
+        // podendo pelo grant PRÓPRIO dele — o que não pode é esta permissão
+        // ter virado atalho para escrita.
+        expect(PERMISSAO.endsWith('.view')).toBe(true);
+      }
+    });
   });
 
   it('a gerência industrial tem acesso (varredura do módulo production)', async () => {

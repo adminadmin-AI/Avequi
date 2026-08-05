@@ -8,12 +8,13 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ProductionOrderStatus } from '@prisma/client';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { CreateProductionLogDto } from './dto/create-log.dto';
 import { DispatchRequestDto } from './dto/dispatch.dto';
+import { DispatchResponseDto } from './dto/dispatch-response.dto';
 import { DispatchService } from './dispatch.service';
 import { DispatchResult } from './dispatch.types';
 import { ProductionService } from './production.service';
@@ -55,6 +56,14 @@ export class ProductionController {
       'e o que ela precisa receber (OC = o próprio item vindo da operação anterior + os componentes ' +
       'alocados à operação). Somente leitura: nenhum registro é criado. Itens que não puderem ser ' +
       'roteados voltam no bloco de pendências, com motivo estruturado.',
+  })
+  @ApiOkResponse({
+    type: DispatchResponseDto,
+    description:
+      'Despacho da fábrica. ATENÇÃO: todas as quantidades são STRING decimal exata (até 4 casas), ' +
+      'não number — o cálculo é feito em Decimal e devolver number reintroduziria erro de ponto ' +
+      'flutuante. O resultado cobre o tenant inteiro; não há filtro pelo centro de trabalho do ' +
+      'usuário (dependeria de vínculo explícito usuário ↔ WorkCenter, que ainda não existe).',
   })
   dispatch(
     @Body() dto: DispatchRequestDto,

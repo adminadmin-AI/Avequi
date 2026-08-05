@@ -31,6 +31,14 @@ import { BomExplosionService } from '../../common/production/bom-explosion.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { DispatchService } from './dispatch.service';
 import { DispatchOperation, DispatchResult } from './dispatch.types';
+import { ProductionController } from './production.controller';
+import {
+  DispatchCartEchoDto,
+  DispatchCollectItemDto,
+  DispatchOsDto,
+  DispatchPendencyDto,
+  DispatchResponseDto,
+} from './dto/dispatch-response.dto';
 
 const EMPRESA = 'c1';
 
@@ -516,6 +524,193 @@ describe('DispatchService (#817) — despacho por setor', () => {
       expect(res.inconsistencies.some((i) => i.code === 'BOM_CYCLE')).toBe(true);
       // A chamada terminou e o resto da fábrica continua despachado.
       expect(res.workCenters.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Diamante: o mesmo subconjunto usado por dois pais ────────────────────
+  //
+  // Revisão dirigida (#1017). O risco aqui é dobrado e de sinais opostos:
+  // DUPLICAR (emitir as operações do subconjunto duas vezes, uma por pai) ou
+  // ELIMINAR (tratar o segundo encontro como ciclo e podar o ramo). O núcleo da
+  // #980 detecta ciclo POR CAMINHO justamente para o diamante continuar válido;
+  // este bloco prova que o despacho respeita isso de ponta a ponta.
+  //
+  //   MOD ×10        @ SET-MON-001
+  //   ├── CON-A ×1   @ SET-SOL-002 → contém SUB ×2
+  //   └── CON-B ×1   @ SET-GAL-001 → contém SUB ×3
+  //   SUB (50)       passo 1 @ SET-SOL-002, passo 2 @ SET-GAL-001
+  //   └── PC-LONG ×5 (250)
+  describe('BOM em diamante', () => {
+    const cenarioDiamante: Cenario = {
+      produtos: [
+        { id: 'p-mod', companyId: EMPRESA, sku: 'MOD-CAR-003', name: 'Carretinha 3', unit: 'UN', type: 'FINISHED_GOOD' },
+        { id: 'p-cona', companyId: EMPRESA, sku: 'CON-A', name: 'Conjunto A', unit: 'UN', type: 'SEMI_FINISHED' },
+        { id: 'p-conb', companyId: EMPRESA, sku: 'CON-B', name: 'Conjunto B', unit: 'UN', type: 'SEMI_FINISHED' },
+        { id: 'p-sub', companyId: EMPRESA, sku: 'SUB-001', name: 'Subconjunto comum', unit: 'UN', type: 'SEMI_FINISHED' },
+        { id: 'p-long', companyId: EMPRESA, sku: 'PC-LONG', name: 'Longarina', unit: 'UN', type: 'COMPONENT' },
+      ],
+      passos: [
+        { id: 'rs-mod-1', companyId: EMPRESA, productId: 'p-mod', stepOrder: 1, name: 'Montagem', workCenterId: WC.mon.id, workCenterRef: WC.mon },
+        { id: 'rs-cona-1', companyId: EMPRESA, productId: 'p-cona', stepOrder: 1, name: 'Solda A', workCenterId: WC.sol.id, workCenterRef: WC.sol },
+        { id: 'rs-conb-1', companyId: EMPRESA, productId: 'p-conb', stepOrder: 1, name: 'Galvaniza B', workCenterId: WC.gal.id, workCenterRef: WC.gal },
+        { id: 'rs-sub-1', companyId: EMPRESA, productId: 'p-sub', stepOrder: 1, name: 'Solda SUB', workCenterId: WC.sol.id, workCenterRef: WC.sol },
+        { id: 'rs-sub-2', companyId: EMPRESA, productId: 'p-sub', stepOrder: 2, name: 'Galvaniza SUB', workCenterId: WC.gal.id, workCenterRef: WC.gal },
+      ],
+      boms: [
+        {
+          id: 'bv-mod', companyId: EMPRESA, productId: 'p-mod', version: 1, isActive: true,
+          items: [
+            { id: 'bi-a', componentId: 'p-cona', quantity: '1', scrapPct: '0', routingStepId: 'rs-mod-1', unit: 'UN' },
+            { id: 'bi-b', componentId: 'p-conb', quantity: '1', scrapPct: '0', routingStepId: 'rs-mod-1', unit: 'UN' },
+          ],
+        },
+        {
+          id: 'bv-cona', companyId: EMPRESA, productId: 'p-cona', version: 1, isActive: true,
+          items: [{ id: 'bi-a-sub', componentId: 'p-sub', quantity: '2', scrapPct: '0', routingStepId: 'rs-cona-1', unit: 'UN' }],
+        },
+        {
+          id: 'bv-conb', companyId: EMPRESA, productId: 'p-conb', version: 1, isActive: true,
+          items: [{ id: 'bi-b-sub', componentId: 'p-sub', quantity: '3', scrapPct: '0', routingStepId: 'rs-conb-1', unit: 'UN' }],
+        },
+        {
+          id: 'bv-sub', companyId: EMPRESA, productId: 'p-sub', version: 1, isActive: true,
+          items: [{ id: 'bi-sub-long', componentId: 'p-long', quantity: '5', scrapPct: '0', routingStepId: 'rs-sub-1', unit: 'UN' }],
+        },
+      ],
+    };
+
+    let res: DispatchResult;
+    beforeAll(async () => {
+      const { service } = await montar(cenarioDiamante);
+      res = await service.dispatch(EMPRESA, CARRINHO);
+    });
+
+    it('o subconjunto compartilhado NÃO é podado como se fosse ciclo', () => {
+      expect(res.inconsistencies).toEqual([]);
+      expect(res.pendencies).toEqual([]);
+    });
+
+    it('cada operação do subconjunto aparece UMA vez só, não uma por pai', () => {
+      const todas = res.workCenters.flatMap((w) =>
+        w.operations.filter((o) => o.os.sku === 'SUB-001').map((o) => o.routingStepId),
+      );
+      expect(todas.sort()).toEqual(['rs-sub-1', 'rs-sub-2']);
+    });
+
+    it('a OS do subconjunto traz a quantidade SOMADA dos dois ramos (20 + 30 = 50)', () => {
+      expect(operacao(res, 'SET-SOL-002', 'SUB-001', 1).os.quantity).toBe('50');
+      expect(operacao(res, 'SET-GAL-001', 'SUB-001', 2).os.quantity).toBe('50');
+    });
+
+    it('o componente abaixo do subconjunto é somado uma vez só (50 × 5 = 250)', () => {
+      const soldaSub = operacao(res, 'SET-SOL-002', 'SUB-001', 1);
+      const longarinas = soldaSub.oc.filter((i) => i.sku === 'PC-LONG');
+
+      expect(longarinas).toHaveLength(1);
+      expect(longarinas[0].quantity).toBe('250');
+      // Uma única linha de BOM gerou tudo, mesmo tendo sido percorrida 2×.
+      expect(longarinas[0].bomItemIds).toEqual(['bi-sub-long']);
+    });
+
+    it('cada pai recebe a SUA parcela do subconjunto, sem misturar', () => {
+      const a = operacao(res, 'SET-SOL-002', 'CON-A', 1).oc.find((i) => i.sku === 'SUB-001');
+      const b = operacao(res, 'SET-GAL-001', 'CON-B', 1).oc.find((i) => i.sku === 'SUB-001');
+
+      expect(a?.quantity).toBe('20');
+      expect(b?.quantity).toBe('30');
+      expect(a?.bomItemIds).toEqual(['bi-a-sub']);
+      expect(b?.bomItemIds).toEqual(['bi-b-sub']);
+    });
+
+    it('os dois pais buscam o subconjunto na ÚLTIMA operação do roteiro dele', () => {
+      // SUB fica pronto na Galvanização (passo 2), não na Solda (passo 1) —
+      // mesmo que um dos pais seja soldado.
+      for (const [code, sku] of [
+        ['SET-SOL-002', 'CON-A'],
+        ['SET-GAL-001', 'CON-B'],
+      ]) {
+        const sub = operacao(res, code, sku, 1).oc.find((i) => i.sku === 'SUB-001');
+        expect(sub).toMatchObject({
+          sourceType: 'WORK_CENTER',
+          fromWorkCenter: { code: 'SET-GAL-001' },
+          fromRoutingStepId: 'rs-sub-2',
+        });
+      }
+    });
+
+    it('o item transferido entre operações aparece UMA única vez na OC seguinte', () => {
+      const galvaSub = operacao(res, 'SET-GAL-001', 'SUB-001', 2);
+      const proprios = galvaSub.oc.filter((i) => i.sku === 'SUB-001');
+
+      expect(proprios).toHaveLength(1);
+      expect(proprios[0]).toMatchObject({
+        quantity: '50',
+        originKind: 'PREVIOUS_OPERATION',
+        fromRoutingStepId: 'rs-sub-1',
+      });
+      // E é a ÚNICA coisa na OC: o componente da BOM foi alocado ao passo 1.
+      expect(galvaSub.oc).toHaveLength(1);
+    });
+  });
+
+  // ── Todas as quantidades são string, em toda a resposta ──────────────────
+  describe('Decimal não vaza para a resposta', () => {
+    it('toda quantidade da resposta é string, em qualquer bloco', async () => {
+      const { service } = await montar();
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      const quantidades: unknown[] = [
+        ...res.cart.map((c) => c.quantity),
+        ...res.pendencies.map((p) => p.quantity),
+        ...res.workCenters.flatMap((w) =>
+          w.operations.flatMap((o) => [o.os.quantity, ...o.oc.map((i) => i.quantity)]),
+        ),
+      ];
+
+      expect(quantidades.length).toBeGreaterThan(0);
+      for (const q of quantidades) {
+        expect(typeof q).toBe('string');
+        // Nada de "220.00000000000003" nem de notação científica escapando.
+        expect(q as string).toMatch(/^\d+(\.\d+)?$/);
+      }
+    });
+  });
+
+  // ── Swagger diz a verdade sobre as quantidades ───────────────────────────
+  //
+  // Revisão dirigida (#1017): o Swagger não documentava a resposta, então
+  // ninguém que abrisse o /docs saberia que `quantity` é STRING. Um consumidor
+  // que assumisse number faria `qty * preco` e receberia NaN. Este teste trava
+  // a documentação junto com o código.
+  describe('documentação da resposta (Swagger)', () => {
+    const PROPRIEDADE = 'swagger/apiModelProperties';
+
+    it('toda propriedade `quantity` do contrato é documentada como string', () => {
+      const dtos = [
+        DispatchCartEchoDto,
+        DispatchOsDto,
+        DispatchCollectItemDto,
+        DispatchPendencyDto,
+      ];
+
+      for (const Dto of dtos) {
+        const meta = Reflect.getMetadata(PROPRIEDADE, Dto.prototype, 'quantity');
+        expect(meta).toBeDefined();
+        expect(meta.type).toBe('string');
+        // O exemplo também precisa ser string — exemplo numérico no /docs
+        // convidaria justamente o erro que queremos evitar.
+        expect(typeof meta.example).toBe('string');
+      }
+    });
+
+    it('o endpoint declara o tipo de resposta (não fica sem schema)', () => {
+      const respostas = Reflect.getMetadata(
+        'swagger/apiResponse',
+        ProductionController.prototype.dispatch,
+      );
+      // `type` guarda a própria classe (uma função), então some no
+      // JSON.stringify — a comparação tem de ser pela referência.
+      expect(respostas?.['200']?.type).toBe(DispatchResponseDto);
     });
   });
 

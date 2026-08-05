@@ -120,6 +120,11 @@ export interface DispatchCollectItem extends DispatchProductRef {
   bomItemIds: string[];
 }
 
+/** O item processado numa operação — a OS. Nomeado para o DTO poder implementá-lo. */
+export interface DispatchOsItem extends DispatchProductRef {
+  quantity: string;
+}
+
 /** Uma operação executada num centro de trabalho. */
 export interface DispatchOperation {
   routingStepId: string;
@@ -128,7 +133,7 @@ export interface DispatchOperation {
   /** É o primeiro passo do roteiro deste produto? */
   isFirstStep: boolean;
   /** O item PROCESSADO aqui — a OS. */
-  os: DispatchProductRef & { quantity: string };
+  os: DispatchOsItem;
   /** O que precisa chegar para a operação acontecer — a OC. */
   oc: DispatchCollectItem[];
 }
