@@ -591,6 +591,20 @@ export class CrmController {
     return this.portfolio.portfolio(resolveRange(user.companyId, days), window);
   }
 
+  @Get('portfolio/stores')
+  @RequirePermission('crm.portfolio.view')
+  @ApiOperation({
+    summary:
+      'Ranking de receita entre as lojas do grupo (#850) — amplia além da própria empresa SÓ com a capability iam.tenant-scope.cross-company (#947)',
+  })
+  @ApiQuery({ name: 'days', required: false, description: 'Período de análise em dias (default 30)' })
+  portfolioStores(@CurrentUser() user: any, @Query('days') days?: string) {
+    // userId e companyId SEMPRE do JWT; o escopo de lojas é resolvido no
+    // service via TenantScopeService — nenhum id de empresa vem do cliente.
+    const range = resolveRange(user.companyId, days);
+    return this.portfolio.stores(user.id, user.companyId, { from: range.from, to: range.to });
+  }
+
   // ── Templates / follow-up (F3.2 #518) ───────────────────────────────────────
 
   @Get('templates')
