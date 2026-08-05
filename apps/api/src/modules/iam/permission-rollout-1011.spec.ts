@@ -5,6 +5,9 @@ import {
   executarRollout,
   reverterRollout,
   ehLocal,
+  resolverOpcoesDeTransacao,
+  ROLLOUT_TRANSACTION_TIMEOUT_MS,
+  ROLLOUT_TRANSACTION_MAX_WAIT_MS,
   Manifesto,
 } from '../../../scripts/iam-permission-rollout';
 import { SYSTEM_ROLES, resolveEffectivePermissions } from './roles.catalog';
@@ -110,14 +113,21 @@ describe('#1011 — rollout de permissões C2/C3', () => {
       company: { findMany: async () => [] },
     };
 
+    /** Toda invocação de $transaction, com as opções que recebeu (#1014). */
+    const transacoes: Array<{ opcoes: any }> = [];
+
     const prisma: any = {
       ...tx,
-      $transaction: async (fn: any) => fn(tx),
+      $transaction: async (fn: any, opcoes?: any) => {
+        transacoes.push({ opcoes });
+        return fn(tx);
+      },
       _criadas: criadas,
       _removidas: removidas,
       _proibido: proibido,
       _vinculos: vinculos,
       _permissoes: permissoes,
+      _transacoes: transacoes,
     };
     return prisma;
   }
@@ -506,5 +516,156 @@ describe('#1011 — rollout de permissões C2/C3', () => {
       'vinculosCriados',
     ]);
     expect(JSON.stringify(m)).not.toMatch(/senha|token|email|@/i);
+  });
+  // ── Limites da transação (#1014) ───────────────────────────────────────────
+
+  describe('limites da transação — a falha de 05/08 no pooler', () => {
+    /**
+     * A Fase A morreu no banco real com "Transaction not found": o comando
+     * abria a transação SEM opções e o padrão do Prisma é 5 s, contra ~1,05 s
+     * de ida-e-volta e 15 escritas sequenciais. Nada ficou pela metade — a
+     * transação reverteu tudo —, mas o comando ficou inutilizável justamente
+     * contra banco remoto, que é onde ele precisa rodar.
+     *
+     * Estes testes existem para que ninguém volte ao padrão sem perceber.
+     */
+    const esperado = {
+      timeout: ROLLOUT_TRANSACTION_TIMEOUT_MS,
+      maxWait: ROLLOUT_TRANSACTION_MAX_WAIT_MS,
+    };
+
+    it('os padrões são folgados o bastante para a Fase A no pooler', () => {
+      // 15 escritas sequenciais a ~1,05 s medidos = ~15,8 s. 120 s dá folga
+      // para uma rede bem pior sem virar espera infinita.
+      expect(ROLLOUT_TRANSACTION_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+      expect(ROLLOUT_TRANSACTION_MAX_WAIT_MS).toBeGreaterThanOrEqual(10_000);
+    });
+
+    it('Fase A abre a transação com timeout e maxWait EXPLÍCITOS', async () => {
+      const prisma = fakePrisma({ perfis: perfisDe(FASE_C2[0].roles) });
+      await executarRollout(prisma, 'c2');
+
+      expect(prisma._transacoes).toHaveLength(1);
+      expect(prisma._transacoes[0].opcoes).toEqual(esperado);
+    });
+
+    /** A Fase B confere a cadeia LOJA_OPERACIONAL → LOJA_FATURAMENTO. */
+    const comCadeia = (codes: string[]) => [
+      ...perfisDe(codes.filter((c) => c !== 'LOJA_OPERACIONAL')),
+      { id: 'role-lojaop', code: 'LOJA_OPERACIONAL', parentId: null },
+      { id: 'role-lojafat', code: 'LOJA_FATURAMENTO', parentId: 'role-lojaop' },
+    ];
+
+    it('Fase B abre a transação com as mesmas opções', async () => {
+      const prisma = fakePrisma({ perfis: comCadeia(FASE_C3[0].roles) });
+      await executarRollout(prisma, 'c3');
+
+      expect(prisma._transacoes[0].opcoes).toEqual(esperado);
+    });
+
+    it('--phase=all continua UMA transação só, e com as opções', async () => {
+      const todos = [...new Set(FASES.all.flatMap((a) => a.roles))];
+      const prisma = fakePrisma({ perfis: comCadeia(todos) });
+      await executarRollout(prisma, 'all');
+
+      expect(prisma._transacoes).toHaveLength(1); // atomicidade preservada
+      expect(prisma._transacoes[0].opcoes).toEqual(esperado);
+    });
+
+    it('o ROLLBACK também recebe as opções — desfazer não pode esbarrar em 5 s', async () => {
+      const prisma = fakePrisma({ perfis: perfisDe(FASE_C2[0].roles) });
+      const rel = await executarRollout(prisma, 'c2');
+      const antes = prisma._transacoes.length;
+
+      await reverterRollout(prisma, rel.manifesto as Manifesto);
+
+      expect(prisma._transacoes).toHaveLength(antes + 1);
+      expect(prisma._transacoes[antes].opcoes).toEqual(esperado);
+    });
+
+    it('dry-run não abre transação nenhuma', async () => {
+      const prisma = fakePrisma({ perfis: perfisDe(FASE_C2[0].roles) });
+      await executarRollout(prisma, 'c2', { dryRun: true });
+
+      expect(prisma._transacoes).toHaveLength(0);
+    });
+
+    it('SEM RETRY: transação que falha é UMA transação, e o erro sobe', async () => {
+      // Retry automático esconderia problema de conectividade e deixaria
+      // dúvida sobre qual execução produziu o manifesto. Quem repete é o
+      // operador, depois de olhar a falha.
+      const prisma = fakePrisma({ perfis: perfisDe(FASE_C2[0].roles) });
+      prisma.$transaction = async (_fn: any, opcoes?: any) => {
+        prisma._transacoes.push({ opcoes });
+        throw new Error('Transaction API error: Transaction not found');
+      };
+
+      await expect(executarRollout(prisma, 'c2')).rejects.toThrow(/Transaction not found/);
+      expect(prisma._transacoes).toHaveLength(1);
+      expect(prisma._criadas.permission).toBe(0);
+      expect(prisma._criadas.rolePermission).toBe(0);
+      expect(prisma._proibido.userPermissionWrite).toBe(0);
+      expect(prisma._proibido.userRoleAssignmentWrite).toBe(0);
+    });
+
+    it('override por ambiente: só as variáveis DESTE comando, e validadas', () => {
+      expect(resolverOpcoesDeTransacao({})).toEqual(esperado);
+
+      expect(
+        resolverOpcoesDeTransacao({
+          IAM_ROLLOUT_TX_TIMEOUT_MS: '180000',
+          IAM_ROLLOUT_TX_MAX_WAIT_MS: '30000',
+        }),
+      ).toEqual({ timeout: 180_000, maxWait: 30_000 });
+
+      // Variável genérica de outro contexto não muda nada aqui
+      expect(resolverOpcoesDeTransacao({ TX_TIMEOUT: '1', DATABASE_TIMEOUT: '1' } as any)).toEqual(
+        esperado,
+      );
+    });
+
+    it('valor inválido falha ANTES de conectar, com mensagem que ensina', () => {
+      for (const bruto of ['abc', '12.5', '4999', '600001', '-1']) {
+        expect(() => resolverOpcoesDeTransacao({ IAM_ROLLOUT_TX_TIMEOUT_MS: bruto })).toThrow(
+          /IAM_ROLLOUT_TX_TIMEOUT_MS/,
+        );
+      }
+      for (const bruto of ['abc', '999', '120001']) {
+        expect(() => resolverOpcoesDeTransacao({ IAM_ROLLOUT_TX_MAX_WAIT_MS: bruto })).toThrow(
+          /IAM_ROLLOUT_TX_MAX_WAIT_MS/,
+        );
+      }
+      // Vazio e ausente caem no padrão, não em erro
+      expect(resolverOpcoesDeTransacao({ IAM_ROLLOUT_TX_TIMEOUT_MS: '' })).toEqual(esperado);
+    });
+
+    it('REGRESSÃO: as duas transações do script passam opções — nunca o padrão de 5 s', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const src: string = require('fs').readFileSync('scripts/iam-permission-rollout.ts', 'utf-8');
+      const chamadas = src.match(/await prisma\.\$transaction\(/g) ?? [];
+      expect(chamadas).toHaveLength(2); // aplicação e rollback
+
+      // Nenhuma delas pode fechar sem passar as opções: `}, transacao)`.
+      const comOpcoes = src.match(/\}, transacao\);/g) ?? [];
+      expect(comOpcoes).toHaveLength(2);
+
+      // E nada de retry costurado no meio do caminho: a palavra pode aparecer
+      // em COMENTÁRIO (explicando por que não existe), nunca em código. O
+      // comportamento em si é provado pelo teste "SEM RETRY" acima e pelo spec
+      // de integração; isto aqui é a trava contra quem, num timeout futuro,
+      // resolver "consertar" repetindo a operação.
+      const retryEmCodigo = src.match(/^(?!\s*(\*|\/\/|\/\*)).*(retry|tentativas).*$/gim) ?? [];
+      expect(retryEmCodigo).toEqual([]);
+    });
+
+    it('a matriz aprovada continua exatamente a mesma', () => {
+      expect(FASE_C2.map((a) => `${a.code}:${a.roles.length}`)).toEqual([
+        'sales.commissions.view-all:11',
+        'iam.sessions.revoke-any:2',
+      ]);
+      expect(FASE_C3.map((a) => `${a.code}:${a.roles.length}`)).toEqual([
+        'crm.leads.assignable:5',
+      ]);
+    });
   });
 });
