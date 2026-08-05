@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { IamModule } from '../iam/iam.module';
+import { SellerEligibilityService } from './seller-eligibility.service';
 import { NotificationModule } from '../notification/notification.module';
 import { QuotationModule } from '../quotation/quotation.module';
 import { CrmController } from './crm.controller';
@@ -55,6 +56,7 @@ import { SiteLeadController } from './connectors/site.controller';
   ],
   controllers: [CrmController, WhatsappController, SiteLeadController, MetaLeadsController, ConnectorsController],
   providers: [
+    SellerEligibilityService,
     LeadIntakeService,
     LeadProposalService,
     CrmService,

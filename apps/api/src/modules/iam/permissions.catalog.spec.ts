@@ -130,7 +130,10 @@ describe('Catálogo de permissões (#338)', () => {
     //       comissão e o percentual dos outros — antes era o enum COMMERCIAL
     //       que restringia) e iam.sessions.revoke-any (revogar sessão de
     //       terceiro — antes era `role === 'SUPER_ADMIN'` no handler).
-    expect(PERMISSIONS_CATALOG.length).toBe(324);
+    // 325 = 324 + crm.leads.assignable (#1002-C3): marca a CLASSE de quem
+    //       pode receber lead. Não é permissão de ação — quem participa do
+    //       rodízio agora é decidido por User.crmAvailable.
+    expect(PERMISSIONS_CATALOG.length).toBe(325);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

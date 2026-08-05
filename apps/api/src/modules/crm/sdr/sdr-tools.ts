@@ -4,6 +4,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { LeadActivityType, LostReasonCategory, Prisma, SdrLeadStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CrmService } from '../crm.service';
+import { LeadIntakeService } from '../lead-intake.service';
 import { SDR_ACTOR } from './sdr.types';
 
 /**
@@ -123,6 +124,8 @@ export class SdrToolsService {
     private readonly prisma: PrismaService,
     private readonly crm: CrmService,
     private readonly eventEmitter: EventEmitter2,
+    // #1002-C3: o rodízio é o do lead-intake — um algoritmo só.
+    private readonly leadIntake: LeadIntakeService,
   ) {}
 
   /** Executa uma tool call e loga na timeline (auditoria do painel #524) */
@@ -323,11 +326,17 @@ export class SdrToolsService {
     // lead já tem vendedor do rodízio da captação (F1.7); sem vendedor → pega o próximo disponível
     let seller = lead.assignedTo;
     if (!seller) {
-      seller = await this.prisma.user.findFirst({
-        where: { companyId, isActive: true, crmAvailable: true, role: { in: ['COMMERCIAL', 'STORE'] as any } },
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' },
-      });
+      // #1002-C3: era `findFirst` com `orderBy: name asc` sobre uma lista de
+      // enums — ou seja, o agente SDR caía SEMPRE no mesmo vendedor, o
+      // primeiro em ordem alfabética, ignorando o balanceamento. Agora usa o
+      // rodízio de verdade, o mesmo do lead-intake, sem duplicar o algoritmo.
+      const sellerId = await this.leadIntake.pickNextSeller(companyId);
+      seller = sellerId
+        ? await this.prisma.user.findUnique({
+            where: { id: sellerId },
+            select: { id: true, name: true },
+          })
+        : null;
       if (seller) {
         await this.prisma.lead.update({
           where: { id: leadId },

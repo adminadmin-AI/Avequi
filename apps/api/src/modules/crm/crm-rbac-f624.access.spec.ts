@@ -28,6 +28,9 @@ import { ConnectorsController } from './connectors/connectors.controller';
 
 const CRM_ALL = moduleCodes('crm').sort();
 
+/** #1002-C3: tudo do CRM MENOS a elegibilidade de atendimento. */
+const CRM_SEM_ASSIGNABLE = CRM_ALL.filter((c) => c !== 'crm.leads.assignable');
+
 const OPERACIONAL = [
   'crm.leads.view',
   'crm.conversations.view',
@@ -41,6 +44,8 @@ const OPERACIONAL = [
   'crm.sdr.takeover',
   'crm.connectors.answer',
   'crm.quick-replies.manage',
+  // #1002-C3: elegivel a RECEBER lead — quem atende, entra no rodizio.
+  'crm.leads.assignable',
 ].sort();
 
 const GERENCIAL_SEM_LGPD = [
@@ -62,17 +67,22 @@ const GERENCIAL_SEM_LGPD = [
   'crm.reminders.manage-all',
 ].sort();
 
-const SEM_LGPD = [...OPERACIONAL, ...GERENCIAL_SEM_LGPD].sort(); // 28/30
+const SEM_LGPD = [...OPERACIONAL, ...GERENCIAL_SEM_LGPD].sort(); // 29/31
+
+/** #1002-C3: gerencia o CRM inteiro mas nao atende — sem a elegibilidade. */
+const SEM_LGPD_SEM_ASSIGNABLE = SEM_LGPD.filter((c) => c !== 'crm.leads.assignable');
 
 /** Matriz aprovada — cada um dos 29 perfis system, DECLARADO NOMINALMENTE. */
 const EXPECTED: Record<string, string[]> = {
-  ADMIN_GLOBAL: CRM_ALL,
-  ADMIN_EMPRESA: CRM_ALL,
+  // #1002-C3: administrar nao e atender — os dois perdem crm.leads.assignable
+  ADMIN_GLOBAL: CRM_SEM_ASSIGNABLE,
+  ADMIN_EMPRESA: CRM_SEM_ASSIGNABLE,
   // OPS WP1 (#908): perfil da OPERADORA — zero permissão intra-tenant, CRM incluso
   AVECCHI_OPERATOR: [],
-  ADMIN_FILIAL: SEM_LGPD, // D7 (Opção C): lista explícita, sem as 2 LGPD
-  DIRETOR: CRM_ALL,
-  GERENTE_GERAL: CRM_ALL, // espelho do MANAGER legado — zero regressão
+  // #1002-C3: administra a filial, mas nao entra no rodizio de atendimento.
+  ADMIN_FILIAL: SEM_LGPD_SEM_ASSIGNABLE, // D7 (Opção C): lista explícita, sem as 2 LGPD
+  DIRETOR: CRM_SEM_ASSIGNABLE,
+  GERENTE_GERAL: CRM_SEM_ASSIGNABLE, // espelho do MANAGER legado — zero regressão
   GERENTE_INDUSTRIAL: [],
   GERENTE_FINANCEIRO: [],
   GERENTE_COMERCIAL: SEM_LGPD,
@@ -112,14 +122,14 @@ function crmOf(roleCode: string): string[] {
 }
 
 describe('Bloco F (#624) — matriz crm.* perfil a perfil', () => {
-  it('a família tem exatamente 30 códigos', () => {
-    expect(CRM_ALL).toHaveLength(30);
+  it('a família tem exatamente 31 códigos', () => {
+    expect(CRM_ALL).toHaveLength(31);
   });
 
-  it('pacotes fecham com as decisões: 12 operacionais, 16 gerenciais s/ LGPD, 28 = 30 - 2', () => {
-    expect(OPERACIONAL).toHaveLength(12);
+  it('pacotes fecham com as decisões: 13 operacionais (com assignable), 16 gerenciais s/ LGPD, 29 = 31 - 2', () => {
+    expect(OPERACIONAL).toHaveLength(13);
     expect(GERENCIAL_SEM_LGPD).toHaveLength(16);
-    expect(SEM_LGPD).toHaveLength(28);
+    expect(SEM_LGPD).toHaveLength(29);
     const lgpd = CRM_ALL.filter((c) => !SEM_LGPD.includes(c));
     expect(lgpd.sort()).toEqual(['crm.lgpd.anonymize', 'crm.lgpd.retention-update']);
   });

@@ -208,6 +208,140 @@ export class PermissionService {
   }
 
   /**
+   * Consulta REVERSA: quais usuários da empresa têm esta permissão? (#1002-C3)
+   *
+   * Todo o resto do serviço responde "este usuário pode?". Aqui a pergunta é a
+   * inversa — "quem pode?" — e ela aparece quando a permissão marca uma CLASSE
+   * de pessoas, não uma ação: quem é elegível a receber um lead, por exemplo.
+   *
+   * ── Por que não iterar usuário a usuário ───────────────────────────────────
+   * O caminho óbvio seria listar os usuários da empresa e chamar
+   * `hasPermission` em cada um. Isso é N+1: numa empresa de 50 usuários, 50
+   * resoluções a cada lead captado. Aqui a resolução é feita ao contrário, em
+   * **três queries de tamanho previsível**, independentemente do número de
+   * usuários:
+   *
+   *   1. perfis da empresa (system + customizados) com a marca desta
+   *      permissão e o `parentId` — a herança é resolvida EM MEMÓRIA;
+   *   2. atribuições vigentes desses perfis, já filtrando usuário ativo;
+   *   3. overrides individuais (`UserPermission`) desta permissão.
+   *
+   * ── Precedência ────────────────────────────────────────────────────────────
+   * Idêntica à de `resolveFromDatabase`, e é isso que importa: as duas
+   * respostas TÊM de coincidir, ou um usuário apareceria na lista e levaria
+   * 403 na ação (ou o contrário).
+   *
+   *   efetivo = ((grants de perfil − denys de perfil) ∪ grants individuais)
+   *             − denys individuais
+   *
+   * Um deny de perfil em QUALQUER elo da cadeia anula o grant de qualquer
+   * outro elo — não é "o mais próximo vence". Um deny individual anula tudo.
+   * Um grant individual torna elegível quem não tem perfil nenhum.
+   *
+   * NÃO honra o fallback legado do #946: o enum não torna ninguém elegível.
+   */
+  async usersWithPermission(
+    companyId: string,
+    code: string,
+    opcoes: { apenasAtivos?: boolean } = {},
+  ): Promise<string[]> {
+    const apenasAtivos = opcoes.apenasAtivos ?? true;
+    const agora = new Date();
+    const naoExpirado = { OR: [{ expiresAt: null }, { expiresAt: { gt: agora } }] };
+
+    // 1. Perfis visíveis à empresa: os globais/system (companyId null) e os
+    //    customizados dela. Traz só a marca DESTA permissão — a linha existe
+    //    quando o perfil concede (granted true) ou nega (false) explicitamente.
+    // tenant-lint: ok (companyId no filtro; null = perfil global do sistema)
+    const perfis = await this.prisma.role.findMany({
+      where: { isActive: true, OR: [{ companyId: null }, { companyId }] },
+      select: {
+        id: true,
+        parentId: true,
+        rolePermissions: {
+          where: { permission: { code } },
+          select: { granted: true },
+        },
+      },
+    });
+
+    const porId = new Map(perfis.map((p) => [p.id, p]));
+
+    /**
+     * O perfil concede a permissão, considerando a cadeia inteira?
+     * Sobe até a raiz; deny em qualquer nível vence. Anti-ciclo por caminho e
+     * teto de profundidade — o mesmo cuidado do `collectRoleChain`.
+     */
+    const concede = (roleId: string): boolean => {
+      let atual: string | null = roleId;
+      const visitados = new Set<string>();
+      let temGrant = false;
+      let profundidade = 0;
+      while (atual && !visitados.has(atual) && profundidade < MAX_INHERITANCE_DEPTH) {
+        visitados.add(atual);
+        profundidade += 1;
+        const perfil = porId.get(atual);
+        if (!perfil) break; // perfil inativo ou de outra empresa: cadeia para
+        for (const rp of perfil.rolePermissions) {
+          if (!rp.granted) return false; // deny em qualquer elo vence
+          temGrant = true;
+        }
+        atual = perfil.parentId;
+      }
+      return temGrant;
+    };
+
+    const perfisQueConcedem = perfis.filter((p) => concede(p.id)).map((p) => p.id);
+
+    // 2. Quem tem esses perfis, com atribuição vigente e usuário ativo.
+    const atribuicoes = perfisQueConcedem.length
+      ? await this.prisma.userRoleAssignment.findMany({
+          where: {
+            companyId,
+            roleId: { in: perfisQueConcedem },
+            ...naoExpirado,
+            ...(apenasAtivos ? { user: { isActive: true } } : {}),
+          },
+          select: { userId: true },
+        })
+      : [];
+
+    // 3. Overrides individuais desta permissão nesta empresa.
+    const overrides = await this.prisma.userPermission.findMany({
+      where: { companyId, permission: { code }, ...naoExpirado },
+      select: { userId: true, granted: true },
+    });
+
+    const negados = new Set(overrides.filter((o) => !o.granted).map((o) => o.userId));
+    const elegiveis = new Set(atribuicoes.map((a) => a.userId));
+    for (const o of overrides) {
+      if (o.granted) elegiveis.add(o.userId); // grant individual entra mesmo sem perfil
+    }
+    for (const userId of negados) {
+      elegiveis.delete(userId); // deny individual vence tudo
+    }
+
+    if (elegiveis.size === 0 || !apenasAtivos) return [...elegiveis];
+
+    // Um grant individual pode ter entrado sem passar pelo filtro de usuário
+    // ativo da query 2 — confere só esses, sem custo relevante.
+    const porGrantIndividual = overrides
+      .filter((o) => o.granted && elegiveis.has(o.userId))
+      .map((o) => o.userId);
+    if (porGrantIndividual.length === 0) return [...elegiveis];
+
+    const ativos = await this.prisma.user.findMany({
+      where: { id: { in: porGrantIndividual }, companyId, isActive: true },
+      select: { id: true },
+    });
+    const ativosSet = new Set(ativos.map((u) => u.id));
+    for (const userId of porGrantIndividual) {
+      if (!ativosSet.has(userId)) elegiveis.delete(userId);
+    }
+    return [...elegiveis];
+  }
+
+  /**
    * O usuário tem o perfil DIRETAMENTE atribuído? (herança NÃO conta aqui:
    * "Supervisor herda permissões de Operador" ≠ "Supervisor É Operador".)
    */

@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CrmSettingsService } from './crm-settings.service';
+import { SellerEligibilityService } from './seller-eligibility.service';
 
 const COMPANY = 'company-1';
 
@@ -24,7 +25,19 @@ describe('CrmSettingsService', () => {
       user: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CrmSettingsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        CrmSettingsService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          // #1002-C3: elegibilidade resolvida pelo SellerEligibilityService.
+          provide: SellerEligibilityService,
+          useValue: {
+            candidatosParaAtribuicao: jest.fn().mockResolvedValue([]),
+            candidatosParaConfiguracao: jest.fn().mockResolvedValue([]),
+            registrarSemElegivel: jest.fn(),
+          },
+        },
+      ],
     }).compile();
     service = module.get(CrmSettingsService);
   });
