@@ -1120,8 +1120,12 @@ d('#1011 — rollout de permissões em PostgreSQL real', () => {
       const r = rodarCli(['--phase=c2', '--dry-run'], url);
 
       expect(r.status).toBe(0);
+      // O stdout tem de ser JSON PURO: quem canaliza a saída para arquivo lê
+      // isso do outro lado. O diagnóstico dos limites da transação (#1014) vai
+      // para o stderr justamente para não sujar o relatório.
       const relatorio = JSON.parse(r.stdout);
       expect(relatorio.dryRun).toBe(true);
+      expect(r.stderr).toMatch(/Limites da transação: timeout=\d+ms maxWait=\d+ms/);
       expect(relatorio.perfisEncontrados).toContain('ADMIN_GLOBAL');
 
       // Nenhum e-mail, CPF, CNPJ, senha ou token na saída do comando

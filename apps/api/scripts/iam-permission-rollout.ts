@@ -588,7 +588,9 @@ async function main() {
   // Resolve os limites da transação ANTES de abrir conexão: valor inválido
   // tem de estourar no terminal do operador, não no meio de uma escrita.
   const transacao = resolverOpcoesDeTransacao();
-  console.log(
+  // Diagnóstico vai para o STDERR de propósito: o stdout é o relatório, e
+  // quem canaliza a saída para um arquivo espera JSON puro do outro lado.
+  console.error(
     `Limites da transação: timeout=${transacao.timeout}ms maxWait=${transacao.maxWait}ms`,
   );
 
