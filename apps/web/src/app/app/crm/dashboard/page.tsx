@@ -320,6 +320,8 @@ function PortfolioSection({ days }: { days: number }) {
         />
       </div>
 
+      <StoresSection days={days} />
+
       {/* Série mensal de novos clientes (12 meses) — barras simples */}
       <div className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
         <h3 className="mb-3 text-sm font-semibold">Novos clientes (12 meses)</h3>
@@ -408,6 +410,72 @@ function PortfolioSection({ days }: { days: number }) {
             </table>
           </div>
         </section>
+      </div>
+    </section>
+  );
+}
+
+/** #850 — shape de GET /crm/portfolio/stores */
+interface StoresRanking {
+  ampliado: boolean;
+  totalRevenue: number;
+  stores: Array<{
+    companyId: string;
+    name: string;
+    revenue: number;
+    orders: number;
+    customers: number;
+    share: number;
+  }>;
+}
+
+/**
+ * Ranking de receita entre as lojas do grupo (#850). Só aparece quando o
+ * servidor AMPLIOU o escopo (capability do #947) e há mais de uma loja —
+ * sem a capability a resposta volta com a própria loja e a seção some
+ * (fail-closed visual, como o resto do dashboard).
+ */
+function StoresSection({ days }: { days: number }) {
+  const { data } = useQuery<StoresRanking>({
+    queryKey: ['crm-portfolio-stores', days],
+    queryFn: async () =>
+      (await apiClient.get('/crm/portfolio/stores', { params: { days } })).data,
+    retry: false,
+  });
+
+  if (!data || !data.ampliado || data.stores.length < 2) return null;
+  const max = Math.max(1, ...data.stores.map((s) => s.revenue));
+
+  return (
+    <section className="surface-sheen rounded-xl bg-surface p-5 shadow-soft">
+      <h3 className="text-sm font-semibold">Receita por loja</h3>
+      <p className="mb-3 mt-0.5 text-xs text-content-muted">
+        Faturamento do grupo no período: {formatBRL(data.totalRevenue)}
+      </p>
+      <div className="space-y-3">
+        {data.stores.map((s, i) => (
+          <div key={s.companyId} className="flex items-center gap-3">
+            <span className="w-5 text-xs tabular-nums text-content-muted">{i + 1}º</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-medium">{s.name}</span>
+                <span className="shrink-0 text-sm font-medium tabular-nums">
+                  {formatBRL(s.revenue)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-neutral-500/10">
+                <div
+                  className="h-full rounded bg-brand-500/70"
+                  style={{ width: `${(s.revenue / max) * 100}%` }}
+                />
+              </div>
+              <p className="mt-0.5 text-[11px] text-content-muted">
+                {s.share}% do grupo · {s.orders} {s.orders === 1 ? 'pedido' : 'pedidos'} ·{' '}
+                {s.customers} {s.customers === 1 ? 'cliente' : 'clientes'}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );

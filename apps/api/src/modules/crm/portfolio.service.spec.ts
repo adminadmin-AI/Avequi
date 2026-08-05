@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { PortfolioService } from './portfolio.service';
 
 const COMPANY = 'company-1';
@@ -24,11 +25,23 @@ const order = (
 describe('PortfolioService (#846)', () => {
   let service: PortfolioService;
   let prisma: any;
+  let tenantScope: any;
 
   beforeEach(async () => {
-    prisma = { salesOrder: { findMany: jest.fn().mockResolvedValue([]) } };
+    prisma = {
+      salesOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      company: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    // Default: SEM a capability — escopo é a própria empresa (#947)
+    tenantScope = {
+      resolverEscopo: jest.fn().mockResolvedValue({ companyIds: [COMPANY], ampliado: false }),
+    };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PortfolioService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        PortfolioService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantScopeService, useValue: tenantScope },
+      ],
     }).compile();
     service = module.get(PortfolioService);
   });
@@ -130,6 +143,89 @@ describe('PortfolioService (#846)', () => {
       expect(active.count).toBe(1);
       // janela anterior = [2026-05-02, 2026-06-01): ninguém → sem risco
       expect(atRisk.count).toBe(0);
+    });
+  });
+
+  describe('stores — ranking entre lojas do grupo (#850)', () => {
+    /** OV faturada como o findMany do stores() seleciona. */
+    const storeOrder = (
+      companyId: string,
+      customerId: string | null,
+      items: Array<[qty: number, price: number]>,
+    ) => ({
+      companyId,
+      customerId,
+      items: items.map(([quantity, unitPrice]) => ({ quantity: D(quantity), unitPrice: D(unitPrice) })),
+    });
+
+    it('sem a capability: escopo é SÓ a própria empresa e ampliado=false', async () => {
+      prisma.company.findMany.mockResolvedValue([{ id: COMPANY, name: 'GDR Matriz' }]);
+      prisma.salesOrder.findMany.mockResolvedValue([
+        storeOrder(COMPANY, 'c-1', [[1, 1000]]),
+      ]);
+
+      const res = await service.stores('user-1', COMPANY, range);
+
+      expect(tenantScope.resolverEscopo).toHaveBeenCalledWith('user-1', COMPANY);
+      // as DUAS queries fecham na lista do resolvedor — nunca "todas"
+      expect(prisma.company.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [COMPANY] } } }),
+      );
+      expect(prisma.salesOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ companyId: { in: [COMPANY] } }) }),
+      );
+      expect(res.ampliado).toBe(false);
+      expect(res.stores).toHaveLength(1);
+      expect(res.totalRevenue).toBe(1000);
+    });
+
+    it('com a capability: ranking do grupo ordenado por receita, com share e clientes distintos', async () => {
+      tenantScope.resolverEscopo.mockResolvedValue({
+        companyIds: [COMPANY, 'loja-cas', 'loja-gua'],
+        ampliado: true,
+      });
+      prisma.company.findMany.mockResolvedValue([
+        { id: COMPANY, name: 'GDR Matriz' },
+        { id: 'loja-cas', name: 'Loja Cascavel' },
+        { id: 'loja-gua', name: 'Loja Guarapuava' },
+      ]);
+      prisma.salesOrder.findMany.mockResolvedValue([
+        storeOrder(COMPANY, 'c-1', [[1, 30000]]),
+        storeOrder('loja-cas', 'c-2', [[2, 25000]]), // 50000 — 1º lugar
+        storeOrder('loja-cas', 'c-2', [[1, 10000]]), // mesmo cliente: distinto conta 1
+        storeOrder('loja-gua', null, [[1, 20000]]), // balcão sem cliente: receita conta, cliente não
+      ]);
+
+      const res = await service.stores('user-1', COMPANY, range);
+
+      expect(res.ampliado).toBe(true);
+      expect(res.totalRevenue).toBe(110000);
+      expect(res.stores.map((s) => s.name)).toEqual([
+        'Loja Cascavel',
+        'GDR Matriz',
+        'Loja Guarapuava',
+      ]);
+      const [cas, matriz, gua] = res.stores;
+      expect(cas).toMatchObject({ revenue: 60000, orders: 2, customers: 1, share: 54.5 });
+      expect(matriz).toMatchObject({ revenue: 30000, orders: 1, customers: 1, share: 27.3 });
+      expect(gua).toMatchObject({ revenue: 20000, orders: 1, customers: 0, share: 18.2 });
+    });
+
+    it('grupo sem faturamento no período: lojas com zeros e share 0 (sem divisão por zero)', async () => {
+      tenantScope.resolverEscopo.mockResolvedValue({
+        companyIds: [COMPANY, 'loja-cas'],
+        ampliado: true,
+      });
+      prisma.company.findMany.mockResolvedValue([
+        { id: COMPANY, name: 'GDR Matriz' },
+        { id: 'loja-cas', name: 'Loja Cascavel' },
+      ]);
+
+      const res = await service.stores('user-1', COMPANY, range);
+
+      expect(res.totalRevenue).toBe(0);
+      expect(res.stores).toHaveLength(2);
+      expect(res.stores.every((s) => s.revenue === 0 && s.share === 0)).toBe(true);
     });
   });
 });
