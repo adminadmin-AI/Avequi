@@ -678,6 +678,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'dashboard.stock.view',
       'production.orders.view',
       'production.orders.create',
+      // #817: o PCP é quem monta o despacho da fábrica a partir de um carrinho
+      // de modelos — é o usuário natural do POST /production/dispatch.
+      // Os perfis gerenciais e de leitura recebem esta permissão pelas
+      // varreduras que já existem (moduleCodes('production'), actionCodes('view')).
+      'production.dispatch.view',
       ...resourceCodes('production', 'mrp'),
       'production.bom.view',
       'production.routing.view',
@@ -714,6 +719,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'production.orders.view',
       'production.orders.start',
       'production.orders.execute',
+      // #817 (decisão Rafael, 05/08/2026): o chão de fábrica VÊ o despacho.
+      // A OS/OC por setor é justamente o papel que o operador consulta para
+      // saber o que produzir e o que receber — restringir ao PCP não faria
+      // sentido. A permissão é SOMENTE LEITURA: não cria, não altera, não
+      // libera e não administra Ordem de Produção.
+      // SUPERVISOR_PRODUCAO recebe por HERANÇA (parentCode = OPERADOR_PRODUCAO),
+      // que é como este catálogo modela delta de perfil — repetir o code aqui
+      // embaixo seria redundância, não concessão extra. Há teste travando os
+      // três perfis (PCP, supervisor e operador).
+      'production.dispatch.view',
       'production.bom.view',
       'production.routing.view',
       'production.scheduling.view',

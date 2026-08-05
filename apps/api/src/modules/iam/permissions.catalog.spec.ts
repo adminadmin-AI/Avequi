@@ -130,7 +130,12 @@ describe('Catálogo de permissões (#338)', () => {
     //       comissão e o percentual dos outros — antes era o enum COMMERCIAL
     //       que restringia) e iam.sessions.revoke-any (revogar sessão de
     //       terceiro — antes era `role === 'SUPER_ADMIN'` no handler).
-    expect(PERMISSIONS_CATALOG.length).toBe(324);
+    // 325 = 324 + production.dispatch.view (#817 — despacho por setor,
+    //       POST /production/dispatch. Permissão PRÓPRIA e não reuso de
+    //       production.orders.view: ver o que cada setor produz e recebe é
+    //       leitura de chão de fábrica, não administração de Ordem de Produção.
+    //       O endpoint é somente leitura e não grava nada.)
+    expect(PERMISSIONS_CATALOG.length).toBe(325);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

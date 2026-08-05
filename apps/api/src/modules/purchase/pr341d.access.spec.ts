@@ -133,6 +133,10 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     award: 'purchases.rfq.award',
   }],
   [ProductionController, 'production', {
+    // #817 — despacho por setor: permissão PRÓPRIA, deliberadamente separada de
+    // production.orders.view (ver o que cada setor produz é leitura de chão de
+    // fábrica, não administração de Ordem de Produção). Somente leitura.
+    dispatch: 'production.dispatch.view',
     create: 'production.orders.create',
     findAll: 'production.orders.view',
     findOne: 'production.orders.view',
