@@ -107,22 +107,43 @@ describe('PurchaseService', () => {
   // ─── approvePO ────────────────────────────────────────────────────────────
 
   describe('approvePO', () => {
-    it('deve lançar ForbiddenException para usuário sem permissão de aprovação', async () => {
-      await expect(
-        service.approvePO('po-1', 'co-1', 'user-1', 'STORE'),
-      ).rejects.toThrow(ForbiddenException);
+    // #948-C1: os dois testes que existiam aqui provavam que STORE e WAREHOUSE
+    // eram barrados pelo enum. Esse portão saiu — quem barra agora é a
+    // permissão `purchases.orders.approve` na rota, e é o pr341d.access.spec
+    // que prova isso, no nível certo. O service não decide mais acesso.
+    it('#948-C1: o enum não decide mais — chegou ao service, aprova', async () => {
+      // Um STORE que tenha `purchases.orders.approve` no RBAC v2 passa pelo
+      // guard e chega aqui. Antes, o array de enums o barrava mesmo com a
+      // permissão concedida — o 403 vinha sem explicação nenhuma.
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(basePO);
+      mockPrisma.pOItem.count.mockResolvedValue(1);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        ...basePO,
+        status: PurchaseOrderStatus.APPROVED,
+      });
+      mockPrisma.auditLog.create.mockResolvedValue({});
+
+      await expect(service.approvePO('po-1', 'co-1', 'user-1')).resolves.toBeDefined();
     });
 
-    it('deve lançar ForbiddenException para perfil WAREHOUSE', async () => {
-      await expect(
-        service.approvePO('po-1', 'co-1', 'user-1', 'WAREHOUSE'),
-      ).rejects.toThrow(ForbiddenException);
+    it('#948-C1: não existe mais array de papéis aprovadores no código', () => {
+      // Guarda contra reintrodução: se alguém recriar a lista de enums, isto
+      // falha antes de o poder voltar a existir por outro caminho.
+      // Sem comentários: a própria explicação da remoção cita o nome antigo,
+      // e o que interessa aqui é o que EXECUTA.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const src: string = require('fs')
+        .readFileSync('src/modules/purchase/purchase.service.ts', 'utf-8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      expect(src).not.toMatch(/APPROVER_ROLES/);
+      expect(src).not.toMatch(/'SUPER_ADMIN'|'DIRECTOR'|'MANAGER'/);
     });
 
     it('deve lançar NotFoundException quando PO não existe', async () => {
       mockPrisma.purchaseOrder.findFirst.mockResolvedValue(null);
       await expect(
-        service.approvePO('po-x', 'co-1', 'user-1', 'DIRECTOR'),
+        service.approvePO('po-x', 'co-1', 'user-1'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -132,7 +153,7 @@ describe('PurchaseService', () => {
         status: PurchaseOrderStatus.APPROVED,
       });
       await expect(
-        service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR'),
+        service.approvePO('po-1', 'co-1', 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -140,7 +161,7 @@ describe('PurchaseService', () => {
       mockPrisma.purchaseOrder.findFirst.mockResolvedValue({ ...basePO, items: undefined });
       mockPrisma.pOItem.count.mockResolvedValue(0);
       await expect(
-        service.approvePO('po-1', 'co-1', 'user-1', 'MANAGER'),
+        service.approvePO('po-1', 'co-1', 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -151,7 +172,7 @@ describe('PurchaseService', () => {
       mockPrisma.purchaseOrder.update.mockResolvedValue(approvedPO);
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR');
+      const result = await service.approvePO('po-1', 'co-1', 'user-1');
       expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
       expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -166,7 +187,7 @@ describe('PurchaseService', () => {
       mockPrisma.purchaseOrder.update.mockResolvedValue({ ...basePO, status: PurchaseOrderStatus.APPROVED });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.approvePO('po-1', 'co-1', 'user-2', 'MANAGER');
+      const result = await service.approvePO('po-1', 'co-1', 'user-2');
       expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
     });
 
@@ -179,7 +200,7 @@ describe('PurchaseService', () => {
       mockPrisma.purchaseOrder.update.mockResolvedValue({ ...ownPO, status: PurchaseOrderStatus.APPROVED });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      const result = await service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR');
+      const result = await service.approvePO('po-1', 'co-1', 'user-1');
       expect(result.status).toBe(PurchaseOrderStatus.APPROVED);
     });
 
@@ -189,7 +210,7 @@ describe('PurchaseService', () => {
       mockPrisma.pOItem.count.mockResolvedValue(1);
 
       await expect(
-        service.approvePO('po-1', 'co-1', 'user-1', 'DIRECTOR'),
+        service.approvePO('po-1', 'co-1', 'user-1'),
       ).rejects.toThrow(ForbiddenException);
       mockConfig.get.mockReturnValue(undefined); // restaura default para os demais testes
     });

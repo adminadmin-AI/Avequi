@@ -15,7 +15,6 @@ import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { CreateGoodsReceiptDto } from './dto/create-goods-receipt.dto';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 
-const APPROVER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
 @Injectable()
 export class PurchaseService {
@@ -144,11 +143,20 @@ export class PurchaseService {
 
   // ─── Aprovação (S05.03) ──────────────────────────────────────────────────
 
-  async approvePO(id: string, companyId: string, userId: string, userRole: string) {
-    if (!APPROVER_ROLES.includes(userRole)) {
-      throw new ForbiddenException('Apenas Diretores e Gerentes podem aprovar pedidos de compra');
-    }
-
+  /**
+   * #948-C1: quem pode aprovar é decidido pela permissão
+   * `purchases.orders.approve`, exigida na rota pelo `PermissionGuard`.
+   *
+   * Antes havia aqui um SEGUNDO portão, por enum: `APPROVER_ROLES` com
+   * SUPER_ADMIN/DIRECTOR/MANAGER. Ele era redundante com a permissão e mais
+   * restritivo que ela — um perfil v2 com a permissão concedida era barrado
+   * pelo enum congelado, e o motivo do 403 não aparecia em lugar nenhum.
+   *
+   * O que NÃO saiu: a segregação de funções (criador ≠ aprovador), a validação
+   * de status, a exigência de itens e a auditoria. Aquilo é regra de negócio;
+   * isto era controle de acesso duplicado.
+   */
+  async approvePO(id: string, companyId: string, userId: string) {
     const po = await this.prisma.purchaseOrder.findFirst({ where: { id, companyId } });
     if (!po) throw new NotFoundException(`Pedido de compra ${id} não encontrado`);
     if (po.status !== PurchaseOrderStatus.DRAFT) {

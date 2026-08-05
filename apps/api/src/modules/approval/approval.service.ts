@@ -103,10 +103,16 @@ export class ApprovalService {
     const requiredLevels = await this.getRequiredLevels(companyId, documentType, amount);
 
     if (requiredLevels.length === 0) {
-      // No matrix configured — fallback to simple MANAGER+ approval
-      if (!['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole)) {
-        throw new ForbiddenException('Apenas Gerentes+ podem aprovar sem matriz configurada');
-      }
+      // Sem matriz de alçada configurada: aprova em nível único.
+      //
+      // #948-C1: aqui havia um portão por enum (SUPER_ADMIN/DIRECTOR/MANAGER),
+      // redundante com a permissão `approvals.requests.approve` que a rota já
+      // exige — e mais restritivo que ela. Quem chega até este ponto já passou
+      // pelo PermissionGuard; barrar de novo pelo enum congelado só impedia
+      // perfis v2 legítimos de aprovar.
+      //
+      // Isto é o portão GLOBAL. A matriz de alçada continua intacta logo
+      // abaixo: quando existe, ela manda, e pode negar (ver `nextLevel`).
       return this.executeApproval(documentId, documentType, companyId, userId, 1);
     }
 

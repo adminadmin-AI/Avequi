@@ -11,7 +11,6 @@ import { AdaptiveThrottlerGuard } from './common/guards/adaptive-throttler.guard
 import { CsrfGuard } from './common/guards/csrf.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CompanyGuard } from './common/guards/company.guard';
-import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { EntitlementGuard } from './common/guards/entitlement.guard';
 import { ImpersonationReadonlyGuard } from './common/guards/impersonation-readonly.guard';
@@ -200,13 +199,15 @@ import { EntitlementModule } from './modules/entitlement/entitlement.module';
       provide: APP_GUARD,
       useClass: CompanyGuard,
     },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-    // #341 (IAM v2, F5.1): enforcement RBAC granular. DEPOIS do RolesGuard de
-    // propósito — @Roles (enum legado) corta primeiro, @RequirePermission
-    // refina. Endpoint sem @RequirePermission → o guard libera (nada muda).
+    // #341 (IAM v2, F5.1): enforcement RBAC granular.
+    //
+    // #948-C1: o `RolesGuard` (enum legado) ficava aqui, antes deste. Foi
+    // removido: nenhuma rota carregava `@Roles()`, então ele liberava tudo —
+    // era um guard registrado globalmente sem efeito nenhum. Hoje o único
+    // portão por papel é este.
+    //
+    // Endpoint sem @RequirePermission → o guard libera; quem garante que isso
+    // não vira buraco é o `route-gate-coverage.spec`.
     {
       provide: APP_GUARD,
       useClass: PermissionGuard,

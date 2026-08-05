@@ -18,10 +18,13 @@ import {
  * grant/deny) e expiração (expiresAt), com cache Redis (TTL 5 min +
  * invalidação ativa — PermissionCacheService).
  *
- * ⚠️ FASE M2 = SHADOW MODE: este serviço ainda NÃO bloqueia nenhum request.
- * O enforcement (PermissionGuard + @RequirePermission) é a issue #341
- * (Onda B). Aqui ele só CALCULA; o ShadowModeService compara com o
- * comportamento do @Roles atual e loga divergências.
+ * Este serviço CALCULA o conjunto efetivo; quem bloqueia o request é o
+ * PermissionGuard (@RequirePermission), entregue na #341.
+ *
+ * #948-C1: a nota de shadow mode que ficava aqui saiu junto com o
+ * ShadowModeService. Ele comparava esta resolução com o comportamento do
+ * @Roles legado durante a migração (#340) — desde o #946 o RBAC v2 é a fonte
+ * de verdade, e o @Roles não decide mais nada. Não há o que comparar.
  *
  * ── Semântica de precedência (do mais forte para o mais fraco) ──────────────
  *   1. DENY individual   (UserPermission.granted = false)  → sempre vence

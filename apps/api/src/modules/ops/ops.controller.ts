@@ -28,7 +28,7 @@ import { ProvisioningService } from './provisioning.service';
  * OpsController — OPS WP1 (#908): rotas do control plane da operadora.
  *
  * Defesa em camadas, nesta ordem:
- *  1. Cadeia global (JwtAuthGuard → CompanyGuard → RolesGuard → PermissionGuard):
+ *  1. Cadeia global (JwtAuthGuard → CompanyGuard → PermissionGuard):
  *     @RequirePermission('ops.tenants.*') — só AVECCHI_OPERATOR tem (o
  *     catálogo garante que nenhum perfil de tenant recebe ops.*);
  *  2. OpsMfaGuard (@UseGuards local): MFA ativo obrigatório, sem grace period;

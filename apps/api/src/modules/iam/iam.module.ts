@@ -19,7 +19,6 @@ import { RolesAdminController } from './roles-admin.controller';
 import { RolesAdminService } from './roles-admin.service';
 import { SessionDenylistService } from './session-denylist.service';
 import { SessionService } from './session.service';
-import { ShadowModeService } from './shadow-mode.service';
 import { TenantScopeService } from './tenant-scope.service';
 import { TenantStatusService } from './tenant-status.service';
 import { UserAccessController } from './user-access.controller';
@@ -71,7 +70,6 @@ import { UserAccessService } from './user-access.service';
     RolesAdminService,
     SessionDenylistService,
     SessionService,
-    ShadowModeService,
     TenantScopeService,
     TenantStatusService,
     UserAccessService,
@@ -87,7 +85,6 @@ import { UserAccessService } from './user-access.service';
     PermissionService,
     SessionDenylistService,
     SessionService,
-    ShadowModeService,
     TenantScopeService,
     TenantStatusService,
   ],

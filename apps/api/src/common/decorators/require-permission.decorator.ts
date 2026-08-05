@@ -8,7 +8,7 @@ import { PERMISSIONS_CATALOG } from '../../modules/iam/permissions.catalog';
  * Marca um handler (ou controller inteiro) com os codes de permissão do
  * catálogo (`permissions.catalog.ts`) exigidos para acessar a rota. Quem lê
  * a metadata e decide é o PermissionGuard (common/guards/permission.guard.ts),
- * registrado como APP_GUARD global DEPOIS do RolesGuard.
+ * registrado como APP_GUARD global.
  *
  * ── Semântica: AND (exige TODAS) ────────────────────────────────────────────
  * `@RequirePermission('a.b.c', 'x.y.z')` = o usuário precisa ter TODAS as
@@ -16,10 +16,9 @@ import { PERMISSIONS_CATALOG } from '../../modules/iam/permissions.catalog';
  * uma permissão que represente a ação de fato — endpoints com OR genuíno são
  * quase sempre sinal de que a ação merece um code próprio.
  *
- * ── Convivência com @Roles ──────────────────────────────────────────────────
- * @Roles continua funcionando (RolesGuard intocado). Um endpoint pode ter os
- * dois: o RolesGuard avalia primeiro (enum legado), o PermissionGuard refina
- * depois (RBAC v2). Endpoint SÓ com @Roles → nada muda para ele.
+ * ── @Roles não existe mais como gate (#948-C1) ──────────────────────────────
+ * O RolesGuard foi removido: o decorator @Roles ficou inerte e uma rota que
+ * dependesse só dele estaria ABERTA. Este é o único jeito de gatear uma rota.
  *
  * ── Fail-fast contra typo ───────────────────────────────────────────────────
  * O decorator valida os codes contra o catálogo NO MOMENTO DA DECORAÇÃO

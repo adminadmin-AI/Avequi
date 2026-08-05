@@ -73,7 +73,7 @@ export class PurchaseController {
   @RequirePermission('purchases.orders.approve')
   @ApiOperation({ summary: 'Aprovar pedido de compra' })
   approvePO(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.purchaseService.approvePO(id, user.companyId, user?.id, user?.role);
+    return this.purchaseService.approvePO(id, user.companyId, user?.id);
   }
 
   @Post('orders/:id/cancel')
