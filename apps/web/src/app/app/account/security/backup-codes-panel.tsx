@@ -75,7 +75,7 @@ export function BackupCodesPanel({
         <div className="min-w-0 text-sm">
           <p className="font-medium text-content">Esta é a única vez que eles aparecem.</p>
           <p className="mt-1 text-content-secondary">
-            Cada código funciona uma única vez, no lugar do código do autenticador — é o que salva
+            Cada código funciona uma única vez, no lugar do código do autenticador. É o que salva
             você se perder o celular. Guarde antes de concluir: depois desta tela não há como vê-los
             de novo.
           </p>

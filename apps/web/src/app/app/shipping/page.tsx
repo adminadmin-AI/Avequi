@@ -85,8 +85,8 @@ export default function ShippingPage() {
   const [tab, setTab] = useState('entregas');
 
   const { data: products = [] } = useList<Product>('/products');
-  const productName = useMemo(() => new Map(products.map((p) => [p.id, `${p.sku} — ${p.name}`])), [products]);
-  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })), [products]);
+  const productName = useMemo(() => new Map(products.map((p) => [p.id, `${p.sku} · ${p.name}`])), [products]);
+  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })), [products]);
 
   // ─── Entregas ───────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('');
@@ -129,7 +129,7 @@ export default function ShippingPage() {
   }
 
   const deliveryColumns: Column<Delivery>[] = [
-    { key: 'salesOrderId', header: 'OV', cell: (r) => <span className="font-mono text-caption">{short(r.salesOrderId)}</span> },
+    { key: 'salesOrderId', header: 'Pedido', cell: (r) => <span className="font-mono text-caption">{short(r.salesOrderId)}</span> },
     { key: 'status', header: 'Status', cell: (r) => <Badge variant={DELIVERY_STATUS[r.status].variant}>{DELIVERY_STATUS[r.status].label}</Badge> },
     { key: 'transporterName', header: 'Transportadora', cell: (r) => r.transporterName ?? '—' },
     { key: 'vehiclePlate', header: 'Placa', cell: (r) => r.vehiclePlate ?? '—' },
@@ -194,7 +194,7 @@ export default function ShippingPage() {
   }
   function openDocDelivery(d: VehicleDocument) { setDocForDelivery(d); setDocDeliveryForm({ salesOrderId: '', serialNumberId: '', deliveredTo: 'END_CUSTOMER', deliveredBy: '' }); setDocDeliveryDialog(true); }
   async function confirmDeleteDoc(d: VehicleDocument) {
-    if (await confirm({ title: 'Remover documento?', description: `${DOC_TYPE[d.type]} nº ${d.documentNumber} será removido.` })) deleteDoc.mutate(d.id);
+    if (await confirm({ title: `Remover ${DOC_TYPE[d.type]} nº ${d.documentNumber}?`, description: 'Você não vai conseguir desfazer isso.' })) deleteDoc.mutate(d.id);
   }
 
   const docColumns: Column<VehicleDocument>[] = [
@@ -226,7 +226,7 @@ export default function ShippingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Expedição" description="Entregas pós-NF-e, documentos regulatórios e pendências (#496)" />
+      <PageHeader title="Expedição" description="Entregas pós-NF-e, documentos regulatórios e pendências" />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -254,8 +254,8 @@ export default function ShippingPage() {
                 columns={deliveryColumns}
                 rowKey={(r) => r.id}
                 loading={deliveries.isLoading}
-                searchPlaceholder="Buscar por OV / transportadora..."
-                emptyMessage="Nenhuma entrega — elas são criadas automaticamente ao faturar uma venda."
+                searchPlaceholder="Buscar por pedido / transportadora..."
+                emptyMessage="Nenhuma entrega. Elas são criadas automaticamente ao faturar uma venda."
               />
             </CardContent>
           </Card>
@@ -296,13 +296,13 @@ export default function ShippingPage() {
               <DataTable
                 data={pending.data ?? []}
                 columns={[
-                  { key: 'id', header: 'OV', cell: (r) => <span className="font-mono text-caption">{short(r.id)}</span> },
+                  { key: 'id', header: 'Pedido', cell: (r) => <span className="font-mono text-caption">{short(r.id)}</span> },
                   { key: 'invoicedAt', header: 'Faturada em', cell: (r) => (r.invoicedAt ? formatDate(r.invoicedAt) : '—') },
                 ]}
                 rowKey={(r) => r.id}
                 loading={pending.isLoading}
                 searchable={false}
-                emptyMessage="Nenhuma pendência — todas as vendas de veículo têm documentos entregues. 🎉"
+                emptyMessage="Nenhuma pendência. Todas as vendas de veículo têm documentos entregues. 🎉"
               />
             </CardContent>
           </Card>
@@ -310,7 +310,7 @@ export default function ShippingPage() {
       </Tabs>
 
       {/* Dialog: atualizar status da entrega */}
-      <FormDialog open={statusDialog} onOpenChange={setStatusDialog} title={`Entrega ${editingDelivery ? '· OV ' + short(editingDelivery.salesOrderId) : ''}`} formId="status-form" loading={saveStatus.isPending}>
+      <FormDialog open={statusDialog} onOpenChange={setStatusDialog} title={`Entrega ${editingDelivery ? '· Pedido ' + short(editingDelivery.salesOrderId) : ''}`} formId="status-form" loading={saveStatus.isPending}>
         <form id="status-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveStatus.mutate(statusForm); }}>
           <Field label="Status" required>
             <Combobox options={Object.entries(DELIVERY_STATUS).map(([v, m]) => ({ value: v, label: m.label }))} value={statusForm.status} onValueChange={(v) => setStatusForm({ ...statusForm, status: v as DeliveryStatus })} />
@@ -360,7 +360,7 @@ export default function ShippingPage() {
       {/* Dialog: registrar entrega de documento */}
       <FormDialog open={docDeliveryDialog} onOpenChange={setDocDeliveryDialog} title="Registrar entrega do documento" formId="doc-delivery-form" loading={registerDocDelivery.isPending}>
         <form id="doc-delivery-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); registerDocDelivery.mutate(docDeliveryForm); }}>
-          <Field label="OV (salesOrderId)" required><Input value={docDeliveryForm.salesOrderId} onChange={(e) => setDocDeliveryForm({ ...docDeliveryForm, salesOrderId: e.target.value })} required placeholder="ID da ordem de venda" /></Field>
+          <Field label="Pedido (salesOrderId)" required><Input value={docDeliveryForm.salesOrderId} onChange={(e) => setDocDeliveryForm({ ...docDeliveryForm, salesOrderId: e.target.value })} required placeholder="ID do pedido de venda" /></Field>
           <Field label="Chassi (serialNumberId, opcional)"><Input value={docDeliveryForm.serialNumberId} onChange={(e) => setDocDeliveryForm({ ...docDeliveryForm, serialNumberId: e.target.value })} /></Field>
           <Field label="Entregue a" required>
             <Combobox options={Object.entries(DELIVERED_TO).map(([v, l]) => ({ value: v, label: l }))} value={docDeliveryForm.deliveredTo} onValueChange={(v) => setDocDeliveryForm({ ...docDeliveryForm, deliveredTo: v })} />

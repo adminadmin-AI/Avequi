@@ -37,7 +37,7 @@ export default function CostingPage() {
   const [productId, setProductId] = useState('');
 
   const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })),
+    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
     [products],
   );
 
@@ -71,7 +71,7 @@ export default function CostingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Custeio por Absorção" description="Material + MOD + CIF rateado, com comparativo com/sem CIF (#396)" />
+      <PageHeader title="Custeio por absorção" description="Material + MOD + CIF rateado, com comparativo com/sem CIF" />
 
       {/* Taxa CIF da empresa */}
       <Card>
@@ -157,7 +157,7 @@ export default function CostingPage() {
                   <CardTitle>
                     Custo por absorção
                     <span className="ml-2 text-caption font-normal text-content-muted">
-                      {cost.data.sku} — {cost.data.name}
+                      {cost.data.sku} · {cost.data.name}
                     </span>
                   </CardTitle>
                   {cost.data.cifImpactPct != null && (

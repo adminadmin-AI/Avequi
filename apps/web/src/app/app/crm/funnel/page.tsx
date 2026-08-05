@@ -9,6 +9,7 @@ import { Can } from '@/components/can';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { LOST_REASON_OPTIONS, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 import { Board, BoardColumn, BoardLead, SOURCE_LABEL, formatBRL } from './funnel-types';
 
@@ -50,7 +51,7 @@ export default function FunnelPage() {
       setLostReason('');
       setLostCategory('');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao mover'),
+    onError: (e: any) => toast.error(erroDeAcao('mover o lead', e)),
   });
 
   function onDrop(column: BoardColumn, index: number) {

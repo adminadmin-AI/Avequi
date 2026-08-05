@@ -113,7 +113,7 @@ export default function PurchaseAutomationPage() {
   return (
     <div>
       <PageHeader
-        title="Automação de Compras"
+        title="Automação de compras"
         description="Monitor de estoque mínimo para reposição."
       />
 
@@ -136,10 +136,10 @@ export default function PurchaseAutomationPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          A <strong>geração automática de PO</strong> e a <strong>configuração por produto</strong>
-          {' '}(ligar/desligar reposição automática) ainda não têm endpoint no backend
-          (<code>/purchase-automation/*</code> não existe). Esta tela entrega o monitor de estoque
-          mínimo; o reabastecimento por MRP fica na tela de MRP (#124).
+          A <strong>geração automática de pedidos de compra</strong> e a{' '}
+          <strong>configuração por produto</strong> (ligar/desligar reposição automática) ainda não
+          estão disponíveis. Esta tela mostra o monitor de estoque mínimo; o reabastecimento
+          automático fica a cargo do MRP. Em breve.
         </span>
       </div>
 

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { StockMovement, MovementType, Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +69,7 @@ export default function MovementsPage() {
           setReverseTarget(null);
           setReverseReason('');
         },
-        onError: () => toast.error('Não foi possível estornar'),
+        onError: (e) => toast.error(erroDeAcao('estornar a movimentação', e)),
       },
     );
   }
@@ -126,7 +127,7 @@ export default function MovementsPage() {
   return (
     <div>
       <PageHeader
-        title="Movimentações de Estoque"
+        title="Movimentações de estoque"
         description="Histórico de entradas, saídas e ajustes."
         actions={<NewMovementDialog />}
       />
@@ -149,7 +150,7 @@ export default function MovementsPage() {
             <option value="">Todos</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.code} — {w.name}
+                {w.code} · {w.name}
               </option>
             ))}
           </Select>

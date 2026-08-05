@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, ExternalLink, PackageCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,16 @@ export default function PurchaseDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
   });
 
+  const ACTION_SUCCESS: Record<'approve' | 'cancel', string> = {
+    approve: 'Pedido de compra aprovado',
+    cancel: 'Pedido de compra cancelado',
+  };
+
   function runAction(endpoint: 'approve' | 'cancel') {
     const doIt = () =>
       transition.mutate(endpoint, {
-        onSuccess: () => toast.success('Status atualizado'),
-        onError: () => toast.error('Não foi possível executar a ação'),
+        onSuccess: () => toast.success(ACTION_SUCCESS[endpoint]),
+        onError: (e) => toast.error(erroDeAcao('atualizar o pedido de compra', e)),
       });
     if (endpoint === 'cancel') {
       confirm({
@@ -104,7 +110,7 @@ export default function PurchaseDetailPage() {
   if (isLoading || !po) {
     return (
       <div>
-        <PageHeader title="Pedido de Compra" />
+        <PageHeader title="Pedido de compra" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -242,7 +248,7 @@ export default function PurchaseDetailPage() {
                 href="/app/finance/payables"
                 className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
-                <ExternalLink size={14} /> Ver em Pagáveis
+                <ExternalLink size={14} /> Ver em Contas a pagar
               </Link>
             </div>
           )}

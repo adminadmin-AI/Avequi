@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Plus } from 'lucide-react';
+import { AlertTriangle, FileText, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatDate } from '@/lib/format';
 import type {
   CreateProposalInput,
@@ -113,7 +114,7 @@ function SubscriptionDialog({
       title={subscription ? 'Editar assinatura' : 'Criar assinatura'}
       description={
         subscription?.canceledAt
-          ? 'Esta assinatura está cancelada — salvar reativa a cobrança.'
+          ? 'Esta assinatura está cancelada. Salvar reativa a cobrança.'
           : undefined
       }
       formId="subscription-form"
@@ -160,7 +161,7 @@ function SubscriptionDialog({
         {canPickPlan && (
           <Field label="Plano de referência comercial">
             <Select value={planId ?? ''} onChange={(e) => setPlanId(e.target.value || null)}>
-              <option value="">— Sem plano —</option>
+              <option value="">Sem plano</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.code})
@@ -219,7 +220,19 @@ function SubscriptionCard({
       invalidate();
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível salvar a assinatura'),
+    onError: (err) => toast.error(erroDeAcao('salvar a assinatura', err)),
+  });
+
+  // #992 — abre o contrato em PDF numa aba nova (gerado on-demand na API).
+  const contractPdf = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.get(`${RESOURCE}/${tenantId}/contract`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      window.open(url, '_blank', 'noopener');
+      // revoga depois que a aba nova já carregou o blob
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    onError: (err) => toast.error(erroDeAcao('gerar o contrato', err)),
   });
 
   const cancel = useMutation({
@@ -228,7 +241,7 @@ function SubscriptionCard({
       toast.success('Assinatura cancelada');
       invalidate();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível cancelar a assinatura'),
+    onError: (err) => toast.error(erroDeAcao('cancelar a assinatura', err)),
   });
 
   async function handleCancel() {
@@ -280,8 +293,8 @@ function SubscriptionCard({
               />
             </div>
 
-            <Can permission="ops.billing.manage">
-              <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Can permission="ops.billing.manage">
                 <Button variant="secondary" size="sm" onClick={openDialog}>
                   Editar
                 </Button>
@@ -290,8 +303,21 @@ function SubscriptionCard({
                     Cancelar
                   </Button>
                 )}
-              </div>
-            </Can>
+              </Can>
+              {/* #992 — contrato em PDF dos dados vivos; só faz sentido com
+                  assinatura ativa (o backend devolve 400 sem ela). */}
+              {!subscription.canceledAt && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={contractPdf.isPending}
+                  onClick={() => contractPdf.mutate()}
+                >
+                  <FileText size={15} />
+                  Gerar contrato (PDF)
+                </Button>
+              )}
+            </div>
           </>
         )}
       </CardContent>
@@ -328,22 +354,22 @@ function InvoicesCard({ tenantId, invoices }: { tenantId: string; invoices: Invo
     mutationFn: ({ id, method }: { id: string; method: InvoiceMethod }) =>
       apiClient.post(`/ops/billing/invoices/${id}/pay`, { method }),
     onSuccess: () => {
-      toast.success('Baixa registrada');
+      toast.success(`Baixa registrada na fatura de ${formatPeriod(payTarget!.period)}`);
       invalidate();
       setPayTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível dar baixa na fatura'),
+    onError: (err) => toast.error(erroDeAcao('dar baixa na fatura', err)),
   });
 
   const voidInvoice = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       apiClient.post(`/ops/billing/invoices/${id}/void`, { reason }),
     onSuccess: () => {
-      toast.success('Fatura anulada');
+      toast.success(`Fatura de ${formatPeriod(voidTarget!.period)} anulada`);
       invalidate();
       setVoidTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível anular a fatura'),
+    onError: (err) => toast.error(erroDeAcao('anular a fatura', err)),
   });
 
   return (
@@ -483,7 +509,7 @@ function NovaPropostaDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Nova proposta"
-      description="O valor nasce do preço de tabela do plano — edite só o que for negociado."
+      description="O valor nasce do preço de tabela do plano. Edite só o que for negociado."
       formId="proposal-form"
       submitLabel="Criar proposta"
       size="lg"
@@ -500,7 +526,7 @@ function NovaPropostaDialog({
             error={touched && planInvalid}
             onChange={(e) => pickPlan(e.target.value)}
           >
-            <option value="">— Selecione —</option>
+            <option value="">Selecione</option>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
                 {labelDoPlano(p)}
@@ -531,7 +557,7 @@ function NovaPropostaDialog({
             <p className="mt-1 text-xs text-content-muted">
               {tabela != null
                 ? `Preço de tabela: ${formatBRL(tabela / 100)}`
-                : 'Este plano não tem preço de tabela — informe o valor negociado.'}
+                : 'Este plano não tem preço de tabela. Informe o valor negociado.'}
             </p>
           )}
         </Field>
@@ -557,7 +583,7 @@ function NovaPropostaDialog({
             value={conditions}
             maxLength={2000}
             rows={3}
-            placeholder="Prazo de implantação, descontos, carência — o que foi combinado."
+            placeholder="Prazo de implantação, descontos, carência: o que foi combinado."
             onChange={(e) => setConditions(e.target.value)}
           />
         </Field>
@@ -623,7 +649,7 @@ function AceitarPropostaDialog({
             value={note}
             maxLength={500}
             rows={3}
-            placeholder="Opcional — quem aprovou, referência do contrato."
+            placeholder="Opcional: quem aprovou, referência do contrato."
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
@@ -659,7 +685,7 @@ function RecusarPropostaDialog({
       open={!!proposal}
       onOpenChange={onOpenChange}
       title="Recusar proposta"
-      description="A recusa é definitiva — uma nova negociação exige uma proposta nova."
+      description="A recusa é definitiva. Uma nova negociação exige uma proposta nova."
       formId="decline-proposal-form"
       submitLabel="Recusar proposta"
       loading={loading}
@@ -733,7 +759,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       invalidateProposals();
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível criar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('criar a proposta', err)),
   });
 
   const send = useMutation({
@@ -742,18 +768,18 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       toast.success('Proposta marcada como enviada');
       invalidateProposals();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível enviar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('enviar a proposta', err)),
   });
 
   const accept = useMutation({
     mutationFn: ({ id, decidedNote }: { id: string; decidedNote?: string }) =>
       apiClient.post(`/ops/proposals/${id}/accept`, { decidedNote }),
     onSuccess: () => {
-      toast.success('Proposta aceita — assinatura e plano atualizados');
+      toast.success('Proposta aceita. Assinatura e plano atualizados.');
       invalidateConta();
       setAcceptTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível aceitar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('aceitar a proposta', err)),
   });
 
   const decline = useMutation({
@@ -764,7 +790,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       invalidateProposals();
       setDeclineTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível recusar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('recusar a proposta', err)),
   });
 
   const proposals = proposalsQuery.data ?? [];

@@ -6,6 +6,7 @@ import { Plus, Play, Check, X, Pencil, PowerOff, Info, LayoutList, CalendarDays 
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type {
   Equipment,
   EquipmentStatus,
@@ -180,7 +181,7 @@ export default function MaintenancePage() {
           toast.success('Ordem de manutenção criada');
           setOmOpen(false);
         },
-        onError: () => toast.error('Erro ao criar ordem de manutenção'),
+        onError: (e) => toast.error(erroDeAcao('criar a ordem de manutenção', e)),
       },
     );
   }
@@ -205,7 +206,7 @@ export default function MaintenancePage() {
           setResolution('');
           setCost('');
         },
-        onError: () => toast.error('Não foi possível concluir a ordem'),
+        onError: (e) => toast.error(erroDeAcao('concluir a ordem', e)),
       },
     );
   }
@@ -215,7 +216,7 @@ export default function MaintenancePage() {
         ok &&
         orderAction.mutate(
           { id: o.id, endpoint: 'start' },
-          { onSuccess: () => toast.success('Ordem iniciada'), onError: () => toast.error('Erro ao iniciar') },
+          { onSuccess: () => toast.success('Ordem iniciada'), onError: (e) => toast.error(erroDeAcao('iniciar a ordem', e)) },
         ),
     );
   }
@@ -225,7 +226,7 @@ export default function MaintenancePage() {
         ok &&
         orderAction.mutate(
           { id: o.id, endpoint: 'cancel' },
-          { onSuccess: () => toast.success('Ordem cancelada'), onError: () => toast.error('Erro ao cancelar') },
+          { onSuccess: () => toast.success('Ordem cancelada'), onError: (e) => toast.error(erroDeAcao('cancelar a ordem', e)) },
         ),
     );
   }
@@ -235,7 +236,7 @@ export default function MaintenancePage() {
     {
       key: 'equipment',
       header: 'Equipamento',
-      cell: (o) => (o.equipment ? `${o.equipment.code} — ${o.equipment.name}` : '—'),
+      cell: (o) => (o.equipment ? `${o.equipment.code} · ${o.equipment.name}` : '—'),
     },
     { key: 'title', header: 'Descrição', cell: (o) => o.title },
     {
@@ -339,7 +340,7 @@ export default function MaintenancePage() {
         toast.success(editEq ? 'Equipamento atualizado' : 'Equipamento cadastrado');
         setEqOpen(false);
       },
-      onError: () => toast.error('Erro ao salvar equipamento'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar o equipamento', e)),
     };
     if (editEq) {
       updateEquipment.mutate(
@@ -375,7 +376,10 @@ export default function MaintenancePage() {
     confirm({ title: 'Desativar equipamento?', description: `"${e.name}" ficará inativo.`, confirmLabel: 'Desativar', variant: 'danger' }).then(
       (ok) =>
         ok &&
-        deactivateEquipment.mutate(e.id, { onSuccess: () => toast.success('Equipamento desativado'), onError: () => toast.error('Erro ao desativar') }),
+        deactivateEquipment.mutate(e.id, {
+          onSuccess: () => toast.success('Equipamento desativado'),
+          onError: (err) => toast.error(erroDeAcao('desativar o equipamento', err)),
+        }),
     );
   }
 
@@ -393,7 +397,7 @@ export default function MaintenancePage() {
     },
     {
       key: 'nextMaintenanceAt',
-      header: 'Próxima manut.',
+      header: 'Próxima manutenção',
       sortable: true,
       accessor: (e) => e.nextMaintenanceAt ?? '',
       cell: (e) => {
@@ -519,7 +523,7 @@ export default function MaintenancePage() {
               <Select value={equipFilter} onChange={(e) => setEquipFilter(e.target.value)}>
                 <option value="">Todos</option>
                 {equipment.map((e) => (
-                  <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
+                  <option key={e.id} value={e.id}>{e.code} · {e.name}</option>
                 ))}
               </Select>
             </div>
@@ -570,9 +574,9 @@ export default function MaintenancePage() {
         <form id="om-form" onSubmit={(e) => { e.preventDefault(); submitOm(); }} className="space-y-4 py-1">
           <Field label="Equipamento" required>
             <Select value={omForm.equipmentId} onChange={(e) => setOmForm((f) => ({ ...f, equipmentId: e.target.value }))}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {equipment.map((e) => (
-                <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
+                <option key={e.id} value={e.id}>{e.code} · {e.name}</option>
               ))}
             </Select>
           </Field>
@@ -596,7 +600,7 @@ export default function MaintenancePage() {
           </Field>
           <Field label="Técnico responsável">
             <Select value={omForm.technicianId} onChange={(e) => setOmForm((f) => ({ ...f, technicianId: e.target.value }))}>
-              <option value="">— Não atribuído —</option>
+              <option value="">Não atribuído</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
@@ -695,7 +699,7 @@ export default function MaintenancePage() {
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-content-secondary">
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-content-muted">Equipamento</dt>
-                    <dd>{selected.equipment ? `${selected.equipment.code} — ${selected.equipment.name}` : '—'}</dd>
+                    <dd>{selected.equipment ? `${selected.equipment.code} · ${selected.equipment.name}` : '—'}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-content-muted">Técnico</dt>

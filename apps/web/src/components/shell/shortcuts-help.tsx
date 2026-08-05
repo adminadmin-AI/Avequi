@@ -31,7 +31,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['G', 'H'], label: 'Início (dashboard)' },
       { keys: ['G', 'P'], label: 'Produtos' },
       { keys: ['G', 'C'], label: 'Clientes' },
-      { keys: ['G', 'V'], label: 'Ordens de Venda' },
+      { keys: ['G', 'V'], label: 'Vendas' },
       { keys: ['G', 'O'], label: 'Ordens de Produção' },
       { keys: ['G', 'F'], label: 'Documentos Fiscais' },
     ],

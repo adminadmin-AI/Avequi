@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { getQueueToken } from '@nestjs/bull';
@@ -21,7 +21,11 @@ const cfg = (over: Record<string, string | undefined> = {}) => ({
 describe('SiteLeadController (F1.6 #512)', () => {
   let controller: SiteLeadController;
   const intake = { intake: jest.fn().mockResolvedValue({ lead: {}, created: true }) };
-  const resolver = { resolve: jest.fn().mockResolvedValue('company-cascavel') };
+  const resolver = {
+    resolve: jest.fn().mockResolvedValue('company-cascavel'),
+    // #962: o controller resolve o tenant do site ANTES da loja
+    tenantRootId: jest.fn().mockReturnValue('root-default'),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,10 +46,39 @@ describe('SiteLeadController (F1.6 #512)', () => {
       store: 'cascavel',
       interest: 'reboque basculante',
     } as any);
-    expect(resolver.resolve).toHaveBeenCalledWith('cascavel');
+    expect(resolver.resolve).toHaveBeenCalledWith('cascavel', 'root-default');
     const [companyId, dto] = intake.intake.mock.calls[0];
     expect(companyId).toBe('company-cascavel');
     expect(dto.source).toBe('SITE');
+  });
+
+  // #962 — multi-site: a LP da Avecchi manda site:"avecchi"
+  it('site:"avecchi" roteia pro tenant do site, com triagem na matriz DELE', async () => {
+    resolver.tenantRootId.mockReturnValueOnce('root-avecchi');
+    resolver.resolve.mockResolvedValueOnce(null); // LP não manda store
+    await controller.create({
+      name: 'Maria',
+      phone: '45999997777',
+      email: 'maria@empresa.com',
+      site: 'avecchi',
+      company: 'Empresa X Ltda',
+    } as any);
+    expect(resolver.tenantRootId).toHaveBeenCalledWith('avecchi');
+    const [companyId, dto, triageRoot] = intake.intake.mock.calls[0];
+    expect(companyId).toBeNull(); // sem loja → triagem (sem vendedor)
+    expect(triageRoot).toBe('root-avecchi'); // ...na matriz do PRÓPRIO site
+    expect(dto.sourceMeta.site).toBe('avecchi');
+    expect(dto.sourceMeta.company).toBe('Empresa X Ltda');
+  });
+
+  it('site não mapeado → 503 do tenantRootId ANTES de criar qualquer lead', async () => {
+    resolver.tenantRootId.mockImplementationOnce(() => {
+      throw new ServiceUnavailableException('env ausente');
+    });
+    await expect(
+      controller.create({ name: 'X', phone: '45999996666', site: 'fantasma' } as any),
+    ).rejects.toThrow(ServiceUnavailableException);
+    expect(intake.intake).not.toHaveBeenCalled();
   });
 
   it('honeypot preenchido → descarta em silêncio (não cria lead)', async () => {
@@ -56,6 +89,59 @@ describe('SiteLeadController (F1.6 #512)', () => {
     } as any);
     expect(res).toEqual({ ok: true });
     expect(intake.intake).not.toHaveBeenCalled();
+  });
+});
+
+describe('StoreResolver — escopo de tenant (#984)', () => {
+  const prisma = { company: { findFirst: jest.fn() } };
+  let resolver: StoreResolver;
+
+  beforeEach(() => {
+    prisma.company.findFirst.mockReset().mockResolvedValue({ id: 'loja-1' });
+    process.env.CRM_CONNECTOR_TENANT_ID = 'root-gdr';
+    resolver = new StoreResolver(prisma as any);
+  });
+  afterEach(() => {
+    delete process.env.CRM_CONNECTOR_TENANT_ID;
+  });
+
+  it('resolve o slug SÓ dentro da árvore matriz+filiais do tenant da env', async () => {
+    await expect(resolver.resolve('cascavel')).resolves.toBe('loja-1');
+    const where = prisma.company.findFirst.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ id: 'root-gdr' }, { parentId: 'root-gdr' }]);
+    expect(where.name).toEqual({ contains: 'cascavel', mode: 'insensitive' });
+  });
+
+  it('sem CRM_CONNECTOR_TENANT_ID → 503 fail-closed, nunca varre o banco inteiro', async () => {
+    delete process.env.CRM_CONNECTOR_TENANT_ID;
+    await expect(resolver.resolve('cascavel')).rejects.toThrow(ServiceUnavailableException);
+    expect(prisma.company.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('sem slug → null sem tocar no banco', async () => {
+    await expect(resolver.resolve('')).resolves.toBeNull();
+    expect(prisma.company.findFirst).not.toHaveBeenCalled();
+  });
+
+  // #962 — multi-site: env indexada por slug do site
+  it('site mapeado resolve pela env indexada CRM_CONNECTOR_TENANT_ID__<SITE>', () => {
+    process.env.CRM_CONNECTOR_TENANT_ID__AVECCHI = 'root-avecchi';
+    try {
+      expect(resolver.tenantRootId('avecchi')).toBe('root-avecchi');
+    } finally {
+      delete process.env.CRM_CONNECTOR_TENANT_ID__AVECCHI;
+    }
+  });
+
+  it('site desconhecido → 503, NUNCA cai no tenant default', () => {
+    // env default presente (root-gdr) — mesmo assim site não mapeado rejeita
+    expect(() => resolver.tenantRootId('site-fantasma')).toThrow(ServiceUnavailableException);
+  });
+
+  it('rootId explícito escopa a busca sem consultar env de novo', async () => {
+    await expect(resolver.resolve('avecchi', 'root-avecchi')).resolves.toBe('loja-1');
+    const where = prisma.company.findFirst.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ id: 'root-avecchi' }, { parentId: 'root-avecchi' }]);
   });
 });
 

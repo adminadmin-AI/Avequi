@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Link2, Ban, FileDown, Upload } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { PurchaseOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -93,7 +94,7 @@ export default function InboundNfePage() {
         setImportOpen(false);
         setXmlContent('');
       },
-      onError: () => toast.error('Falha ao importar — verifique o XML'),
+      onError: (e) => toast.error(erroDeAcao('importar a NF-e', e)),
     });
   }
 
@@ -107,7 +108,7 @@ export default function InboundNfePage() {
           setLinkTarget(null);
           setLinkPoId('');
         },
-        onError: () => toast.error('Não foi possível vincular'),
+        onError: (e) => toast.error(erroDeAcao('vincular a NF-e ao pedido de compra', e)),
       },
     );
   }
@@ -126,7 +127,7 @@ export default function InboundNfePage() {
         a.click();
         URL.revokeObjectURL(url);
       })
-      .catch(() => toast.error('Erro ao baixar XML'));
+      .catch((e) => toast.error(erroDeAcao('baixar o XML', e)));
   }
 
   const columns: Column<InboundNfe>[] = [
@@ -205,7 +206,7 @@ export default function InboundNfePage() {
                 e.stopPropagation();
                 reject.mutate(n.id, {
                   onSuccess: () => toast.success('NF-e rejeitada'),
-                  onError: () => toast.error('Erro ao rejeitar'),
+                  onError: (e) => toast.error(erroDeAcao('rejeitar a NF-e', e)),
                 });
               }}
               title="Rejeitar"
@@ -222,8 +223,8 @@ export default function InboundNfePage() {
   return (
     <div>
       <PageHeader
-        title="NF-e de Entrada"
-        description="Notas fiscais de fornecedores — importação e vínculo com pedidos de compra."
+        title="NF-e de entrada"
+        description="Notas fiscais de fornecedores: importação e vínculo com pedidos de compra."
         actions={
           <Button onClick={() => setImportOpen(true)}>
             <Plus size={16} />
@@ -276,7 +277,8 @@ export default function InboundNfePage() {
             />
           </div>
           <p className="text-xs text-content-muted">
-            A consulta automática à SEFAZ por chave de acesso não está disponível no backend; use o XML.
+            A consulta automática à SEFAZ por chave de acesso ainda não está disponível. Use o XML
+            por enquanto. Em breve.
           </p>
         </form>
       </FormDialog>
@@ -285,7 +287,7 @@ export default function InboundNfePage() {
       <FormDialog
         open={!!linkTarget}
         onOpenChange={(o) => !o && setLinkTarget(null)}
-        title="Vincular a Pedido de Compra"
+        title="Vincular a pedido de compra"
         description={linkTarget ? `NF-e de ${linkTarget.supplierName}` : ''}
         formId="link-po-form"
         submitLabel="Vincular"
@@ -302,16 +304,16 @@ export default function InboundNfePage() {
           <div>
             <Label required>Pedido de Compra (aprovado)</Label>
             <Select value={linkPoId} onChange={(e) => setLinkPoId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {approvedPOs.map((p) => (
                 <option key={p.id} value={p.id}>
-                  PO #{shortId(p.id)} — {p.supplier?.name ?? 'sem fornecedor'}
+                  PO #{shortId(p.id)} · {p.supplier?.name ?? 'sem fornecedor'}
                 </option>
               ))}
             </Select>
           </div>
           <p className="text-xs text-content-muted">
-            Ao vincular, o backend gera o recebimento (GR) e a conta a pagar automaticamente.
+            Ao vincular, o recebimento e a conta a pagar são gerados automaticamente.
           </p>
         </form>
       </FormDialog>

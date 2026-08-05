@@ -11,7 +11,9 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { TaxRuleForm, TAX_OPERATION_LABELS, type TaxRuleFormValues } from './tax-rule-form';
+import { erroDeAcao } from '@/lib/feedback';
+import { OPERATION_LABELS } from '../operation-labels';
+import { TaxRuleForm, type TaxRuleFormValues } from './tax-rule-form';
 
 const RESOURCE = '/tax-rules';
 
@@ -126,7 +128,11 @@ export default function TaxRulesPage() {
             toast.success('Regra fiscal atualizada');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar regra — confira se não duplica escopo+vigência'),
+          onError: (e: unknown) =>
+            toast.error(
+              erroDeAcao('salvar a regra fiscal', e) +
+                ' Confira se já não existe regra com o mesmo escopo e vigência.',
+            ),
         },
       );
     } else {
@@ -135,7 +141,11 @@ export default function TaxRulesPage() {
           toast.success('Regra fiscal criada');
           setDialogOpen(false);
         },
-        onError: () => toast.error('Erro ao criar regra — confira se não duplica escopo+vigência'),
+        onError: (e: unknown) =>
+          toast.error(
+            erroDeAcao('salvar a regra fiscal', e) +
+              ' Confira se já não existe regra com o mesmo escopo e vigência.',
+          ),
       });
     }
   }
@@ -155,7 +165,7 @@ export default function TaxRulesPage() {
       { id: r.id, data: { isActive: !r.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Regra desativada' : 'Regra reativada'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (e: unknown) => toast.error(erroDeAcao('alterar o status da regra', e)),
       },
     );
   }
@@ -165,7 +175,7 @@ export default function TaxRulesPage() {
       key: 'operationType',
       header: 'Operação',
       sortable: true,
-      cell: (r) => TAX_OPERATION_LABELS[r.operationType] ?? r.operationType,
+      cell: (r) => OPERATION_LABELS[r.operationType] ?? r.operationType,
     },
     {
       key: 'escopo',
@@ -249,8 +259,8 @@ export default function TaxRulesPage() {
   return (
     <div>
       <PageHeader
-        title="Regras Fiscais"
-        description="Parametrização tributária por operação, NCM e UF — o motor escolhe a regra mais específica vigente na data de emissão."
+        title="Regras fiscais"
+        description="Parametrização tributária por operação, NCM e UF. O motor escolhe a regra mais específica vigente na data de emissão."
         actions={
           <Button onClick={openCreate}>
             <Plus size={16} />
@@ -281,7 +291,7 @@ export default function TaxRulesPage() {
         title={editing ? 'Editar regra fiscal' : 'Nova regra fiscal'}
         description={
           editing
-            ? `Editando regra ${TAX_OPERATION_LABELS[editing.operationType] ?? editing.operationType} (${editing.cfop})`
+            ? `Editando regra ${OPERATION_LABELS[editing.operationType] ?? editing.operationType} (${editing.cfop})`
             : 'Para versionar uma NT, crie uma NOVA regra com vigência futura em vez de editar a atual.'
         }
         formId="tax-rule-form"

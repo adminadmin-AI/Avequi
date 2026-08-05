@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -101,7 +102,7 @@ export default function RoutingPage() {
         toast.success(editStep ? 'Operação atualizada' : 'Operação adicionada');
         setStepDialog(false);
       },
-      onError: () => toast.error('Erro ao salvar operação'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar a operação', e)),
     };
     if (editStep) stepUpdate.mutate({ id: editStep.id, data: payload }, opts);
     else stepCreate.mutate(payload, opts);
@@ -109,13 +110,16 @@ export default function RoutingPage() {
   async function removeStep(s: RoutingStep) {
     const ok = await confirm({ title: 'Remover operação?', description: `"${s.name}" será removida do roteiro.`, confirmLabel: 'Remover', variant: 'danger' });
     if (!ok) return;
-    stepDelete.mutate(s.id, { onSuccess: () => toast.success('Operação removida'), onError: () => toast.error('Erro ao remover') });
+    stepDelete.mutate(s.id, {
+      onSuccess: () => toast.success('Operação removida'),
+      onError: (e) => toast.error(erroDeAcao('remover a operação', e)),
+    });
   }
 
   return (
     <div>
       <PageHeader
-        title="Roteiros de Produção"
+        title="Roteiros de produção"
         description="Sequência de operações de produção por produto."
         actions={
           productId ? (
@@ -131,10 +135,10 @@ export default function RoutingPage() {
         <CardContent className="py-5">
           <Label>Produto</Label>
           <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="max-w-md">
-            <option value="">— Selecione um produto —</option>
+            <option value="">Selecione um produto</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.sku} — {p.name}
+                {p.sku} · {p.name}
               </option>
             ))}
           </Select>

@@ -148,7 +148,7 @@ export function PlanForm({
           description={
             plan._count.companies > 0
               ? `Entram em vigor imediatamente para as ${plan._count.companies} conta(s) vinculada(s) a este plano (efeito em até 60s).`
-              : 'Nenhuma conta está neste plano no momento — as alterações valem para as próximas atribuições.'
+              : 'Nenhuma conta está neste plano no momento. As alterações valem para as próximas atribuições.'
           }
         />
       )}

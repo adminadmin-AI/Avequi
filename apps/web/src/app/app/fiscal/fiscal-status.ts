@@ -8,7 +8,7 @@ export const FISCAL_STATUS: Record<FiscalStatus, { label: string; variant: Badge
   AUTHORIZED: { label: 'Autorizada', variant: 'success' },
   REJECTED: { label: 'Rejeitada', variant: 'danger' },
   CANCELLED: { label: 'Cancelada', variant: 'neutral' },
-  ERROR: { label: 'Erro', variant: 'danger' },
+  ERROR: { label: 'Com erro', variant: 'danger' },
 };
 
 export const FISCAL_STATUS_OPTIONS = Object.entries(FISCAL_STATUS).map(([value, meta]) => ({
@@ -29,8 +29,8 @@ export const FISCAL_FINALIDADE_LABEL: Record<FiscalFinalidade, { label: string; 
   COMPLEMENTAR: { label: 'Complementar', variant: 'neutral' },
   AJUSTE: { label: 'Ajuste', variant: 'neutral' },
   DEVOLUCAO: { label: 'Devolução', variant: 'warning' },
-  NOTA_CREDITO: { label: 'Nota de Crédito', variant: 'success' },
-  NOTA_DEBITO: { label: 'Nota de Débito', variant: 'danger' },
+  NOTA_CREDITO: { label: 'Nota de crédito', variant: 'success' },
+  NOTA_DEBITO: { label: 'Nota de débito', variant: 'danger' },
 };
 
 // Opções do filtro da listagem — só finalidades que hoje têm fluxo no app.
@@ -43,7 +43,7 @@ export const FISCAL_FINALIDADE_FILTER_OPTIONS: { value: FiscalFinalidade; label:
 
 // #757/#758 — catálogos de motivo (tpNFDebito/tpNFCredito, SINIEF 49/2025)
 export const TIPO_NOTA_DEBITO_LABEL: Record<string, string> = {
-  '01': 'Transferência de créditos para Cooperativas',
+  '01': 'Transferência de créditos para cooperativas',
   '02': 'Anulação de crédito por saídas imunes/isentas',
   '03': 'Débitos de NF não processadas na apuração',
   '04': 'Multa e juros',

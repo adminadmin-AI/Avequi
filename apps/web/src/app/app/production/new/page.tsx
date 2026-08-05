@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product, Warehouse, ProductionOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,7 @@ export default function NewProductionOrderPage() {
           toast.success('Ordem de produção criada');
           router.push(`/app/production/${res.data.id}`);
         },
-        onError: () => toast.error('Erro ao criar OP'),
+        onError: (e) => toast.error(erroDeAcao('criar a ordem de produção', e)),
       },
     );
   }
@@ -60,7 +61,7 @@ export default function NewProductionOrderPage() {
   return (
     <div>
       <PageHeader
-        title="Nova Ordem de Produção"
+        title="Nova ordem de produção"
         description="Cria a OP em rascunho (planejada)."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/production')}>
@@ -75,10 +76,10 @@ export default function NewProductionOrderPage() {
           <div className="sm:col-span-2">
             <Label required>Produto a fabricar</Label>
             <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
+                  {p.sku} · {p.name}
                 </option>
               ))}
             </Select>
@@ -90,10 +91,10 @@ export default function NewProductionOrderPage() {
           <div>
             <Label required>Depósito de saída</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>

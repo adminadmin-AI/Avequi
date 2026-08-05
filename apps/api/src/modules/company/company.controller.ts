@@ -22,10 +22,13 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
  * legado foi removido (matriz validada pelo Rafael na issue #620).
  *
  * FIX anti-IDOR (#620): listar/ver/editar empresa agora é ESCOPADO — usuário
- * comum só enxerga/edita a própria empresa do JWT; visão multiempresa fica
- * restrita ao escopo global (ver CompanyService.hasGlobalScope). Antes,
- * qualquer autenticado listava TODAS as empresas do banco e o update aceitava
- * qualquer id (cross-tenant write).
+ * comum só enxerga/edita a própria empresa do JWT. Antes, qualquer autenticado
+ * listava TODAS as empresas do banco e o update aceitava qualquer id
+ * (cross-tenant write).
+ *
+ * #947: a visão multiempresa deixou de ser o enum SUPER_ADMIN e passou a ser a
+ * capability `iam.tenant-scope.cross-company` (TenantScopeService) — e o alvo
+ * dela é o GRUPO da empresa (raiz + filiais), não o banco inteiro.
  */
 @ApiTags('companies')
 @ApiBearerAuth()

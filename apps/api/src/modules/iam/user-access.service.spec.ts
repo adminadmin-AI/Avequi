@@ -8,6 +8,7 @@ import { UserAccessService } from './user-access.service';
 import { PermissionService } from './permission.service';
 import { AuditService } from './audit.service';
 import { LastAdminInvariantService } from './last-admin-invariant.service';
+import { LegacyRoleMirrorService } from './legacy-role-mirror.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -19,6 +20,7 @@ const ACTOR = { id: 'admin-1', companyId: 'co-1' };
 const TARGET = { id: 'user-2', name: 'Fulano', email: 'f@gdr.com', role: 'COMMERCIAL' };
 
 let mockLastAdmin: any;
+let mockLegacyMirror: any;
 
 function buildMockPrisma() {
   const prisma: any = {
@@ -47,6 +49,20 @@ function buildMockPrisma() {
 
   // #752: mecanismo central mockado — caminho feliz executa a operação com
   // o próprio mock de prisma como tx (mesmo contrato do $transaction abaixo).
+  // #946: espelho legado mockado — caminho feliz = congelado (a maioria dos
+  // testes existentes não tem perfil mapeável) e sem revogar sessão.
+  mockLegacyMirror = {
+    sincronizarNaTransacao: jest.fn().mockResolvedValue({
+      status: 'FROZEN',
+      motivo: 'NO_ACTIVE_ROLE',
+      enumAnterior: 'READER',
+      enumResultante: 'READER',
+      perfis: [],
+      sessoesRevogadas: 0,
+    }),
+    revogarSessoesSeMudou: jest.fn().mockResolvedValue(0),
+  };
+
   mockLastAdmin = {
     temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false),
     ehAdminGlobalEfetivo: jest.fn().mockResolvedValue(false),
@@ -84,6 +100,7 @@ describe('UserAccessService', () => {
         { provide: PermissionService, useValue: mockPermissionService },
         { provide: AuditService, useValue: mockAuditService },
         { provide: LastAdminInvariantService, useValue: mockLastAdmin },
+        { provide: LegacyRoleMirrorService, useValue: mockLegacyMirror },
       ],
     }).compile();
 
@@ -458,6 +475,103 @@ describe('UserAccessService', () => {
 
       expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
       expect(prisma.userRoleAssignment.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('#946 — espelho do papel legado', () => {
+    const ADMIN_ROLE = { id: 'role-adm', code: 'ADMIN_GLOBAL', name: 'Admin Global' };
+
+    it('assignRole: recalcula o espelho DENTRO da transação e audita antes/depois', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE);
+      prisma.userRoleAssignment.findUnique.mockResolvedValue(null);
+      prisma.userRoleAssignment.create.mockResolvedValue({ id: 'as-1' });
+      mockLegacyMirror.sincronizarNaTransacao.mockResolvedValue({
+        status: 'DERIVED',
+        enumAnterior: 'READER',
+        enumResultante: 'SUPER_ADMIN',
+        perfis: ['ADMIN_GLOBAL'],
+        sessoesRevogadas: 0,
+      });
+
+      await service.assignRole(ACTOR, TARGET.id, { roleId: 'role-adm' } as any);
+
+      // o espelho roda com o MESMO client da transação (o mock de prisma)
+      expect(mockLegacyMirror.sincronizarNaTransacao).toHaveBeenCalledWith(prisma, TARGET.id);
+      const log = prisma.permissionChangeLog.create.mock.calls[0][0].data;
+      expect(log.newState.legacyRole).toMatchObject({
+        status: 'DERIVED',
+        before: 'READER',
+        after: 'SUPER_ADMIN',
+        roles: ['ADMIN_GLOBAL'],
+        source: 'RBAC_V2',
+      });
+    });
+
+    it('assignRole: enum mudou → revoga as sessões e devolve a contagem para a UI', async () => {
+      prisma.role.findFirst.mockResolvedValue(ADMIN_ROLE);
+      prisma.userRoleAssignment.findUnique.mockResolvedValue(null);
+      prisma.userRoleAssignment.create.mockResolvedValue({ id: 'as-1' });
+      mockLegacyMirror.sincronizarNaTransacao.mockResolvedValue({
+        status: 'DERIVED',
+        enumAnterior: 'READER',
+        enumResultante: 'SUPER_ADMIN',
+        perfis: ['ADMIN_GLOBAL'],
+        sessoesRevogadas: 0,
+      });
+      mockLegacyMirror.revogarSessoesSeMudou.mockResolvedValue(3);
+
+      const res: any = await service.assignRole(ACTOR, TARGET.id, { roleId: 'role-adm' } as any);
+
+      expect(res.legacyRole.sessoesRevogadas).toBe(3);
+    });
+
+    it('removeRole: recalcula o espelho e audita o motivo do congelamento', async () => {
+      prisma.userRoleAssignment.findUnique.mockResolvedValue({
+        id: 'as-1',
+        branchId: null,
+        expiresAt: null,
+        role: { code: 'VENDEDOR', name: 'Vendedor' },
+      });
+      mockLegacyMirror.sincronizarNaTransacao.mockResolvedValue({
+        status: 'FROZEN',
+        motivo: 'NO_ACTIVE_ROLE',
+        enumAnterior: 'COMMERCIAL',
+        enumResultante: 'COMMERCIAL',
+        perfis: [],
+        sessoesRevogadas: 0,
+      });
+
+      await service.removeRole(ACTOR, TARGET.id, 'role-vnd');
+
+      expect(mockLegacyMirror.sincronizarNaTransacao).toHaveBeenCalledWith(prisma, TARGET.id);
+      const log = prisma.permissionChangeLog.create.mock.calls[0][0].data;
+      expect(log.previousState.legacyRole).toMatchObject({
+        status: 'FROZEN',
+        frozenReason: 'NO_ACTIVE_ROLE',
+        before: 'COMMERCIAL',
+        after: 'COMMERCIAL',
+      });
+      // remover o último perfil de usuário comum é permitido: a autorização
+      // real é o RBAC v2, o enum congelado é só compatibilidade.
+      expect(prisma.userRoleAssignment.delete).toHaveBeenCalled();
+    });
+
+    it('grants/denies individuais NÃO recalculam o espelho (exceção não é papel)', async () => {
+      prisma.permission.findUnique.mockResolvedValue({
+        id: 'p-1',
+        code: 'sales.orders.view',
+        name: 'Ver vendas',
+      });
+      prisma.userPermission.findUnique.mockResolvedValue(null);
+      prisma.userPermission.upsert.mockResolvedValue({ id: 'up-1' });
+
+      await service.grantPermission(ACTOR, TARGET.id, {
+        permissionCode: 'sales.orders.view',
+        granted: true,
+      } as any);
+
+      expect(mockLegacyMirror.sincronizarNaTransacao).not.toHaveBeenCalled();
+      expect(mockLegacyMirror.revogarSessoesSeMudou).not.toHaveBeenCalled();
     });
   });
 });

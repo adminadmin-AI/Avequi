@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail, useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { PurchaseOrder, Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,7 @@ export default function ReceivePOPage() {
           toast.success('Recebimento registrado');
           router.push(`/app/purchases/${id}`);
         },
-        onError: () => toast.error('Erro ao registrar recebimento'),
+        onError: (e) => toast.error(erroDeAcao('registrar o recebimento', e)),
       },
     );
   }
@@ -69,7 +70,7 @@ export default function ReceivePOPage() {
   if (isLoading || !po) {
     return (
       <div>
-        <PageHeader title="Recebimento de Mercadoria" />
+        <PageHeader title="Recebimento de mercadoria" />
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -80,8 +81,8 @@ export default function ReceivePOPage() {
   return (
     <div>
       <PageHeader
-        title="Recebimento de Mercadoria"
-        description={`PO #${id.slice(-6).toUpperCase()} — ${po.supplier?.name ?? 'Sem fornecedor'}`}
+        title="Recebimento de mercadoria"
+        description={`PO #${id.slice(-6).toUpperCase()} · ${po.supplier?.name ?? 'Sem fornecedor'}`}
         actions={
           <Button variant="secondary" onClick={() => router.push(`/app/purchases/${id}`)}>
             <ArrowLeft size={16} />
@@ -95,10 +96,10 @@ export default function ReceivePOPage() {
           <div>
             <Label required>Depósito de destino</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -166,7 +167,7 @@ export default function ReceivePOPage() {
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               Permite <strong>recebimento parcial</strong> (PO fica como "Recebida parcial" até
-              completar). O backend atualiza o estoque e gera a conta a pagar automaticamente.
+              completar). O estoque é atualizado e a conta a pagar é gerada automaticamente.
               A associação de NF-e de entrada (XML/chave) é feita na tela de NF-e de Entrada.
             </span>
           </div>

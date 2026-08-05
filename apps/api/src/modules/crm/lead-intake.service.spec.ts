@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LeadSource, Prisma } from '@prisma/client';
@@ -42,7 +46,11 @@ describe('LeadIntakeService', () => {
       leadActivity: { create: jest.fn() }, // #574
       user: { findMany: jest.fn(), findFirst: jest.fn() },
       pipelineStage: { findFirst: jest.fn().mockResolvedValue({ id: 'stage-novo', type: 'OPEN' }) },
-      company: { findFirst: jest.fn() },
+      company: {
+        findFirst: jest.fn(),
+        // #984 — árvore do tenant do lead (cross-store scoped)
+        findUnique: jest.fn().mockResolvedValue({ id: COMPANY, parentId: 'root-1' }),
+      },
       systemParameter: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     events = { emit: jest.fn() };
@@ -124,12 +132,26 @@ describe('LeadIntakeService', () => {
       expect(prisma.lead.create.mock.calls[0][0].data.assignedToId).toBeNull();
     });
 
-    it('sem loja identificada → cai na triagem da matriz SEM vendedor', async () => {
-      prisma.company.findFirst.mockResolvedValue({ id: 'matriz-1' });
-      await service.intake(null, { phone: '45999998888', source: LeadSource.META_ADS });
+    it('sem loja identificada → triagem na matriz do tenant da env SEM vendedor (#984)', async () => {
+      process.env.CRM_CONNECTOR_TENANT_ID = 'matriz-1';
+      try {
+        await service.intake(null, { phone: '45999998888', source: LeadSource.META_ADS });
+      } finally {
+        delete process.env.CRM_CONNECTOR_TENANT_ID;
+      }
       const data = prisma.lead.create.mock.calls[0][0].data;
       expect(data.companyId).toBe('matriz-1');
       expect(data.assignedToId).toBeNull();
+      // #984: a triagem NUNCA volta a varrer o banco atrás de "alguma matriz"
+      expect(prisma.company.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('sem loja identificada E sem CRM_CONNECTOR_TENANT_ID → 503 fail-closed (#984)', async () => {
+      delete process.env.CRM_CONNECTOR_TENANT_ID;
+      await expect(
+        service.intake(null, { phone: '45999998888', source: LeadSource.META_ADS }),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(prisma.lead.create).not.toHaveBeenCalled();
     });
 
     it('rejeita lead sem telefone válido e sem externalRef', async () => {
@@ -166,6 +188,9 @@ describe('LeadIntakeService', () => {
       const where = prisma.lead.findMany.mock.calls[0][0].where;
       expect(where.companyId).toEqual({ not: COMPANY });
       expect(where.anonymizedAt).toBeNull();
+      // #984: "outra loja" = SÓ a árvore matriz+filiais do tenant do lead —
+      // telefone repetido em outro TENANT nunca entra no aviso
+      expect(where.company).toEqual({ OR: [{ id: 'root-1' }, { parentId: 'root-1' }] });
     });
 
     it('sem lead em outra loja → nenhuma activity de aviso', async () => {

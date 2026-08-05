@@ -35,3 +35,22 @@ export function roleLabel(role: UserRole): string {
 export function roleVariant(role: UserRole): BadgeVariant {
   return ROLE_MAP[role]?.variant ?? 'neutral';
 }
+
+/**
+ * #946: perfis oficiais que TÊM equivalente no papel legado (espelho de
+ * `ENUM_ROLE_TO_SYSTEM_ROLE` no backend). Serve só para a UI avisar quando o
+ * papel legado deixou de representar o acesso real — a decisão de verdade é
+ * do servidor, que congela o enum e audita o motivo.
+ */
+export const LEGACY_MIRRORED_ROLE_CODES = [
+  'ADMIN_GLOBAL',
+  'DIRETOR',
+  'GERENTE_GERAL',
+  'VENDEDOR',
+  'OPERADOR_PCP',
+  'QUALIDADE',
+  'ALMOXARIFE',
+  'FINANCEIRO',
+  'LOJA_OPERACIONAL',
+  'SOMENTE_LEITURA',
+];

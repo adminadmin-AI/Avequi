@@ -92,7 +92,7 @@ export default function ProductionPage() {
   return (
     <div>
       <PageHeader
-        title="Ordens de Produção"
+        title="Ordens de produção"
         description="Planejamento e acompanhamento da produção."
         actions={
           <Button onClick={() => router.push('/app/production/new')}>
@@ -129,7 +129,7 @@ export default function ProductionPage() {
             <option value="">Todos</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.sku} — {p.name}
+                {p.sku} · {p.name}
               </option>
             ))}
           </Select>

@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/field';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { CUSTOMER_TYPE_LABELS, enumOptions } from '@/lib/enums';
 import { unmask } from '@/lib/format';
 import { isValidCPF, isValidCNPJ } from '@/lib/validators';
@@ -143,9 +144,9 @@ export function CustomerForm({
       setValue('state', data.state);
       setValue('ibgeCode', data.ibgeCode);
       if (data.isSimplesNacional !== null) setValue('isSimplesNacional', data.isSimplesNacional);
-      toast.success('Dados preenchidos pela Receita — confira antes de salvar');
-    } catch {
-      toast.error('Falha ao consultar CNPJ — tente novamente');
+      toast.success('Dados preenchidos pela Receita. Confira antes de salvar');
+    } catch (e) {
+      toast.error(erroDeAcao('consultar o CNPJ', e));
     } finally {
       setCnpjLoading(false);
     }
@@ -393,7 +394,7 @@ export function CustomerForm({
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" {...register('billingBlocked')} className="accent-red-600" />
           <span className="font-medium text-red-600 dark:text-red-400">Bloquear faturamento</span>
-          <span className="text-content-muted">— impede a confirmação de vendas (DIRECTOR pode sobrepor)</span>
+          <span className="text-content-muted">: impede a confirmação de vendas (DIRECTOR pode sobrepor)</span>
         </label>
         {billingBlocked && (
           <Field label="Motivo do bloqueio" error={errors.billingBlockReason?.message}>

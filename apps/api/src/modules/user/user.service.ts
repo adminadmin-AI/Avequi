@@ -12,6 +12,7 @@ import { EntitlementService } from '../entitlement/entitlement.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { LastAdminInvariantService } from '../iam/last-admin-invariant.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { ENUM_ROLE_TO_SYSTEM_ROLE } from '../iam/roles.catalog';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUiPreferencesDto } from './dto/update-ui-preferences.dto';
@@ -39,6 +40,7 @@ export class UserService {
     private readonly sessionService: SessionService,
     private readonly lastAdmin: LastAdminInvariantService,
     private readonly entitlementService: EntitlementService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   /**
@@ -189,14 +191,24 @@ export class UserService {
     };
   }
 
-  async findAll(requestingUser: { role: string; companyId: string }) {
-    const where =
-      requestingUser.role === 'SUPER_ADMIN'
-        ? {}
-        : { companyId: requestingUser.companyId };
+  /**
+   * Lista usuários dentro do escopo empresarial de quem consulta (#947).
+   *
+   * ANTES: `role === 'SUPER_ADMIN'` → `where: {}`, ou seja usuários de TODAS
+   * as empresas do banco — inclusive de outros tenants. Agora a ampliação é a
+   * capability `iam.tenant-scope.cross-company` e o alvo é o GRUPO da empresa.
+   *
+   * O filtro por empresa NUNCA some: mesmo ampliado, o `where` é uma lista
+   * fechada de ids. Não existe caminho aqui que devolva "sem filtro".
+   */
+  async findAll(requestingUser: { id: string; companyId: string }) {
+    const { companyIds } = await this.tenantScope.resolverEscopo(
+      requestingUser.id,
+      requestingUser.companyId,
+    );
 
     return this.prisma.user.findMany({
-      where,
+      where: { companyId: { in: companyIds } },
       select: SELECT_SAFE,
       orderBy: { createdAt: 'desc' },
     });

@@ -69,7 +69,7 @@ export function availableSalesActions(status: SalesOrderStatus): SalesAction[] {
       ];
     case 'RESERVED':
       return [
-        { endpoint: 'confirm', label: 'Confirmar OV', variant: 'primary' },
+        { endpoint: 'confirm', label: 'Confirmar pedido', variant: 'primary' },
         { endpoint: 'cancel', label: 'Cancelar', variant: 'danger' },
       ];
     case 'CONFIRMED':

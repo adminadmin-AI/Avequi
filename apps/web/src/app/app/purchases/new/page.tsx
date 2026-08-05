@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Supplier, Product, PurchaseOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -80,14 +81,14 @@ export default function NewPurchaseOrderPage() {
         toast.success('Pedido de compra criado');
         router.push(`/app/purchases/${res.data.id}`);
       },
-      onError: () => toast.error('Erro ao criar pedido de compra'),
+      onError: (e) => toast.error(erroDeAcao('criar o pedido de compra', e)),
     });
   }
 
   return (
     <div>
       <PageHeader
-        title="Novo Pedido de Compra"
+        title="Novo pedido de compra"
         description="Cria a PO em rascunho; a aprovação é feita no detalhe."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/purchases')}>
@@ -102,11 +103,11 @@ export default function NewPurchaseOrderPage() {
           <div>
             <Label required>Fornecedor</Label>
             <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
-                  {s.cnpj ? ` — ${s.cnpj}` : ''}
+                  {s.cnpj ? ` · ${s.cnpj}` : ''}
                 </option>
               ))}
             </Select>
@@ -129,10 +130,10 @@ export default function NewPurchaseOrderPage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">— Selecione —</option>
+                <option value="">Selecione</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>

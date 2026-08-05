@@ -6,6 +6,36 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-08-05
+
+### Added
+- feat(ux): escrita humana onda 4 — voice-lint no CI e consolidação settings/ops (#987) (#997)
+- feat(ux): escrita humana onda 3 — vocabulário no corpo das telas (#987) (#996)
+- feat(ux): escrita humana onda 2 — mensagens centralizadas, fim dos travessões e do jargão técnico (#987) (#995)
+
+## [1.39.0] - 2026-08-05
+
+### Added
+- feat(ops): contrato de prestação de serviços em PDF — minuta AVQ-CT v1 (#992) (#993)
+
+### Changed
+- docs(ux): avecchi-voice proíbe travessão em texto de UI (#987) (#991)
+
+## [1.38.0] - 2026-08-04
+
+### Added
+- feat(crm): conector de site multi-tenant — LP avecchi.ai capta lead pro tenant Avecchi (#962) (#989)
+- feat(ux): escrita humana onda 1 — nav, títulos de página e skill avecchi-voice (#987) (#988)
+
+## [1.37.0] - 2026-08-04
+
+### Added
+- feat(iam): torna RBAC v2 a fonte de verdade para papéis (#946) (#978)
+
+### Fixed
+- fix(iam): remove poderes críticos do enum legado (#947) (#982)
+- fix(crm): conectores públicos de lead escopados ao tenant dono (#984) (#985)
+
 ## [1.36.0] - 2026-08-04
 
 ### Added
@@ -431,7 +461,11 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.40.0...HEAD
+[1.40.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.39.0...v1.40.0
+[1.39.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.38.0...v1.39.0
+[1.38.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.37.0...v1.38.0
+[1.37.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.33.0...v1.34.0

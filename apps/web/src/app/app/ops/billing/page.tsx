@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, PlayCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatDate } from '@/lib/format';
 import type {
   BillingOverview,
@@ -56,7 +57,7 @@ function Kpi({ label, value, tone = 'neutral' }: { label: string; value: string;
 }
 
 /**
- * Operadora — Billing (OPS WP5 #912): MRR, aging e faturas em aberto da
+ * Operadora — Billing (OPS WP5 #912): MRR, inadimplência e faturas em aberto da
  * carteira inteira. F1 = contrato + régua — a fatura nasce sozinha via cron
  * diário; "Rodar cobrança agora" é a recuperação manual do mesmo job.
  */
@@ -85,14 +86,14 @@ export default function OpsBillingPage() {
       );
       invalidateAll();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível rodar a cobrança'),
+    onError: (err) => toast.error(erroDeAcao('rodar a cobrança', err)),
   });
 
   async function handleRunBilling() {
     const ok = await confirm({
       title: 'Rodar cobrança agora?',
       description:
-        'Gera as faturas da competência corrente para as assinaturas ativas e roda a régua de inadimplência (idempotente — seguro rodar mais de uma vez).',
+        'Gera as faturas da competência corrente para as assinaturas ativas e roda a régua de inadimplência (idempotente: seguro rodar mais de uma vez).',
       confirmLabel: 'Rodar cobrança',
     });
     if (ok) runBilling.mutate();
@@ -105,29 +106,29 @@ export default function OpsBillingPage() {
     mutationFn: ({ id, method }: { id: string; method: InvoiceMethod }) =>
       apiClient.post(`${RESOURCE}/invoices/${id}/pay`, { method }),
     onSuccess: () => {
-      toast.success('Baixa registrada');
+      toast.success(`Baixa registrada na fatura de ${payTarget!.tenantName}`);
       invalidateAll();
       setPayTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível dar baixa na fatura'),
+    onError: (err) => toast.error(erroDeAcao('dar baixa na fatura', err)),
   });
 
   const voidInvoice = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       apiClient.post(`${RESOURCE}/invoices/${id}/void`, { reason }),
     onSuccess: () => {
-      toast.success('Fatura anulada');
+      toast.success(`Fatura de ${voidTarget!.tenantName} anulada`);
       invalidateAll();
       setVoidTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível anular a fatura'),
+    onError: (err) => toast.error(erroDeAcao('anular a fatura', err)),
   });
 
   if (isError) {
     const negado = ehNegativaDeAcesso(error);
     return (
       <div>
-        <PageHeader title="Billing" description="MRR, aging e faturas da carteira Avecchi." />
+        <PageHeader title="Cobrança" description="MRR, inadimplência e faturas da carteira Avecchi." />
         <ErrorState
           fullPage={false}
           title={negado ? 'Acesso negado' : 'Não foi possível carregar o billing'}
@@ -222,8 +223,8 @@ export default function OpsBillingPage() {
   return (
     <div>
       <PageHeader
-        title="Billing"
-        description="MRR, aging e faturas em aberto da carteira Avecchi."
+        title="Cobrança"
+        description="MRR, inadimplência e faturas em aberto da carteira Avecchi."
         actions={
           <Can permission="ops.billing.manage">
             <Button variant="secondary" onClick={handleRunBilling} loading={runBilling.isPending}>

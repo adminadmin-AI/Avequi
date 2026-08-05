@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, Logger, Post } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { LeadSource } from '@prisma/client';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { LeadIntakeService } from '../lead-intake.service';
 import { StoreResolver } from './connectors.util';
@@ -29,6 +29,24 @@ class SiteLeadDto {
   @IsString()
   @MaxLength(60)
   store?: string;
+
+  /**
+   * #962 — qual SITE mandou o lead ("avecchi" = LP avecchi.ai). Decide o
+   * TENANT de destino via env CRM_CONNECTOR_TENANT_ID__<SITE>; ausente = site
+   * da GDR (env default). Slug curto, sem semântica de loja.
+   */
+  @ApiPropertyOptional({ description: 'Slug do site de origem (ex.: avecchi)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9-]{1,32}$/, { message: 'site deve ser um slug curto (a-z, 0-9, hífen)' })
+  site?: string;
+
+  /** #962 — empresa do contato (LP SaaS); vai para sourceMeta.company */
+  @ApiPropertyOptional({ description: 'Empresa do contato' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  company?: string;
 
   @ApiPropertyOptional({ description: 'Modelo de interesse' })
   @IsOptional()
@@ -74,18 +92,28 @@ export class SiteLeadController {
       this.logger.warn('Honeypot acionado no form do site — descartando em silêncio');
       return { ok: true };
     }
-    const companyId = await this.storeResolver.resolve(dto.store);
-    await this.leadIntake.intake(companyId, {
-      name: dto.name,
-      phone: dto.phone,
-      email: dto.email,
-      source: LeadSource.SITE,
-      interest: dto.interest,
-      sourceMeta: {
-        store: dto.store ?? null,
-        message: dto.message?.slice(0, 1000) ?? null,
+    // #962: o site de origem decide o TENANT (503 se não mapeado — nunca cai
+    // no default de outro dono). Loja não resolvida → TRIAGEM na matriz do
+    // próprio site (sem vendedor, como sempre).
+    const tenantRoot = this.storeResolver.tenantRootId(dto.site);
+    const companyId = await this.storeResolver.resolve(dto.store, tenantRoot);
+    await this.leadIntake.intake(
+      companyId,
+      {
+        name: dto.name,
+        phone: dto.phone,
+        email: dto.email,
+        source: LeadSource.SITE,
+        interest: dto.interest,
+        sourceMeta: {
+          site: dto.site ?? null,
+          store: dto.store ?? null,
+          company: dto.company?.slice(0, 200) ?? null,
+          message: dto.message?.slice(0, 1000) ?? null,
+        },
       },
-    });
+      tenantRoot,
+    );
     return { ok: true };
   }
 }

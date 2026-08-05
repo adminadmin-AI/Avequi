@@ -75,6 +75,10 @@ async function bootstrap() {
       // Previews do Vercel (validação visual de PRs no avequi-web) — escopado
       // ao projeto e ao team; produção continua vindo só de WEB_URL.
       /^https:\/\/avequi-web-[a-z0-9-]+-adminnexoprimecombrs-projects\.vercel\.app$/,
+      // #962 — LP avecchi.ai chama o conector público de leads
+      // (POST /crm/public/site-lead) direto do browser.
+      'https://avecchi.ai',
+      'https://www.avecchi.ai',
     ],
     credentials: true,
   });

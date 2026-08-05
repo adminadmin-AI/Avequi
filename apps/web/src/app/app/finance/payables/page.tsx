@@ -20,6 +20,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate, formatCpfCnpj, prettyName } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { EditEntryDialog } from '../edit-entry-dialog';
 import { dueFromSearch } from '../due-param';
@@ -84,7 +85,7 @@ const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
 };
 
 function countSub(count: number): string {
-  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
+  return `${count} ${count === 1 ? 'título' : 'títulos'}`;
 }
 
 export default function PayablesPage() {
@@ -202,29 +203,30 @@ export default function PayablesPage() {
 
   function handlePay(values: PayFormValues) {
     if (!payTarget) return;
+    const id = payTarget.id;
     pay.mutate(
-      { id: payTarget.id, data: values },
+      { id, data: values },
       {
         onSuccess: () => {
-          toast.success('Pagamento registrado');
+          toast.success(`Baixa registrada no título #${id.slice(-6).toUpperCase()}`);
           setPayTarget(null);
         },
-        onError: () => toast.error('Erro ao registrar pagamento'),
+        onError: (e: any) => toast.error(erroDeAcao('dar baixa no título', e)),
       },
     );
   }
 
   async function handleCancel(e: FinancialEntry) {
     const ok = await confirm({
-      title: 'Cancelar lançamento?',
-      description: `O pagável de ${formatBRL(num(e.amount))} será marcado como cancelado. Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Cancelar lançamento',
+      title: `Cancelar o título de ${formatBRL(num(e.amount))}?`,
+      description: 'Você não vai conseguir desfazer isso.',
+      confirmLabel: 'Cancelar o título',
       variant: 'danger',
     });
     if (!ok) return;
     cancel.mutate(e.id, {
-      onSuccess: () => toast.success('Lançamento cancelado'),
-      onError: () => toast.error('Erro ao cancelar'),
+      onSuccess: () => toast.success('Título cancelado'),
+      onError: (err: any) => toast.error(erroDeAcao('cancelar o título', err)),
     });
   }
 
@@ -312,7 +314,7 @@ export default function PayablesPage() {
                   ev.stopPropagation();
                   setEditTarget(e);
                 }}
-                title="Editar lançamento"
+                title="Editar título"
                 className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
               >
                 <Pencil size={15} />
@@ -359,7 +361,7 @@ export default function PayablesPage() {
   return (
     <div>
       <PageHeader
-        title="Carteira de Pagáveis"
+        title="Contas a pagar"
         description="Contas a pagar, vencimentos e baixas."
         actions={<ManualEntryDialog defaultType="PAYABLE" />}
       />
@@ -443,7 +445,7 @@ export default function PayablesPage() {
         loading={isLoading}
         onRowClick={setDetailTarget}
         searchable={false}
-        emptyMessage="Nenhum pagável encontrado."
+        emptyMessage="Nenhum título encontrado."
       />
 
       <FormDialog

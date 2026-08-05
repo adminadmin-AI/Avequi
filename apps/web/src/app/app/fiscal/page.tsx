@@ -18,6 +18,7 @@ import { StatGroup } from '@/components/ui/stat-group';
 import { useToast } from '@/components/ui/toast';
 import { Can } from '@/components/can';
 import { formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { FISCAL_STATUS, FISCAL_STATUS_OPTIONS, FISCAL_TYPE_LABEL, FISCAL_FINALIDADE_LABEL, FISCAL_FINALIDADE_FILTER_OPTIONS } from './fiscal-status';
 import { EmitNfeDialog } from './emit-nfe-dialog';
 import { VoidRangeDialog } from './void-range-dialog';
@@ -93,9 +94,11 @@ export default function FiscalPage() {
       URL.revokeObjectURL(url);
       toast.success('XMLs exportados');
     } catch (err: any) {
-      toast.error(
-        err?.response?.status === 404 ? 'Nenhum XML no período selecionado' : 'Erro ao exportar XMLs',
-      );
+      if (err?.response?.status === 404) {
+        toast.error('Nenhum XML no período selecionado');
+      } else {
+        toast.error(erroDeAcao('exportar os XMLs', err));
+      }
     } finally {
       setExporting(false);
     }
@@ -163,7 +166,7 @@ export default function FiscalPage() {
             onClick={(e) => e.stopPropagation()}
             className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
-            <ExternalLink size={12} /> {d.salesOrder?.customer?.name ?? 'Ver OV'}
+            <ExternalLink size={12} /> {d.salesOrder?.customer?.name ?? 'Ver pedido'}
           </Link>
         ) : (
           '—'
@@ -175,7 +178,7 @@ export default function FiscalPage() {
   return (
     <div>
       <PageHeader
-        title="Documentos Fiscais"
+        title="Documentos fiscais"
         description="NF-e e NFC-e emitidas pela empresa."
         actions={
           <div className="flex items-center gap-2">
@@ -190,7 +193,7 @@ export default function FiscalPage() {
             </Button>
             <Button variant="secondary" onClick={() => router.push('/app/fiscal/dashboard')}>
               <LayoutDashboard size={16} />
-              Dashboard
+              Painel
             </Button>
             {/* #758 (extra) — inutilização de faixa de numeração */}
             <Can permission="fiscal.nfe.void-range">

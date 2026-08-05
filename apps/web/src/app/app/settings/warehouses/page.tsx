@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Pencil, Power } from 'lucide-react';
 import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Warehouse, Company } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ export default function WarehousesPage() {
             toast.success('Depósito atualizado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar depósito'),
+          onError: (e) => toast.error(erroDeAcao('atualizar o depósito', e)),
         },
       );
     } else {
@@ -66,7 +67,7 @@ export default function WarehousesPage() {
             toast.success('Depósito criado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao criar depósito'),
+          onError: (e) => toast.error(erroDeAcao('criar o depósito', e)),
         },
       );
     }
@@ -87,7 +88,7 @@ export default function WarehousesPage() {
       { id: w.id, data: { isActive: !w.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Depósito desativado' : 'Depósito reativado'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (e) => toast.error(erroDeAcao('alterar o status do depósito', e)),
       },
     );
   }

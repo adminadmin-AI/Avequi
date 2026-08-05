@@ -85,7 +85,7 @@ export default function StockPage() {
 
   return (
     <div>
-      <PageHeader title="Saldos de Estoque" description="Posição de estoque por produto e depósito." />
+      <PageHeader title="Saldos de estoque" description="Posição de estoque por produto e depósito." />
 
       <StatGroup
         className="mb-6"
@@ -103,7 +103,7 @@ export default function StockPage() {
             <option value="">Todos</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.code} — {w.name}
+                {w.code} · {w.name}
               </option>
             ))}
           </Select>

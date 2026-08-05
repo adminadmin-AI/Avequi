@@ -6,6 +6,7 @@ import { AlarmClock, Check, Loader2, StickyNote } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { Reminder } from './inbox-types';
 
 /**
@@ -36,7 +37,7 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] }); // timeline
       toast.success('Nota adicionada');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao salvar nota'),
+    onError: (e: any) => toast.error(erroDeAcao('salvar a nota', e)),
   });
 
   const addReminder = useMutation({
@@ -51,13 +52,13 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
       invalidate();
       toast.success('Lembrete agendado');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao agendar'),
+    onError: (e: any) => toast.error(erroDeAcao('agendar o lembrete', e)),
   });
 
   const done = useMutation({
     mutationFn: (id: string) => apiClient.patch(`/crm/reminders/${id}/done`),
     onSuccess: invalidate,
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao concluir'),
+    onError: (e: any) => toast.error(erroDeAcao('concluir o lembrete', e)),
   });
 
   return (
@@ -111,7 +112,7 @@ export function LeadNotesReminders({ leadId }: { leadId: string }) {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                      {overdue && ' — vencido'}
+                      {overdue && ' · vencido'}
                       {r.user && ` · ${r.user.name}`}
                     </p>
                   </div>

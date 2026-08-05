@@ -5,7 +5,6 @@ import { CalendarClock, Plus, ShieldMinus, ShieldPlus, Trash2 } from 'lucide-rea
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import {
-  apiErrorMessage,
   useAssignUserRole,
   useGrantUserPermission,
   usePermissionsCatalog,
@@ -14,6 +13,7 @@ import {
   useUserPermissions,
   useUserRoles,
 } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import type { IamRole, User } from '@/types/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,13 +34,20 @@ import { formatDate } from '@/lib/format';
  * Fica AQUI (e não na página de usuários) para não conflitar com PRs pendentes
  * da tela settings/users.
  */
-export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
+export function AssignmentsTab({
+  roles,
+  userIdInicial,
+}: {
+  roles: IamRole[];
+  /** #946: usuário pré-selecionado quando se chega pela tela de usuários. */
+  userIdInicial?: string;
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const currentUser = useAuthStore((s) => s.user);
 
   const { data: users = [], isLoading: loadingUsers } = useList<User>('/users');
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState(userIdInicial ?? '');
   const selectedUser = users.find((u) => u.id === selectedUserId);
 
   const { data: assignments = [], isLoading: loadingAssignments } =
@@ -78,7 +85,7 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
           setRoleToAssign('');
           setRoleExpiresAt('');
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atribuir perfil')),
+        onError: (e) => toast.error(erroDeAcao('atribuir o perfil', e)),
       },
     );
   }
@@ -95,7 +102,7 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
       { userId: selectedUserId, roleId },
       {
         onSuccess: () => toast.success('Perfil removido'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover perfil')),
+        onError: (e) => toast.error(erroDeAcao('remover o perfil', e)),
       },
     );
   }
@@ -143,7 +150,7 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
           setPermissionExpiresAt('');
           setPermissionReason('');
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao salvar exceção')),
+        onError: (e) => toast.error(erroDeAcao('salvar a exceção', e)),
       },
     );
   }
@@ -160,14 +167,14 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
       { userId: selectedUserId, userPermissionId: id },
       {
         onSuccess: () => toast.success('Exceção removida'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover exceção')),
+        onError: (e) => toast.error(erroDeAcao('remover a exceção', e)),
       },
     );
   }
 
   const userOptions: ComboboxOption[] = users.map((u) => ({
     value: u.id,
-    label: `${u.name} — ${u.email}`,
+    label: `${u.name} · ${u.email}`,
   }));
 
   return (
@@ -200,7 +207,7 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
               <Skeleton className="h-24 w-full" />
             ) : assignments.length === 0 ? (
               <p className="py-4 text-center text-xs text-content-muted">
-                Nenhum perfil atribuído — o usuário depende apenas do papel legado.
+                Nenhum perfil atribuído. O usuário depende apenas do papel legado.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -276,7 +283,7 @@ export function AssignmentsTab({ roles }: { roles: IamRole[] }) {
               <Skeleton className="h-24 w-full" />
             ) : exceptions.length === 0 ? (
               <p className="py-4 text-center text-xs text-content-muted">
-                Nenhuma exceção — valem apenas as permissões dos perfis.
+                Nenhuma exceção. Valem apenas as permissões dos perfis.
               </p>
             ) : (
               <ul className="space-y-2">

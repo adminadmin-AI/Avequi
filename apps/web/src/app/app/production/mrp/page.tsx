@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatNumber, formatDateTime } from '@/lib/format';
 
 interface MrpRun {
@@ -68,13 +69,13 @@ export default function MrpPage() {
   function calcMrp() {
     run.mutate(undefined, {
       onSuccess: () => toast.success('MRP calculado'),
-      onError: () => toast.error('Falha ao calcular MRP'),
+      onError: (e) => toast.error(erroDeAcao('calcular o MRP', e)),
     });
   }
   function doConvert(s: MrpSuggestion) {
     convert.mutate(s.id, {
       onSuccess: () => toast.success(s.type === 'PURCHASE' ? 'PO gerada da sugestão' : 'OP gerada da sugestão'),
-      onError: () => toast.error('Não foi possível converter'),
+      onError: (err) => toast.error(erroDeAcao('converter a sugestão em pedido', err)),
     });
   }
 
@@ -123,8 +124,8 @@ export default function MrpPage() {
   return (
     <div>
       <PageHeader
-        title="MRP — Planejamento de Materiais"
-        description="Calcula necessidades de compra e produção."
+        title="MRP"
+        description="Planejamento de materiais. Calcula necessidades de compra e produção."
         actions={
           <Button onClick={calcMrp} loading={run.isPending}>
             <Play size={16} />
@@ -136,15 +137,16 @@ export default function MrpPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          O horizonte de planejamento é definido pelo backend ao rodar o MRP (não selecionável aqui);
-          a rodada mais recente é exibida. A coluna "Em pedido (POs abertas)" não é fornecida pelo
-          backend. Converter uma sugestão gera automaticamente a PO (compra) ou OP (produção).
+          O horizonte de planejamento é definido automaticamente ao rodar o MRP, sem opção de escolha
+          aqui; a rodada mais recente é exibida. Converter uma sugestão gera automaticamente a PO
+          (compra) ou a OP (produção). A coluna "Em pedido (POs abertas)" ainda não está disponível.
+          Em breve.
         </span>
       </div>
 
       {detailQ.data && (
         <p className="mb-3 text-sm text-content-muted">
-          Rodada de <strong>{formatDateTime(detailQ.data.createdAt)}</strong> — horizonte {detailQ.data.horizonDays} dias
+          Rodada de <strong>{formatDateTime(detailQ.data.createdAt)}</strong> (horizonte de {detailQ.data.horizonDays} dias)
         </p>
       )}
 
@@ -153,7 +155,7 @@ export default function MrpPage() {
         columns={columns}
         loading={runsQ.isLoading || detailQ.isLoading || run.isPending}
         searchPlaceholder="Buscar por produto..."
-        emptyMessage='Nenhuma sugestão. Clique em "Calcular MRP" para gerar.'
+        emptyMessage="Nenhuma sugestão por aqui. Calcule o MRP para gerar as necessidades de compra e produção."
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDetail, useList, useUpdate } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Company, CompanyType, TaxRegime } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -24,9 +25,9 @@ const REGIME_LABEL: Record<TaxRegime, string> = {
   LUCRO_REAL: 'Lucro Real',
 };
 const CRT_LABEL: Record<number, string> = {
-  1: '1 — Simples Nacional',
-  2: '2 — SN, excesso de sublimite',
-  3: '3 — Regime Normal',
+  1: '1: Simples Nacional',
+  2: '2: SN, excesso de sublimite',
+  3: '3: Regime Normal',
 };
 
 function Row({ label, value }: { label: string; value?: React.ReactNode }) {
@@ -65,7 +66,7 @@ export default function CompanyPage() {
           toast.success('Empresa atualizada');
           setDialogOpen(false);
         },
-        onError: () => toast.error('Erro ao atualizar empresa'),
+        onError: (e) => toast.error(erroDeAcao('atualizar os dados da empresa', e)),
       },
     );
   }

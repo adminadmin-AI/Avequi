@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LeadActivityType, LeadSource, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -58,7 +64,16 @@ export class LeadIntakeService {
    * Entrada de lead. companyId = loja resolvida pelo chamador (JWT no manual,
    * número/anúncio no conector); null/undefined → fila de triagem da matriz.
    */
-  async intake(companyId: string | null, dto: IntakeLeadDto): Promise<IntakeResult> {
+  async intake(
+    companyId: string | null,
+    dto: IntakeLeadDto,
+    /**
+     * #962 — matriz de triagem quando a loja não foi resolvida. Conector
+     * multi-site passa a raiz do PRÓPRIO site; ausente, vale a env default.
+     * A semântica de triagem não muda: lead sem loja fica SEM vendedor.
+     */
+    triageCompanyId?: string,
+  ): Promise<IntakeResult> {
     const phone = this.normalizePhone(dto.phone);
     if (!phone && !dto.externalRef) {
       throw new BadRequestException(
@@ -66,7 +81,7 @@ export class LeadIntakeService {
       );
     }
 
-    const targetCompanyId = companyId ?? (await this.resolveTriageCompanyId());
+    const targetCompanyId = companyId ?? triageCompanyId ?? this.resolveTriageCompanyId();
 
     // dedup secundário por ref externa (origens sem telefone, ex: pergunta ML)
     if (!phone && dto.externalRef) {
@@ -324,10 +339,20 @@ export class LeadIntakeService {
     phone: string | null,
   ) {
     if (!phone) return;
+    // #984 — "outra loja" = outra empresa DA MESMA ÁRVORE (matriz+filiais do
+    // tenant do lead). Sem esse recorte, telefone repetido em outro TENANT
+    // vazava nome de empresa e status de negociação alheios no aviso.
+    const me = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, parentId: true },
+    });
+    if (!me) return;
+    const rootId = me.parentId ?? me.id;
     const others = await this.prisma.lead.findMany({
       where: {
         phone,
         companyId: { not: companyId },
+        company: { OR: [{ id: rootId }, { parentId: rootId }] },
         anonymizedAt: null,
         // "em negociação" = estágio aberto; sem estágio (triagem) também conta
         OR: [{ stage: { type: 'OPEN' } }, { stageId: null }],
@@ -358,14 +383,20 @@ export class LeadIntakeService {
     });
   }
 
-  private async resolveTriageCompanyId(): Promise<string> {
-    const matriz = await this.prisma.company.findFirst({
-      where: { type: 'MATRIZ' },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-    if (!matriz) throw new BadRequestException('Nenhuma company matriz p/ fila de triagem');
-    return matriz.id;
+  /**
+   * Fila de triagem (lead de conector sem loja resolvida) = a MATRIZ do tenant
+   * dono dos conectores públicos (env CRM_CONNECTOR_TENANT_ID), NUNCA "a
+   * matriz mais antiga do banco" — num banco multi-tenant isso roteava lead
+   * de um cliente pro CRM de outro (#984). Fail-closed sem a env.
+   */
+  private resolveTriageCompanyId(): string {
+    const id = process.env.CRM_CONNECTOR_TENANT_ID?.trim();
+    if (!id) {
+      throw new ServiceUnavailableException(
+        'Fila de triagem indisponível: a env CRM_CONNECTOR_TENANT_ID não está configurada no servidor.',
+      );
+    }
+    return id;
   }
 
   private startOfToday(): Date {

@@ -103,7 +103,7 @@ export function PaymentPlanEditor({
     <div className="space-y-3">
       {payments.length === 0 && (
         <p className="py-2 text-center text-sm text-content-muted">
-          Nenhuma forma adicionada — a soma deve fechar {formatBRL(total)}.
+          Nenhuma forma adicionada. A soma deve fechar {formatBRL(total)}.
         </p>
       )}
       {payments.map((p, idx) => (
@@ -161,7 +161,7 @@ export function PaymentPlanEditor({
                   onChange={(e) => update(idx, { acquirerId: e.target.value || undefined })}
                   disabled={disabled}
                 >
-                  <option value="">— Maquininha —</option>
+                  <option value="">Maquininha</option>
                   {acquirers.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -177,7 +177,7 @@ export function PaymentPlanEditor({
                   onChange={(e) => update(idx, { brand: e.target.value || undefined })}
                   disabled={disabled}
                 >
-                  <option value="">— Qualquer —</option>
+                  <option value="">Qualquer</option>
                   {CARD_BRANDS.map((b) => (
                     <option key={b} value={b}>
                       {b}

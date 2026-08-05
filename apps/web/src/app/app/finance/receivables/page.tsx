@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatGroup } from '@/components/ui/stat-group';
 import { formatBRL, formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { ManualEntryDialog } from '../manual-entry-dialog';
 import { dueFromSearch } from '../due-param';
 // Padrão da Carteira de Pagáveis (#881) espelhado aqui — helpers puros compartilhados.
@@ -68,7 +69,7 @@ const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
 };
 
 function countSub(count: number): string {
-  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
+  return `${count} ${count === 1 ? 'título' : 'títulos'}`;
 }
 
 export default function ReceivablesPage() {
@@ -181,29 +182,30 @@ export default function ReceivablesPage() {
 
   function handlePay(values: PayFormValues) {
     if (!payTarget) return;
+    const id = payTarget.id;
     pay.mutate(
-      { id: payTarget.id, data: values },
+      { id, data: values },
       {
         onSuccess: () => {
-          toast.success('Baixa registrada');
+          toast.success(`Baixa registrada no título #${id.slice(-6).toUpperCase()}`);
           setPayTarget(null);
         },
-        onError: () => toast.error('Erro ao registrar baixa'),
+        onError: (e: any) => toast.error(erroDeAcao('dar baixa no título', e)),
       },
     );
   }
 
   async function handleCancel(e: FinancialEntry) {
     const ok = await confirm({
-      title: 'Cancelar lançamento?',
-      description: `O recebível de ${formatBRL(num(e.amount))} será marcado como cancelado. Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Cancelar lançamento',
+      title: `Cancelar o título de ${formatBRL(num(e.amount))}?`,
+      description: 'Você não vai conseguir desfazer isso.',
+      confirmLabel: 'Cancelar o título',
       variant: 'danger',
     });
     if (!ok) return;
     cancel.mutate(e.id, {
-      onSuccess: () => toast.success('Lançamento cancelado'),
-      onError: () => toast.error('Erro ao cancelar'),
+      onSuccess: () => toast.success('Título cancelado'),
+      onError: (err: any) => toast.error(erroDeAcao('cancelar o título', err)),
     });
   }
 
@@ -277,14 +279,14 @@ export default function ReceivablesPage() {
             )}
             <button
               disabled
-              title="Gerar boleto — em breve (F2-9)"
+              title="Gerar boleto: em breve (F2-9)"
               className="rounded-md p-1.5 text-content-muted cursor-not-allowed"
             >
               <Barcode size={15} />
             </button>
             <button
               disabled
-              title="Gerar PIX — em breve (F2-9)"
+              title="Gerar PIX: em breve (F2-9)"
               className="rounded-md p-1.5 text-content-muted cursor-not-allowed"
             >
               <QrCode size={15} />
@@ -293,7 +295,7 @@ export default function ReceivablesPage() {
               <Link
                 href={`/app/sales/${e.salesOrderId}`}
                 onClick={(ev) => ev.stopPropagation()}
-                title="Ver OV vinculada"
+                title="Ver pedido vinculado"
                 className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
               >
                 <ExternalLink size={15} />
@@ -327,7 +329,7 @@ export default function ReceivablesPage() {
   return (
     <div>
       <PageHeader
-        title="Carteira de Recebíveis"
+        title="Contas a receber"
         description="Contas a receber, vencimentos e baixas."
         actions={<ManualEntryDialog defaultType="RECEIVABLE" />}
       />
@@ -392,14 +394,14 @@ export default function ReceivablesPage() {
             columns={columns}
             loading={isLoading}
             searchable={false}
-            emptyMessage="Nenhum recebível encontrado."
+            emptyMessage="Nenhum título encontrado."
           />
         </div>
 
         {/* Aging report */}
         <Card className="h-fit lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-base">Aging</CardTitle>
+            <CardTitle className="text-base">Faixas de atraso</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {agingRows.map((r) => (

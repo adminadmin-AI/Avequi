@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 const RESOURCE = '/fiscal';
 
@@ -35,11 +36,11 @@ export function VoidRangeDialog({ open, onOpenChange }: { open: boolean; onOpenC
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       const protocol = (res.data as { protocol?: string } | undefined)?.protocol;
-      toast.success(protocol ? `Numeração inutilizada — protocolo ${protocol}` : 'Numeração inutilizada');
+      toast.success(protocol ? `Numeração inutilizada (protocolo ${protocol})` : 'Numeração inutilizada');
       reset();
       onOpenChange(false);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Falha ao inutilizar numeração'),
+    onError: (err: any) => toast.error(erroDeAcao('inutilizar a numeração', err)),
   });
 
   function reset() {
@@ -92,7 +93,7 @@ export function VoidRangeDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <Textarea
             value={justificativa}
             onChange={(e) => setJustificativa(e.target.value)}
-            placeholder="Ex.: erro de numeração no sistema — gap entre notas 100 e 105"
+            placeholder="Ex.: erro de numeração no sistema (gap entre notas 100 e 105)"
           />
         </div>
       </form>

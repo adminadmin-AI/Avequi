@@ -58,7 +58,7 @@ export function AudioRecorder({
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      toast.error('Sem acesso ao microfone — verifique a permissão do navegador');
+      toast.error('Sem acesso ao microfone. Verifique a permissão do navegador.');
       return;
     }
 

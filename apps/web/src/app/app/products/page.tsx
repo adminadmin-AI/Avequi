@@ -12,6 +12,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatNCM } from '@/lib/format';
 import { PRODUCT_TYPE_LABELS } from '@/lib/enums';
 import { ProductForm, type ProductFormValues } from './product-form';
@@ -48,7 +49,7 @@ export default function ProductsPage() {
             toast.success('Produto atualizado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar produto'),
+          onError: (err) => toast.error(erroDeAcao('atualizar o produto', err)),
         },
       );
     } else {
@@ -59,7 +60,7 @@ export default function ProductsPage() {
             toast.success('Produto criado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao criar produto'),
+          onError: (err) => toast.error(erroDeAcao('criar o produto', err)),
         },
       );
     }
@@ -91,12 +92,12 @@ export default function ProductsPage() {
                   { id: p.id, data: { isActive: p.isActive } },
                   {
                     onSuccess: () => toast.info('Ação desfeita'),
-                    onError: () => toast.error('Erro ao desfazer'),
+                    onError: (err) => toast.error(erroDeAcao('desfazer a alteração', err)),
                   },
                 ),
             },
           ),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (err) => toast.error(erroDeAcao('alterar o status do produto', err)),
       },
     );
   }

@@ -12,6 +12,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CUSTOMER_TYPE_LABELS } from '@/lib/enums';
 import { CustomerForm, type CustomerFormValues } from './customer-form';
@@ -79,7 +80,7 @@ export default function CustomersPage() {
             toast.success('Cliente atualizado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar cliente'),
+          onError: (err) => toast.error(erroDeAcao('atualizar o cliente', err)),
         },
       );
     } else {
@@ -90,7 +91,7 @@ export default function CustomersPage() {
             toast.success('Cliente criado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao criar cliente'),
+          onError: (err) => toast.error(erroDeAcao('criar o cliente', err)),
         },
       );
     }
@@ -111,7 +112,7 @@ export default function CustomersPage() {
       { id: c.id, data: { isActive: !c.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Cliente desativado' : 'Cliente reativado'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (err) => toast.error(erroDeAcao('alterar o status do cliente', err)),
       },
     );
   }
@@ -139,7 +140,7 @@ export default function CustomersPage() {
     { key: 'name', header: 'Nome / Razão social', sortable: true },
     {
       key: 'document',
-      header: 'CPF / CNPJ',
+      header: 'CPF/CNPJ',
       cell: (c) => (c.document ? <span className="font-mono text-xs">{formatCpfCnpj(c.document)}</span> : '—'),
     },
     {

@@ -24,9 +24,9 @@ export function remainingOf(e: Pick<FinancialEntry, 'amount' | 'paidAmount'>): n
 
 /** Origem do lançamento em português, p/ humanos. */
 export const SOURCE_LABELS: Record<EntrySource, string> = {
-  MANUAL: 'Lançamento manual',
-  AUTO_SALES: 'Automático — venda',
-  AUTO_PURCHASE: 'Automático — compra',
+  MANUAL: 'Manual',
+  AUTO_SALES: 'Automático: venda',
+  AUTO_PURCHASE: 'Automático: compra',
 };
 
 export function sourceLabel(source: EntrySource): string {

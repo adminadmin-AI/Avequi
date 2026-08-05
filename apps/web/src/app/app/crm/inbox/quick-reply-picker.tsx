@@ -20,7 +20,7 @@ export function QuickReplyPicker({
   return (
     <div className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-56 overflow-y-auto rounded-md border bg-surface shadow-lg">
       <div className="border-b px-3 py-1.5 text-[11px] text-content-muted">
-        Respostas rápidas — ↑↓ navega, Tab/Enter insere no rascunho
+        Respostas rápidas: ↑↓ navega, Tab/Enter insere no rascunho
       </div>
       {matches.map((q, i) => (
         <button

@@ -12,6 +12,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CarrierForm, type CarrierFormValues } from './carrier-form';
 
@@ -51,7 +52,7 @@ export default function CarriersPage() {
             toast.success('Transportadora atualizada');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar transportadora'),
+          onError: (err) => toast.error(erroDeAcao('atualizar a transportadora', err)),
         },
       );
     } else {
@@ -60,7 +61,7 @@ export default function CarriersPage() {
           toast.success('Transportadora criada');
           setDialogOpen(false);
         },
-        onError: () => toast.error('Erro ao criar transportadora'),
+        onError: (err) => toast.error(erroDeAcao('criar a transportadora', err)),
       });
     }
   }
@@ -80,7 +81,7 @@ export default function CarriersPage() {
       { id: c.id, data: { isActive: !c.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Transportadora desativada' : 'Transportadora reativada'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (err) => toast.error(erroDeAcao('alterar o status da transportadora', err)),
       },
     );
   }
@@ -89,7 +90,7 @@ export default function CarriersPage() {
     { key: 'name', header: 'Nome', sortable: true },
     {
       key: 'document',
-      header: 'CNPJ / CPF',
+      header: 'CPF/CNPJ',
       cell: (c) => (c.document ? <span className="font-mono text-xs">{formatCpfCnpj(c.document)}</span> : '—'),
     },
     {
@@ -147,7 +148,7 @@ export default function CarriersPage() {
     <div>
       <PageHeader
         title="Transportadoras"
-        description="Cadastro de transportadoras — grupo transportador da NF-e."
+        description="Cadastro de transportadoras (grupo transportador da NF-e)."
         actions={
           <Button onClick={openCreate}>
             <Plus size={16} />

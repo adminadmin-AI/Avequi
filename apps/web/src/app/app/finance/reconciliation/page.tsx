@@ -13,6 +13,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 
 const UNMATCHED = '/banking/reconciliation/unmatched';
 const RETORNOS = '/banking/cnab/retornos';
@@ -23,7 +24,7 @@ const RETORNO_STATUS: Record<string, { label: string; variant: BadgeVariant }> =
   PENDING: { label: 'Pendente', variant: 'neutral' },
   PROCESSING: { label: 'Processando', variant: 'info' },
   PROCESSED: { label: 'Processado', variant: 'success' },
-  ERROR: { label: 'Erro', variant: 'danger' },
+  ERROR: { label: 'Com erro', variant: 'danger' },
 };
 
 interface CnabRetorno {
@@ -62,7 +63,7 @@ export default function ReconciliationPage() {
       const created = res.data?.created ?? 0;
       toast.success(created > 0 ? `${created} item(ns) importado(s) para conciliação` : 'Nenhum item novo a importar');
     },
-    onError: () => toast.error('Não foi possível importar o retorno'),
+    onError: (e: any) => toast.error(erroDeAcao('importar o retorno', e)),
   });
 
   const retornos = retornosQ.data ?? [];
@@ -126,7 +127,7 @@ export default function ReconciliationPage() {
   return (
     <div>
       <PageHeader
-        title="Conciliação Bancária"
+        title="Conciliação bancária"
         description="Importe os retornos CNAB e acompanhe as transações ainda não conciliadas."
       />
 
@@ -135,8 +136,7 @@ export default function ReconciliationPage() {
         <span>
           Ao <strong>importar</strong> um retorno CNAB processado, os boletos liquidados são conciliados
           automaticamente (vinculados pelo Nosso Número); o que não casar aparece em
-          <strong> Itens não conciliados</strong>. A confirmação manual de matches ainda depende de um
-          endpoint do backend (#247).
+          <strong> Itens não conciliados</strong>. A confirmação manual de conciliações chega em breve.
         </span>
       </div>
 

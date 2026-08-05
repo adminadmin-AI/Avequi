@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 interface Overview {
   attended: number;
@@ -73,18 +74,18 @@ export default function SdrPanelPage() {
     mutationFn: (enabled: boolean) => apiClient.patch('/crm/settings', { sdrEnabled: enabled }),
     onSuccess: (_, enabled) => {
       queryClient.invalidateQueries({ queryKey: ['crm-settings'] });
-      toast.success(enabled ? 'SDR IA LIGADO' : 'SDR IA DESLIGADO — tudo volta ao fluxo humano');
+      toast.success(enabled ? 'SDR ligado' : 'SDR desligado. Tudo volta para o fluxo humano.');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no kill switch'),
+    onError: (e: any) => toast.error(erroDeAcao('desligar o SDR', e)),
   });
 
   const revert = useMutation({
     mutationFn: (leadId: string) => apiClient.post(`/crm/sdr/discards/${leadId}/revert`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sdr-discards'] });
-      toast.success('Descarte revertido — lead voltou pro funil (feedback registrado)');
+      toast.success('Descarte revertido: o lead voltou para o funil (feedback registrado)');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao reverter'),
+    onError: (e: any) => toast.error(erroDeAcao('reverter o descarte', e)),
   });
 
   const enabled = settings?.sdrEnabled ?? false;
@@ -92,7 +93,7 @@ export default function SdrPanelPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="SDR IA" description="Supervisão do atendente de IA: métricas, custo, descartes e incidentes" />
+      <PageHeader title="Antonella (SDR IA)" description="Supervisão do atendente de IA: métricas, custo, descartes e incidentes" />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -101,7 +102,7 @@ export default function SdrPanelPage() {
           disabled={toggleSdr.isPending}
         >
           <Power className="mr-2 h-4 w-4" />
-          {enabled ? 'Desligar SDR (kill switch)' : 'Ligar SDR IA'}
+          {enabled ? 'Desligar SDR' : 'Ligar SDR IA'}
         </Button>
         <Badge variant={enabled ? 'success' : 'neutral'}>{enabled ? 'ATIVO' : 'DESLIGADO'}</Badge>
         <div className="ml-auto flex gap-1">
@@ -153,7 +154,7 @@ export default function SdrPanelPage() {
       <section className="surface-sheen rounded-xl bg-surface shadow-soft">
         <h2 className="flex items-center gap-2 border-b p-3 text-sm font-medium">
           <Bot className="h-4 w-4" />
-          Descartes da IA — últimos 7 dias ({discards.length})
+          Descartes da IA nos últimos 7 dias ({discards.length})
         </h2>
         {discards.length === 0 ? (
           <p className="p-4 text-sm text-content-muted">Nenhum descarte pra revisar. 👌</p>
@@ -196,7 +197,7 @@ export default function SdrPanelPage() {
         </h2>
         {incidents.length === 0 ? (
           <p className="p-4 text-sm text-content-muted">
-            Nenhum bloqueio no período — a IA não tentou inventar preço.
+            Nenhum bloqueio no período. A IA não tentou inventar preço.
           </p>
         ) : (
           <ul className="divide-y">

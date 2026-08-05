@@ -5,13 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { Copy, Save, ShieldAlert } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
 import {
-  apiErrorMessage,
   useCreateIamRole,
   useIamRoles,
   usePermissionsCatalog,
   useRolePermissions,
   useSetRolePermissions,
 } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import { Can } from '@/components/can';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
@@ -84,7 +84,7 @@ export default function RolePermissionsPage() {
           toast.success('Permissões salvas');
           setDirty(false);
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao salvar permissões')),
+        onError: (e) => toast.error(erroDeAcao('salvar as permissões', e)),
       },
     );
   }
@@ -99,10 +99,10 @@ export default function RolePermissionsPage() {
       },
       {
         onSuccess: (created) => {
-          toast.success('Perfil duplicado — agora ele é editável');
+          toast.success('Perfil duplicado. Agora ele é editável.');
           router.push(`/app/settings/roles/${created.id}`);
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao duplicar perfil')),
+        onError: (e) => toast.error(erroDeAcao('duplicar o perfil', e)),
       },
     );
   }
@@ -133,7 +133,7 @@ export default function RolePermissionsPage() {
         backHref="/app/settings/roles"
         description={
           isSystem
-            ? 'Perfil de sistema — somente leitura. Duplique para personalizar.'
+            ? 'Perfil de sistema: somente leitura. Duplique para personalizar.'
             : 'Marque as permissões deste perfil e salve (o conjunto é substituído por completo).'
         }
         meta={

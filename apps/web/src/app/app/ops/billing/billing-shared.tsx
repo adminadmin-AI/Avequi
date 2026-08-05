@@ -38,7 +38,7 @@ export function PayInvoiceDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Dar baixa na fatura"
-      description="Registra o pagamento manualmente — auditado, sem integração com gateway na Fase 1."
+      description="Registra o pagamento manualmente. Auditado, sem integração com gateway na Fase 1."
       formId="pay-invoice-form"
       submitLabel="Confirmar baixa"
       loading={loading}
@@ -91,7 +91,7 @@ export function VoidInvoiceDialog({
         onOpenChange(v);
       }}
       title="Anular fatura"
-      description="Anular é para erro de emissão/negociação — a fatura some da cobrança. O motivo fica registrado na auditoria."
+      description="Anular é para erro de emissão/negociação. A fatura some da cobrança. O motivo fica registrado na auditoria."
       formId="void-invoice-form"
       submitLabel="Anular fatura"
       loading={loading}
@@ -114,7 +114,7 @@ export function VoidInvoiceDialog({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="Explique o motivo da anulação — obrigatório, mínimo 5 caracteres"
+            placeholder="Explique o motivo da anulação (obrigatório, mínimo 5 caracteres)"
             error={touched && tooShort}
           />
         </Field>

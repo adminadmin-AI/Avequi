@@ -4,7 +4,7 @@
  * mostra o rótulo humano. Módulo fora do mapa cai no próprio code.
  */
 export const MODULE_LABELS: Record<string, string> = {
-  dashboard: 'Dashboards',
+  dashboard: 'Painéis',
   analytics: 'Inteligência e Relatórios',
   products: 'Produtos',
   customers: 'Clientes',

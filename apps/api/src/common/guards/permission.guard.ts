@@ -77,11 +77,17 @@ export class PermissionGuard implements CanActivate {
 
     let effective: Set<string>;
     try {
-      const { permissions } = await this.permissionService.getUserPermissions(
+      // #946: MESMA resolução do /auth/me/permissions (menu), fallback legado
+      // incluído. Antes o guard resolvia sem fallback e o usuário legado via o
+      // item no menu para tomar 403 aqui. O fallback é temporário (#780, sai
+      // na Fase D) e só vale quando não há NADA no RBAC v2 — qualquer perfil
+      // ou exceção v2 (inclusive um deny) o desliga.
+      const { resolved } = await this.permissionService.resolveWithLegacyFallback(
         user.id,
         user.companyId,
+        user.role,
       );
-      effective = new Set(permissions);
+      effective = new Set(resolved.permissions);
     } catch (error) {
       // Fail-closed: erro de infraestrutura NUNCA vira liberação.
       this.logger.error(

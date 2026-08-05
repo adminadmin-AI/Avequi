@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
       .map((r) => ({ label: r.sku, material: r.totalMaterialCost, mao: r.totalLaborCost }));
   }, [prodRows]);
 
-  // Valor de estoque por faixa de aging
+  // Valor de estoque por tempo parado
   const agingData = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of agingRows) map.set(r.agingBucket, (map.get(r.agingBucket) ?? 0) + r.inventoryValue);
@@ -219,7 +219,7 @@ export default function AnalyticsPage() {
   return (
     <div>
       <PageHeader
-        title="Analytics"
+        title="Indicadores"
         description="Indicadores gerenciais de vendas, produção e estoque."
         actions={
           <div className="inline-flex rounded-lg border border-line p-0.5">
@@ -241,11 +241,10 @@ export default function AnalyticsPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          Gráficos sobre os endpoints reais de <code>/analytics</code> e <code>/finance</code> (sales-cube,
-          production-costs, inventory-aging, summary e DRE). A seção Financeiro usa o DRE realizado
-          (<code>/finance/reports/dre</code>). Ainda <strong>sem endpoint</strong>: "margem bruta por produto",
-          "OPs planejadas vs concluídas" e "lead time médio" (pendência #247). O filtro de período afeta
-          Comercial, Financeiro e Produção; Estoque é um retrato atual.
+          Os gráficos usam dados reais de vendas, produção, estoque e o DRE realizado. Ainda não
+          temos <strong>"margem bruta por produto"</strong>, "ordens de produção planejadas vs.
+          concluídas" nem "prazo de entrega médio". O filtro de período afeta Comercial, Financeiro
+          e Produção; Estoque mostra a posição atual. Em breve.
         </span>
       </div>
 
@@ -351,7 +350,7 @@ export default function AnalyticsPage() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-title">Valor de estoque por faixa de aging</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Valor de estoque por tempo parado</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={agingData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>

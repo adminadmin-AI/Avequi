@@ -47,4 +47,24 @@ describe('UpdateUserDto — toggle isActive da tela de usuários', () => {
   it('campo desconhecido segue rejeitado (forbidNonWhitelisted preservado)', async () => {
     await expect(asBody({ naoExiste: 1 })).rejects.toThrow(BadRequestException);
   });
+
+  // ── #946: papel sai do update (RBAC v2 é a fonte de verdade) ──
+
+  it('PATCH com `role` → 400 pelo pipeline normal (sem fallback no service)', async () => {
+    await expect(asBody({ role: 'SUPER_ADMIN' })).rejects.toThrow(BadRequestException);
+  });
+
+  it('`role` junto de campos válidos rejeita a requisição INTEIRA', async () => {
+    // Nada de aceitar o nome e ignorar o papel em silêncio: quem tentou mudar
+    // papel aqui precisa saber que o caminho agora é Perfis e Permissões.
+    await expect(asBody({ name: 'Novo Nome', role: 'DIRECTOR' })).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('edição sem papel continua funcionando', async () => {
+    await expect(asBody({ name: 'Novo Nome' })).resolves.toMatchObject({
+      name: 'Novo Nome',
+    });
+  });
 });

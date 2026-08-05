@@ -75,7 +75,7 @@ export default function QualityDashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard de Qualidade"
+        title="Painel de qualidade"
         description="Indicadores de inspeções e não conformidades."
         actions={
           <div className="flex items-center gap-2">
@@ -94,7 +94,7 @@ export default function QualityDashboardPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Inspeções — aprovados vs reprovados (30d)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Inspeções: aprovados vs reprovados (30d)</CardTitle></CardHeader>
           <CardContent>
             {stats.passed + stats.failed === 0 ? (
               <p className="py-12 text-center text-sm text-content-muted">Sem inspeções finalizadas no período.</p>

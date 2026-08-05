@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { PermissionService } from '../iam/permission.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { PermissionCacheService } from '../iam/permission-cache.service';
 import {
   ENUM_ROLE_TO_SYSTEM_ROLE,
@@ -70,6 +71,8 @@ describe('#738 — usuário criado funciona efetivamente no IAM v2 (integração
           useValue: { temVinculoAdminPerpetuo: jest.fn().mockResolvedValue(false) },
         },
         { provide: EntitlementService, useValue: { limit: jest.fn().mockResolvedValue(null) } }, // WP4: legado ilimitado
+        // #947: escopo empresarial por capability
+        { provide: TenantScopeService, useValue: { resolverEscopo: jest.fn().mockResolvedValue({ companyIds: ['co-1'], ampliado: false }) } },
       ],
     }).compile();
     userService = module.get(UserService);

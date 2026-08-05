@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/field';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { unmask } from '@/lib/format';
 import { isValidCNPJ } from '@/lib/validators';
 import { lookupCep, lookupCnpj } from '@/lib/address-lookup';
@@ -102,9 +103,9 @@ export function SupplierForm({
       if (data.isSimplesNacional !== null && !getValues('taxRegime')) {
         setValue('taxRegime', data.isSimplesNacional ? 'SIMPLES_NACIONAL' : 'LUCRO_PRESUMIDO');
       }
-      toast.success('Dados preenchidos pela Receita — confira o regime tributário');
-    } catch {
-      toast.error('Falha ao consultar CNPJ — tente novamente');
+      toast.success('Dados preenchidos pela Receita. Confira o regime tributário');
+    } catch (e) {
+      toast.error(erroDeAcao('consultar o CNPJ', e));
     } finally {
       setCnpjLoading(false);
     }
@@ -272,7 +273,7 @@ export function SupplierForm({
           <Field label="Condição de pagamento padrão" error={errors.defaultPaymentTerms?.message}>
             <Input {...register('defaultPaymentTerms')} placeholder='Ex.: "28 dias" ou "30/60/90"' />
           </Field>
-          <Field label="Lead time (dias)" error={errors.leadTimeDays?.message}>
+          <Field label="Prazo de entrega (dias)" error={errors.leadTimeDays?.message}>
             <Input type="number" min="0" step="1" {...register('leadTimeDays')} placeholder="0" />
           </Field>
         </div>

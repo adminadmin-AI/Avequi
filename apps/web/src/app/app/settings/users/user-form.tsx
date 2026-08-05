@@ -64,17 +64,24 @@ export function UserForm({
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Papel" required error={errors.role?.message}>
-          <Select {...register('role')} error={!!errors.role}>
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        {!isEdit && (
+      {/*
+        #946: o Papel só aparece na CRIAÇÃO — ele define o perfil RBAC v2
+        inicial (espelho do #779). Depois disso, quem manda é o RBAC v2:
+        alterar acesso é em Configurações › Perfis e Permissões, e o papel
+        legado passa a ser derivado de lá. Editar o papel aqui criava
+        divergência silenciosa (enum mudava, perfil não).
+      */}
+      {!isEdit && (
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Papel inicial" required error={errors.role?.message}>
+            <Select {...register('role')} error={!!errors.role}>
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Senha inicial" required error={errors.password?.message}>
             <Input
               {...register('password')}
@@ -84,8 +91,8 @@ export function UserForm({
               autoComplete="new-password"
             />
           </Field>
-        )}
-      </div>
+        </div>
+      )}
     </form>
   );
 }

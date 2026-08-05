@@ -54,15 +54,15 @@ const schema = z.object({
 
 /** Tabela A do ICMS — origem da mercadoria (orig) (#480) */
 const ORIGEM_LABELS: Record<string, string> = {
-  '0': '0 — Nacional',
-  '1': '1 — Estrangeira, importação direta',
-  '2': '2 — Estrangeira, adquirida no mercado interno',
-  '3': '3 — Nacional, conteúdo de importação > 40%',
-  '4': '4 — Nacional, processos produtivos básicos',
-  '5': '5 — Nacional, conteúdo de importação ≤ 40%',
-  '6': '6 — Estrangeira, importação direta sem similar nacional',
-  '7': '7 — Estrangeira, mercado interno sem similar nacional',
-  '8': '8 — Nacional, conteúdo de importação > 70%',
+  '0': '0 · Nacional',
+  '1': '1 · Estrangeira, importação direta',
+  '2': '2 · Estrangeira, adquirida no mercado interno',
+  '3': '3 · Nacional, conteúdo de importação > 40%',
+  '4': '4 · Nacional, processos produtivos básicos',
+  '5': '5 · Nacional, conteúdo de importação ≤ 40%',
+  '6': '6 · Estrangeira, importação direta sem similar nacional',
+  '7': '7 · Estrangeira, mercado interno sem similar nacional',
+  '8': '8 · Nacional, conteúdo de importação > 70%',
 };
 
 export type ProductFormValues = z.infer<typeof schema>;

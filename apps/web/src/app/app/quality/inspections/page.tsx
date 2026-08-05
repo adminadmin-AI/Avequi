@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Play, Check, X, PauseCircle, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -82,14 +83,27 @@ export default function InspectionsPage() {
           setOpen(false);
           setNotes('');
         },
-        onError: () => toast.error('Erro ao criar inspeção'),
+        onError: (e) => toast.error(erroDeAcao('criar a inspeção', e)),
       },
     );
   }
   function simple(i: Inspection, endpoint: 'start' | 'pass' | 'hold') {
     const labels: Record<string, string> = { start: 'Iniciar inspeção?', pass: 'Aprovar inspeção?', hold: 'Colocar em espera?' };
+    const successLabels: Record<string, string> = {
+      start: 'Inspeção iniciada',
+      pass: 'Inspeção aprovada',
+      hold: 'Inspeção em espera',
+    };
     confirm({ title: labels[endpoint], confirmLabel: 'Confirmar' }).then(
-      (ok) => ok && action.mutate({ id: i.id, endpoint }, { onSuccess: () => toast.success('Status atualizado'), onError: () => toast.error('Erro') }),
+      (ok) =>
+        ok &&
+        action.mutate(
+          { id: i.id, endpoint },
+          {
+            onSuccess: () => toast.success(successLabels[endpoint]),
+            onError: (e) => toast.error(erroDeAcao('atualizar a inspeção', e)),
+          },
+        ),
     );
   }
   function submitFail() {
@@ -99,12 +113,12 @@ export default function InspectionsPage() {
       { id: failTarget.id, endpoint: 'fail', body: { title: failTitle || 'Reprovação de inspeção', description: failDesc, severity: 'MAJOR' } },
       {
         onSuccess: () => {
-          toast.success('Inspeção reprovada — NCR aberta');
+          toast.success('Inspeção reprovada. NCR aberta');
           setFailTarget(null);
           setFailTitle('');
           setFailDesc('');
         },
-        onError: () => toast.error('Não foi possível reprovar'),
+        onError: (e) => toast.error(erroDeAcao('reprovar a inspeção', e)),
       },
     );
   }
@@ -159,7 +173,7 @@ export default function InspectionsPage() {
   return (
     <div>
       <PageHeader
-        title="Inspeções de Qualidade"
+        title="Inspeções de qualidade"
         description="Controle de inspeções de recebimento, processo e final."
         actions={
           <Button onClick={() => setOpen(true)}>

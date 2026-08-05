@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product, Warehouse, StockBalance, StoreTransfer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,7 @@ export default function NewTransferPage() {
           toast.success('Transferência criada');
           router.push('/app/stock/transfers');
         },
-        onError: () => toast.error('Erro ao criar transferência'),
+        onError: (e) => toast.error(erroDeAcao('criar a transferência', e)),
       },
     );
   }
@@ -88,7 +89,7 @@ export default function NewTransferPage() {
   return (
     <div>
       <PageHeader
-        title="Nova Transferência"
+        title="Nova transferência"
         description="Transfere itens entre dois depósitos."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/stock/transfers')}>
@@ -103,10 +104,10 @@ export default function NewTransferPage() {
           <div>
             <Label required>Depósito de origem</Label>
             <Select value={fromWarehouseId} onChange={(e) => setFromWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -114,10 +115,10 @@ export default function NewTransferPage() {
           <div>
             <Label required>Depósito de destino</Label>
             <Select value={toWarehouseId} onChange={(e) => setToWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -136,10 +137,10 @@ export default function NewTransferPage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)} disabled={!fromWarehouseId}>
-                <option value="">{fromWarehouseId ? '— Selecione —' : 'Escolha a origem primeiro'}</option>
+                <option value="">{fromWarehouseId ? 'Selecione' : 'Escolha a origem primeiro'}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>

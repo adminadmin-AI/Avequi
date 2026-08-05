@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { formatDateTime } from '@/lib/format';
+import { OPERATION_LABELS } from '../operation-labels';
 
 /**
  * #503 parte 2 — Compliance Center: conformidade fiscal em tempo real.
@@ -53,22 +54,6 @@ interface Compliance {
   };
   vehicular: { soldSerials: number; soldWithBin: number; soldWithoutBin: number; score: number };
 }
-
-const OPERATION_LABEL: Record<string, string> = {
-  VENDA_INTERNA: 'Venda interna',
-  VENDA_INTERESTADUAL: 'Venda interestadual',
-  DEVOLUCAO_VENDA: 'Devolução de venda',
-  TRANSFERENCIA_INTERNA: 'Transferência interna',
-  TRANSFERENCIA_INTERESTADUAL: 'Transferência interestadual',
-  COMPRA_INTERNA: 'Compra interna',
-  COMPRA_INTERESTADUAL: 'Compra interestadual',
-  DEVOLUCAO_COMPRA: 'Devolução de compra',
-  REMESSA_CONSERTO: 'Remessa p/ conserto',
-  RETORNO_CONSERTO: 'Retorno de conserto',
-  AMOSTRA_GRATIS: 'Amostra grátis',
-  BONIFICACAO: 'Bonificação',
-  INDUSTRIALIZACAO: 'Industrialização',
-};
 
 function scoreTone(score: number): 'success' | 'warning' | 'danger' {
   if (score >= 85) return 'success';
@@ -144,8 +129,8 @@ export default function CompliancePage() {
   return (
     <div>
       <PageHeader
-        title="Conformidade Fiscal"
-        description="Compliance Center: prontidão pra Reforma, cobertura de regras, saúde de emissão e pendências — em tempo real."
+        title="Conformidade fiscal"
+        description="Compliance Center em tempo real: prontidão pra Reforma, cobertura de regras, saúde de emissão e pendências."
         actions={
           <Link href="/app/fiscal/rules">
             <Button variant="secondary">Regras Fiscais</Button>
@@ -176,7 +161,7 @@ export default function CompliancePage() {
               <AlertTriangle size={18} />
               <span>
                 <b>{r.daysLeft} dias</b> pro IBS/CBS obrigatório e{' '}
-                <b>{r.withoutCClassTrib} produtos sem cClassTrib</b> — NF-e será rejeitada (N12-110)
+                <b>{r.withoutCClassTrib} produtos sem cClassTrib</b>. NF-e será rejeitada (N12-110)
               </span>
             </div>
           )}
@@ -186,7 +171,7 @@ export default function CompliancePage() {
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Reforma Tributária */}
         <DimensionCard
-          title={`Reforma Tributária — prazo 03/08/2026 (${r.daysLeft}d)`}
+          title={`Reforma Tributária: prazo 03/08/2026 (${r.daysLeft}d)`}
           icon={<CalendarClock size={16} />}
           score={r.score}
         >
@@ -201,14 +186,14 @@ export default function CompliancePage() {
           {r.withoutCClassTrib > 0 && (
             <p className="mt-2 text-xs text-content-muted">
               Use a skill <code className="font-mono">reforma-tributaria</code> pra classificar em lote e
-              gerar o relatório pro contador assinar (#665).
+              gerar o relatório pro contador assinar.
             </p>
           )}
         </DimensionCard>
 
         {/* Cobertura de regras */}
         <DimensionCard
-          title={`Cobertura de regras — ${cov.coveredCount}/${cov.totalOperations} operações`}
+          title={`Cobertura de regras: ${cov.coveredCount}/${cov.totalOperations} operações`}
           icon={<ShieldCheck size={16} />}
           score={cov.score}
         >
@@ -219,12 +204,12 @@ export default function CompliancePage() {
           ) : (
             <>
               <p className="mb-2 text-xs text-content-muted">
-                Sem regra vigente — Faturar bloqueia nessas operações (#498):
+                Sem regra vigente: faturar bloqueia nessas operações.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {uncovered.map((o) => (
                   <Badge key={o.operationType} variant="warning">
-                    {OPERATION_LABEL[o.operationType] ?? o.operationType}
+                    {OPERATION_LABELS[o.operationType] ?? o.operationType}
                   </Badge>
                 ))}
               </div>
@@ -234,7 +219,7 @@ export default function CompliancePage() {
 
         {/* Emissão 30d */}
         <DimensionCard
-          title={`Emissão últimos 30 dias — ${em.successRate}% de sucesso`}
+          title={`Emissão últimos 30 dias: ${em.successRate}% de sucesso`}
           icon={<FileWarning size={16} />}
           score={em.score}
         >
@@ -252,7 +237,7 @@ export default function CompliancePage() {
                   className="block truncate text-xs text-danger hover:underline"
                   title={f.lastError ?? undefined}
                 >
-                  {f.type} · {formatDateTime(f.createdAt)} — {f.lastError ?? f.status}
+                  {f.type} · {formatDateTime(f.createdAt)} · {f.lastError ?? f.status}
                 </Link>
               ))}
             </div>
@@ -260,13 +245,13 @@ export default function CompliancePage() {
         </DimensionCard>
 
         {/* Veicular */}
-        <DimensionCard title="Veicular — BIN dos chassis vendidos" icon={<Truck size={16} />} score={v.score}>
+        <DimensionCard title="Veicular: BIN dos chassis vendidos" icon={<Truck size={16} />} score={v.score}>
           <Row label="Chassis vendidos" value={v.soldSerials} />
           <Row label="Com BIN registrada" value={v.soldWithBin} />
           <Row label="Sem BIN (pendência RENAVE)" value={v.soldWithoutBin} danger={v.soldWithoutBin > 0} />
           {v.soldWithoutBin > 0 && (
             <p className="mt-2 text-xs text-content-muted">
-              ATPV-e fica bloqueada sem BIN registrada — regularize antes do emplacamento (#527).
+              ATPV-e fica bloqueada sem BIN registrada. Regularize antes do emplacamento.
             </p>
           )}
         </DimensionCard>

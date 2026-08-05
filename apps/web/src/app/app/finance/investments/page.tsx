@@ -206,8 +206,8 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Análise de Investimentos"
-        description="VPL, TIR, payback simples e descontado — com alçada de aprovação (#399)"
+        title="Análise de investimentos"
+        description="VPL, TIR, payback simples e descontado. Com alçada de aprovação."
       />
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -226,7 +226,7 @@ export default function InvestmentsPage() {
                     options={projectOptions}
                     value={projectId}
                     onValueChange={setProjectId}
-                    placeholder={list.isLoading ? 'Carregando...' : projectOptions.length ? 'Selecione um projeto' : 'Nenhum projeto — crie um'}
+                    placeholder={list.isLoading ? 'Carregando...' : projectOptions.length ? 'Selecione um projeto' : 'Nenhum projeto. Crie um.'}
                     searchPlaceholder="Buscar projeto..."
                     clearable
                   />
@@ -335,11 +335,11 @@ export default function InvestmentsPage() {
                     rowKey={(r) => r.id}
                     searchable={false}
                     pageSize={100}
-                    emptyMessage="Nenhum fluxo — adicione o aporte inicial (período 0) e os retornos."
+                    emptyMessage="Nenhum fluxo. Adicione o aporte inicial (período 0) e os retornos."
                   />
                   {p.status !== 'DRAFT' && (
                     <p className="mt-3 text-helper text-content-muted">
-                      Projeto {STATUS[p.status].label.toLowerCase()} — fluxos bloqueados para edição.
+                      Projeto {STATUS[p.status].label.toLowerCase()}. Fluxos bloqueados para edição.
                     </p>
                   )}
                 </CardContent>
@@ -409,7 +409,7 @@ export default function InvestmentsPage() {
           <Field label="Descrição">
             <Input value={projForm.description} onChange={(e) => setProjForm({ ...projForm, description: e.target.value })} />
           </Field>
-          <Field label="Taxa de desconto por período (% — WACC)">
+          <Field label="Taxa de desconto por período (WACC, em %)">
             <Input type="number" step="0.01" value={projForm.discountRatePct} onChange={(e) => setProjForm({ ...projForm, discountRatePct: e.target.value })} placeholder="0" />
           </Field>
           {saveProj.isError && <p className="text-caption text-danger">{apiMessage(saveProj.error)}</p>}

@@ -1,16 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
 import {
-  apiErrorMessage,
   useCreateIamRole,
   useDeleteIamRole,
   useIamRoles,
   useUpdateIamRole,
 } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import type { IamRole } from '@/types/api';
 import { Can } from '@/components/can';
 import { PageHeader } from '@/components/page-header';
@@ -50,6 +51,10 @@ export default function RolesPage() {
   const updateRole = useUpdateIamRole();
   const deleteRole = useDeleteIamRole();
 
+  const searchParams = useSearchParams();
+  const tabInicial = searchParams.get('tab') === 'atribuicoes' ? 'atribuicoes' : 'perfis';
+  const userIdInicial = searchParams.get('userId') ?? undefined;
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<IamRole | null>(null);
   const [copyFrom, setCopyFrom] = useState<IamRole | null>(null);
@@ -82,7 +87,7 @@ export default function RolesPage() {
             toast.success('Perfil atualizado');
             setDialogOpen(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atualizar perfil')),
+          onError: (e) => toast.error(erroDeAcao('atualizar o perfil', e)),
         },
       );
     } else {
@@ -94,11 +99,11 @@ export default function RolesPage() {
         },
         {
           onSuccess: (created) => {
-            toast.success('Perfil criado — agora defina as permissões');
+            toast.success('Perfil criado. Agora defina as permissões.');
             setDialogOpen(false);
             router.push(`/app/settings/roles/${created.id}`);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao criar perfil')),
+          onError: (e) => toast.error(erroDeAcao('criar o perfil', e)),
         },
       );
     }
@@ -114,7 +119,7 @@ export default function RolesPage() {
     if (!ok) return;
     deleteRole.mutate(role.id, {
       onSuccess: () => toast.success('Perfil excluído'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao excluir perfil')),
+      onError: (e) => toast.error(erroDeAcao('excluir o perfil', e)),
     });
   }
 
@@ -224,7 +229,7 @@ export default function RolesPage() {
     return (
       <div>
         <PageHeader
-          title="Perfis e Permissões"
+          title="Perfis e permissões"
           description="Gestão de perfis de acesso (RBAC) e permissões granulares."
         />
         <div className="space-y-3">
@@ -239,7 +244,7 @@ export default function RolesPage() {
     return (
       <div>
         <PageHeader
-          title="Perfis e Permissões"
+          title="Perfis e permissões"
           description="Gestão de perfis de acesso (RBAC) e permissões granulares."
         />
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface py-16 text-center">
@@ -259,7 +264,7 @@ export default function RolesPage() {
   return (
     <div>
       <PageHeader
-        title="Perfis e Permissões"
+        title="Perfis e permissões"
         description="Perfis de acesso (RBAC v2), permissões granulares e atribuições por usuário."
         actions={
           <Can permission="iam.roles.manage">
@@ -271,7 +276,8 @@ export default function RolesPage() {
         }
       />
 
-      <Tabs defaultValue="perfis">
+      {/* #946: deep-link vindo da tela de usuários — ?tab=atribuicoes&userId=… */}
+      <Tabs defaultValue={tabInicial}>
         <TabsList className="mb-4">
           <TabsTrigger value="perfis">Perfis</TabsTrigger>
           <TabsTrigger value="atribuicoes">Atribuições</TabsTrigger>
@@ -289,7 +295,7 @@ export default function RolesPage() {
         </TabsContent>
 
         <TabsContent value="atribuicoes">
-          <AssignmentsTab roles={roles} />
+          <AssignmentsTab roles={roles} userIdInicial={userIdInicial} />
         </TabsContent>
       </Tabs>
 

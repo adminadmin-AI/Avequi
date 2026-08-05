@@ -214,7 +214,11 @@ async function allows(
   const endpoint = methodsOf(ControllerClass).find((e) => e.name === handlerName);
   if (!endpoint) throw new Error(`handler '${handlerName}' não existe`);
   const guard = new PermissionGuard(reflector, {
-    getUserPermissions: jest.fn().mockResolvedValue({ roles: [], permissions }),
+    // #946: mesma resolução do /auth/me (fallback legado incluído). Como o
+    // conjunto de permissões vem preenchido, o fallback não entra.
+    resolveWithLegacyFallback: jest
+      .fn()
+      .mockResolvedValue({ legacyFallback: false, resolved: { roles: [], permissions } }),
   } as any);
   try {
     return await guard.canActivate(ctxFor(ControllerClass, endpoint.handler));

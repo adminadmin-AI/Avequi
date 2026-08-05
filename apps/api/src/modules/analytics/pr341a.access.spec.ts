@@ -66,9 +66,15 @@ async function canAccess(
   roleCode: string,
 ): Promise<boolean> {
   const permissionService = {
-    getUserPermissions: jest.fn().mockResolvedValue({
-      roles: [roleCode],
-      permissions: resolveEffectivePermissions(roleCode),
+    // #946: o guard resolve pelo MESMO caminho do /auth/me/permissions.
+    // Aqui o usuário sempre TEM perfil v2 (roleCode), então o fallback legado
+    // não entra — a fronteira exercitada continua sendo a do RBAC v2.
+    resolveWithLegacyFallback: jest.fn().mockResolvedValue({
+      legacyFallback: false,
+      resolved: {
+        roles: [roleCode],
+        permissions: resolveEffectivePermissions(roleCode),
+      },
     }),
   } as any;
   const guard = new PermissionGuard(reflector, permissionService);

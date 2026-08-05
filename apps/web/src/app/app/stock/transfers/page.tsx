@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Send, PackageCheck, Ban, ArrowRight } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { StoreTransfer, TransferStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -48,12 +49,17 @@ export default function TransfersPage() {
       receive: 'Confirmar recebimento?',
       cancel: 'Cancelar transferência?',
     };
+    const successLabels: Record<string, string> = {
+      dispatch: 'Transferência despachada',
+      receive: 'Transferência recebida',
+      cancel: 'Transferência cancelada',
+    };
     const ok2 = () =>
       transition.mutate(
         { id: t.id, endpoint },
         {
-          onSuccess: () => toast.success('Status atualizado'),
-          onError: () => toast.error('Não foi possível executar a ação'),
+          onSuccess: () => toast.success(successLabels[endpoint]),
+          onError: (e) => toast.error(erroDeAcao('atualizar a transferência', e)),
         },
       );
     if (endpoint === 'cancel') {
@@ -115,7 +121,7 @@ export default function TransfersPage() {
   return (
     <div>
       <PageHeader
-        title="Transferências entre Depósitos"
+        title="Transferências entre depósitos"
         description="Movimentação de estoque entre depósitos/lojas."
         actions={
           <Button onClick={() => router.push('/app/stock/transfers/new')}>

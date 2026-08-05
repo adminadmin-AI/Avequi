@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { QuickReply } from '../inbox/inbox-types';
 
 const MANAGER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
@@ -52,7 +53,7 @@ export default function QuickRepliesPage() {
       setForm(null);
       toast.success('Resposta rápida salva');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao salvar'),
+    onError: (e: any) => toast.error(erroDeAcao('salvar a resposta rápida', e)),
   });
 
   const remove = useMutation({
@@ -61,7 +62,7 @@ export default function QuickRepliesPage() {
       invalidate();
       toast.success('Resposta excluída');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao excluir'),
+    onError: (e: any) => toast.error(erroDeAcao('excluir a resposta rápida', e)),
   });
 
   const storeReplies = replies.filter((r) => r.ownerId == null);

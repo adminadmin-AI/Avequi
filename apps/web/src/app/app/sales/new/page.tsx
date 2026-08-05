@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/select';
 import { Stepper, type Step } from '@/components/ui/stepper';
 import { FormSection } from '@/components/ui/form-section';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL } from '@/lib/format';
 
 // wizard F3.1 (#316): dados → itens → revisão
@@ -161,18 +162,18 @@ export default function NewSalePage() {
             /* vínculo é best-effort; a venda já foi criada */
           }
         }
-        toast.success('Ordem de venda criada');
+        toast.success(`Pedido #${res.data.id.slice(-6).toUpperCase()} criado`);
         router.push(`/app/sales/${res.data.id}`);
       },
-      onError: () => toast.error('Erro ao criar ordem de venda'),
+      onError: (err) => toast.error(erroDeAcao('criar o pedido de venda', err)),
     });
   }
 
   return (
     <div>
       <PageHeader
-        title="Nova Ordem de Venda"
-        description="Cria a OV em rascunho. As etapas do pipeline são feitas no detalhe."
+        title="Novo pedido de venda"
+        description="Cria o pedido em rascunho. As etapas do pipeline são feitas no detalhe."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/sales')}>
             <ArrowLeft size={16} />
@@ -194,11 +195,11 @@ export default function NewSalePage() {
           <div>
             <Label>Cliente</Label>
             <Select aria-label="Cliente" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              <option value="">— Sem cliente —</option>
+              <option value="">Sem cliente</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
-                  {c.document ? ` — ${c.document}` : ''}
+                  {c.document ? ` · ${c.document}` : ''}
                 </option>
               ))}
             </Select>
@@ -206,10 +207,10 @@ export default function NewSalePage() {
           <div>
             <Label required>Depósito</Label>
             <Select aria-label="Depósito" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -225,7 +226,7 @@ export default function NewSalePage() {
                 <option value="">Endereço fiscal do cliente</option>
                 {deliveryAddresses.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.label} — {a.city}/{a.state}
+                    {a.label} · {a.city}/{a.state}
                   </option>
                 ))}
               </Select>
@@ -234,7 +235,7 @@ export default function NewSalePage() {
           <div>
             <Label>Forma de pagamento</Label>
             <Select aria-label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-              <option value="">— Não informar (NF-e sai como Outros) —</option>
+              <option value="">Não informar (NF-e sai como Outros)</option>
               <option value="PIX">PIX</option>
               <option value="BOLETO">Boleto</option>
               <option value="DINHEIRO">Dinheiro</option>
@@ -255,8 +256,8 @@ export default function NewSalePage() {
               <option value="9">Sem frete</option>
               <option value="3">Veículo próprio, por conta do emitente</option>
               <option value="4">Veículo próprio, por conta do destinatário</option>
-              <option value="0">CIF — por conta do emitente</option>
-              <option value="1">FOB — por conta do destinatário</option>
+              <option value="0">CIF (por conta do emitente)</option>
+              <option value="1">FOB (por conta do destinatário)</option>
               <option value="2">Por conta de terceiros</option>
             </Select>
           </div>
@@ -265,11 +266,11 @@ export default function NewSalePage() {
               <div>
                 <Label>Transportadora</Label>
                 <Select aria-label="Transportadora" value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
-                  <option value="">— Sem transportadora (veículo próprio) —</option>
+                  <option value="">Sem transportadora (veículo próprio)</option>
                   {carriers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
-                      {c.vehiclePlate ? ` — ${c.vehiclePlate}` : ''}
+                      {c.vehiclePlate ? ` · ${c.vehiclePlate}` : ''}
                     </option>
                   ))}
                 </Select>
@@ -324,10 +325,10 @@ export default function NewSalePage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select aria-label="Produto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">— Selecione —</option>
+                <option value="">Selecione</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>
@@ -429,7 +430,7 @@ export default function NewSalePage() {
               label="Depósito"
               value={(() => {
                 const w = warehouses.find((x) => x.id === warehouseId);
-                return w ? `${w.code} — ${w.name}` : '—';
+                return w ? `${w.code} · ${w.name}` : '—';
               })()}
             />
             {customerId && (
@@ -452,7 +453,7 @@ export default function NewSalePage() {
                       freightValue ? formatBRL(Number(freightValue)) : undefined,
                     ]
                       .filter(Boolean)
-                      .join(' — ')
+                      .join(' · ')
               }
             />
             <Summary label="Observações" value={notes || '—'} />
@@ -513,7 +514,7 @@ export default function NewSalePage() {
           <Button onClick={next}>Próximo</Button>
         ) : (
           <Button onClick={submit} loading={create.isPending}>
-            Criar ordem de venda
+            Criar pedido de venda
           </Button>
         )}
       </div>

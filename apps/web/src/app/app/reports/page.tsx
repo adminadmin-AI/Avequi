@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Download, FileSpreadsheet, Loader2, Info, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,23 +14,23 @@ import { useToast } from '@/components/ui/toast';
 const DIRECT_REPORTS: { path: string; file: string; label: string; desc: string }[] = [
   { path: '/reports/export/products', file: 'produtos.xlsx', label: 'Produtos', desc: 'Catálogo completo com preços, custo médio e estoque disponível.' },
   { path: '/reports/export/customers', file: 'clientes.xlsx', label: 'Clientes', desc: 'Cadastro de clientes com documento, contato, cidade/UF.' },
-  { path: '/reports/export/suppliers', file: 'fornecedores.xlsx', label: 'Fornecedores', desc: 'Cadastro de fornecedores com CNPJ, contato e lead time.' },
-  { path: '/reports/export/sales', file: 'ordens-de-venda.xlsx', label: 'Ordens de Venda', desc: 'OVs com cliente, status, total e responsável.' },
-  { path: '/reports/export/purchases', file: 'ordens-de-compra.xlsx', label: 'Ordens de Compra', desc: 'OCs com fornecedor, status e total.' },
-  { path: '/reports/export/stock', file: 'posicao-de-estoque.xlsx', label: 'Posição de Estoque', desc: 'Saldos por armazém: disponível, reservado, em trânsito e valor.' },
-  { path: '/reports/aging', file: 'inadimplencia.xlsx', label: 'Inadimplência (Aging de Recebíveis)', desc: 'Recebíveis vencidos por faixa de atraso.' },
-  { path: '/reports/purchases-by-supplier', file: 'compras-por-fornecedor.xlsx', label: 'Compras por Fornecedor', desc: 'Consolidado de compras agrupado por fornecedor e produto.' },
+  { path: '/reports/export/suppliers', file: 'fornecedores.xlsx', label: 'Fornecedores', desc: 'Cadastro de fornecedores com CNPJ, contato e prazo de entrega.' },
+  { path: '/reports/export/sales', file: 'pedidos-de-venda.xlsx', label: 'Pedidos de venda', desc: 'Pedidos com cliente, status, total e responsável.' },
+  { path: '/reports/export/purchases', file: 'ordens-de-compra.xlsx', label: 'Ordens de compra', desc: 'OCs com fornecedor, status e total.' },
+  { path: '/reports/export/stock', file: 'posicao-de-estoque.xlsx', label: 'Posição de estoque', desc: 'Saldos por depósito: disponível, reservado, em trânsito e valor.' },
+  { path: '/reports/aging', file: 'inadimplencia.xlsx', label: 'Inadimplência (faixas de atraso)', desc: 'Títulos a receber vencidos por faixa de atraso.' },
+  { path: '/reports/purchases-by-supplier', file: 'compras-por-fornecedor.xlsx', label: 'Compras por fornecedor', desc: 'Consolidado de compras agrupado por fornecedor e produto.' },
 ];
 
 // ─── Relatórios pesados (processados em fila) ────────────────────────────────
 const ASYNC_REPORTS: { name: string; file: string; label: string; desc: string }[] = [
-  { name: 'cost-history', file: 'custo-historico.xlsx', label: 'Histórico de Custo Médio', desc: 'Evolução do custo médio ponderado (CMP) por produto a cada entrada.' },
-  { name: 'stock-abc', file: 'estoque-abc.xlsx', label: 'Curva ABC de Estoque', desc: 'Classificação A/B/C dos itens por valor de saída/demanda.' },
-  { name: 'production-efficiency', file: 'eficiencia-producao.xlsx', label: 'Eficiência de Produção', desc: 'Planejado vs realizado e custos por ordem de produção concluída.' },
+  { name: 'cost-history', file: 'custo-historico.xlsx', label: 'Histórico de custo médio', desc: 'Evolução do custo médio ponderado (CMP) por produto a cada entrada.' },
+  { name: 'stock-abc', file: 'estoque-abc.xlsx', label: 'Curva ABC de estoque', desc: 'Classificação A/B/C dos itens por valor de saída/demanda.' },
+  { name: 'production-efficiency', file: 'eficiencia-producao.xlsx', label: 'Eficiência de produção', desc: 'Planejado vs realizado e custos por ordem de produção concluída.' },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  waiting: 'Na fila…',
+  waiting: 'Aguardando processamento…',
   active: 'Processando…',
   delayed: 'Aguardando…',
   completed: 'Pronto',
@@ -94,7 +95,7 @@ function AsyncReportCard({ report }: { report: (typeof ASYNC_REPORTS)[number] })
       setJobId(data.jobId);
       toast.success('Relatório enfileirado');
     },
-    onError: () => toast.error('Não foi possível enfileirar (a fila pode estar indisponível)'),
+    onError: (e) => toast.error(erroDeAcao('gerar o relatório', e)),
   });
 
   const statusQ = useQuery({
@@ -171,10 +172,11 @@ export default function ReportsPage() {
       <div className="mb-5 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          O backend gera os relatórios em <strong>Excel (.xlsx)</strong> para download — não há pré-visualização em
-          tela nem exportação em CSV, e os filtros por relatório (período/depósito/status) ainda não existem na API
-          (cada export traz o conjunto completo). Pendências registradas na <strong>#247</strong>. Os relatórios
-          "pesados" são processados em fila: clique em <em>Gerar</em> e aguarde ficar pronto para baixar.
+          Os relatórios são gerados em <strong>Excel (.xlsx)</strong> para download. Ainda não há
+          pré-visualização em tela, exportação em CSV nem filtros por relatório (período, depósito,
+          status): cada exportação traz o conjunto completo de dados por enquanto. Os relatórios
+          mais pesados demoram um pouco para processar: clique em <em>Gerar</em> e aguarde ficar
+          pronto para baixar. Em breve.
         </span>
       </div>
 

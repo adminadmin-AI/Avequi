@@ -64,7 +64,7 @@ export function arquivoDeBackupCodes(
   const linhas = codes.map((code, i) => `${String(i + 1).padStart(largura, ' ')}. ${code}`);
 
   const content = [
-    'Avecchi — backup codes da verificação em duas etapas',
+    'Avecchi: backup codes da verificação em duas etapas',
     `Conta: ${opts.email?.trim() || '—'}`,
     `Gerados em: ${dia} ${hora}`,
     '',

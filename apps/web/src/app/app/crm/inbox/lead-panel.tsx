@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Can } from '@/components/can';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   ACTIVITY_LABEL,
   LeadDetail,
@@ -42,13 +43,13 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
     mutationFn: () => apiClient.post(`/crm/leads/${leadId}/convert`),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
-      toast.success(data?.created ? 'Cliente criado — abrindo nova venda' : 'Cliente vinculado — abrindo nova venda');
+      toast.success(data?.created ? 'Cliente criado. Abrindo nova venda.' : 'Cliente vinculado. Abrindo nova venda.');
       // leva pra tela de venda já com o cliente e o lead na query (a OV volta
       // vinculada via POST /crm/leads/:id/link-order)
       const params = new URLSearchParams({ customerId: data.customerId, leadId });
       router.push(`/app/sales/new?${params.toString()}`);
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao converter'),
+    onError: (e: any) => toast.error(erroDeAcao('converter o lead em cliente', e)),
   });
 
   const { data: lead } = useQuery<LeadDetail>({
@@ -69,7 +70,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] }); // timeline
       toast.success('Resumo da conversa gerado na timeline');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao resumir a conversa'),
+    onError: (e: any) => toast.error(erroDeAcao('resumir a conversa', e)),
   });
 
   // takeover explícito do SDR IA (F4.4 #524) — IA silencia em 1 clique
@@ -78,12 +79,12 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
-      toast.success('Você assumiu a conversa — IA silenciada');
+      toast.success('Você assumiu a conversa. IA silenciada.');
       // #573 — disparo automático do resumo no takeover explícito: quem assume
       // já recebe o contexto condensado sem precisar reler a conversa.
       if (lead?.aiSummaryAvailable && !summarize.isPending) summarize.mutate();
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no takeover'),
+    onError: (e: any) => toast.error(erroDeAcao('assumir a conversa', e)),
   });
 
   // #572 — proposta em PDF: cotações do cliente vinculado + envio no chat
@@ -105,22 +106,22 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
       setShowProposals(false);
       toast.success('Proposta enviada no WhatsApp do cliente');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao enviar proposta'),
+    onError: (e: any) => toast.error(erroDeAcao('enviar a proposta', e)),
   });
 
   const changeStage = useMutation({
     mutationFn: (body: { stageId: string; lostReason?: string; lostReasonCategory?: LostReasonCategory }) =>
       apiClient.patch(`/crm/leads/${leadId}/stage`, body),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['crm-lead', leadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
       setPendingLostStage(null);
       setLostReason('');
       setLostCategory('');
-      toast.success('Estágio atualizado');
+      const nome = stages.find((s) => s.id === variables.stageId)?.name;
+      toast.success(nome ? `Lead movido para ${nome}` : 'Estágio do lead atualizado');
     },
-    onError: (e: any) =>
-      toast.error(e?.response?.data?.message ?? 'Falha ao mudar estágio'),
+    onError: (e: any) => toast.error(erroDeAcao('mudar o estágio do lead', e)),
   });
 
   function onStageSelect(stageId: string) {
@@ -154,7 +155,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         {(lead.crossStoreStores?.length ?? 0) > 0 && (
           <div className="rounded-md bg-amber-500/[0.08] p-2.5 text-xs">
             ⚠️ Cliente também em negociação na loja{' '}
-            <b>{lead.crossStoreStores!.join(', ')}</b> — alinhe o preço antes de propor.
+            <b>{lead.crossStoreStores!.join(', ')}</b>. Alinhe o preço antes de propor.
           </div>
         )}
         {(lead.sdrStatus === 'ACTIVE' || lead.sdrStatus === 'QUALIFIED') && (
@@ -180,7 +181,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
             onChange={(e) => onStageSelect(e.target.value)}
             disabled={changeStage.isPending}
           >
-            {!lead.stage && <option value="">— sem estágio —</option>}
+            {!lead.stage && <option value="">Sem estágio</option>}
             {stages.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -190,7 +191,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           {(lead.lostReasonCategory || lead.lostReason) && (
             <p className="mt-1 text-xs text-content-muted">
               Perda: {lostReasonLabel(lead.lostReasonCategory)}
-              {lead.lostReason ? ` — ${lead.lostReason}` : ''}
+              {lead.lostReason ? ` · ${lead.lostReason}` : ''}
             </p>
           )}
         </div>
@@ -274,7 +275,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           ) : (
             <ShoppingCart className="mr-2 h-4 w-4" />
           )}
-          {lead.customer ? 'Nova venda' : 'Converter em orçamento'}
+          {lead.customer ? 'Nova venda' : 'Converter em pedido de venda'}
         </Button>
         {lead.customer && (
           <p className="text-center text-[11px] text-content-muted">
@@ -288,7 +289,7 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
           className="w-full"
           onClick={() => {
             if (!lead.customer) {
-              toast.info('Converta o lead em cliente primeiro — a proposta sai de uma cotação do cliente');
+              toast.info('Converta o lead em cliente primeiro. A proposta sai de um orçamento do cliente.');
               return;
             }
             setShowProposals((v) => !v);
@@ -300,17 +301,17 @@ export function LeadPanel({ leadId, onClose }: { leadId: string; onClose?: () =>
         {showProposals && (
           <div className="space-y-2 rounded-md bg-neutral-500/[0.04] p-2.5">
             {loadingProposals ? (
-              <p className="py-2 text-center text-xs text-content-muted">Carregando cotações…</p>
+              <p className="py-2 text-center text-xs text-content-muted">Carregando orçamentos…</p>
             ) : (proposalOptions?.quotations.length ?? 0) === 0 ? (
               <p className="py-2 text-center text-xs text-content-muted">
-                Nenhuma cotação deste cliente — crie uma em Comercial → Cotações.
+                Nenhum orçamento deste cliente. Crie um em Comercial → Orçamentos.
               </p>
             ) : (
               proposalOptions!.quotations.map((qt) => (
                 <div key={qt.id} className="flex items-center justify-between gap-2 text-xs">
                   <div className="min-w-0">
                     <p className="truncate font-medium">
-                      #{qt.id.slice(-8).toUpperCase()} —{' '}
+                      #{qt.id.slice(-8).toUpperCase()} ·{' '}
                       {qt.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </p>
                     <p className="text-content-muted">

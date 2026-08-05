@@ -13,6 +13,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
+import { erroDeAcao } from '@/lib/feedback';
 import { CategoryForm, type CategoryFormValues, CATEGORY_TYPES } from './category-form';
 import { CostCenterForm, type CostCenterFormValues } from './cost-center-form';
 
@@ -89,7 +90,7 @@ export default function FinanceSettingsPage() {
         toast.success(catEditing ? 'Categoria atualizada' : 'Categoria criada');
         setCatDialog(false);
       },
-      onError: () => toast.error('Erro ao salvar categoria'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar a categoria', e)),
     };
     if (catEditing) catUpdate.mutate({ id: catEditing.id, data: payload }, opts);
     else catCreate.mutate({ ...payload, companyId }, opts);
@@ -105,7 +106,7 @@ export default function FinanceSettingsPage() {
     if (!ok) return;
     catDelete.mutate(c.id, {
       onSuccess: () => toast.success('Categoria desativada'),
-      onError: () => toast.error('Erro ao desativar'),
+      onError: (e: unknown) => toast.error(erroDeAcao('desativar a categoria', e)),
     });
   }
 
@@ -181,7 +182,7 @@ export default function FinanceSettingsPage() {
         toast.success(ccEditing ? 'Centro de custo atualizado' : 'Centro de custo criado');
         setCcDialog(false);
       },
-      onError: () => toast.error('Erro ao salvar centro de custo'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar o centro de custo', e)),
     };
     if (ccEditing) ccUpdate.mutate({ id: ccEditing.id, data: payload }, opts);
     else ccCreate.mutate({ ...payload, companyId }, opts);
@@ -197,7 +198,7 @@ export default function FinanceSettingsPage() {
     if (!ok) return;
     ccDelete.mutate(c.id, {
       onSuccess: () => toast.success('Centro de custo desativado'),
-      onError: () => toast.error('Erro ao desativar'),
+      onError: (e: unknown) => toast.error(erroDeAcao('desativar o centro de custo', e)),
     });
   }
 
@@ -255,7 +256,7 @@ export default function FinanceSettingsPage() {
     <div>
       <PageHeader
         title="Configurações financeiras"
-        description="Categorias e centros de custo para classificar lançamentos."
+        description="Categorias e centros de custo para classificar títulos."
         actions={
           tab === 'categories' ? (
             <Button

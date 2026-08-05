@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Power, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export default function LocationsPage() {
   });
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const warehouseName = useMemo(() => {
-    const map = new Map(warehouses.map((w) => [w.id, `${w.code} — ${w.name}`]));
+    const map = new Map(warehouses.map((w) => [w.id, `${w.code} · ${w.name}`]));
     return (id: string) => map.get(id) ?? '—';
   }, [warehouses]);
 
@@ -85,7 +86,7 @@ export default function LocationsPage() {
           setCode('');
           setDescription('');
         },
-        onError: () => toast.error('Erro ao criar localização'),
+        onError: (e) => toast.error(erroDeAcao('criar o endereço', e)),
       },
     );
   }
@@ -93,7 +94,7 @@ export default function LocationsPage() {
   return (
     <div>
       <PageHeader
-        title="Localizações WMS"
+        title="Endereços"
         description="Endereços de armazenagem por depósito."
         actions={
           <Button onClick={() => setOpen(true)}>
@@ -106,9 +107,9 @@ export default function LocationsPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          O model de localização não possui <strong>capacidade máxima</strong> nem contagem de
-          <strong> produtos alocados</strong> — campos previstos na issue mas inexistentes no backend.
-          A edição é feita por ativar/desativar (não há endpoint de update completo).
+          Endereços ainda não têm <strong>capacidade máxima</strong> nem contagem de
+          <strong> produtos alocados</strong>. Por enquanto só é possível ativar ou desativar um
+          endereço, não editar os outros dados. Em breve.
         </span>
       </div>
 
@@ -151,8 +152,8 @@ export default function LocationsPage() {
                           <button
                             onClick={() =>
                               toggle.mutate(l.id, {
-                                onSuccess: () => toast.success('Status alterado'),
-                                onError: () => toast.error('Erro ao alterar'),
+                                onSuccess: () => toast.success(l.isActive ? 'Endereço desativado' : 'Endereço ativado'),
+                                onError: (e) => toast.error(erroDeAcao('alterar o status do endereço', e)),
                               })
                             }
                             title={l.isActive ? 'Desativar' : 'Ativar'}
@@ -189,10 +190,10 @@ export default function LocationsPage() {
           <div>
             <Label required>Depósito</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>

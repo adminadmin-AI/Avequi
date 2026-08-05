@@ -155,7 +155,7 @@ export default function ChassisPage() {
   return (
     <div>
       <PageHeader
-        title="Chassis Gravados"
+        title="Chassis gravados"
         description="Gravações de número de chassi feitas pela marcadora (ferramenta OpenClaw no chão de fábrica)."
         actions={
           <Button variant="outline" onClick={() => setInstalarAberto(true)}>
@@ -215,7 +215,7 @@ export default function ChassisPage() {
         loading={gravacoesQ.isLoading}
         onRowClick={(g) => setDetalheId(g.id)}
         searchable={false}
-        emptyMessage="Nenhum chassi gravado ainda — as gravações da marcadora aparecem aqui."
+        emptyMessage="Nenhum chassi gravado ainda. As gravações da marcadora aparecem aqui."
       />
 
       {/* ── Detalhe da gravação (trilha de auditoria) ─────────────────────── */}
@@ -266,7 +266,7 @@ export default function ChassisPage() {
                         <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-brand-500" />
                         <p>
                           {EVENTO_LABEL[e.evento] ?? e.evento}
-                          {e.etapa && <span className="text-content-muted"> — {ETAPA_LABEL[e.etapa] ?? e.etapa}</span>}
+                          {e.etapa && <span className="text-content-muted"> · {ETAPA_LABEL[e.etapa] ?? e.etapa}</span>}
                         </p>
                         <p className="text-xs text-content-muted">
                           {formatDateTime(e.criadoEm)}
@@ -296,7 +296,7 @@ export default function ChassisPage() {
               <p className="text-content-secondary">
                 A ferramenta roda <strong>localmente</strong> no computador ao lado da marcadora
                 (ela fala com a marcadora pela porta serial e com a impressora de etiquetas).
-                Os dados vão direto para o ERP — as gravações aparecem nesta tela.
+                Os dados vão direto para o ERP. As gravações aparecem nesta tela.
               </p>
 
               <div>
@@ -312,10 +312,10 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Passo a passo</p>
                 <ol className="list-decimal space-y-1 pl-5 text-content-secondary">
-                  <li>Extraia o pacote <span className="font-mono text-xs">OpenClaw_Instalador_*.zip</span> em uma pasta fixa (ex.: <span className="font-mono text-xs">C:\OpenClaw</span> — evitar OneDrive/Área de Trabalho)</li>
+                  <li>Extraia o pacote <span className="font-mono text-xs">OpenClaw_Instalador_*.zip</span> em uma pasta fixa, como <span className="font-mono text-xs">C:\OpenClaw</span> (evite OneDrive ou Área de Trabalho)</li>
                   <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">.streamlit\secrets.toml</span> conforme o modelo do pacote</li>
                   <li>Execute <span className="font-mono text-xs">instalar.cmd</span> (cria o ambiente Python isolado e instala as dependências)</li>
-                  <li>Para usar, execute <span className="font-mono text-xs">iniciar.cmd</span> — o navegador abre em <span className="font-mono text-xs">http://localhost:8503</span></li>
+                  <li>Para usar, execute <span className="font-mono text-xs">iniciar.cmd</span>. O navegador abre em <span className="font-mono text-xs">http://localhost:8503</span></li>
                   <li>Confirme o chip “☁ Nuvem sincronizada” no topo da ferramenta</li>
                   <li>Faça uma gravação de teste em sucata antes de liberar para o operador</li>
                 </ol>
@@ -328,7 +328,7 @@ export default function ChassisPage() {
               <Alert variant="warning" title="Credencial de acesso ao banco">
                 A credencial da ferramenta (usuário dedicado, privilégio mínimo) <strong>não acompanha o
                 pacote</strong> e não deve ser copiada de outra máquina. O provisionamento é feito por
-                máquina, por canal seguro — fale com o responsável pelo ERP.
+                máquina, por canal seguro. Fale com o responsável pelo ERP.
               </Alert>
 
               <p className="text-xs text-content-muted">
