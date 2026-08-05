@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { DashboardRange } from './crm-dashboard.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,7 +40,85 @@ interface CustomerAgg {
  */
 @Injectable()
 export class PortfolioService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantScope: TenantScopeService,
+  ) {}
+
+  /**
+   * Ranking de receita entre as lojas do grupo (#850) — o "receita por
+   * unidade" dos SaaS, fase 2 dos KPIs de carteira (#846).
+   *
+   * A ampliação de escopo NÃO é decidida aqui: quem manda é o
+   * TenantScopeService (#947) — sem a capability `iam.tenant-scope.
+   * cross-company` o escopo volta como a PRÓPRIA empresa e a resposta vira o
+   * recorte de sempre (`ampliado: false`, uma loja só; a UI esconde o
+   * comparativo). Nenhum id de empresa vem do cliente; a lista é sempre a
+   * fechada que o resolvedor devolve.
+   */
+  async stores(userId: string, companyId: string, range: { from: Date; to: Date }) {
+    const escopo = await this.tenantScope.resolverEscopo(userId, companyId);
+
+    const [companies, orders] = await Promise.all([
+      // tenant-lint: ok (lista fechada de ids do TenantScopeService #947)
+      this.prisma.company.findMany({
+        where: { id: { in: escopo.companyIds } },
+        select: { id: true, name: true },
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          companyId: { in: escopo.companyIds },
+          status: SalesOrderStatus.INVOICED,
+          invoicedAt: { gte: range.from, lte: range.to },
+        },
+        select: {
+          companyId: true,
+          customerId: true,
+          items: { select: { quantity: true, unitPrice: true } },
+        },
+      }),
+    ]);
+
+    const porLoja = new Map(
+      escopo.companyIds.map((id) => [
+        id,
+        { revenue: 0, orders: 0, customers: new Set<string>() },
+      ]),
+    );
+    for (const o of orders) {
+      const loja = porLoja.get(o.companyId);
+      if (!loja) continue; // nunca deve ocorrer (where fecha o escopo) — belt & suspenders
+      loja.revenue += o.items.reduce(
+        (sum, it) => sum + Number(it.quantity) * Number(it.unitPrice),
+        0,
+      );
+      loja.orders += 1;
+      if (o.customerId) loja.customers.add(o.customerId);
+    }
+
+    const totalRevenue = [...porLoja.values()].reduce((sum, l) => sum + l.revenue, 0);
+    const stores = companies
+      .map((c) => {
+        const l = porLoja.get(c.id)!;
+        return {
+          companyId: c.id,
+          name: c.name,
+          revenue: money(l.revenue),
+          orders: l.orders,
+          customers: l.customers.size,
+          /** participação na receita do grupo no período, em % (1 casa) */
+          share: totalRevenue > 0 ? Math.round((l.revenue / totalRevenue) * 1000) / 10 : 0,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      ampliado: escopo.ampliado,
+      range: { from: range.from, to: range.to },
+      totalRevenue: money(totalRevenue),
+      stores,
+    };
+  }
 
   async portfolio(range: DashboardRange, activeWindowDays: number) {
     const now = range.to;

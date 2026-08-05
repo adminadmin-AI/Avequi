@@ -231,7 +231,7 @@ async function allows(
 const asProfile = (code: string) => resolveEffectivePermissions(code);
 
 describe('Bloco F (#624) — cobertura de gate dos controllers do CRM', () => {
-  it('51 rotas autenticadas gateadas com UMA permissão crm.* do catálogo; @Public sem gate', () => {
+  it('52 rotas autenticadas gateadas com UMA permissão crm.* do catálogo; @Public sem gate', () => {
     const gated: string[] = [];
     for (const Ctrl of [CrmController, WhatsappController, ConnectorsController]) {
       for (const e of methodsOf(Ctrl)) {
@@ -245,7 +245,7 @@ describe('Bloco F (#624) — cobertura de gate dos controllers do CRM', () => {
         gated.push(`${Ctrl.name}.${e.name}`);
       }
     }
-    expect(gated).toHaveLength(51); // 46 crm (+portfolio #846) + 4 whatsapp + 1 connectors
+    expect(gated).toHaveLength(52); // 47 crm (+portfolio #846 e #850) + 4 whatsapp + 1 connectors
   });
 
   it('explicitações do Claudinho: proposal-options sob proposals.send; sdr.operate SÓ no revert', () => {
