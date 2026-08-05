@@ -6,6 +6,8 @@ import {
   reverterRollout,
   FASE_C2,
   FASE_C3,
+  ROLLOUT_TRANSACTION_TIMEOUT_MS,
+  ROLLOUT_TRANSACTION_MAX_WAIT_MS,
   Manifesto,
 } from '../../../scripts/iam-permission-rollout';
 
@@ -936,6 +938,157 @@ d('#1011 — rollout de permissões em PostgreSQL real', () => {
       expect(r.permissoesRemovidas.sort()).toEqual([CODE_ASSIGNABLE, CODE_VIEW_ALL]);
       expect(await perfisComVinculo(CODE_REVOKE_ANY)).toEqual(['ADMIN_GLOBAL']);
     }, 120_000);
+  });
+
+
+  // ── Limites da transação (#1014) ──────────────────────────────────────────
+
+  describe('transação longa — o que derrubou a Fase A no pooler', () => {
+    /**
+     * Reprodução do incidente de 05/08/2026, sem depender da internet.
+     *
+     * No banco real, cada ida-e-volta até o pooler custava ~1,05 s e as 15
+     * escritas sequenciais da Fase A levavam ~15,8 s — contra o timeout PADRÃO
+     * de 5 s da transação interativa do Prisma. A transação era encerrada no
+     * meio e o comando morria com "Transaction not found".
+     *
+     * Aqui o atraso é injetado pelo teste, entre as escritas: mesma duração de
+     * transação, zero dependência de latência externa. O que muda entre os dois
+     * cenários abaixo é SÓ o limite — a carga é idêntica. É a prova de que o
+     * problema era o limite, e de que o valor novo resolve.
+     */
+    const ATRASO_POR_ESCRITA_MS = 500; // 13 vínculos ≈ 6,5 s: passa dos 5 s, longe dos 120 s
+
+    /** Client que segura a transação, medindo o que ela realmente durou. */
+    function clienteLento(base: PrismaClient) {
+      const visto: { opcoes?: { timeout?: number; maxWait?: number }; duracaoMs?: number } = {};
+
+      const cliente = new Proxy(base as any, {
+        get(alvo, prop) {
+          if (prop === '$transaction') {
+            return (fn: any, opcoes?: any) => {
+              visto.opcoes = opcoes;
+              const inicio = Date.now();
+              return (alvo as any)
+                .$transaction(async (tx: any) => {
+                  const txLenta = new Proxy(tx, {
+                    get(t, p) {
+                      if (p === 'rolePermission') {
+                        const delegate = Reflect.get(t, p);
+                        return new Proxy(delegate, {
+                          get(d, dp) {
+                            if (dp === 'create') {
+                              return async (args: any) => {
+                                await new Promise((r) => setTimeout(r, ATRASO_POR_ESCRITA_MS));
+                                return d.create(args);
+                              };
+                            }
+                            const v = Reflect.get(d, dp);
+                            return typeof v === 'function' ? v.bind(d) : v;
+                          },
+                        });
+                      }
+                      const v = Reflect.get(t, p);
+                      return typeof v === 'function' ? v.bind(t) : v;
+                    },
+                  });
+                  return fn(txLenta);
+                }, opcoes)
+                .finally(() => {
+                  visto.duracaoMs = Date.now() - inicio;
+                });
+            };
+          }
+          const v = Reflect.get(alvo, prop);
+          return typeof v === 'function' ? v.bind(alvo) : v;
+        },
+      }) as PrismaClient;
+
+      return { cliente, visto };
+    }
+
+    beforeAll(async () => {
+      await garantirBaseline();
+    }, 120_000);
+
+    it('com o limite NOVO: a transação passa dos 5 s, conclui e persiste os vínculos', async () => {
+      const antes = await retrato();
+      const { cliente, visto } = clienteLento(prisma);
+
+      const rel = await executarRollout(cliente, 'c2', { execucaoId: 'itg1014-ok' });
+
+      // O comando passou os limites explícitos — não o padrão do Prisma
+      expect(visto.opcoes).toEqual({
+        timeout: ROLLOUT_TRANSACTION_TIMEOUT_MS,
+        maxWait: ROLLOUT_TRANSACTION_MAX_WAIT_MS,
+      });
+      // …e a transação de fato durou mais do que o antigo limite de 5 s
+      expect(visto.duracaoMs).toBeGreaterThan(5_000);
+      expect(visto.duracaoMs).toBeLessThan(30_000); // longe dos 120 s
+
+      // Concluiu de verdade: os vínculos estão no banco
+      expect(await perfisComVinculo(CODE_VIEW_ALL)).toEqual([...PERFIS_C2].sort());
+      expect(await perfisComVinculo(CODE_REVOKE_ANY)).toEqual(
+        ['ADMIN_GLOBAL', 'ADMIN_EMPRESA'].sort(),
+      );
+      const depois = await retrato();
+      expect(depois.vinculos).toBe(antes.vinculos + 12);
+      expect(depois.overrides).toEqual(antes.overrides);
+      expect(depois.atribuicoes).toEqual(antes.atribuicoes);
+      // O manifesto só existe porque a transação COMITOU
+      expect(rel.manifesto?.vinculosCriados).toHaveLength(12);
+
+      await reverterRollout(prisma, rel.manifesto as Manifesto);
+      await garantirBaseline();
+    }, 180_000);
+
+    it('com o limite ANTIGO (5 s): a mesma carga falha e NADA fica pela metade', async () => {
+      const antes = await retrato();
+      const { cliente, visto } = clienteLento(prisma);
+
+      // 5 s é exatamente o padrão do Prisma — o valor que derrubou a Fase A.
+      await expect(
+        executarRollout(cliente, 'c2', {
+          execucaoId: 'itg1014-curto',
+          transacao: { timeout: 5_000, maxWait: 20_000 },
+        }),
+      ).rejects.toThrow();
+
+      expect(visto.opcoes).toEqual({ timeout: 5_000, maxWait: 20_000 });
+
+      // Rollback integral, como no incidente real: nada persistiu
+      expect(await prisma.permission.findUnique({ where: { code: CODE_VIEW_ALL } })).toBeNull();
+      expect(await perfisComVinculo(CODE_REVOKE_ANY)).toEqual(['ADMIN_GLOBAL']);
+      expect(await retrato()).toEqual(antes);
+    }, 180_000);
+
+    it('SEM RETRY: a falha por tempo sobe para quem chamou, sem segunda tentativa', async () => {
+      const antes = await retrato();
+      let transacoesAbertas = 0;
+
+      const contador = new Proxy(prisma as any, {
+        get(alvo, prop) {
+          if (prop === '$transaction') {
+            return (fn: any, opcoes?: any) => {
+              transacoesAbertas++;
+              return (alvo as any).$transaction(async (tx: any) => {
+                await new Promise((r) => setTimeout(r, 100));
+                return fn(tx);
+              }, opcoes);
+            };
+          }
+          const v = Reflect.get(alvo, prop);
+          return typeof v === 'function' ? v.bind(alvo) : v;
+        },
+      }) as PrismaClient;
+
+      await expect(
+        executarRollout(contador, 'c2', { transacao: { timeout: 5, maxWait: 20_000 } }),
+      ).rejects.toThrow();
+
+      expect(transacoesAbertas).toBe(1); // uma só — nada de repetir por conta própria
+      expect(await retrato()).toEqual(antes);
+    }, 180_000);
   });
 
   // ── O comando como COMANDO ────────────────────────────────────────────────

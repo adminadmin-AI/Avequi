@@ -30,6 +30,15 @@
  *
  * NUNCA aponta para produção sem autorização explícita do Rafael. A guarda
  * `--i-know` é exigida para qualquer host que não seja local.
+ *
+ * ── Limites da transação ───────────────────────────────────────────────────
+ * Padrão: timeout 120 s, maxWait 20 s (ver ROLLOUT_TRANSACTION_TIMEOUT_MS).
+ * Em rede muito ruim dá para afrouxar sem mexer no código:
+ *
+ *   IAM_ROLLOUT_TX_TIMEOUT_MS=180000 ts-node scripts/iam-permission-rollout.ts …
+ *
+ * Não há retry automático em nenhum caminho: se estourar, o comando falha e
+ * quem decide repetir é o operador.
  */
 /* eslint-disable no-console */
 import { PrismaClient } from '@prisma/client';
@@ -116,6 +125,87 @@ export const FASES: Record<string, PermissionRollout[]> = {
   all: [...FASE_C2, ...FASE_C3],
 };
 
+// ─── Limites da transação ────────────────────────────────────────────────────
+
+/**
+ * Por que estes números existem — a falha de 05/08/2026.
+ *
+ * A primeira tentativa de aplicar a Fase A no banco real morreu assim:
+ *
+ *   Transaction API error: Transaction not found. Transaction ID is invalid,
+ *   refers to an old closed transaction …
+ *
+ * O comando abria `prisma.$transaction(fn)` SEM opções, e o padrão do Prisma é
+ * timeout de 5 s. Medido contra o pooler do Supabase: ~1,05 s por ida-e-volta
+ * (mín. 1031 ms, máx. 1247 ms). A Fase A faz 15 escritas SEQUENCIAIS — 2
+ * permissões e 13 vínculos —, o que dá ~15,8 s. A transação estourava por
+ * volta da quinta escrita. Para não restar dúvida: 15 `SELECT 1` sequenciais
+ * dentro de uma transação interativa estouraram em 5389 ms.
+ *
+ * Nada ficou meio aplicado — a transação reverteu tudo, como projetada. Mas o
+ * comando ficou inutilizável contra banco remoto, que é justamente onde ele
+ * precisa rodar.
+ *
+ * 120 s é folga deliberada: cabe a Fase A inteira com ~1 s de ida-e-volta e
+ * ainda sobra para uma rede pior. Não é para "esperar dar certo" — é para que
+ * o limite pare quem travou de verdade, não quem só está longe do banco.
+ */
+export const ROLLOUT_TRANSACTION_TIMEOUT_MS = 120_000;
+
+/**
+ * Tempo máximo esperando uma conexão livre do pool ANTES de a transação
+ * começar. O padrão do Prisma (2 s) é curto para um comando operacional que
+ * disputa o pool com a API em pleno uso.
+ */
+export const ROLLOUT_TRANSACTION_MAX_WAIT_MS = 20_000;
+
+/** Limites de sanidade para o override por ambiente. */
+const LIMITES = {
+  timeout: { min: 5_000, max: 600_000 },
+  maxWait: { min: 1_000, max: 120_000 },
+};
+
+export interface OpcoesDeTransacao {
+  timeout: number;
+  maxWait: number;
+}
+
+/**
+ * Resolve os limites da transação, com override OPCIONAL por ambiente.
+ *
+ * As variáveis são específicas deste comando (`IAM_ROLLOUT_TX_*`) de propósito:
+ * nada aqui pode mudar o comportamento das transações da API. Valor inválido
+ * — não numérico ou fora dos limites — falha ANTES de conectar no banco, para
+ * o erro aparecer no terminal do operador e não no meio de uma escrita.
+ */
+export function resolverOpcoesDeTransacao(
+  env: NodeJS.ProcessEnv = process.env,
+): OpcoesDeTransacao {
+  const ler = (nome: string, padrao: number, limites: { min: number; max: number }): number => {
+    const bruto = env[nome];
+    if (bruto === undefined || bruto === '') return padrao;
+    const valor = Number(bruto);
+    if (!Number.isInteger(valor)) {
+      throw new Error(
+        `${nome} inválido: use um número inteiro de milissegundos ` +
+          `(entre ${limites.min} e ${limites.max}).`,
+      );
+    }
+    if (valor < limites.min || valor > limites.max) {
+      throw new Error(
+        `${nome}=${valor} fora dos limites: use entre ${limites.min} e ${limites.max} ms. ` +
+          `Valor muito baixo derruba a transação no meio; muito alto segura o pool à toa.`,
+      );
+    }
+    return valor;
+  };
+
+  return {
+    timeout: ler('IAM_ROLLOUT_TX_TIMEOUT_MS', ROLLOUT_TRANSACTION_TIMEOUT_MS, LIMITES.timeout),
+    maxWait: ler('IAM_ROLLOUT_TX_MAX_WAIT_MS', ROLLOUT_TRANSACTION_MAX_WAIT_MS, LIMITES.maxWait),
+  };
+}
+
 // ─── Manifesto ───────────────────────────────────────────────────────────────
 
 export interface Manifesto {
@@ -157,11 +247,12 @@ export interface Relatorio {
 export async function executarRollout(
   prisma: PrismaClient,
   fase: string,
-  opcoes: { dryRun?: boolean; execucaoId?: string } = {},
+  opcoes: { dryRun?: boolean; execucaoId?: string; transacao?: OpcoesDeTransacao } = {},
 ): Promise<Relatorio> {
   const alvos = FASES[fase];
   if (!alvos) throw new Error(`Fase desconhecida: ${fase}. Use c2, c3 ou all.`);
   const dryRun = opcoes.dryRun ?? false;
+  const transacao = opcoes.transacao ?? resolverOpcoesDeTransacao();
 
   const rel: Relatorio = {
     fase,
@@ -315,6 +406,10 @@ export async function executarRollout(
     vinculosCriados: [],
   };
 
+  // UMA transação, com limites EXPLÍCITOS. Sem retry: se estourar, o comando
+  // falha alto e o operador decide — repetir por conta própria esconderia
+  // problema de conectividade e deixaria dúvida sobre qual execução produziu
+  // o manifesto.
   await prisma.$transaction(async (tx) => {
     // 1. Permissões: upsert por code. Só as três — nenhuma outra é tocada.
     for (const alvo of alvos) {
@@ -359,7 +454,7 @@ export async function executarRollout(
         });
       }
     }
-  });
+  }, transacao);
 
   rel.manifesto = manifesto;
   return rel;
@@ -376,9 +471,15 @@ export async function executarRollout(
 export async function reverterRollout(
   prisma: PrismaClient,
   manifesto: Manifesto,
+  opcoes: { transacao?: OpcoesDeTransacao } = {},
 ): Promise<{ vinculosRemovidos: number; permissoesRemovidas: string[] }> {
   const permissoesRemovidas: string[] = [];
   let vinculosRemovidos = 0;
+  // Mesmos limites da aplicação: o rollback percorre o manifesto inteiro e faz
+  // tantas idas ao banco quanto a execução que ele desfaz. Se a aplicação
+  // precisou de folga, o rollback precisa da mesma — e é justamente no
+  // desespero de desfazer que ninguém quer descobrir que o limite era 5 s.
+  const transacao = opcoes.transacao ?? resolverOpcoesDeTransacao();
 
   await prisma.$transaction(async (tx) => {
     // Confere que cada vínculo ainda é O MESMO que o rollout criou antes de
@@ -432,7 +533,7 @@ export async function reverterRollout(
         permissoesRemovidas.push(code);
       }
     }
-  });
+  }, transacao);
 
   return { vinculosRemovidos, permissoesRemovidas };
 }
@@ -484,12 +585,19 @@ async function main() {
     process.exit(1);
   }
 
+  // Resolve os limites da transação ANTES de abrir conexão: valor inválido
+  // tem de estourar no terminal do operador, não no meio de uma escrita.
+  const transacao = resolverOpcoesDeTransacao();
+  console.log(
+    `Limites da transação: timeout=${transacao.timeout}ms maxWait=${transacao.maxWait}ms`,
+  );
+
   const prisma = new PrismaClient();
   try {
     if (rollbackPath) {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const manifesto: Manifesto = JSON.parse(require('fs').readFileSync(rollbackPath, 'utf-8'));
-      const r = await reverterRollout(prisma, manifesto);
+      const r = await reverterRollout(prisma, manifesto, { transacao });
       console.log(JSON.stringify({ rollback: manifesto.execucaoId, ...r }, null, 2));
       return;
     }
@@ -499,7 +607,7 @@ async function main() {
       process.exit(1);
     }
 
-    const rel = await executarRollout(prisma, fase, { dryRun });
+    const rel = await executarRollout(prisma, fase, { dryRun, transacao });
     console.log(JSON.stringify(rel, null, 2));
 
     if (rel.manifesto) {
