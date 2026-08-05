@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Plus } from 'lucide-react';
+import { AlertTriangle, FileText, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
 import { formatBRL, formatDate } from '@/lib/format';
@@ -222,6 +222,18 @@ function SubscriptionCard({
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível salvar a assinatura'),
   });
 
+  // #992 — abre o contrato em PDF numa aba nova (gerado on-demand na API).
+  const contractPdf = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.get(`${RESOURCE}/${tenantId}/contract`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      window.open(url, '_blank', 'noopener');
+      // revoga depois que a aba nova já carregou o blob
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível gerar o contrato'),
+  });
+
   const cancel = useMutation({
     mutationFn: () => apiClient.post(`${RESOURCE}/${tenantId}/subscription/cancel`),
     onSuccess: () => {
@@ -280,8 +292,8 @@ function SubscriptionCard({
               />
             </div>
 
-            <Can permission="ops.billing.manage">
-              <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Can permission="ops.billing.manage">
                 <Button variant="secondary" size="sm" onClick={openDialog}>
                   Editar
                 </Button>
@@ -290,8 +302,21 @@ function SubscriptionCard({
                     Cancelar
                   </Button>
                 )}
-              </div>
-            </Can>
+              </Can>
+              {/* #992 — contrato em PDF dos dados vivos; só faz sentido com
+                  assinatura ativa (o backend devolve 400 sem ela). */}
+              {!subscription.canceledAt && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={contractPdf.isPending}
+                  onClick={() => contractPdf.mutate()}
+                >
+                  <FileText size={15} />
+                  Gerar contrato (PDF)
+                </Button>
+              )}
+            </div>
           </>
         )}
       </CardContent>
