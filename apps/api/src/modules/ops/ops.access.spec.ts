@@ -13,6 +13,7 @@ import { ImpersonationController } from './impersonation.controller';
 import { OpsPanelController } from './ops-panel.controller';
 import { OpsController } from './ops.controller';
 import { PlansController } from './plans.controller';
+import { ContractController } from './contract.controller';
 import { ProposalsController } from './proposals.controller';
 
 /**
@@ -45,6 +46,7 @@ const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }>
   { name: 'PlansController', cls: PlansController },
   { name: 'BillingController', cls: BillingController },
   { name: 'ImpersonationController', cls: ImpersonationController },
+  { name: 'ContractController', cls: ContractController },
   { name: 'ProposalsController', cls: ProposalsController },
 ];
 
