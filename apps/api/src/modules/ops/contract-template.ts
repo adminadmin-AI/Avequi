@@ -38,7 +38,7 @@ export interface ContractParams {
   };
 }
 
-const PENDENTE = '[● PREENCHER NO CADASTRO DA EMPRESA]';
+const PENDENTE = '[PREENCHER NO CADASTRO DA EMPRESA]';
 
 export function renderClauses(p: ContractParams): Array<{ title: string; body: string }> {
   const modulos = p.comercial.planoNome
