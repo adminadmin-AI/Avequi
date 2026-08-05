@@ -77,6 +77,13 @@ describe('ContractPdfService (#992)', () => {
     expect(filename).toBe('contrato-avecchi-gdr-reboques.pdf');
   });
 
+  it('rodapé não vaza páginas em branco (regressão do addPage automático do pdfkit)', async () => {
+    const { buffer } = await service.generate('cli-1');
+    // páginas reais do documento = objetos /Type /Page (não /Pages)
+    const pages = buffer.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? [];
+    expect(pages.length).toBe(2);
+  });
+
   it('sem OPERADORA_COMPANY_ID → 503 fail-closed', async () => {
     delete process.env.OPERADORA_COMPANY_ID;
     await expect(service.generate('cli-1')).rejects.toThrow(ServiceUnavailableException);
@@ -146,7 +153,7 @@ describe('contract-template (#992) — o texto amarra nos dados reais', () => {
     })
       .map((c) => c.body)
       .join('\n');
-    expect(texto).toContain('[● PREENCHER NO CADASTRO DA EMPRESA]');
+    expect(texto).toContain('[PREENCHER NO CADASTRO DA EMPRESA]');
   });
 
   it('versão do template é estável e rastreável', () => {

@@ -121,14 +121,14 @@ export class ContractPdfService {
     parte(doc, 'CONTRATADA', [
       p.operadora.razaoSocial,
       `CNPJ ${p.operadora.cnpj}${p.operadora.im ? ` · Inscrição Municipal ${p.operadora.im}` : ''}`,
-      p.operadora.endereco ?? '[● PREENCHER NO CADASTRO DA EMPRESA]',
+      p.operadora.endereco ?? '[PREENCHER NO CADASTRO DA EMPRESA]',
       p.operadora.email ? `E-mail: ${p.operadora.email}` : null,
     ]);
     doc.moveDown(0.5);
     parte(doc, 'CONTRATANTE', [
       p.cliente.razaoSocial,
       `CNPJ ${p.cliente.cnpj}`,
-      p.cliente.endereco ?? '[● PREENCHER NO CADASTRO DA EMPRESA]',
+      p.cliente.endereco ?? '[PREENCHER NO CADASTRO DA EMPRESA]',
       p.cliente.email ? `E-mail: ${p.cliente.email}` : null,
     ]);
 
@@ -174,10 +174,15 @@ export class ContractPdfService {
     assinatura(doc, 56 + col + 24, y, col, p.cliente.razaoSocial, 'CONTRATANTE');
 
     // ── Rodapé em todas as páginas ───────────────────────────────────────
+    // Gotcha do pdfkit: escrever abaixo da margem inferior dispara addPage
+    // automático — zera a margem durante o rodapé (senão cada carimbo cria
+    // uma página em branco no fim do documento).
     const emitido = new Date().toLocaleDateString('pt-BR');
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      const bottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
       doc
         .fillColor(MUTED)
         .fontSize(7.5)
@@ -186,8 +191,9 @@ export class ContractPdfService {
           `${TEMPLATE_VERSION} · emitido em ${emitido} pelo portal Avecchi · página ${i + 1} de ${range.count}`,
           56,
           doc.page.height - 40,
-          { width: doc.page.width - 112, align: 'center' },
+          { width: doc.page.width - 112, align: 'center', lineBreak: false },
         );
+      doc.page.margins.bottom = bottom;
     }
 
     doc.end();
