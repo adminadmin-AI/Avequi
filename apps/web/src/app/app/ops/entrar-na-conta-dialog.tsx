@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ShieldAlert } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import * as impersonation from '@/lib/impersonation';
 import type { ImpersonateResult, StartImpersonationInput, TenantHealth } from '@/types/api';
 import { USER_ROLE_LABELS } from '@/lib/enums';
@@ -76,8 +76,7 @@ export function EntrarNaContaDialog({
       // chega a fechar "normalmente": a página já mudou).
       impersonation.start(res.data, tenant!.id);
     },
-    onError: (err) =>
-      toast.error(mensagemDoErro(err) ?? 'Não foi possível iniciar a sessão de suporte'),
+    onError: (err) => toast.error(erroDeAcao('iniciar a sessão de suporte', err)),
   });
 
   return (

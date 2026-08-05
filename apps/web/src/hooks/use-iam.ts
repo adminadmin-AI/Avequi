@@ -164,11 +164,3 @@ export function useRemoveUserPermission() {
       qc.invalidateQueries({ queryKey: KEYS.userPermissions(userId) }),
   });
 }
-
-/** Extrai a mensagem pt-BR do erro padrão da API (403/409/400 explicativos). */
-export function apiErrorMessage(error: unknown, fallback: string): string {
-  const message = (error as any)?.response?.data?.message;
-  if (Array.isArray(message)) return message.join(' ');
-  if (typeof message === 'string') return message;
-  return fallback;
-}

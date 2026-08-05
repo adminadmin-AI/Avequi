@@ -78,7 +78,7 @@ const RENAVE_BADGE: Record<string, { variant: BadgeVariant; label: string }> = {
   ACTIVE: { variant: 'success', label: 'Saída OK' },
   PENDING: { variant: 'neutral', label: 'Processando' },
   PROCESSING: { variant: 'neutral', label: 'Processando' },
-  ERROR: { variant: 'danger', label: 'Erro' },
+  ERROR: { variant: 'danger', label: 'Com erro' },
   CANCELLED: { variant: 'warning', label: 'Cancelada' },
 };
 

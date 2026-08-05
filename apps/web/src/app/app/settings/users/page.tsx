@@ -17,7 +17,7 @@ import { useUserRoles } from '@/hooks/use-iam';
 import Link from 'next/link';
 import { LEGACY_MIRRORED_ROLE_CODES } from './roles';
 import { canShowStatusToggle, canShowPasswordReset } from './permissions';
-import { resolveApiError } from './resolve-api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { roleLabel, roleVariant } from './roles';
 import { UserForm, type UserFormValues } from './user-form';
 import { ResetPasswordDialog } from './reset-password-dialog';
@@ -69,7 +69,7 @@ export default function UsersPage() {
             toast.success('Usuário atualizado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar usuário'),
+          onError: (e) => toast.error(erroDeAcao('atualizar o usuário', e)),
         },
       );
     } else {
@@ -80,7 +80,7 @@ export default function UsersPage() {
             toast.success('Usuário criado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao criar usuário'),
+          onError: (e) => toast.error(erroDeAcao('criar o usuário', e)),
         },
       );
     }
@@ -101,9 +101,9 @@ export default function UsersPage() {
       { id: u.id, data: { isActive: !u.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Usuário inativado' : 'Usuário reativado'),
-        // Mostra o motivo real da API (ex.: 400 de validação, 403 de
-        // permissão) — o genérico escondia a causa e travou o diagnóstico.
-        onError: (e) => toast.error(resolveApiError(e, 'Erro ao alterar status')),
+        // erroDeAcao já mostra o motivo real da API (ex.: 400 de validação) —
+        // o genérico escondia a causa e travou o diagnóstico (#744).
+        onError: (e) => toast.error(erroDeAcao('alterar o status do usuário', e)),
       },
     );
   }

@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation';
 import { Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
 import {
-  apiErrorMessage,
   useCreateIamRole,
   useDeleteIamRole,
   useIamRoles,
   useUpdateIamRole,
 } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import type { IamRole } from '@/types/api';
 import { Can } from '@/components/can';
 import { PageHeader } from '@/components/page-header';
@@ -87,7 +87,7 @@ export default function RolesPage() {
             toast.success('Perfil atualizado');
             setDialogOpen(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atualizar perfil')),
+          onError: (e) => toast.error(erroDeAcao('atualizar o perfil', e)),
         },
       );
     } else {
@@ -103,7 +103,7 @@ export default function RolesPage() {
             setDialogOpen(false);
             router.push(`/app/settings/roles/${created.id}`);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao criar perfil')),
+          onError: (e) => toast.error(erroDeAcao('criar o perfil', e)),
         },
       );
     }
@@ -119,7 +119,7 @@ export default function RolesPage() {
     if (!ok) return;
     deleteRole.mutate(role.id, {
       onSuccess: () => toast.success('Perfil excluído'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao excluir perfil')),
+      onError: (e) => toast.error(erroDeAcao('excluir o perfil', e)),
     });
   }
 

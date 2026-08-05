@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Pencil, Plus, Power, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/use-permission';
 import { useList } from '@/hooks/use-resource';
-import { apiErrorMessage } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   useCreateIamBranch,
   useCreateIamDepartment,
@@ -102,7 +102,7 @@ export default function OrganizationPage() {
             toast.success('Filial atualizada');
             setBranchDialog(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atualizar filial')),
+          onError: (e) => toast.error(erroDeAcao('atualizar a filial', e)),
         },
       );
     } else {
@@ -117,7 +117,7 @@ export default function OrganizationPage() {
             toast.success('Filial criada');
             setBranchDialog(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao criar filial')),
+          onError: (e) => toast.error(erroDeAcao('criar a filial', e)),
         },
       );
     }
@@ -138,7 +138,7 @@ export default function OrganizationPage() {
       { id: b.id, data: { isActive: !b.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Filial desativada' : 'Filial reativada'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao alterar status')),
+        onError: (e) => toast.error(erroDeAcao('alterar o status da filial', e)),
       },
     );
   }
@@ -153,7 +153,7 @@ export default function OrganizationPage() {
     if (!ok) return;
     deleteBranch.mutate(b.id, {
       onSuccess: () => toast.success('Filial excluída'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao excluir filial')),
+      onError: (e) => toast.error(erroDeAcao('excluir a filial', e)),
     });
   }
 
@@ -247,8 +247,7 @@ export default function OrganizationPage() {
             toast.success('Departamento atualizado');
             setDepartmentDialog(false);
           },
-          onError: (e) =>
-            toast.error(apiErrorMessage(e, 'Erro ao atualizar departamento')),
+          onError: (e) => toast.error(erroDeAcao('atualizar o departamento', e)),
         },
       );
     } else {
@@ -264,7 +263,7 @@ export default function OrganizationPage() {
             toast.success('Departamento criado');
             setDepartmentDialog(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao criar departamento')),
+          onError: (e) => toast.error(erroDeAcao('criar o departamento', e)),
         },
       );
     }
@@ -284,7 +283,7 @@ export default function OrganizationPage() {
       {
         onSuccess: () =>
           toast.success(turningOff ? 'Departamento desativado' : 'Departamento reativado'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao alterar status')),
+        onError: (e) => toast.error(erroDeAcao('alterar o status do departamento', e)),
       },
     );
   }
@@ -299,7 +298,7 @@ export default function OrganizationPage() {
     if (!ok) return;
     deleteDepartment.mutate(d.id, {
       onSuccess: () => toast.success('Departamento excluído'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao excluir departamento')),
+      onError: (e) => toast.error(erroDeAcao('excluir o departamento', e)),
     });
   }
 
@@ -412,7 +411,7 @@ export default function OrganizationPage() {
             toast.success('Equipe atualizada');
             setTeamDialog(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atualizar equipe')),
+          onError: (e) => toast.error(erroDeAcao('atualizar a equipe', e)),
         },
       );
     } else {
@@ -427,7 +426,7 @@ export default function OrganizationPage() {
             toast.success('Equipe criada');
             setTeamDialog(false);
           },
-          onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao criar equipe')),
+          onError: (e) => toast.error(erroDeAcao('criar a equipe', e)),
         },
       );
     }
@@ -446,7 +445,7 @@ export default function OrganizationPage() {
       { id: t.id, data: { isActive: !t.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Equipe desativada' : 'Equipe reativada'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao alterar status')),
+        onError: (e) => toast.error(erroDeAcao('alterar o status da equipe', e)),
       },
     );
   }
@@ -461,7 +460,7 @@ export default function OrganizationPage() {
     if (!ok) return;
     deleteTeam.mutate(t.id, {
       onSuccess: () => toast.success('Equipe excluída'),
-      onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao excluir equipe')),
+      onError: (e) => toast.error(erroDeAcao('excluir a equipe', e)),
     });
   }
 

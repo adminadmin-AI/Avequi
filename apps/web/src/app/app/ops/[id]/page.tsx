@@ -20,6 +20,7 @@ import {
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import * as impersonation from '@/lib/impersonation';
 import type {
   ImpersonateResult,
@@ -217,8 +218,7 @@ function ImpersonateDialog({
     onSuccess: (res) => {
       impersonation.start(res.data, tenantId);
     },
-    onError: (err) =>
-      toast.error(mensagemDoErro(err) ?? 'Não foi possível iniciar a sessão de suporte'),
+    onError: (err) => toast.error(erroDeAcao('iniciar a sessão de suporte', err)),
   });
 
   return (
@@ -705,7 +705,7 @@ export default function TenantDetailPage() {
       setChurnOpen(false);
       toast.success(STATUS_SUCCESS[variables.status] ?? 'Conta atualizada');
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível mudar o status'),
+    onError: (err) => toast.error(erroDeAcao('mudar o status da conta', err)),
   });
 
   async function handleReactivate() {

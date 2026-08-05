@@ -14,8 +14,8 @@ import { useToast } from '@/components/ui/toast';
 const DIRECT_REPORTS: { path: string; file: string; label: string; desc: string }[] = [
   { path: '/reports/export/products', file: 'produtos.xlsx', label: 'Produtos', desc: 'Catálogo completo com preços, custo médio e estoque disponível.' },
   { path: '/reports/export/customers', file: 'clientes.xlsx', label: 'Clientes', desc: 'Cadastro de clientes com documento, contato, cidade/UF.' },
-  { path: '/reports/export/suppliers', file: 'fornecedores.xlsx', label: 'Fornecedores', desc: 'Cadastro de fornecedores com CNPJ, contato e lead time.' },
-  { path: '/reports/export/sales', file: 'ordens-de-venda.xlsx', label: 'Ordens de venda', desc: 'OVs com cliente, status, total e responsável.' },
+  { path: '/reports/export/suppliers', file: 'fornecedores.xlsx', label: 'Fornecedores', desc: 'Cadastro de fornecedores com CNPJ, contato e prazo de entrega.' },
+  { path: '/reports/export/sales', file: 'pedidos-de-venda.xlsx', label: 'Pedidos de venda', desc: 'Pedidos com cliente, status, total e responsável.' },
   { path: '/reports/export/purchases', file: 'ordens-de-compra.xlsx', label: 'Ordens de compra', desc: 'OCs com fornecedor, status e total.' },
   { path: '/reports/export/stock', file: 'posicao-de-estoque.xlsx', label: 'Posição de estoque', desc: 'Saldos por depósito: disponível, reservado, em trânsito e valor.' },
   { path: '/reports/aging', file: 'inadimplencia.xlsx', label: 'Inadimplência (faixas de atraso)', desc: 'Títulos a receber vencidos por faixa de atraso.' },

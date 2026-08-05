@@ -184,7 +184,7 @@ export function KpiSummaryWidget({ instance }: WidgetComponentProps) {
       loading: cashAccountsQ.isLoading,
     },
     'overdue-receivable': {
-      label: 'Recebíveis em atraso',
+      label: 'A receber em atraso',
       value: formatBRL(overdueReceivable),
       icon: TrendingDown,
       tone: overdueReceivable > 0 ? 'danger' : 'success',

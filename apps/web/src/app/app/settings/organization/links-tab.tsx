@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Star, Trash2 } from 'lucide-react';
 import { useList } from '@/hooks/use-resource';
-import { apiErrorMessage } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   useAddIamUserDepartment,
   useAddIamUserTeam,
@@ -70,7 +70,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
           setDepartmentToAdd('');
           setIsPrimary(false);
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao vincular departamento')),
+        onError: (e) => toast.error(erroDeAcao('vincular o departamento', e)),
       },
     );
   }
@@ -87,7 +87,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
       { userId: selectedUserId, departmentId },
       {
         onSuccess: () => toast.success('Vínculo removido'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover vínculo')),
+        onError: (e) => toast.error(erroDeAcao('remover o vínculo com o departamento', e)),
       },
     );
   }
@@ -108,7 +108,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
           toast.success('Equipe vinculada');
           setTeamToAdd('');
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao vincular equipe')),
+        onError: (e) => toast.error(erroDeAcao('vincular a equipe', e)),
       },
     );
   }
@@ -125,7 +125,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
       { userId: selectedUserId, teamId },
       {
         onSuccess: () => toast.success('Vínculo removido'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover vínculo')),
+        onError: (e) => toast.error(erroDeAcao('remover o vínculo com a equipe', e)),
       },
     );
   }

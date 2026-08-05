@@ -166,7 +166,7 @@ export default function FiscalPage() {
             onClick={(e) => e.stopPropagation()}
             className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
-            <ExternalLink size={12} /> {d.salesOrder?.customer?.name ?? 'Ver OV'}
+            <ExternalLink size={12} /> {d.salesOrder?.customer?.name ?? 'Ver pedido'}
           </Link>
         ) : (
           '—'

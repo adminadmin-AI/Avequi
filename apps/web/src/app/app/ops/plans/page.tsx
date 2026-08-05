@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Crown, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL } from '@/lib/format';
 import type {
   CreatePlanInput,
@@ -64,7 +65,7 @@ export default function OpsPlansPage() {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível criar o plano'),
+    onError: (err) => toast.error(erroDeAcao('criar o plano', err)),
   });
 
   const updatePlan = useMutation({
@@ -75,7 +76,7 @@ export default function OpsPlansPage() {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível atualizar o plano'),
+    onError: (err) => toast.error(erroDeAcao('atualizar o plano', err)),
   });
 
   function openCreate() {

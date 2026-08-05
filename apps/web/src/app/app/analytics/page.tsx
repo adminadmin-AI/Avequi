@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
       .map((r) => ({ label: r.sku, material: r.totalMaterialCost, mao: r.totalLaborCost }));
   }, [prodRows]);
 
-  // Valor de estoque por faixa de aging
+  // Valor de estoque por tempo parado
   const agingData = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of agingRows) map.set(r.agingBucket, (map.get(r.agingBucket) ?? 0) + r.inventoryValue);
@@ -350,7 +350,7 @@ export default function AnalyticsPage() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-title">Valor de estoque por faixa de aging</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-title">Valor de estoque por tempo parado</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={agingData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>

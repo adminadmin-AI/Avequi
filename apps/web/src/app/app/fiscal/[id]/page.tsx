@@ -195,9 +195,9 @@ export default function FiscalDetailPage() {
               </div>
               {doc.salesOrderId && (
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-content-muted">OV vinculada</p>
+                  <p className="text-xs uppercase tracking-wide text-content-muted">Pedido vinculado</p>
                   <Link href={`/app/sales/${doc.salesOrderId}`} className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
-                    <ExternalLink size={13} /> Ver OV
+                    <ExternalLink size={13} /> Ver pedido
                   </Link>
                 </div>
               )}
