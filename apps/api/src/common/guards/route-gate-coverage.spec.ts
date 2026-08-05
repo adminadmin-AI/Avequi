@@ -156,16 +156,27 @@ describe('Cobertura de gate das rotas (#353 — sweep global)', () => {
     expect(routes.length).toBeGreaterThan(300);
   });
 
-  it('nenhuma rota sem classificação: permissão, roles, @Public ou exceção consciente', () => {
+  it('nenhuma rota sem classificação: permissão, @Public ou exceção consciente', () => {
+    // #948-C1: `@Roles` saiu da lista de classificações válidas. Com o
+    // RolesGuard removido, o decorator não gateia mais nada — uma rota que só
+    // tivesse @Roles estaria ABERTA a qualquer autenticado. Contá-lo como
+    // gate transformaria justamente esse buraco em teste verde.
     const offenders = routes.filter(
       (r) =>
         !r.isPublic &&
         !r.hasPermission &&
-        !r.hasRoles &&
         !SELF_SERVICE_OK.has(r.id) &&
         !PENDING_MIGRATION[r.controller],
     );
     expect(offenders.map((o) => o.id)).toEqual([]);
+  });
+
+  it('nenhuma rota usa @Roles — o decorator é inerte desde a #948-C1', () => {
+    // O decorator continua existindo só como CHAVE DE DETECÇÃO (esta suíte e
+    // os *.access.spec leem ROLES_KEY). Se alguém voltar a aplicá-lo num
+    // controller, isto falha e explica por quê: use @RequirePermission.
+    const comRoles = routes.filter((r) => r.hasRoles).map((r) => r.id);
+    expect(comRoles).toEqual([]);
   });
 
   it('@Public é allowlist exata — rota pública nova exige revisão consciente', () => {
@@ -185,7 +196,7 @@ describe('Cobertura de gate das rotas (#353 — sweep global)', () => {
       const controllerRoutes = routes.filter((r) => r.controller === controller);
       if (controllerRoutes.length === 0) return true; // controller nem existe mais
       const stillUngated = controllerRoutes.some(
-        (r) => !r.isPublic && !r.hasPermission && !r.hasRoles && !SELF_SERVICE_OK.has(r.id),
+        (r) => !r.isPublic && !r.hasPermission && !SELF_SERVICE_OK.has(r.id),
       );
       return !stillUngated; // migrou tudo → entrada obsoleta
     });

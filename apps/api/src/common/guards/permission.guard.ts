@@ -18,18 +18,17 @@ import {
  * Issue #341 (Fase F5.1/M3 — parte 1: guard completo, aplicado só no módulo IAM).
  *
  * ── Posição na cadeia de guards globais (app.module.ts) ─────────────────────
- *   JwtAuthGuard → CompanyGuard → RolesGuard → PermissionGuard → ThrottlerGuard
+ *   JwtAuthGuard → CompanyGuard → PermissionGuard → ThrottlerGuard
  *
- * O RolesGuard (enum legado) decide ANTES e não foi tocado: um endpoint pode
- * ter @Roles e @RequirePermission ao mesmo tempo — @Roles corta primeiro,
- * @RequirePermission refina com o RBAC v2. Endpoint só com @Roles (sem
- * @RequirePermission) → este guard LIBERA sem consultar nada (o shadow mode
- * do PermissionService continua sendo o mecanismo de comparação da migração).
+ * #948-C1: este é o ÚNICO portão por papel. O RolesGuard (enum legado) que
+ * rodava antes dele foi removido — nenhuma rota carregava @Roles, então ele
+ * liberava tudo. Hoje uma rota sem @RequirePermission está aberta a qualquer
+ * autenticado, e quem impede que isso vire buraco é o route-gate-coverage.spec.
  *
  * ── Semântica de decisão ────────────────────────────────────────────────────
  *  1. @Public (handler ou classe)             → libera (login, refresh, etc.)
- *  2. Sem metadata @RequirePermission         → libera (igual ao RolesGuard:
- *     ausência de exigência não é exigência)
+ *  2. Sem metadata @RequirePermission         → libera: ausência de exigência
+ *     não é exigência
  *  3. Com metadata → resolve o conjunto efetivo via PermissionService
  *     (cache Redis TTL 5 min; miss/Redis fora → fallback no banco) e exige
  *     TODAS as permissões listadas (AND). Faltou qualquer uma → 403 com

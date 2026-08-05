@@ -15,7 +15,7 @@ import { entitlementDef } from '../../modules/entitlement/entitlements.catalog';
  * EntitlementGuard — OPS WP4 (#911): enforcement do que a CONTA contratou.
  *
  * Posição na cadeia global (app.module.ts):
- *   JwtAuthGuard → CompanyGuard → RolesGuard → PermissionGuard →
+ *   JwtAuthGuard → CompanyGuard → PermissionGuard →
  *   EntitlementGuard → AdaptiveThrottlerGuard
  *
  * DEPOIS do PermissionGuard de propósito: primeiro "este usuário pode?",

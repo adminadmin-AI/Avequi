@@ -6,7 +6,7 @@ import { CreateBudgetPlanDto } from './dto/create-budget-plan.dto';
 import { UpdateBudgetPlanDto } from './dto/update-budget-plan.dto';
 import { UpsertDriverDto } from './dto/upsert-driver.dto';
 
-// Mesmo controle de acesso do budget.controller irmão (RolesGuard global).
+// Mesmo controle de acesso do budget.controller irmão (permissão na rota).
 // #341 parte 2 (PR E1): gate único RBAC v2 — @Roles legado removido (matriz
 // Rafael, issue #623). manage = G.FINANCEIRO/admins; view inclui gerências.
 

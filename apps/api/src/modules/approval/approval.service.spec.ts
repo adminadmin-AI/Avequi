@@ -83,6 +83,57 @@ describe('ApprovalService', () => {
         service.approve('po-3', 'PO', 'co-1', 'user-1', 'WAREHOUSE'),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    // ── #948-C1: o portão global por enum saiu; a matriz continua mandando ──
+
+    it('#948-C1: sem matriz, o enum não barra mais — quem tem a permissão aprova', async () => {
+      // Antes havia aqui um segundo portão: sem matriz configurada, só
+      // SUPER_ADMIN/DIRECTOR/MANAGER passavam. Isso era redundante com
+      // `approvals.requests.approve`, exigida na rota, e mais restritivo que
+      // ela — um perfil v2 com a permissão concedida levava 403 sem motivo
+      // visível. Um WAREHOUSE que chegue até aqui já passou pelo guard.
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
+        id: 'po-c1', companyId: 'co-1', status: 'DRAFT',
+        items: [{ quantity: 1, unitCost: 100 }],
+      });
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([]); // sem matriz
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+      mockPrisma.auditLog.create.mockResolvedValue({});
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      await expect(
+        service.approve('po-c1', 'PO', 'co-1', 'user-1', 'WAREHOUSE'),
+      ).resolves.toBeDefined();
+    });
+
+    it('#948-C1: COM matriz, a alçada continua podendo NEGAR — nada foi afrouxado', async () => {
+      // O que saiu foi o portão global. A matriz de alçada (C6) está intacta:
+      // um perfil fora dos `approverRoles` do nível continua barrado.
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
+        id: 'po-c2', companyId: 'co-1', status: 'DRAFT',
+        items: [{ quantity: 1, unitCost: 100 }],
+      });
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { level: 1, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['DIRECTOR'] },
+      ]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.approve('po-c2', 'PO', 'co-1', 'user-1', 'WAREHOUSE'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('#948-C1: o portão global por enum não existe mais no código', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const src: string = require('fs').readFileSync(
+        'src/modules/approval/approval.service.ts',
+        'utf-8',
+      );
+      // A lista literal de enums saiu. O que sobra são leituras de
+      // `approverRoles` (matriz = dado da empresa), que é escopo da C6.
+      expect(src).not.toMatch(/\['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'\]/);
+      expect(src).toMatch(/approverRoles/); // a matriz continua lá
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────────
