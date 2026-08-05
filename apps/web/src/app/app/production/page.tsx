@@ -129,7 +129,7 @@ export default function ProductionPage() {
             <option value="">Todos</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.sku} — {p.name}
+                {p.sku} · {p.name}
               </option>
             ))}
           </Select>

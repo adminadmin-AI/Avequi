@@ -177,7 +177,7 @@ function ReasonDialog({
           id="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Explique o motivo — obrigatório, mínimo 5 caracteres"
+          placeholder="Explique o motivo (obrigatório, mínimo 5 caracteres)"
           rows={3}
           error={touched && tooShort}
         />
@@ -257,7 +257,7 @@ function ImpersonateDialog({
           id="impersonate-reason-input"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Explique o motivo — obrigatório, mínimo 5 caracteres"
+          placeholder="Explique o motivo (obrigatório, mínimo 5 caracteres)"
           rows={3}
           error={touched && tooShort}
         />
@@ -352,8 +352,8 @@ function OverviewTab({ tenant }: { tenant: TenantDetail }) {
         <EmptyState
           compact
           icon={LineChart}
-          title="Sem dados de uso ainda — rode o metering"
-          description="Assim que o metering diário processar esta conta, KPIs e tendências aparecem aqui."
+          title="Sem dados de uso ainda"
+          description="Rode o metering. Assim que o metering diário processar esta conta, KPIs e tendências aparecem aqui."
         />
       ) : (
         <>
@@ -689,14 +689,21 @@ export default function TenantDetailPage() {
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [churnOpen, setChurnOpen] = useState(false);
 
+  const STATUS_SUCCESS: Partial<Record<UpdateTenantStatusInput['status'], string>> = {
+    ACTIVE: 'Conta reativada',
+    SANDBOX: 'Conta marcada como sandbox',
+    SUSPENDED: 'Conta suspensa',
+    CHURNED: 'Conta encerrada',
+  };
+
   const updateStatus = useMutation({
     mutationFn: (input: UpdateTenantStatusInput) =>
       apiClient.patch(`${RESOURCE}/${id}/status`, input),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       setSuspendOpen(false);
       setChurnOpen(false);
-      toast.success('Status atualizado');
+      toast.success(STATUS_SUCCESS[variables.status] ?? 'Conta atualizada');
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível mudar o status'),
   });
@@ -792,7 +799,7 @@ export default function TenantDetailPage() {
         >
           <span className="flex items-center gap-2">
             <AlertCircle size={16} />
-            Onboarding em aberto — continue o provisionamento desta conta.
+            Onboarding em aberto. Continue o provisionamento desta conta.
           </span>
           <ArrowRight size={16} />
         </Link>

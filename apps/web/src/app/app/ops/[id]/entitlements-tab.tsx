@@ -145,7 +145,7 @@ function OverrideDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={editing ? `Editar exceção — ${editing.key}` : 'Nova exceção de entitlement'}
+      title={editing ? `Editar exceção: ${editing.key}` : 'Nova exceção de entitlement'}
       description="Exceção do tenant: sobrepõe o valor do plano só para esta conta. Fica registrada com motivo e data."
       formId="override-form"
       loading={loading}
@@ -172,7 +172,7 @@ function OverrideDialog({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="Por que esta conta precisa de um valor diferente do plano — obrigatório, mínimo 5 caracteres"
+            placeholder="Por que esta conta precisa de um valor diferente do plano (obrigatório, mínimo 5 caracteres)"
             error={touched && reasonTooShort}
           />
         </Field>
@@ -222,7 +222,7 @@ function CurrentPlanCard({
       title: planId ? `Trocar plano para "${planName}"?` : 'Voltar ao modo legado?',
       description: planId
         ? 'O acesso da conta muda para refletir o novo plano em até 60 segundos.'
-        : 'A conta volta ao modo legado — tudo liberado, sem limites. O acesso muda em até 60 segundos.',
+        : 'A conta volta ao modo legado: tudo liberado, sem limites. O acesso muda em até 60 segundos.',
       confirmLabel: 'Confirmar troca',
     });
     if (!ok) {
@@ -239,7 +239,7 @@ function CurrentPlanCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {data.resolved.legacy ? (
-          <Badge variant="neutral">Legado — tudo liberado</Badge>
+          <Badge variant="neutral">Legado: tudo liberado</Badge>
         ) : (
           <div>
             <p className="font-medium text-content">{data.plan?.name}</p>
@@ -257,7 +257,7 @@ function CurrentPlanCard({
                 onChange={handleChange}
                 disabled={plansQuery.isLoading || assignPlan.isPending}
               >
-                <option value="">— Legado (sem plano) —</option>
+                <option value="">Legado (sem plano)</option>
                 {(plansQuery.data?.plans ?? [])
                   .filter((p) => p.active)
                   .map((p) => (
@@ -305,7 +305,7 @@ export function EntitlementsTab({ tenantId }: { tenantId: string }) {
   const removeOverride = useMutation({
     mutationFn: (key: string) => apiClient.delete(`${RESOURCE}/${tenantId}/entitlements/${key}`),
     onSuccess: () => {
-      toast.success('Exceção removida — a conta volta ao valor do plano');
+      toast.success('Exceção removida. A conta volta ao valor do plano.');
       invalidate();
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível remover a exceção'),
@@ -417,7 +417,7 @@ export function EntitlementsTab({ tenantId }: { tenantId: string }) {
               <EmptyState
                 compact
                 title="Nenhuma exceção cadastrada"
-                description="Exceções sobrepõem o valor do plano só para esta conta — sempre com motivo registrado."
+                description="Exceções sobrepõem o valor do plano só para esta conta. Sempre com motivo registrado."
               />
             ) : (
               <ul className="divide-y divide-line">

@@ -220,7 +220,7 @@ export default function OpsPlansPage() {
     <div>
       <PageHeader
         title="Planos"
-        description="Catálogo de planos e entitlements do SaaS Avecchi — o que cada plano libera para as contas."
+        description="Catálogo de planos e entitlements do SaaS Avecchi: o que cada plano libera para as contas."
         actions={
           <Can permission="ops.plans.manage">
             <Button onClick={openCreate}>

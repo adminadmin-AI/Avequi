@@ -85,8 +85,8 @@ export default function ShippingPage() {
   const [tab, setTab] = useState('entregas');
 
   const { data: products = [] } = useList<Product>('/products');
-  const productName = useMemo(() => new Map(products.map((p) => [p.id, `${p.sku} — ${p.name}`])), [products]);
-  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })), [products]);
+  const productName = useMemo(() => new Map(products.map((p) => [p.id, `${p.sku} · ${p.name}`])), [products]);
+  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })), [products]);
 
   // ─── Entregas ───────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('');
@@ -194,7 +194,7 @@ export default function ShippingPage() {
   }
   function openDocDelivery(d: VehicleDocument) { setDocForDelivery(d); setDocDeliveryForm({ salesOrderId: '', serialNumberId: '', deliveredTo: 'END_CUSTOMER', deliveredBy: '' }); setDocDeliveryDialog(true); }
   async function confirmDeleteDoc(d: VehicleDocument) {
-    if (await confirm({ title: 'Remover documento?', description: `${DOC_TYPE[d.type]} nº ${d.documentNumber} será removido.` })) deleteDoc.mutate(d.id);
+    if (await confirm({ title: `Remover ${DOC_TYPE[d.type]} nº ${d.documentNumber}?`, description: 'Você não vai conseguir desfazer isso.' })) deleteDoc.mutate(d.id);
   }
 
   const docColumns: Column<VehicleDocument>[] = [
@@ -255,7 +255,7 @@ export default function ShippingPage() {
                 rowKey={(r) => r.id}
                 loading={deliveries.isLoading}
                 searchPlaceholder="Buscar por OV / transportadora..."
-                emptyMessage="Nenhuma entrega — elas são criadas automaticamente ao faturar uma venda."
+                emptyMessage="Nenhuma entrega. Elas são criadas automaticamente ao faturar uma venda."
               />
             </CardContent>
           </Card>
@@ -302,7 +302,7 @@ export default function ShippingPage() {
                 rowKey={(r) => r.id}
                 loading={pending.isLoading}
                 searchable={false}
-                emptyMessage="Nenhuma pendência — todas as vendas de veículo têm documentos entregues. 🎉"
+                emptyMessage="Nenhuma pendência. Todas as vendas de veículo têm documentos entregues. 🎉"
               />
             </CardContent>
           </Card>

@@ -75,10 +75,10 @@ export default function NewProductionOrderPage() {
           <div className="sm:col-span-2">
             <Label required>Produto a fabricar</Label>
             <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
+                  {p.sku} · {p.name}
                 </option>
               ))}
             </Select>
@@ -90,10 +90,10 @@ export default function NewProductionOrderPage() {
           <div>
             <Label required>Depósito de saída</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>

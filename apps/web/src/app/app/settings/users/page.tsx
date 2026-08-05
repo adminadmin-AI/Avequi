@@ -291,7 +291,7 @@ function ResumoDeAcesso({ user }: { user: User }) {
         <p className="text-xs text-muted-foreground">Carregando perfis…</p>
       ) : perfis.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nenhum perfil atribuído — este usuário não tem acesso pelo RBAC v2.
+          Nenhum perfil atribuído. Este usuário não tem acesso pelo RBAC v2.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">

@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { usePermission } from '@/hooks/use-permission';
 import { ErrorState } from '@/components/ui/error-state';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { PushSettings } from './push-settings';
 import { buildSettingsPayload } from './settings-payload';
 
@@ -79,13 +80,13 @@ export default function CrmSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['crm-settings'] });
       toast.success('Configuração salva');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao salvar'),
+    onError: (e: any) => toast.error(erroDeAcao('salvar as configurações', e)),
   });
 
   const syncTemplates = useMutation({
     mutationFn: () => apiClient.post('/crm/templates/sync'),
     onSuccess: ({ data }) => toast.success(`${data.synced} template(s) sincronizado(s)`),
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao sincronizar'),
+    onError: (e: any) => toast.error(erroDeAcao('sincronizar os templates', e)),
   });
 
   const toggleSeller = useMutation({
@@ -162,7 +163,7 @@ export default function CrmSettingsPage() {
           />
           {!canEditRetention && (
             <span className="mt-1 block text-xs text-content-muted">
-              🔒 Restrito à alta gestão — o expurgo por retenção é irreversível.
+              🔒 Restrito à alta gestão. O expurgo por retenção é irreversível.
             </span>
           )}
         </Field>

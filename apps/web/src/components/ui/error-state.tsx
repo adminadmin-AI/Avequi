@@ -29,7 +29,8 @@ export interface ErrorStateProps {
  */
 export function ErrorState({
   title = 'Algo deu errado',
-  description = 'Ocorreu um erro inesperado ao carregar esta área. Tente novamente.',
+  // avecchi-voice (#987): o que houve + o que fazer, sem tom de máquina
+  description = 'Não conseguimos carregar esta área. Tente de novo. Se continuar, avise o suporte.',
   error,
   onRetry,
   action,

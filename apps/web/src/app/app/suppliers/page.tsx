@@ -13,6 +13,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatCNPJ, formatPhone, unmask } from '@/lib/format';
 import { SupplierForm, type SupplierFormValues } from './supplier-form';
 
@@ -71,7 +72,7 @@ export default function SuppliersPage() {
             toast.success('Fornecedor atualizado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar fornecedor'),
+          onError: (err) => toast.error(erroDeAcao('atualizar o fornecedor', err)),
         },
       );
     } else {
@@ -82,7 +83,7 @@ export default function SuppliersPage() {
             toast.success('Fornecedor criado');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao criar fornecedor'),
+          onError: (err) => toast.error(erroDeAcao('criar o fornecedor', err)),
         },
       );
     }
@@ -103,7 +104,7 @@ export default function SuppliersPage() {
       { id: s.id, data: { isActive: !s.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Fornecedor desativado' : 'Fornecedor reativado'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (err) => toast.error(erroDeAcao('alterar o status do fornecedor', err)),
       },
     );
   }

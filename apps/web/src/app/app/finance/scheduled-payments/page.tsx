@@ -18,6 +18,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { ScheduleForm, type ScheduleFormValues } from './schedule-form';
 
 /**
@@ -65,7 +66,7 @@ export default function ScheduledPaymentsPage() {
   function handleSubmit(values: ScheduleFormValues) {
     const payable = openPayables.find((p) => p.id === values.financialEntryId);
     if (!payable) {
-      toast.error('Pagável selecionado não encontrado.');
+      toast.error('Não encontramos esse título. Atualize a página e tente de novo.');
       return;
     }
     create.mutate(
@@ -88,7 +89,7 @@ export default function ScheduledPaymentsPage() {
               `Saldo projetado insuficiente (faltam ${formatBRL(Number(data.shortfall ?? 0))}).`,
             );
           } else {
-            toast.error(data?.message ?? 'Erro ao agendar pagamento');
+            toast.error(erroDeAcao('agendar o pagamento', err));
           }
         },
       },
@@ -108,8 +109,7 @@ export default function ScheduledPaymentsPage() {
         invalidate();
         toast.success('Agendamento cancelado');
       },
-      onError: (err: any) =>
-        toast.error(err?.response?.data?.message ?? 'Erro ao cancelar agendamento'),
+      onError: (err: any) => toast.error(erroDeAcao('cancelar o agendamento', err)),
     });
   }
 

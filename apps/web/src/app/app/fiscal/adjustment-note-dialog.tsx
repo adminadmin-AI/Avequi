@@ -24,6 +24,7 @@ import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatPercent } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { TIPO_NOTA_DEBITO_OPTIONS, TIPO_NOTA_CREDITO_OPTIONS } from './fiscal-status';
 
 const RESOURCE = '/fiscal';
@@ -169,10 +170,7 @@ export function AdjustmentNoteDialog({
       onSuccess?.();
     },
     onError: (err: any) =>
-      toast.error(
-        err?.response?.data?.message ??
-          `Falha ao emitir nota de ${especie === 'DEBITO' ? 'débito' : 'crédito'}`,
-      ),
+      toast.error(erroDeAcao(`emitir a nota de ${especie === 'DEBITO' ? 'débito' : 'crédito'}`, err)),
   });
 
   function handleClose() {
@@ -213,7 +211,7 @@ export function AdjustmentNoteDialog({
         <DialogHeader>
           <DialogTitle>Nota de ajuste (IBS/CBS)</DialogTitle>
           <DialogDescription>
-            Nota de Débito ou Crédito referenciando esta NF-e — Reforma Tributária (Ajuste SINIEF 49/2025).
+            Nota de Débito ou Crédito referenciando esta NF-e: Reforma Tributária (Ajuste SINIEF 49/2025).
           </DialogDescription>
         </DialogHeader>
 
@@ -242,10 +240,10 @@ export function AdjustmentNoteDialog({
               <div>
                 <Label required>Motivo</Label>
                 <Select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                  <option value="">— Selecione —</option>
+                  <option value="">Selecione</option>
                   {motivoOptions.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.value} — {o.label}
+                      {o.value} · {o.label}
                     </option>
                   ))}
                 </Select>
@@ -310,7 +308,7 @@ export function AdjustmentNoteDialog({
               {modo === 'ITEMS' &&
                 (eligibleItems.length === 0 ? (
                   <p className="py-4 text-center text-sm text-content-muted">
-                    NF-e original sem itens com IBS/CBS persistido — use outro modo.
+                    A NF-e original não tem itens com IBS/CBS gravados. Use outro modo.
                   </p>
                 ) : (
                   <table className="w-full text-sm">
@@ -360,7 +358,7 @@ export function AdjustmentNoteDialog({
               <Textarea
                 value={justificativa}
                 onChange={(e) => setJustificativa(e.target.value.slice(0, 200))}
-                placeholder="Detalhes adicionais — vai nas informações complementares da nota"
+                placeholder="Detalhes adicionais para as informações complementares da nota"
                 maxLength={200}
               />
               <p className="mt-1 text-right text-xs text-content-muted">{justificativa.length}/200</p>

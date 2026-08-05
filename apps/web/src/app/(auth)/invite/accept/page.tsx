@@ -56,7 +56,7 @@ export default function AcceptInvitePage() {
     setError('');
 
     if (!token) {
-      setError('Link de convite inválido — falta o token. Verifique o link recebido por e-mail.');
+      setError('Link de convite inválido: falta o token. Verifique o link recebido por e-mail.');
       return;
     }
     if (password !== confirmPassword) {

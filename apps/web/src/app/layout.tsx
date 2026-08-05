@@ -8,8 +8,8 @@ const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrai
 
 export const metadata: Metadata = {
   title: {
-    default: 'Avecchi — Industrial ERP',
-    template: '%s — Avecchi',
+    default: 'Avecchi · Industrial ERP',
+    template: '%s · Avecchi',
   },
   description:
     'Produção, estoque, compras, PCP, fiscal e financeiro em uma única plataforma.',

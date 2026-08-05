@@ -117,7 +117,7 @@ export default function OpsPanelPage() {
     <div>
       <PageHeader
         title="Painel"
-        description="Saúde do negócio da operadora Avecchi — carteira, receita e o que precisa de ação."
+        description="Saúde do negócio da operadora Avecchi: carteira, receita e o que precisa de ação."
         actions={
           <Link
             href="/app/ops/tenants"
@@ -159,7 +159,7 @@ export default function OpsPanelPage() {
               value={ticket === null ? '—' : formatBRL(ticket / 100)}
               sub={
                 ticket === null
-                  ? 'sem base — nenhuma assinatura ativa'
+                  ? 'sem base: nenhuma assinatura ativa'
                   : `${formatNumber(billing.activeSubscriptions)} assinatura(s) ativa(s)`
               }
               subTone="muted"
@@ -231,7 +231,7 @@ export default function OpsPanelPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Faturamento por competência</CardTitle>
               <p className="mt-0.5 text-helper text-content-muted">
-                Últimas 6 competências — faturas emitidas (anuladas fora).
+                Últimas 6 competências: faturas emitidas (anuladas fora).
               </p>
             </CardHeader>
             <CardContent className="pt-2">
@@ -450,7 +450,7 @@ function SlotAguardando({
         Aguardando funil comercial
       </Badge>
       <p className="mt-1.5 text-helper text-content-muted">
-        entra com o CRM da operadora — épico ERP da Avecchi
+        entra com o CRM da operadora: épico ERP da Avecchi
       </p>
     </div>
   );

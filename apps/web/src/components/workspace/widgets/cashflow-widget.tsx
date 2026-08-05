@@ -55,7 +55,7 @@ export function CashFlowWidget(_: WidgetComponentProps) {
 
   return (
     <WidgetFrame
-      title="Fluxo de caixa — 13 semanas"
+      title="Fluxo de caixa (13 semanas)"
       action={<WidgetAction href="/app/finance/cash-flow">ver fluxo</WidgetAction>}
     >
       {cashQ.isLoading ? (

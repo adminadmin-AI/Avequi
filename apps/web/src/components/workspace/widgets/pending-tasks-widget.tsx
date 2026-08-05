@@ -114,7 +114,7 @@ export function PendingTasksWidget(_: WidgetComponentProps) {
             icon={CheckCircle2}
             tone="success"
             title="Nenhuma pendência encontrada"
-            hint="Excelente trabalho — nada esperando por você."
+            hint="Excelente trabalho. Nada esperando por você."
           />
         </div>
       ) : (

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
 import {
@@ -114,8 +115,7 @@ export default function SalesDetailPage() {
       setPayOpen(false);
       toast.success('Plano de pagamento atualizado');
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Erro ao salvar o plano de pagamento'),
+    onError: (err: any) => toast.error(erroDeAcao('salvar o plano de pagamento', err)),
   });
 
   // #596 — gate TEF: cartão precisa autorizar antes de faturar
@@ -126,7 +126,7 @@ export default function SalesDetailPage() {
       if (res?.denied > 0) toast.error(res.message || 'Cartão negado');
       else toast.success('Cartão autorizado');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erro ao autorizar o cartão'),
+    onError: (err: any) => toast.error(erroDeAcao('autorizar o cartão', err)),
   });
 
   const transition = useMutation({
@@ -137,6 +137,21 @@ export default function SalesDetailPage() {
     },
   });
 
+  const MENSAGEM_SUCESSO_POR_ENDPOINT: Record<string, (codigo: string) => string> = {
+    'approve-credit': (codigo) => `Crédito do pedido #${codigo} aprovado`,
+    reserve: (codigo) => `Pedido #${codigo} com estoque reservado`,
+    confirm: (codigo) => `Pedido #${codigo} confirmado`,
+    invoice: (codigo) => `Pedido #${codigo} faturado`,
+    cancel: (codigo) => `Pedido #${codigo} cancelado`,
+  };
+  const ACAO_INFINITIVO_POR_ENDPOINT: Record<string, string> = {
+    'approve-credit': 'aprovar o crédito do pedido',
+    reserve: 'reservar o estoque do pedido',
+    confirm: 'confirmar o pedido',
+    invoice: 'faturar o pedido',
+    cancel: 'cancelar o pedido',
+  };
+
   function runAction(action: SalesAction) {
     if (action.endpoint === 'return') {
       setReturnOpen(true);
@@ -146,15 +161,19 @@ export default function SalesDetailPage() {
       transition.mutate(
         { endpoint: action.endpoint },
         {
-          onSuccess: () => toast.success('Status atualizado'),
-          onError: () => toast.error('Não foi possível executar a ação'),
+          onSuccess: () =>
+            toast.success(
+              order ? MENSAGEM_SUCESSO_POR_ENDPOINT[action.endpoint]?.(shortId(order.id)) ?? 'Pedido atualizado' : 'Pedido atualizado',
+            ),
+          onError: (err) =>
+            toast.error(erroDeAcao(ACAO_INFINITIVO_POR_ENDPOINT[action.endpoint] ?? 'atualizar o pedido', err)),
         },
       );
 
     if (action.endpoint === 'cancel') {
       confirm({
-        title: 'Cancelar ordem de venda?',
-        description: 'Esta ação não pode ser desfeita.',
+        title: 'Cancelar o pedido?',
+        description: 'Você não vai conseguir desfazer isso.',
         confirmLabel: 'Cancelar OV',
         variant: 'danger',
       }).then((ok) => ok && doIt());
@@ -175,10 +194,9 @@ export default function SalesDetailPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
-      toast.success('Carga conferida — OV liberada para faturamento');
+      toast.success('Carga conferida. Pedido liberado para faturamento.');
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Divergência na conferência'),
+    onError: (err: any) => toast.error(erroDeAcao('conferir a carga', err)),
   });
 
   function submitReturn() {
@@ -201,7 +219,7 @@ export default function SalesDetailPage() {
           setReturnReason('');
           setReturnJustif('');
         },
-        onError: () => toast.error('Não foi possível registrar a devolução'),
+        onError: (err) => toast.error(erroDeAcao('registrar a devolução', err)),
       },
     );
   }
@@ -285,7 +303,7 @@ export default function SalesDetailPage() {
           <CardContent className="space-y-3 pb-5">
             <p className="text-sm text-content-secondary">
               Confira fisicamente os itens separados. Itens com chassi devem bater com o
-              reboque que sai do pátio — o chassi vai na NF-e e define o emplacamento.
+              reboque que sai do pátio. O chassi vai na NF-e e define o emplacamento.
             </p>
             <ul className="space-y-1.5">
               {(order.items ?? []).map((it) => (
@@ -402,7 +420,7 @@ export default function SalesDetailPage() {
         <CardContent>
           {(order.payments ?? []).length === 0 ? (
             <p className="py-2 text-sm text-content-muted">
-              Sem plano de pagamento — a NF-e sai com a forma legada ({order.paymentMethod ?? 'Outros'}) e o
+              Sem plano de pagamento. A NF-e sai com a forma legada ({order.paymentMethod ?? 'Outros'}) e o
               título nasce no padrão 30 dias.
             </p>
           ) : (
@@ -547,7 +565,7 @@ export default function SalesDetailPage() {
             <Input
               value={returnJustif}
               onChange={(e) => setReturnJustif(e.target.value)}
-              placeholder="Opcional — usada no cancelamento da NF-e"
+              placeholder="Opcional (usada no cancelamento da NF-e)"
             />
             <p className="mt-1 text-xs text-content-muted">
               Se preenchida, deve ter ao menos 15 caracteres.

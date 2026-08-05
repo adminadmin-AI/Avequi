@@ -81,7 +81,7 @@ export default function ReceivePOPage() {
     <div>
       <PageHeader
         title="Recebimento de mercadoria"
-        description={`PO #${id.slice(-6).toUpperCase()} — ${po.supplier?.name ?? 'Sem fornecedor'}`}
+        description={`PO #${id.slice(-6).toUpperCase()} · ${po.supplier?.name ?? 'Sem fornecedor'}`}
         actions={
           <Button variant="secondary" onClick={() => router.push(`/app/purchases/${id}`)}>
             <ArrowLeft size={16} />
@@ -95,10 +95,10 @@ export default function ReceivePOPage() {
           <div>
             <Label required>Depósito de destino</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -166,7 +166,7 @@ export default function ReceivePOPage() {
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               Permite <strong>recebimento parcial</strong> (PO fica como "Recebida parcial" até
-              completar). O backend atualiza o estoque e gera a conta a pagar automaticamente.
+              completar). O estoque é atualizado e a conta a pagar é gerada automaticamente.
               A associação de NF-e de entrada (XML/chave) é feita na tela de NF-e de Entrada.
             </span>
           </div>

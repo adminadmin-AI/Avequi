@@ -18,6 +18,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatDate } from '@/lib/format';
 import {
   QUOTATION_STATUS,
@@ -82,10 +83,14 @@ export default function QuotationsPage() {
       setRejectReason('');
       return;
     }
-    const labels: Record<string, { ok: string; confirm?: string }> = {
-      send: { ok: 'Cotação enviada' },
-      approve: { ok: 'Cotação aprovada' },
-      convert: { ok: 'Convertida em OV', confirm: 'Converter esta cotação em uma ordem de venda?' },
+    const labels: Record<string, { ok: string; confirm?: string; acao: string }> = {
+      send: { ok: 'Orçamento enviado', acao: 'enviar o orçamento' },
+      approve: { ok: 'Orçamento aprovado', acao: 'aprovar o orçamento' },
+      convert: {
+        ok: 'Convertida em OV',
+        confirm: 'Converter este orçamento em uma ordem de venda?',
+        acao: 'converter o orçamento em pedido',
+      },
     };
     const meta = labels[a.endpoint];
     const doIt = () =>
@@ -93,7 +98,7 @@ export default function QuotationsPage() {
         { id: q.id, endpoint: a.endpoint },
         {
           onSuccess: () => toast.success(meta.ok),
-          onError: () => toast.error('Não foi possível executar a ação'),
+          onError: (err) => toast.error(erroDeAcao(meta.acao, err)),
         },
       );
     if (meta.confirm) {
@@ -111,10 +116,10 @@ export default function QuotationsPage() {
       { id: rejectTarget.id, endpoint: 'reject', body: { rejectionReason: rejectReason || undefined } },
       {
         onSuccess: () => {
-          toast.success('Cotação rejeitada');
+          toast.success('Orçamento rejeitado');
           setRejectTarget(null);
         },
-        onError: () => toast.error('Não foi possível rejeitar'),
+        onError: (err) => toast.error(erroDeAcao('rejeitar o orçamento', err)),
       },
     );
   }
@@ -178,11 +183,11 @@ export default function QuotationsPage() {
     <div>
       <PageHeader
         title="Orçamentos"
-        description="Propostas comerciais para clientes — do rascunho à conversão em venda."
+        description="Propostas comerciais para clientes: do rascunho à conversão em venda."
         actions={
           <Button onClick={() => router.push('/app/quotations/new')}>
             <Plus size={16} />
-            Nova cotação
+            Novo orçamento
           </Button>
         }
       />
@@ -226,14 +231,14 @@ export default function QuotationsPage() {
         columns={columns}
         loading={isLoading}
         searchPlaceholder="Buscar por cliente..."
-        emptyMessage="Nenhuma cotação encontrada."
+        emptyMessage="Nenhum orçamento encontrado."
       />
 
       <FormDialog
         open={!!rejectTarget}
         onOpenChange={(o) => !o && setRejectTarget(null)}
-        title="Rejeitar cotação"
-        description={rejectTarget ? `Cotação #${shortId(rejectTarget.id)}` : ''}
+        title="Rejeitar o orçamento?"
+        description={rejectTarget ? `Orçamento #${shortId(rejectTarget.id)}` : ''}
         formId="reject-form"
         submitLabel="Rejeitar"
         loading={action.isPending}

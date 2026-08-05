@@ -131,10 +131,10 @@ export function NewMovementDialog() {
         >
           <Field label="Produto" required>
             <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
+                  {p.sku} · {p.name}
                 </option>
               ))}
             </Select>
@@ -143,10 +143,10 @@ export function NewMovementDialog() {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Depósito" required>
               <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-                <option value="">— Selecione —</option>
+                <option value="">Selecione</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.code} — {w.name}
+                    {w.code} · {w.name}
                   </option>
                 ))}
               </Select>
@@ -169,7 +169,7 @@ export function NewMovementDialog() {
               {productId && warehouseId && (
                 <p className={`mt-1 text-xs ${exceedsStock ? 'text-danger' : 'text-content-muted'}`}>
                   Disponível: {formatNumber(available)}
-                  {exceedsStock && ' — saída excede o saldo!'}
+                  {exceedsStock && '. Saída excede o saldo!'}
                 </p>
               )}
             </Field>

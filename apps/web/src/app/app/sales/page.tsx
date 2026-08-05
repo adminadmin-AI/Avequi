@@ -123,7 +123,7 @@ export default function SalesPage() {
     <div>
       <PageHeader
         title="Vendas"
-        description="Pipeline comercial — do rascunho ao faturamento."
+        description="Pipeline comercial: do rascunho ao faturamento."
         actions={
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-line bg-surface p-0.5">

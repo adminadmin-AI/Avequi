@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, ExternalLink, PackageCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,16 @@ export default function PurchaseDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
   });
 
+  const ACTION_SUCCESS: Record<'approve' | 'cancel', string> = {
+    approve: 'Pedido de compra aprovado',
+    cancel: 'Pedido de compra cancelado',
+  };
+
   function runAction(endpoint: 'approve' | 'cancel') {
     const doIt = () =>
       transition.mutate(endpoint, {
-        onSuccess: () => toast.success('Status atualizado'),
-        onError: () => toast.error('Não foi possível executar a ação'),
+        onSuccess: () => toast.success(ACTION_SUCCESS[endpoint]),
+        onError: (e) => toast.error(erroDeAcao('atualizar o pedido de compra', e)),
       });
     if (endpoint === 'cancel') {
       confirm({

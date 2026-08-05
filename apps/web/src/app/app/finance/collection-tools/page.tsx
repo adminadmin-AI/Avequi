@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   BoletoForm,
   PixForm,
@@ -114,12 +115,12 @@ export default function CollectionToolsPage() {
 
   function handleCancelBoleto(b: Boleto) {
     confirm({ title: 'Cancelar boleto?', description: `Boleto ${b.nossoNumero} (${b.payerName}).`, confirmLabel: 'Cancelar boleto', variant: 'danger' }).then(
-      (ok) => ok && cancelBoleto.mutate(b.id, { onSuccess: () => toast.success('Boleto cancelado'), onError: () => toast.error('Erro ao cancelar boleto') }),
+      (ok) => ok && cancelBoleto.mutate(b.id, { onSuccess: () => toast.success('Boleto cancelado'), onError: (e: unknown) => toast.error(erroDeAcao('cancelar o boleto', e)) }),
     );
   }
   function handleCancelPix(p: PixCharge) {
     confirm({ title: 'Cancelar cobrança PIX?', description: p.description || p.txId, confirmLabel: 'Cancelar PIX', variant: 'danger' }).then(
-      (ok) => ok && cancelPix.mutate(p.id, { onSuccess: () => toast.success('Cobrança PIX cancelada'), onError: () => toast.error('Erro ao cancelar PIX') }),
+      (ok) => ok && cancelPix.mutate(p.id, { onSuccess: () => toast.success('Cobrança PIX cancelada'), onError: (e: unknown) => toast.error(erroDeAcao('cancelar a cobrança PIX', e)) }),
     );
   }
 
@@ -132,8 +133,8 @@ export default function CollectionToolsPage() {
         toast.success('Boleto gerado');
         setBoletoDialog(false);
       },
-      onError: () =>
-        toast.error('Falha ao gerar boleto — verifique se a conta tem integração configurada.'),
+      onError: (e: unknown) =>
+        toast.error(erroDeAcao('gerar o boleto', e) + ' Confira se a conta tem integração configurada.'),
     });
   }
   function submitPix(v: PixFormValues) {
@@ -142,14 +143,14 @@ export default function CollectionToolsPage() {
         toast.success('Cobrança PIX gerada');
         setPixDialog(false);
       },
-      onError: () =>
-        toast.error('Falha ao gerar PIX — verifique se a conta tem integração configurada.'),
+      onError: (e: unknown) =>
+        toast.error(erroDeAcao('gerar a cobrança PIX', e) + ' Confira se a conta tem integração configurada.'),
     });
   }
 
   function copy(text: string) {
     navigator.clipboard?.writeText(text);
-    toast.success('Copiado!');
+    toast.success('Código copiado');
   }
 
   const boletoColumns: Column<Boleto>[] = [
@@ -233,7 +234,7 @@ export default function CollectionToolsPage() {
   return (
     <div>
       <PageHeader
-        title="Cobranças — boleto e PIX"
+        title="Cobranças (boleto e PIX)"
         description="Emissão e acompanhamento de boletos e cobranças PIX."
         actions={
           tab === 'boletos' ? (
@@ -253,8 +254,9 @@ export default function CollectionToolsPage() {
         <span>
           A emissão usa o <strong>adaptador do banco configurado</strong> na conta (BB/Bradesco/Itaú);
           contas sem credenciais retornam erro. Boletos podem ser <strong>cancelados</strong> e
-          incluídos em remessa CNAB; o PIX é liquidado via webhook. O backend ainda não devolve
-          <strong> PDF/linha digitável</strong> do boleto nem a imagem do QR (apenas o copia-e-cola).
+          incluídos em remessa CNAB; o PIX é liquidado automaticamente. A emissão do PDF do boleto e
+          da imagem do <strong>QR code</strong> ainda não está disponível: por enquanto, use o
+          copia-e-cola. Em breve.
         </span>
       </div>
 

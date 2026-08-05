@@ -121,7 +121,7 @@ export function MaintenanceCalendar({
                     <button
                       key={o.id}
                       onClick={() => onSelect(o)}
-                      title={`${o.equipment ? o.equipment.code + ' — ' : ''}${o.title} (${MAINTENANCE_ORDER_STATUS[o.status].label})`}
+                      title={`${o.equipment ? o.equipment.code + ' · ' : ''}${o.title} (${MAINTENANCE_ORDER_STATUS[o.status].label})`}
                       className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] text-content-secondary hover:bg-neutral-100 dark:hover:bg-neutral-800"
                     >
                       <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_COLOR[o.status])} />

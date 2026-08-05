@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL } from '@/lib/format';
 
 interface DraftItem {
@@ -77,11 +78,11 @@ export default function NewQuotationPage() {
       items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
     };
     create.mutate(payload, {
-      onSuccess: () => {
-        toast.success('Cotação criada');
+      onSuccess: (res) => {
+        toast.success(`Orçamento #${res.data.id.slice(-6).toUpperCase()} criado`);
         router.push('/app/quotations');
       },
-      onError: () => toast.error('Erro ao criar cotação'),
+      onError: (err) => toast.error(erroDeAcao('criar o orçamento', err)),
     });
   }
 
@@ -103,7 +104,7 @@ export default function NewQuotationPage() {
           <div>
             <Label>Cliente</Label>
             <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              <option value="">— Sem cliente —</option>
+              <option value="">Sem cliente</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -114,10 +115,10 @@ export default function NewQuotationPage() {
           <div>
             <Label required>Depósito</Label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -140,10 +141,10 @@ export default function NewQuotationPage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">— Selecione —</option>
+                <option value="">Selecione</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>
@@ -239,7 +240,7 @@ export default function NewQuotationPage() {
           Cancelar
         </Button>
         <Button onClick={submit} loading={create.isPending} disabled={items.length === 0}>
-          Criar cotação
+          Criar orçamento
         </Button>
       </div>
     </div>

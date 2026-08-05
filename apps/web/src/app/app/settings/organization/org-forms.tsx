@@ -150,7 +150,7 @@ export function DepartmentForm({
           <option value="">Sem gerente definido</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.name} — {u.email}
+              {u.name} · {u.email}
             </option>
           ))}
         </Select>
@@ -211,7 +211,7 @@ export function TeamForm({
           <option value="">Sem líder definido</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.name} — {u.email}
+              {u.name} · {u.email}
             </option>
           ))}
         </Select>

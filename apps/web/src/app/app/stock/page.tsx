@@ -103,7 +103,7 @@ export default function StockPage() {
             <option value="">Todos</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.code} — {w.name}
+                {w.code} · {w.name}
               </option>
             ))}
           </Select>

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 /**
  * F1.6 (#512) — registro manual de lead (telefone tocou / cliente no balcão)
@@ -68,7 +69,7 @@ export function NewLeadDialog({
       onOpenChange(false);
       if (data?.lead?.id) onOpenLead(data.lead.id);
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao criar lead'),
+    onError: (e: any) => toast.error(erroDeAcao('criar o lead', e)),
   });
 
   function handleSubmit(e: React.FormEvent) {

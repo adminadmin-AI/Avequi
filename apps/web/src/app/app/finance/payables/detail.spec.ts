@@ -28,8 +28,8 @@ describe('helpers do painel de detalhe da Carteira de Pagáveis', () => {
 
   it('sourceLabel traduz as origens conhecidas', () => {
     expect(sourceLabel('MANUAL')).toBe('Lançamento manual');
-    expect(sourceLabel('AUTO_SALES')).toBe('Automático — venda');
-    expect(sourceLabel('AUTO_PURCHASE')).toBe('Automático — compra');
+    expect(sourceLabel('AUTO_SALES')).toBe('Automático: venda');
+    expect(sourceLabel('AUTO_PURCHASE')).toBe('Automático: compra');
   });
 
   describe('findCategoryName', () => {

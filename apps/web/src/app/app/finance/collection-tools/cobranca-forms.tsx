@@ -40,7 +40,7 @@ export function BoletoForm({
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
       <Field label="Conta bancária" required error={errors.bankAccountId?.message}>
         <Select {...register('bankAccountId')} error={!!errors.bankAccountId}>
-          <option value="">— Selecione —</option>
+          <option value="">Selecione</option>
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -98,7 +98,7 @@ export function PixForm({
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
       <Field label="Conta bancária" required error={errors.bankAccountId?.message}>
         <Select {...register('bankAccountId')} error={!!errors.bankAccountId}>
-          <option value="">— Selecione —</option>
+          <option value="">Selecione</option>
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}

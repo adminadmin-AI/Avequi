@@ -113,7 +113,7 @@ function SubscriptionDialog({
       title={subscription ? 'Editar assinatura' : 'Criar assinatura'}
       description={
         subscription?.canceledAt
-          ? 'Esta assinatura está cancelada — salvar reativa a cobrança.'
+          ? 'Esta assinatura está cancelada. Salvar reativa a cobrança.'
           : undefined
       }
       formId="subscription-form"
@@ -160,7 +160,7 @@ function SubscriptionDialog({
         {canPickPlan && (
           <Field label="Plano de referência comercial">
             <Select value={planId ?? ''} onChange={(e) => setPlanId(e.target.value || null)}>
-              <option value="">— Sem plano —</option>
+              <option value="">Sem plano</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.code})
@@ -508,7 +508,7 @@ function NovaPropostaDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Nova proposta"
-      description="O valor nasce do preço de tabela do plano — edite só o que for negociado."
+      description="O valor nasce do preço de tabela do plano. Edite só o que for negociado."
       formId="proposal-form"
       submitLabel="Criar proposta"
       size="lg"
@@ -525,7 +525,7 @@ function NovaPropostaDialog({
             error={touched && planInvalid}
             onChange={(e) => pickPlan(e.target.value)}
           >
-            <option value="">— Selecione —</option>
+            <option value="">Selecione</option>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
                 {labelDoPlano(p)}
@@ -556,7 +556,7 @@ function NovaPropostaDialog({
             <p className="mt-1 text-xs text-content-muted">
               {tabela != null
                 ? `Preço de tabela: ${formatBRL(tabela / 100)}`
-                : 'Este plano não tem preço de tabela — informe o valor negociado.'}
+                : 'Este plano não tem preço de tabela. Informe o valor negociado.'}
             </p>
           )}
         </Field>
@@ -582,7 +582,7 @@ function NovaPropostaDialog({
             value={conditions}
             maxLength={2000}
             rows={3}
-            placeholder="Prazo de implantação, descontos, carência — o que foi combinado."
+            placeholder="Prazo de implantação, descontos, carência: o que foi combinado."
             onChange={(e) => setConditions(e.target.value)}
           />
         </Field>
@@ -648,7 +648,7 @@ function AceitarPropostaDialog({
             value={note}
             maxLength={500}
             rows={3}
-            placeholder="Opcional — quem aprovou, referência do contrato."
+            placeholder="Opcional: quem aprovou, referência do contrato."
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
@@ -684,7 +684,7 @@ function RecusarPropostaDialog({
       open={!!proposal}
       onOpenChange={onOpenChange}
       title="Recusar proposta"
-      description="A recusa é definitiva — uma nova negociação exige uma proposta nova."
+      description="A recusa é definitiva. Uma nova negociação exige uma proposta nova."
       formId="decline-proposal-form"
       submitLabel="Recusar proposta"
       loading={loading}
@@ -774,7 +774,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
     mutationFn: ({ id, decidedNote }: { id: string; decidedNote?: string }) =>
       apiClient.post(`/ops/proposals/${id}/accept`, { decidedNote }),
     onSuccess: () => {
-      toast.success('Proposta aceita — assinatura e plano atualizados');
+      toast.success('Proposta aceita. Assinatura e plano atualizados.');
       invalidateConta();
       setAcceptTarget(null);
     },

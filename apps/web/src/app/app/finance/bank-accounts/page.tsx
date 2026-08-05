@@ -16,6 +16,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { BankAccountForm, type BankAccountFormValues } from './bank-account-form';
 import { BankConfigForm, type BankConfigFormValues } from './bank-config-form';
 
@@ -60,7 +61,7 @@ export default function BankAccountsPage() {
         toast.success(editing ? 'Conta atualizada' : 'Conta criada');
         setDialogOpen(false);
       },
-      onError: () => toast.error('Erro ao salvar conta'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar a conta', e)),
     };
     if (editing) update.mutate({ id: editing.id, data: payload }, opts);
     else create.mutate({ ...payload, companyId }, opts);
@@ -86,8 +87,7 @@ export default function BankAccountsPage() {
           toast.success('Configuração de cobrança salva');
           setConfigTarget(null);
         },
-        onError: (err: any) =>
-          toast.error(err?.response?.data?.message ?? 'Erro ao salvar configuração'),
+        onError: (err: any) => toast.error(erroDeAcao('salvar a configuração de cobrança', err)),
       },
     );
   }
@@ -102,7 +102,7 @@ export default function BankAccountsPage() {
     if (!ok) return;
     remove.mutate(a.id, {
       onSuccess: () => toast.success('Conta desativada'),
-      onError: () => toast.error('Erro ao desativar'),
+      onError: (e: unknown) => toast.error(erroDeAcao('desativar a conta', e)),
     });
   }
 

@@ -176,7 +176,7 @@ export function TaxRuleForm({
       {/* ─── DIFAL / FCP ─── */}
       <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
-          DIFAL / FCP — vendas interestaduais a consumidor final
+          DIFAL / FCP: vendas interestaduais a consumidor final
         </p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Alíquota interna do UF destino (%)" error={errors.icmsInternaDestino?.message}>
@@ -191,7 +191,7 @@ export function TaxRuleForm({
       {/* ─── IBS/CBS — reforma tributária ─── */}
       <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
-          IBS/CBS — reforma tributária (NT 2025.002). Vazio = não emite grupo UB.
+          IBS/CBS: reforma tributária (NT 2025.002). Vazio = não emite grupo UB.
         </p>
         <div className="grid grid-cols-3 gap-4">
           <Field label="cClassTrib">
@@ -218,7 +218,7 @@ export function TaxRuleForm({
       {/* ─── Vigência (#500) e meta ─── */}
       <div className="border-t border-line pt-4">
         <p className="mb-3 text-sm font-medium text-content-secondary">
-          Vigência — NT nova ou fase da reforma = regra nova com início futuro
+          Vigência: NT nova ou fase da reforma = regra nova com início futuro
         </p>
         <div className="grid grid-cols-3 gap-4">
           <Field label="Válida desde (vazio = sempre)">
@@ -232,7 +232,7 @@ export function TaxRuleForm({
           </Field>
         </div>
         <Field label="Descrição">
-          <Input {...register('description')} placeholder="Ex.: Venda interna PR padrão — reboques" />
+          <Input {...register('description')} placeholder="Ex.: Venda interna PR padrão (reboques)" />
         </Field>
       </div>
     </form>

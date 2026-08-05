@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatDateTime } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { FISCAL_TYPE_LABEL } from '../fiscal-status';
 import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
 
@@ -140,7 +141,7 @@ export default function FiscalDashboardPage() {
       {/* Gráfico */}
       <Card className="mb-5">
         <CardHeader>
-          <CardTitle className="text-base">Emissões — últimos 30 dias</CardTitle>
+          <CardTitle className="text-base">Emissões (últimos 30 dias)</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
@@ -177,7 +178,7 @@ export default function FiscalDashboardPage() {
                     </button>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-content-muted">{formatDateTime(d.createdAt)}</span>
-                      <Button variant="secondary" onClick={() => retry.mutate(d.id, { onSuccess: () => toast.success('Reprocessado'), onError: () => toast.error('Erro') })} loading={retry.isPending}>
+                      <Button variant="secondary" onClick={() => retry.mutate(d.id, { onSuccess: () => toast.success('Documento reenviado para processamento'), onError: (e: unknown) => toast.error(erroDeAcao('reprocessar o documento', e)) })} loading={retry.isPending}>
                         Reprocessar
                       </Button>
                     </div>

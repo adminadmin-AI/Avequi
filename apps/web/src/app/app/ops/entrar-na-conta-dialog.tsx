@@ -123,7 +123,7 @@ export function EntrarNaContaDialog({
             >
               {ativos.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} — {USER_ROLE_LABELS[u.role] ?? u.role}
+                  {u.name} · {USER_ROLE_LABELS[u.role] ?? u.role}
                 </option>
               ))}
             </Select>
