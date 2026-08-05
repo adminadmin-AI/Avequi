@@ -47,7 +47,7 @@ export function PushBanner() {
         toast.error('Permissão negada no navegador');
         setVisible(false);
       } else {
-        toast.info('Push indisponível no servidor. Avise o suporte.');
+        toast.info('Notificações push indisponíveis no servidor. Avise o suporte.');
         setVisible(false);
       }
     } catch (e) {

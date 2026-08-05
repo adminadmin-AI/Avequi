@@ -12,7 +12,8 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { erroDeAcao } from '@/lib/feedback';
-import { TaxRuleForm, TAX_OPERATION_LABELS, type TaxRuleFormValues } from './tax-rule-form';
+import { OPERATION_LABELS } from '../operation-labels';
+import { TaxRuleForm, type TaxRuleFormValues } from './tax-rule-form';
 
 const RESOURCE = '/tax-rules';
 
@@ -174,7 +175,7 @@ export default function TaxRulesPage() {
       key: 'operationType',
       header: 'Operação',
       sortable: true,
-      cell: (r) => TAX_OPERATION_LABELS[r.operationType] ?? r.operationType,
+      cell: (r) => OPERATION_LABELS[r.operationType] ?? r.operationType,
     },
     {
       key: 'escopo',
@@ -290,7 +291,7 @@ export default function TaxRulesPage() {
         title={editing ? 'Editar regra fiscal' : 'Nova regra fiscal'}
         description={
           editing
-            ? `Editando regra ${TAX_OPERATION_LABELS[editing.operationType] ?? editing.operationType} (${editing.cfop})`
+            ? `Editando regra ${OPERATION_LABELS[editing.operationType] ?? editing.operationType} (${editing.cfop})`
             : 'Para versionar uma NT, crie uma NOVA regra com vigência futura em vez de editar a atual.'
         }
         formId="tax-rule-form"

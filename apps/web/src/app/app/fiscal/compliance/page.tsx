@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { formatDateTime } from '@/lib/format';
+import { OPERATION_LABELS } from '../operation-labels';
 
 /**
  * #503 parte 2 — Compliance Center: conformidade fiscal em tempo real.
@@ -53,22 +54,6 @@ interface Compliance {
   };
   vehicular: { soldSerials: number; soldWithBin: number; soldWithoutBin: number; score: number };
 }
-
-const OPERATION_LABEL: Record<string, string> = {
-  VENDA_INTERNA: 'Venda interna',
-  VENDA_INTERESTADUAL: 'Venda interestadual',
-  DEVOLUCAO_VENDA: 'Devolução de venda',
-  TRANSFERENCIA_INTERNA: 'Transferência interna',
-  TRANSFERENCIA_INTERESTADUAL: 'Transferência interestadual',
-  COMPRA_INTERNA: 'Compra interna',
-  COMPRA_INTERESTADUAL: 'Compra interestadual',
-  DEVOLUCAO_COMPRA: 'Devolução de compra',
-  REMESSA_CONSERTO: 'Remessa p/ conserto',
-  RETORNO_CONSERTO: 'Retorno de conserto',
-  AMOSTRA_GRATIS: 'Amostra grátis',
-  BONIFICACAO: 'Bonificação',
-  INDUSTRIALIZACAO: 'Industrialização',
-};
 
 function scoreTone(score: number): 'success' | 'warning' | 'danger' {
   if (score >= 85) return 'success';
@@ -224,7 +209,7 @@ export default function CompliancePage() {
               <div className="flex flex-wrap gap-1.5">
                 {uncovered.map((o) => (
                   <Badge key={o.operationType} variant="warning">
-                    {OPERATION_LABEL[o.operationType] ?? o.operationType}
+                    {OPERATION_LABELS[o.operationType] ?? o.operationType}
                   </Badge>
                 ))}
               </div>

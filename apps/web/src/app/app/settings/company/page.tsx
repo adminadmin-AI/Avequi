@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDetail, useList, useUpdate } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Company, CompanyType, TaxRegime } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ export default function CompanyPage() {
           toast.success('Empresa atualizada');
           setDialogOpen(false);
         },
-        onError: () => toast.error('Erro ao atualizar empresa'),
+        onError: (e) => toast.error(erroDeAcao('atualizar os dados da empresa', e)),
       },
     );
   }

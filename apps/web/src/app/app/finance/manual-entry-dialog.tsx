@@ -98,13 +98,13 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>
         <Plus size={16} />
-        Novo lançamento
+        Novo título
       </Button>
 
       <FormDialog
         open={open}
         onOpenChange={setOpen}
-        title="Novo lançamento manual"
+        title="Novo título manual"
         description="Despesa avulsa ou receita não operacional."
         formId="manual-entry-form"
         loading={create.isPending}
@@ -117,10 +117,10 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
           <Field label="Tipo" required error={errors.type?.message}>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm text-content-secondary">
-                <input type="radio" value="RECEIVABLE" {...register('type')} /> Recebível
+                <input type="radio" value="RECEIVABLE" {...register('type')} /> A receber
               </label>
               <label className="flex items-center gap-2 text-sm text-content-secondary">
-                <input type="radio" value="PAYABLE" {...register('type')} /> Pagável
+                <input type="radio" value="PAYABLE" {...register('type')} /> A pagar
               </label>
             </div>
           </Field>

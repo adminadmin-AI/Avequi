@@ -514,7 +514,7 @@ export default function NewSalePage() {
           <Button onClick={next}>Próximo</Button>
         ) : (
           <Button onClick={submit} loading={create.isPending}>
-            Criar ordem de venda
+            Criar pedido de venda
           </Button>
         )}
       </div>

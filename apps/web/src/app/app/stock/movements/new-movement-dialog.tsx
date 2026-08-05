@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product, Warehouse, StockBalance } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,7 +102,7 @@ export function NewMovementDialog() {
           setOpen(false);
           reset();
         },
-        onError: () => toast.error('Erro ao registrar movimentação'),
+        onError: (e) => toast.error(erroDeAcao('registrar a movimentação', e)),
       },
     );
   }

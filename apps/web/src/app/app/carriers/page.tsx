@@ -90,7 +90,7 @@ export default function CarriersPage() {
     { key: 'name', header: 'Nome', sortable: true },
     {
       key: 'document',
-      header: 'CNPJ / CPF',
+      header: 'CPF/CNPJ',
       cell: (c) => (c.document ? <span className="font-mono text-xs">{formatCpfCnpj(c.document)}</span> : '—'),
     },
     {

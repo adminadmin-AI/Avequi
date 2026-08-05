@@ -85,7 +85,7 @@ const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
 };
 
 function countSub(count: number): string {
-  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
+  return `${count} ${count === 1 ? 'título' : 'títulos'}`;
 }
 
 export default function PayablesPage() {
@@ -314,7 +314,7 @@ export default function PayablesPage() {
                   ev.stopPropagation();
                   setEditTarget(e);
                 }}
-                title="Editar lançamento"
+                title="Editar título"
                 className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
               >
                 <Pencil size={15} />
@@ -445,7 +445,7 @@ export default function PayablesPage() {
         loading={isLoading}
         onRowClick={setDetailTarget}
         searchable={false}
-        emptyMessage="Nenhum pagável encontrado."
+        emptyMessage="Nenhum título encontrado."
       />
 
       <FormDialog

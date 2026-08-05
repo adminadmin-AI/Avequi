@@ -211,7 +211,7 @@ export function AdjustmentNoteDialog({
         <DialogHeader>
           <DialogTitle>Nota de ajuste (IBS/CBS)</DialogTitle>
           <DialogDescription>
-            Nota de Débito ou Crédito referenciando esta NF-e: Reforma Tributária (Ajuste SINIEF 49/2025).
+            Nota de débito ou crédito referenciando esta NF-e: Reforma Tributária (Ajuste SINIEF 49/2025).
           </DialogDescription>
         </DialogHeader>
 

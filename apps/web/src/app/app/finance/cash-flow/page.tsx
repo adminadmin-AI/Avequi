@@ -228,13 +228,13 @@ export default function CashFlowPage() {
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Saldo disponível" value={totalBalance} icon={Wallet} tone="brand" />
         <KpiCard
-          label="Recebíveis a vencer"
+          label="A receber a vencer"
           value={cashflow?.totalReceivable ?? 0}
           icon={ArrowUpCircle}
           tone="success"
         />
         <KpiCard
-          label="Pagáveis a vencer"
+          label="A pagar a vencer"
           value={cashflow?.totalPayable ?? 0}
           icon={ArrowDownCircle}
           tone="danger"
@@ -259,7 +259,7 @@ export default function CashFlowPage() {
             </div>
           ) : chartData.length === 0 ? (
             <div className="flex h-72 items-center justify-center text-sm text-content-muted">
-              Nenhum lançamento previsto no período.
+              Nenhum título previsto no período.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -293,7 +293,7 @@ export default function CashFlowPage() {
             columns={columns}
             loading={isLoading}
             searchPlaceholder="Buscar por descrição..."
-            emptyMessage="Nenhum lançamento previsto no período."
+            emptyMessage="Nenhum título previsto no período."
           />
         </div>
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ExternalLink, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,14 +79,14 @@ export default function AlertsPage() {
         ok &&
         resolve.mutate(a.id, {
           onSuccess: () => toast.success('Alerta resolvido'),
-          onError: () => toast.error('Erro ao resolver alerta'),
+          onError: (e) => toast.error(erroDeAcao('resolver o alerta', e)),
         }),
     );
   }
   function handleRunCheck() {
     runCheck.mutate(undefined, {
       onSuccess: () => toast.success('Verificação executada'),
-      onError: () => toast.error('Não foi possível rodar a verificação'),
+      onError: (e) => toast.error(erroDeAcao('rodar a verificação', e)),
     });
   }
 

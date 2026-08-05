@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Power, PowerOff } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { erroDeAcao } from '@/lib/feedback';
 import type { WorkCenter } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -114,7 +115,7 @@ export default function WorkCentersPage() {
         toast.success(editWc ? 'Centro atualizado' : 'Centro criado');
         setOpen(false);
       },
-      onError: () => toast.error('Erro ao salvar centro de trabalho'),
+      onError: (e: unknown) => toast.error(erroDeAcao('salvar o centro de trabalho', e)),
     };
     if (editWc) {
       update.mutate({ id: editWc.id, data: base }, opts);
@@ -136,7 +137,7 @@ export default function WorkCentersPage() {
           { id: w.id, data: { isActive: next } },
           {
             onSuccess: () => toast.success(next ? 'Centro reativado' : 'Centro desativado'),
-            onError: () => toast.error('Erro ao alterar status'),
+            onError: (e) => toast.error(erroDeAcao('alterar o status do centro de trabalho', e)),
           },
         ),
     );

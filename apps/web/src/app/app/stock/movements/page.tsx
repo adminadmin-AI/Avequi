@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { StockMovement, MovementType, Warehouse } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +69,7 @@ export default function MovementsPage() {
           setReverseTarget(null);
           setReverseReason('');
         },
-        onError: () => toast.error('Não foi possível estornar'),
+        onError: (e) => toast.error(erroDeAcao('estornar a movimentação', e)),
       },
     );
   }

@@ -273,7 +273,7 @@ export function SupplierForm({
           <Field label="Condição de pagamento padrão" error={errors.defaultPaymentTerms?.message}>
             <Input {...register('defaultPaymentTerms')} placeholder='Ex.: "28 dias" ou "30/60/90"' />
           </Field>
-          <Field label="Lead time (dias)" error={errors.leadTimeDays?.message}>
+          <Field label="Prazo de entrega (dias)" error={errors.leadTimeDays?.message}>
             <Input type="number" min="0" step="1" {...register('leadTimeDays')} placeholder="0" />
           </Field>
         </div>

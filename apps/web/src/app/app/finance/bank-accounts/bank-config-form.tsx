@@ -65,7 +65,7 @@ export function BankConfigForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
-      <Field label="Provider (integração bancária)" hint="Banco/serviço usado para boleto e PIX.">
+      <Field label="Instituição (integração bancária)" hint="Banco/serviço usado para boleto e PIX.">
         <Select {...register('provider')}>
           <option value="">Não configurado</option>
           {PROVIDERS.map((p) => (

@@ -120,7 +120,7 @@ export default function SuppliersPage() {
     { key: 'phone', header: 'Telefone', cell: (s) => (s.phone ? formatPhone(s.phone) : '—') },
     {
       key: 'leadTimeDays',
-      header: 'Lead time',
+      header: 'Prazo de entrega',
       align: 'right',
       sortable: true,
       accessor: (s) => s.leadTimeDays,

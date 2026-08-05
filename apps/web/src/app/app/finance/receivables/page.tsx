@@ -69,7 +69,7 @@ const STATUS_META: Record<DisplayStatus, { label: string; variant: any }> = {
 };
 
 function countSub(count: number): string {
-  return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`;
+  return `${count} ${count === 1 ? 'título' : 'títulos'}`;
 }
 
 export default function ReceivablesPage() {
@@ -394,14 +394,14 @@ export default function ReceivablesPage() {
             columns={columns}
             loading={isLoading}
             searchable={false}
-            emptyMessage="Nenhum recebível encontrado."
+            emptyMessage="Nenhum título encontrado."
           />
         </div>
 
         {/* Aging report */}
         <Card className="h-fit lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-base">Aging</CardTitle>
+            <CardTitle className="text-base">Faixas de atraso</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {agingRows.map((r) => (

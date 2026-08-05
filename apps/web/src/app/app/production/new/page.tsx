@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { Product, Warehouse, ProductionOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,7 @@ export default function NewProductionOrderPage() {
           toast.success('Ordem de produção criada');
           router.push(`/app/production/${res.data.id}`);
         },
-        onError: () => toast.error('Erro ao criar OP'),
+        onError: (e) => toast.error(erroDeAcao('criar a ordem de produção', e)),
       },
     );
   }

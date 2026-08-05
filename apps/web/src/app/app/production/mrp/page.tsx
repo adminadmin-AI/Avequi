@@ -69,7 +69,7 @@ export default function MrpPage() {
   function calcMrp() {
     run.mutate(undefined, {
       onSuccess: () => toast.success('MRP calculado'),
-      onError: () => toast.error('Falha ao calcular MRP'),
+      onError: (e) => toast.error(erroDeAcao('calcular o MRP', e)),
     });
   }
   function doConvert(s: MrpSuggestion) {

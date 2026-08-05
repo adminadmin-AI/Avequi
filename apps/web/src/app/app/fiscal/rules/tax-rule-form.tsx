@@ -6,27 +6,12 @@ import { z } from 'zod';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
+import { OPERATION_LABELS } from '../operation-labels';
 
 const UF = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR',
   'PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
 ];
-
-export const TAX_OPERATION_LABELS: Record<string, string> = {
-  VENDA_INTERNA: 'Venda interna',
-  VENDA_INTERESTADUAL: 'Venda interestadual',
-  DEVOLUCAO_VENDA: 'Devolução de venda',
-  TRANSFERENCIA_INTERNA: 'Transferência interna',
-  TRANSFERENCIA_INTERESTADUAL: 'Transferência interestadual',
-  COMPRA_INTERNA: 'Compra interna',
-  COMPRA_INTERESTADUAL: 'Compra interestadual',
-  DEVOLUCAO_COMPRA: 'Devolução de compra',
-  REMESSA_CONSERTO: 'Remessa p/ conserto',
-  RETORNO_CONSERTO: 'Retorno de conserto',
-  AMOSTRA_GRATIS: 'Amostra grátis',
-  BONIFICACAO: 'Bonificação',
-  INDUSTRIALIZACAO: 'Industrialização',
-};
 
 const num = z
   .string()
@@ -94,7 +79,7 @@ export function TaxRuleForm({
       <div className="grid grid-cols-2 gap-4">
         <Field label="Operação" required error={errors.operationType?.message}>
           <Select {...register('operationType')} error={!!errors.operationType}>
-            {Object.entries(TAX_OPERATION_LABELS).map(([v, l]) => (
+            {Object.entries(OPERATION_LABELS).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
               </option>

@@ -206,7 +206,7 @@ export default function CollectionMonitorPage() {
     <div>
       <PageHeader
         title="Monitor de cobrança"
-        description="Recebíveis vencidos, régua de cobrança e cobranças (boleto/PIX) emitidas."
+        description="Títulos vencidos, régua de cobrança e cobranças (boleto/PIX) emitidas."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/finance/collection-tools')}>
             <Barcode size={16} /> Emitir cobrança
@@ -244,14 +244,14 @@ export default function CollectionMonitorPage() {
 
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-base">Régua de cobrança (recebíveis vencidos)</CardTitle>
+              <CardTitle className="text-base">Régua de cobrança (títulos vencidos)</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
                 data={overdue}
                 columns={collectionColumns}
                 searchPlaceholder="Buscar por cliente..."
-                emptyMessage="Nenhum recebível vencido. 🎉"
+                emptyMessage="Nenhum título vencido. 🎉"
               />
             </CardContent>
           </Card>
@@ -260,12 +260,12 @@ export default function CollectionMonitorPage() {
             className="mb-6"
             stats={[
               {
-                label: 'Recebíveis em aberto',
+                label: 'Títulos em aberto',
                 value: formatBRL(overview?.receivables?.openAmount ?? 0),
                 sub: `${overview?.receivables?.openCount ?? 0} título(s)`,
               },
               {
-                label: 'Recebíveis vencidos',
+                label: 'Títulos vencidos',
                 value: String(overview?.receivables?.overdueCount ?? 0),
                 tone: (overview?.receivables?.overdueCount ?? 0) > 0 ? 'danger' : 'neutral',
               },
@@ -323,7 +323,7 @@ export default function CollectionMonitorPage() {
               onClick={() => router.push('/app/finance/receivables')}
               className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
-              Ver carteira de recebíveis <ExternalLink size={14} />
+              Ver Contas a receber <ExternalLink size={14} />
             </button>
           </div>
         </>

@@ -248,7 +248,7 @@ export default function PurchaseDetailPage() {
                 href="/app/finance/payables"
                 className="mt-1 inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline"
               >
-                <ExternalLink size={14} /> Ver em Pagáveis
+                <ExternalLink size={14} /> Ver em Contas a pagar
               </Link>
             </div>
           )}
