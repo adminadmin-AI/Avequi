@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { BomExplosionService } from '../../common/production/bom-explosion.service';
+import { agregarPorProduto } from '../../common/production/bom-explosion';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface SuggestionInput {
@@ -17,7 +19,10 @@ interface SuggestionInput {
 export class MrpService {
   private readonly logger = new Logger(MrpService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bomExplosion: BomExplosionService,
+  ) {}
 
   // ─── S12.01: Disparar rodada MRP ─────────────────────────────────────────
 
@@ -149,26 +154,38 @@ export class MrpService {
       }
     }
 
-    // 4. Carrega BOMs ativos (com items e componentes)
-    const activeBoms = await this.prisma.bomVersion.findMany({
-      where: { companyId, isActive: true },
-      include: {
-        items: {
-          include: { component: { select: { id: true, type: true } } },
-        },
-      },
-    });
-    const bomByProduct = new Map(activeBoms.map((b) => [b.productId, b]));
+    // 4-5. Explosão de BOM (#980)
+    //
+    // A explosão saiu daqui e virou serviço comum (`BomExplosionService`),
+    // compartilhado com o despacho por setor (#817). O MRP consome a PROJEÇÃO
+    // PLANA do ledger — que é exatamente o que o antigo `mergeDemand` produzia:
+    // total por produto, mantendo o menor nível encontrado. As raízes (produtos
+    // com demanda) entram no nível 0, como antes.
+    //
+    // O núcleo trabalha em `Decimal` do começo ao fim, para o refugo de vários
+    // níveis não acumular erro de ponto flutuante. O MRP converte para `Number`
+    // AQUI, na sua própria borda, mantendo o contrato de fora intacto.
+    const cart = Array.from(demandMap.entries()).map(([productId, quantity]) => ({
+      productId,
+      quantity,
+    }));
+    const explosao = await this.bomExplosion.explodir(companyId, cart);
+    const byProduct = explosao.byProduct;
 
-    // 5. Explosão de BOM: agrega todas as necessidades de componentes
+    if (explosao.inconsistencies.length > 0) {
+      // Não interrompe o cálculo: um dado sujo num produto não pode derrubar o
+      // MRP inteiro. Mas também não some — fica no log com produto e motivo.
+      for (const inc of explosao.inconsistencies) {
+        this.logger.warn(`MRP/BOM [${inc.code}] produto ${inc.productId}: ${inc.detail}`);
+      }
+    }
+
     const componentDemand = new Map<string, { grossQty: number; level: number }>();
-
-    for (const [productId, grossQty] of demandMap.entries()) {
-      const bomLevel = 0;
-      // Produto final também entra nas sugestões (como PRODUCTION se tiver BOM)
-      this.mergeDemand(componentDemand, productId, grossQty, bomLevel);
-      // Explode componentes recursivamente
-      this.explodeBom(productId, grossQty, bomByProduct, componentDemand, bomLevel + 1, new Set());
+    for (const [productId, agregado] of agregarPorProduto(explosao)) {
+      componentDemand.set(productId, {
+        grossQty: agregado.grossQty.toNumber(),
+        level: agregado.level,
+      });
     }
 
     // 6. Busca estoque disponível para todos os produtos relevantes
@@ -229,7 +246,7 @@ export class MrpService {
     for (const [productId, { grossQty, level }] of componentDemand.entries()) {
       const stockOnHand = stockMap.get(productId) ?? 0;
       let netQty = Math.max(0, grossQty - stockOnHand);
-      const hasBom = bomByProduct.has(productId);
+      const hasBom = byProduct.has(productId);
       const type = hasBom ? 'PRODUCTION' : 'PURCHASE';
 
       // Aplica lote mínimo e múltiplo (#181) + lead time (#183)
@@ -269,46 +286,19 @@ export class MrpService {
     return results.sort((a, b) => a.bomLevel - b.bomLevel);
   }
 
-  // ─── Explosão recursiva de BOM ────────────────────────────────────────────
-
-  private explodeBom(
-    productId: string,
-    qty: number,
-    bomByProduct: Map<string, any>,
-    accumulator: Map<string, { grossQty: number; level: number }>,
-    level: number,
-    visited: Set<string>,
-  ): void {
-    // Proteção contra BOM circular
-    if (visited.has(productId) || level > 10) return;
-    const bom = bomByProduct.get(productId);
-    if (!bom) return; // produto sem BOM = matéria-prima, para aqui
-
-    visited.add(productId);
-
-    for (const item of bom.items) {
-      const componentQty = qty * Number(item.quantity) * (1 + Number(item.scrapPct) / 100);
-      this.mergeDemand(accumulator, item.componentId, componentQty, level);
-      // Recursão para sub-componentes
-      this.explodeBom(item.componentId, componentQty, bomByProduct, accumulator, level + 1, new Set(visited));
-    }
-  }
-
-  private mergeDemand(
-    map: Map<string, { grossQty: number; level: number }>,
-    productId: string,
-    qty: number,
-    level: number,
-  ): void {
-    const existing = map.get(productId);
-    if (existing) {
-      existing.grossQty += qty;
-      // mantém o menor nível encontrado (mais alto na árvore)
-      existing.level = Math.min(existing.level, level);
-    } else {
-      map.set(productId, { grossQty: qty, level });
-    }
-  }
+  // ─── Explosão de BOM ──────────────────────────────────────────────────────
+  //
+  // #980 — `explodeBom` e `mergeDemand` viviam aqui, privados. Foram extraídos
+  // para `common/production/bom-explosion.ts` porque o despacho por setor
+  // (#817) precisa da mesma explosão, e duas cópias divergiriam com o tempo.
+  //
+  // O que mudou de verdade na extração:
+  //   - o núcleo emite um LEDGER DE ARESTAS; a agregação plana que o MRP usa
+  //     virou uma projeção (`agregarPorProduto`) sobre esse ledger;
+  //   - a aritmética passou a ser `Decimal`, com conversão para `Number` na
+  //     borda do MRP;
+  //   - a seleção de BOM ativa virou determinística e a duplicidade passou a
+  //     ser denunciada em vez de resolvida em silêncio (#981).
 
   // ─── Utilitários de período/data ──────────────────────────────────────────
 
