@@ -420,6 +420,13 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ...r('production', 'chassi', 'Chassis gravados (marcadora)', [
     ['view', 'ver', 'GET /chassi/gravacoes, /chassi/gravacoes/:id, /chassi/series'],
   ]),
+  // #817 — permissão PRÓPRIA, deliberadamente separada de production.orders.view:
+  // ver o despacho da fábrica (o que cada setor produz e recebe) pode ser
+  // liberado a perfis diferentes dos que administram Ordens de Produção.
+  // Somente leitura: o endpoint não grava nada.
+  ...r('production', 'dispatch', 'Despacho por setor (OS/OC)', [
+    ['view', 'ver', 'POST /production/dispatch (consulta, não grava)'],
+  ]),
 
   // ── quality ── (quality.controller.ts)
   ...r('quality', 'inspections', 'Inspeções', [

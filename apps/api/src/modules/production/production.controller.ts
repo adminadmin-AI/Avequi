@@ -8,10 +8,14 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ProductionOrderStatus } from '@prisma/client';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { CreateProductionLogDto } from './dto/create-log.dto';
+import { DispatchRequestDto } from './dto/dispatch.dto';
+import { DispatchService } from './dispatch.service';
+import { DispatchResult } from './dispatch.types';
 import { ProductionService } from './production.service';
 
 /**
@@ -22,9 +26,42 @@ import { ProductionService } from './production.service';
  * supervisor/gerência libera e conclui (release/complete/cancel), operador
  * inicia e aponta (start/execute), qualidade aprova/reprova inspeção.
  */
+@ApiTags('production')
+@ApiBearerAuth()
 @Controller('production')
 export class ProductionController {
-  constructor(private readonly productionService: ProductionService) {}
+  constructor(
+    private readonly productionService: ProductionService,
+    private readonly dispatchService: DispatchService,
+  ) {}
+
+  /**
+   * #817 — POST /production/dispatch
+   *
+   * Consulta, apesar do verbo: recebe um carrinho estruturado com vários
+   * produtos e quantidades, o que não cabe em query string, e **não grava
+   * nada**. POST é o verbo adequado para consulta complexa com corpo.
+   *
+   * Permissão PRÓPRIA (`production.dispatch.view`), não reaproveitada de
+   * `production.orders.view`: ver o despacho da fábrica pode ser liberado a
+   * perfis diferentes dos que administram Ordens de Produção.
+   */
+  @Post('dispatch')
+  @RequirePermission('production.dispatch.view')
+  @ApiOperation({
+    summary: 'Despacho por setor (OS/OC) a partir de um carrinho de modelos',
+    description:
+      'Explode a BOM do carrinho e devolve, por centro de trabalho, o que cada operação produz (OS) ' +
+      'e o que ela precisa receber (OC = o próprio item vindo da operação anterior + os componentes ' +
+      'alocados à operação). Somente leitura: nenhum registro é criado. Itens que não puderem ser ' +
+      'roteados voltam no bloco de pendências, com motivo estruturado.',
+  })
+  dispatch(
+    @Body() dto: DispatchRequestDto,
+    @Request() req: { user: { companyId: string } },
+  ): Promise<DispatchResult> {
+    return this.dispatchService.dispatch(req.user.companyId, dto);
+  }
 
   // POST /production
   @Post()

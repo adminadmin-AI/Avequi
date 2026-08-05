@@ -678,6 +678,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'dashboard.stock.view',
       'production.orders.view',
       'production.orders.create',
+      // #817: o PCP é quem monta o despacho da fábrica a partir de um carrinho
+      // de modelos — é o usuário natural do POST /production/dispatch.
+      // Os perfis gerenciais e de leitura recebem esta permissão pelas
+      // varreduras que já existem (moduleCodes('production'), actionCodes('view')).
+      'production.dispatch.view',
       ...resourceCodes('production', 'mrp'),
       'production.bom.view',
       'production.routing.view',

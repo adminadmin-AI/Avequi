@@ -1,0 +1,552 @@
+/**
+ * #817 — Testes do despacho por setor.
+ *
+ * Estes testes usam o `BomExplosionService` **de verdade** (#980), não um dublê.
+ * A razão é deliberada: o valor desta issue está justamente em consumir o ledger
+ * de arestas corretamente. Um mock do serviço de explosão provaria apenas que o
+ * `DispatchService` sabe ler um objeto que o próprio teste inventou.
+ *
+ * O que é mockado é só o `PrismaService` — e o mock expõe **exclusivamente
+ * métodos de leitura** (`findMany`), de modo que qualquer escrita acidental
+ * introduzida no futuro quebra o teste com "is not a function" em vez de passar
+ * despercebida.
+ *
+ * ─── A fábrica de mentira usada aqui ────────────────────────────────────────
+ *
+ *   MOD-CAR-003 (acabado)              roteiro: 1 Pré-montagem  @ SET-MON-001
+ *   │                                           2 Montagem final @ SET-MON-001
+ *   ├── CON-CHA-003 ×1   (alocado ao passo 2)
+ *   │   │                              roteiro: 1 Solda         @ SET-SOL-002
+ *   │   │                                       2 Galvanização  @ SET-GAL-001
+ *   │   ├── PC-LONG   ×2 (alocado ao passo 1 da Solda)
+ *   │   └── PC-PARAF  ×4 (SEM alocação → pendência)
+ *   └── PC-PARAF ×20 +10% de refugo (alocado ao passo 1)
+ *
+ * Carrinho: 10 × MOD-CAR-003.
+ */
+
+import { BadRequestException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { BomExplosionService } from '../../common/production/bom-explosion.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { DispatchService } from './dispatch.service';
+import { DispatchOperation, DispatchResult } from './dispatch.types';
+
+const EMPRESA = 'c1';
+
+interface ProdutoFake {
+  id: string;
+  companyId: string;
+  sku: string;
+  name: string;
+  unit: string;
+  type: string;
+}
+interface PassoFake {
+  id: string;
+  companyId: string;
+  productId: string;
+  stepOrder: number;
+  name: string;
+  workCenterId: string | null;
+  workCenterRef: { id: string; code: string; name: string } | null;
+}
+interface BomFake {
+  id: string;
+  companyId: string;
+  productId: string;
+  version: number;
+  isActive: boolean;
+  items: {
+    id: string;
+    componentId: string;
+    quantity: string;
+    scrapPct: string;
+    routingStepId: string | null;
+    unit: string | null;
+  }[];
+}
+
+const WC = {
+  sol: { id: 'wc-sol', code: 'SET-SOL-002', name: 'Solda 2' },
+  gal: { id: 'wc-gal', code: 'SET-GAL-001', name: 'Galvanização' },
+  mon: { id: 'wc-mon', code: 'SET-MON-001', name: 'Montagem' },
+};
+
+function produtosBase(): ProdutoFake[] {
+  return [
+    { id: 'p-mod', companyId: EMPRESA, sku: 'MOD-CAR-003', name: 'Carretinha 3', unit: 'UN', type: 'FINISHED_GOOD' },
+    { id: 'p-con', companyId: EMPRESA, sku: 'CON-CHA-003', name: 'Conjunto chassi 3', unit: 'UN', type: 'SEMI_FINISHED' },
+    { id: 'p-long', companyId: EMPRESA, sku: 'PC-LONG', name: 'Longarina', unit: 'UN', type: 'COMPONENT' },
+    { id: 'p-paraf', companyId: EMPRESA, sku: 'PC-PARAF', name: 'Parafuso M8', unit: 'UN', type: 'RAW_MATERIAL' },
+  ];
+}
+
+function passosBase(): PassoFake[] {
+  return [
+    { id: 'rs-mod-1', companyId: EMPRESA, productId: 'p-mod', stepOrder: 1, name: 'Pré-montagem', workCenterId: WC.mon.id, workCenterRef: WC.mon },
+    { id: 'rs-mod-2', companyId: EMPRESA, productId: 'p-mod', stepOrder: 2, name: 'Montagem final', workCenterId: WC.mon.id, workCenterRef: WC.mon },
+    { id: 'rs-con-1', companyId: EMPRESA, productId: 'p-con', stepOrder: 1, name: 'Solda', workCenterId: WC.sol.id, workCenterRef: WC.sol },
+    { id: 'rs-con-2', companyId: EMPRESA, productId: 'p-con', stepOrder: 2, name: 'Galvanização', workCenterId: WC.gal.id, workCenterRef: WC.gal },
+  ];
+}
+
+function bomsBase(): BomFake[] {
+  return [
+    {
+      id: 'bv-mod',
+      companyId: EMPRESA,
+      productId: 'p-mod',
+      version: 1,
+      isActive: true,
+      items: [
+        { id: 'bi-1', componentId: 'p-con', quantity: '1', scrapPct: '0', routingStepId: 'rs-mod-2', unit: 'UN' },
+        { id: 'bi-2', componentId: 'p-paraf', quantity: '20', scrapPct: '10', routingStepId: 'rs-mod-1', unit: 'UN' },
+      ],
+    },
+    {
+      id: 'bv-con',
+      companyId: EMPRESA,
+      productId: 'p-con',
+      version: 1,
+      isActive: true,
+      items: [
+        { id: 'bi-3', componentId: 'p-long', quantity: '2', scrapPct: '0', routingStepId: 'rs-con-1', unit: 'UN' },
+        // Sem routingStepId de propósito: vira UNALLOCATED_COMPONENT.
+        { id: 'bi-4', componentId: 'p-paraf', quantity: '4', scrapPct: '0', routingStepId: null, unit: 'UN' },
+      ],
+    },
+  ];
+}
+
+interface Cenario {
+  produtos?: ProdutoFake[];
+  passos?: PassoFake[];
+  boms?: BomFake[];
+}
+
+/** Mock de Prisma SOMENTE LEITURA — só existe `findMany`. */
+function prismaFake(cenario: Cenario = {}) {
+  const produtos = cenario.produtos ?? produtosBase();
+  const passos = cenario.passos ?? passosBase();
+  const boms = cenario.boms ?? bomsBase();
+
+  const idsDe = (where: any): string[] | null => where?.id?.in ?? null;
+
+  return {
+    product: {
+      findMany: jest.fn(async ({ where }: any) => {
+        const ids = idsDe(where);
+        return produtos.filter(
+          (p) => p.companyId === where.companyId && (ids === null || ids.includes(p.id)),
+        );
+      }),
+    },
+    routingStep: {
+      findMany: jest.fn(async ({ where }: any) => {
+        const ids: string[] | null = where?.productId?.in ?? null;
+        return passos
+          .filter(
+            (s) => s.companyId === where.companyId && (ids === null || ids.includes(s.productId)),
+          )
+          .sort((a, b) => a.productId.localeCompare(b.productId) || a.stepOrder - b.stepOrder);
+      }),
+    },
+    bomVersion: {
+      findMany: jest.fn(async ({ where }: any) =>
+        boms
+          .filter((b) => b.companyId === where.companyId && b.isActive === where.isActive)
+          .sort(
+            (a, b) =>
+              a.productId.localeCompare(b.productId) ||
+              b.version - a.version ||
+              a.id.localeCompare(b.id),
+          ),
+      ),
+    },
+  };
+}
+
+async function montar(cenario: Cenario = {}) {
+  const prisma = prismaFake(cenario);
+  const mod = await Test.createTestingModule({
+    providers: [DispatchService, BomExplosionService, { provide: PrismaService, useValue: prisma }],
+  }).compile();
+
+  return { service: mod.get(DispatchService), prisma };
+}
+
+const CARRINHO = { items: [{ productId: 'p-mod', quantity: 10 }] };
+
+/** Acha a operação de um produto num centro de trabalho. */
+function operacao(res: DispatchResult, code: string, sku: string, stepOrder: number): DispatchOperation {
+  const wc = res.workCenters.find((w) => w.code === code);
+  if (!wc) throw new Error(`centro de trabalho ${code} não veio na resposta`);
+  const op = wc.operations.find((o) => o.os.sku === sku && o.stepOrder === stepOrder);
+  if (!op) throw new Error(`operação ${sku}/${stepOrder} não veio em ${code}`);
+  return op;
+}
+
+describe('DispatchService (#817) — despacho por setor', () => {
+  describe('cenário completo da fábrica', () => {
+    let res: DispatchResult;
+
+    beforeAll(async () => {
+      const { service } = await montar();
+      res = await service.dispatch(EMPRESA, CARRINHO);
+    });
+
+    it('devolve o carrinho resolvido para SKU e nome', () => {
+      expect(res.cart).toEqual([
+        { productId: 'p-mod', sku: 'MOD-CAR-003', name: 'Carretinha 3', unit: 'UN', quantity: '10' },
+      ]);
+    });
+
+    it('agrupa por centro de trabalho, ordenado por código', () => {
+      expect(res.workCenters.map((w) => w.code)).toEqual([
+        'SET-GAL-001',
+        'SET-MON-001',
+        'SET-SOL-002',
+      ]);
+    });
+
+    // ── Critério 1: BOM multinível ────────────────────────────────────────
+    it('explode a BOM multinível: o conjunto de nível 2 vira OS na Solda', () => {
+      const op = operacao(res, 'SET-SOL-002', 'CON-CHA-003', 1);
+      expect(op.os.quantity).toBe('10');
+      expect(op.stepName).toBe('Solda');
+    });
+
+    // ── Critério 2: scrapPct por nível, Decimal preservado ────────────────
+    it('aplica scrapPct no nível certo: 10 × 20 × 1,10 = 220 exatos', () => {
+      const op = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+      const paraf = op.oc.find((i) => i.sku === 'PC-PARAF');
+      expect(paraf?.quantity).toBe('220');
+    });
+
+    // ── Critério 3: O ITEM VINDO DA OPERAÇÃO ANTERIOR ─────────────────────
+    // É o caso que motivou a correção de escopo da issue. Sem ele a OC da
+    // Galvanização sairia vazia, porque um conjunto não é componente de si mesmo.
+    it('a OC da Galvanização recebe o PRÓPRIO conjunto vindo da Solda', () => {
+      const galva = operacao(res, 'SET-GAL-001', 'CON-CHA-003', 2);
+
+      expect(galva.isFirstStep).toBe(false);
+      expect(galva.oc).toHaveLength(1);
+      expect(galva.oc[0]).toMatchObject({
+        sku: 'CON-CHA-003',
+        quantity: '10',
+        originKind: 'PREVIOUS_OPERATION',
+        sourceType: 'WORK_CENTER',
+        fromWorkCenter: { code: 'SET-SOL-002' },
+        fromRoutingStepId: 'rs-con-1',
+        // A passagem entre operações NÃO nasce de linha de BOM.
+        bomItemIds: [],
+      });
+    });
+
+    it('a primeira operação de um roteiro não recebe item de operação anterior', () => {
+      const solda = operacao(res, 'SET-SOL-002', 'CON-CHA-003', 1);
+      expect(solda.isFirstStep).toBe(true);
+      expect(solda.oc.every((i) => i.originKind === 'BOM_COMPONENT')).toBe(true);
+    });
+
+    // ── Critério 4: componentes alocados por BomItem.routingStepId ────────
+    it('coloca cada componente na operação a que foi alocado, e não em outra', () => {
+      const preMontagem = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+      const montagemFinal = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 2);
+
+      // bi-2 (parafuso) → passo 1; bi-1 (conjunto) → passo 2.
+      expect(preMontagem.oc.map((i) => i.sku)).toEqual(['PC-PARAF']);
+      expect(preMontagem.oc[0].bomItemIds).toEqual(['bi-2']);
+
+      const doBom = montagemFinal.oc.filter((i) => i.originKind === 'BOM_COMPONENT');
+      expect(doBom.map((i) => i.sku)).toEqual(['CON-CHA-003']);
+      expect(doBom[0].bomItemIds).toEqual(['bi-1']);
+    });
+
+    // ── Critério 5: as três origens ───────────────────────────────────────
+    it('classifica origem WORK_CENTER para componente fabricado (última operação do roteiro dele)', () => {
+      const montagemFinal = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 2);
+      const conjunto = montagemFinal.oc.find((i) => i.originKind === 'BOM_COMPONENT');
+
+      // O conjunto fica pronto na ÚLTIMA operação do próprio roteiro — a
+      // Galvanização —, não na primeira.
+      expect(conjunto).toMatchObject({
+        sourceType: 'WORK_CENTER',
+        fromWorkCenter: { code: 'SET-GAL-001' },
+        fromRoutingStepId: 'rs-con-2',
+      });
+    });
+
+    it('classifica origem EXTERNAL_OR_STOCK para componente sem roteiro (comprado)', () => {
+      const solda = operacao(res, 'SET-SOL-002', 'CON-CHA-003', 1);
+      expect(solda.oc[0]).toMatchObject({
+        sku: 'PC-LONG',
+        quantity: '20',
+        sourceType: 'EXTERNAL_OR_STOCK',
+        fromWorkCenter: null,
+        fromRoutingStepId: null,
+      });
+    });
+
+    // ── Critério 6: nada some em silêncio ─────────────────────────────────
+    it('BomItem sem routingStepId vira pendência UNALLOCATED_COMPONENT com quantidade', () => {
+      const pend = res.pendencies.filter((p) => p.code === 'UNALLOCATED_COMPONENT');
+      expect(pend).toHaveLength(1);
+      expect(pend[0]).toMatchObject({ sku: 'PC-PARAF', quantity: '40' });
+      expect(pend[0].detail).toContain('CON-CHA-003');
+    });
+
+    it('o parafuso não alocado NÃO aparece em nenhuma OC da Solda', () => {
+      const solda = operacao(res, 'SET-SOL-002', 'CON-CHA-003', 1);
+      expect(solda.oc.some((i) => i.sku === 'PC-PARAF')).toBe(false);
+    });
+
+    it('não inventa inconsistência quando a estrutura está sã', () => {
+      expect(res.inconsistencies).toEqual([]);
+    });
+  });
+
+  // ── Critério 10: NENHUMA escrita ─────────────────────────────────────────
+  describe('somente leitura', () => {
+    it('não chama nada além de findMany (o mock só expõe leitura)', async () => {
+      const { service, prisma } = await montar();
+      await service.dispatch(EMPRESA, CARRINHO);
+
+      expect(prisma.product.findMany).toHaveBeenCalled();
+      expect(prisma.routingStep.findMany).toHaveBeenCalled();
+      expect(prisma.bomVersion.findMany).toHaveBeenCalled();
+      // Nem MrpRun, nem Ordem de Produção, nem AuditLog de escrita.
+      expect(Object.keys(prisma)).toEqual(['product', 'routingStep', 'bomVersion']);
+      for (const modelo of Object.values(prisma)) {
+        expect(Object.keys(modelo)).toEqual(['findMany']);
+      }
+    });
+
+    it('todas as consultas são escopadas pelo companyId recebido', async () => {
+      const { service, prisma } = await montar();
+      await service.dispatch(EMPRESA, CARRINHO);
+
+      for (const modelo of Object.values(prisma)) {
+        for (const chamada of modelo.findMany.mock.calls) {
+          expect(chamada[0].where.companyId).toBe(EMPRESA);
+        }
+      }
+    });
+  });
+
+  // ── Critério 7: multi-tenancy ────────────────────────────────────────────
+  describe('isolamento entre empresas', () => {
+    it('recusa produto que não é da empresa do JWT', async () => {
+      const { service } = await montar();
+      await expect(
+        service.dispatch(EMPRESA, { items: [{ productId: 'p-de-outra-empresa', quantity: 1 }] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('a mensagem diz qual produto não foi encontrado', async () => {
+      const { service } = await montar();
+      await expect(
+        service.dispatch(EMPRESA, { items: [{ productId: 'p-fantasma', quantity: 1 }] }),
+      ).rejects.toThrow(/p-fantasma/);
+    });
+
+    it('não devolve dado de outra empresa quando o mesmo id existe nas duas', async () => {
+      const { service } = await montar({
+        produtos: [
+          ...produtosBase(),
+          { id: 'p-mod', companyId: 'c2', sku: 'OUTRA', name: 'Outra', unit: 'UN', type: 'FINISHED_GOOD' },
+        ],
+      });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+      expect(res.cart[0].sku).toBe('MOD-CAR-003');
+    });
+  });
+
+  // ── Critério 8: carrinho vazio ───────────────────────────────────────────
+  describe('carrinho vazio', () => {
+    it('devolve despacho vazio, sem erro e sem ir ao banco', async () => {
+      const { service, prisma } = await montar();
+      const res = await service.dispatch(EMPRESA, { items: [] });
+
+      expect(res).toEqual({ cart: [], workCenters: [], pendencies: [], inconsistencies: [] });
+      expect(prisma.product.findMany).not.toHaveBeenCalled();
+      expect(prisma.bomVersion.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Critério 11: BOM ativa ambígua (#981) ────────────────────────────────
+  describe('duas BOMs ativas para o mesmo produto', () => {
+    const comDuasAtivas = (): BomFake[] => [
+      ...bomsBase(),
+      {
+        id: 'bv-mod-v2',
+        companyId: EMPRESA,
+        productId: 'p-mod',
+        version: 2,
+        isActive: true,
+        items: [
+          { id: 'bi-9', componentId: 'p-paraf', quantity: '99', scrapPct: '0', routingStepId: 'rs-mod-1', unit: 'UN' },
+        ],
+      },
+    ];
+
+    it('escolhe a maior versão e denuncia a ambiguidade', async () => {
+      const { service } = await montar({ boms: comDuasAtivas() });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      expect(res.inconsistencies).toHaveLength(1);
+      expect(res.inconsistencies[0]).toMatchObject({
+        code: 'AMBIGUOUS_ACTIVE_BOM',
+        productId: 'p-mod',
+      });
+
+      // Venceu a v2: 10 × 99 parafusos, e o conjunto (só na v1) não entra.
+      const op = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+      expect(op.oc.find((i) => i.sku === 'PC-PARAF')?.quantity).toBe('990');
+    });
+
+    it('a escolha não depende da ordem em que as BOMs voltam do banco', async () => {
+      const direta = await montar({ boms: comDuasAtivas() });
+      const invertida = await montar({ boms: [...comDuasAtivas()].reverse() });
+
+      const a = await direta.service.dispatch(EMPRESA, CARRINHO);
+      const b = await invertida.service.dispatch(EMPRESA, CARRINHO);
+      expect(a).toEqual(b);
+    });
+  });
+
+  // ── Pendências de roteiro ────────────────────────────────────────────────
+  describe('pendências de cadastro', () => {
+    it('MISSING_ROUTING — item fabricado sem nenhuma operação', async () => {
+      const { service } = await montar({
+        passos: passosBase().filter((s) => s.productId !== 'p-con'),
+      });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      const pend = res.pendencies.find((p) => p.code === 'MISSING_ROUTING');
+      expect(pend).toMatchObject({ sku: 'CON-CHA-003', quantity: '10' });
+      // E o conjunto não aparece como OS em setor nenhum.
+      expect(res.workCenters.some((w) => w.operations.some((o) => o.os.sku === 'CON-CHA-003'))).toBe(
+        false,
+      );
+    });
+
+    it('MISSING_WORK_CENTER — a operação existe mas não aponta para setor', async () => {
+      const { service } = await montar({
+        passos: passosBase().map((s) =>
+          s.id === 'rs-con-1' ? { ...s, workCenterId: null, workCenterRef: null } : s,
+        ),
+      });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      const pend = res.pendencies.find((p) => p.code === 'MISSING_WORK_CENTER');
+      expect(pend).toMatchObject({ sku: 'CON-CHA-003', routingStepId: 'rs-con-1' });
+      // O texto diz quantos itens da OC ficaram de fora junto — o tamanho do
+      // problema não pode ficar escondido.
+      expect(pend?.detail).toContain('1 item(ns) da OC');
+      expect(res.workCenters.some((w) => w.code === 'SET-SOL-002')).toBe(false);
+    });
+
+    it('MISSING_ACTIVE_BOM — semiacabado sem BOM ativa', async () => {
+      const { service } = await montar({ boms: bomsBase().filter((b) => b.productId !== 'p-con') });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      expect(res.pendencies.find((p) => p.code === 'MISSING_ACTIVE_BOM')).toMatchObject({
+        sku: 'CON-CHA-003',
+        quantity: '10',
+      });
+    });
+
+    it('componente comprado sem BOM NÃO vira pendência (é o caso normal)', async () => {
+      const { service } = await montar();
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      expect(res.pendencies.some((p) => p.code === 'MISSING_ACTIVE_BOM')).toBe(false);
+    });
+
+    it('ROUTING_STEP_MISMATCH — alocação aponta para operação de outro produto', async () => {
+      const { service } = await montar({
+        boms: bomsBase().map((b) =>
+          b.id === 'bv-con'
+            ? { ...b, items: b.items.map((i) => (i.id === 'bi-3' ? { ...i, routingStepId: 'rs-mod-1' } : i)) }
+            : b,
+        ),
+      });
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+
+      expect(res.pendencies.find((p) => p.code === 'ROUTING_STEP_MISMATCH')).toMatchObject({
+        sku: 'PC-LONG',
+        routingStepId: 'rs-mod-1',
+      });
+      // E a longarina não é entregue na Pré-montagem por engano.
+      const preMontagem = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+      expect(preMontagem.oc.some((i) => i.sku === 'PC-LONG')).toBe(false);
+    });
+
+    it('as pendências vêm ordenadas de forma estável', async () => {
+      const { service } = await montar();
+      const a = await service.dispatch(EMPRESA, CARRINHO);
+      const b = await service.dispatch(EMPRESA, CARRINHO);
+      expect(a.pendencies).toEqual(b.pendencies);
+    });
+  });
+
+  // ── Ciclo e profundidade (critério 9) ────────────────────────────────────
+  describe('estrutura de produto defeituosa', () => {
+    it('ciclo de BOM não trava a chamada e vira inconsistência', async () => {
+      const { service } = await montar({
+        boms: [
+          ...bomsBase(),
+          {
+            id: 'bv-long',
+            companyId: EMPRESA,
+            productId: 'p-long',
+            version: 1,
+            isActive: true,
+            // A longarina volta a pedir o conjunto que a contém.
+            items: [
+              { id: 'bi-ciclo', componentId: 'p-con', quantity: '1', scrapPct: '0', routingStepId: null, unit: 'UN' },
+            ],
+          },
+        ],
+      });
+
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+      expect(res.inconsistencies.some((i) => i.code === 'BOM_CYCLE')).toBe(true);
+      // A chamada terminou e o resto da fábrica continua despachado.
+      expect(res.workCenters.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Quantidades somadas entre ramos ──────────────────────────────────────
+  describe('o mesmo componente entrando por dois caminhos', () => {
+    it('soma as quantidades dos dois ramos na mesma operação', async () => {
+      const { service } = await montar({
+        boms: bomsBase().map((b) =>
+          b.id === 'bv-mod'
+            ? {
+                ...b,
+                items: [
+                  ...b.items,
+                  // Segunda linha do MESMO parafuso, na MESMA operação.
+                  { id: 'bi-extra', componentId: 'p-paraf', quantity: '5', scrapPct: '0', routingStepId: 'rs-mod-1', unit: 'UN' },
+                ],
+              }
+            : b,
+        ),
+      });
+
+      const res = await service.dispatch(EMPRESA, CARRINHO);
+      const op = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+      const paraf = op.oc.filter((i) => i.sku === 'PC-PARAF');
+
+      // Uma única linha de OC (o setor recebe parafuso uma vez só)...
+      expect(paraf).toHaveLength(1);
+      // ...com a soma dos dois: 220 + 50.
+      expect(paraf[0].quantity).toBe('270');
+      // ...e as duas linhas de BOM rastreadas.
+      expect(paraf[0].bomItemIds.sort()).toEqual(['bi-2', 'bi-extra']);
+    });
+  });
+});
