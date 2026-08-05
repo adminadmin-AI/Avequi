@@ -41,3 +41,10 @@ npm-debug.log*
 # Vercel local
 .vercel/
 .vercel
+
+# Rollout de permissões IAM (#1011): manifestos de execução ficam FORA do repo.
+# Eles descrevem o estado de um ambiente específico e servem ao rollback dele —
+# versionar seria confundir "o que aconteceu num banco" com "o que o código é".
+rollout-*.json
+*.dump
+*.sql.gz

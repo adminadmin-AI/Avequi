@@ -99,10 +99,61 @@ if (!url) {
   );
 }
 
+/**
+ * Trava entre os specs de INTEGRAÇÃO do IAM (#1011).
+ *
+ * Este spec e o do rollout de permissões compartilham UM banco e os dois criam
+ * perfis GLOBAIS (`companyId = null`) com os mesmos codes — `ADMIN_GLOBAL`
+ * aparece nos dois. A unicidade de code global vem de um índice parcial criado
+ * em migration SQL, e o CI aplica o SCHEMA com `prisma db push`: no banco do
+ * job, dois `ADMIN_GLOBAL` globais podem coexistir. Como o Jest distribui
+ * ARQUIVOS entre workers, os dois specs podem rodar ao mesmo tempo e um
+ * enxergar o perfil do outro.
+ *
+ * O advisory lock do próprio Postgres resolve: quem chegar depois espera. Ele
+ * vive num client dedicado com UMA conexão, porque lock de sessão mora na
+ * CONEXÃO — num pool, travar e destravar cairiam em conexões diferentes.
+ */
+const CHAVE_DA_TRAVA = 1011;
+
+function urlComUmaConexao(u: string): string {
+  const parsed = new URL(u);
+  parsed.searchParams.set('connection_limit', '1');
+  return parsed.toString();
+}
+
+/**
+ * `pg_try_advisory_lock` e não `pg_advisory_lock` porque a versão bloqueante
+ * devolve `void`, e o client do Prisma não desserializa coluna desse tipo. A
+ * versão "try" devolve booleano — e ainda permite um limite de espera com
+ * mensagem, em vez de um job pendurado até o timeout do GitHub.
+ */
+async function travarBanco(cliente: PrismaClient): Promise<void> {
+  const limite = Date.now() + 240_000;
+  for (;;) {
+    const [linha] = await cliente.$queryRawUnsafe<Array<{ ok: boolean }>>(
+      `SELECT pg_try_advisory_lock(${CHAVE_DA_TRAVA}) AS ok`,
+    );
+    if (linha?.ok) return;
+    if (Date.now() > limite) {
+      throw new Error(
+        `[#752/#1011] esperei 4 minutos pela trava ${CHAVE_DA_TRAVA} dos specs de ` +
+          `integração do IAM e ela não foi liberada.`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+async function destravarBanco(cliente: PrismaClient): Promise<void> {
+  await cliente.$queryRawUnsafe(`SELECT pg_advisory_unlock(${CHAVE_DA_TRAVA}) AS ok`);
+}
+
 const d = url ? describe : describe.skip;
 
 d('LastAdminInvariantService — integração Postgres real (#752)', () => {
   let prisma: PrismaClient;
+  let trava: PrismaClient;
   let service: LastAdminInvariantService;
   let rootId: string;
   let filhaId: string;
@@ -115,6 +166,9 @@ d('LastAdminInvariantService — integração Postgres real (#752)', () => {
   };
 
   beforeAll(async () => {
+    trava = new PrismaClient({ datasources: { db: { url: urlComUmaConexao(url as string) } } });
+    await travarBanco(trava);
+
     prisma = new PrismaClient({ datasources: { db: { url } } });
     // O service só usa company.findUnique, userRoleAssignment.count e
     // $transaction — o client puro cumpre o contrato do PrismaService aqui.
@@ -168,6 +222,10 @@ d('LastAdminInvariantService — integração Postgres real (#752)', () => {
       await prisma.company.delete({ where: { id } }).catch(() => undefined);
     }
     await prisma.$disconnect();
+    if (trava) {
+      await destravarBanco(trava);
+      await trava.$disconnect();
+    }
   }, 60_000);
 
   const reativarTodos = async () => {
