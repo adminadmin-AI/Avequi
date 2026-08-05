@@ -136,6 +136,34 @@ function urlComUmaConexao(u: string): string {
   return parsed.toString();
 }
 
+/**
+ * `pg_try_advisory_lock` e não `pg_advisory_lock` por um detalhe do Prisma:
+ * a versão bloqueante devolve `void`, e o client não consegue desserializar
+ * coluna desse tipo. A versão "try" devolve booleano — e de quebra dá o que a
+ * bloqueante não daria: um limite de espera com mensagem explicando o que
+ * aconteceu, em vez de um job pendurado até o timeout do GitHub.
+ */
+async function travarBanco(cliente: PrismaClient): Promise<void> {
+  const limite = Date.now() + 240_000;
+  for (;;) {
+    const [linha] = await cliente.$queryRawUnsafe<Array<{ ok: boolean }>>(
+      `SELECT pg_try_advisory_lock(${CHAVE_DA_TRAVA}) AS ok`,
+    );
+    if (linha?.ok) return;
+    if (Date.now() > limite) {
+      throw new Error(
+        `[#1011] esperei 4 minutos pela trava ${CHAVE_DA_TRAVA} dos specs de integração ` +
+          `do IAM e ela não foi liberada. Provável spec anterior que morreu sem soltar.`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+async function destravarBanco(cliente: PrismaClient): Promise<void> {
+  await cliente.$queryRawUnsafe(`SELECT pg_advisory_unlock(${CHAVE_DA_TRAVA}) AS ok`);
+}
+
 const d = url ? describe : describe.skip;
 
 d('#1011 — rollout de permissões em PostgreSQL real', () => {
@@ -183,7 +211,7 @@ d('#1011 — rollout de permissões em PostgreSQL real', () => {
 
   beforeAll(async () => {
     trava = new PrismaClient({ datasources: { db: { url: urlComUmaConexao(url as string) } } });
-    await trava.$queryRawUnsafe(`SELECT pg_advisory_lock(${CHAVE_DA_TRAVA})`);
+    await travarBanco(trava);
 
     prisma = new PrismaClient({ datasources: { db: { url } } });
 
@@ -362,7 +390,7 @@ d('#1011 — rollout de permissões em PostgreSQL real', () => {
       await prisma.$disconnect();
     }
     if (trava) {
-      await trava.$queryRawUnsafe(`SELECT pg_advisory_unlock(${CHAVE_DA_TRAVA})`);
+      await destravarBanco(trava);
       await trava.$disconnect();
     }
   }, 180_000);

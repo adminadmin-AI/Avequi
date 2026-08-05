@@ -122,6 +122,33 @@ function urlComUmaConexao(u: string): string {
   return parsed.toString();
 }
 
+/**
+ * `pg_try_advisory_lock` e não `pg_advisory_lock` porque a versão bloqueante
+ * devolve `void`, e o client do Prisma não desserializa coluna desse tipo. A
+ * versão "try" devolve booleano — e ainda permite um limite de espera com
+ * mensagem, em vez de um job pendurado até o timeout do GitHub.
+ */
+async function travarBanco(cliente: PrismaClient): Promise<void> {
+  const limite = Date.now() + 240_000;
+  for (;;) {
+    const [linha] = await cliente.$queryRawUnsafe<Array<{ ok: boolean }>>(
+      `SELECT pg_try_advisory_lock(${CHAVE_DA_TRAVA}) AS ok`,
+    );
+    if (linha?.ok) return;
+    if (Date.now() > limite) {
+      throw new Error(
+        `[#752/#1011] esperei 4 minutos pela trava ${CHAVE_DA_TRAVA} dos specs de ` +
+          `integração do IAM e ela não foi liberada.`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+async function destravarBanco(cliente: PrismaClient): Promise<void> {
+  await cliente.$queryRawUnsafe(`SELECT pg_advisory_unlock(${CHAVE_DA_TRAVA}) AS ok`);
+}
+
 const d = url ? describe : describe.skip;
 
 d('LastAdminInvariantService — integração Postgres real (#752)', () => {
@@ -140,7 +167,7 @@ d('LastAdminInvariantService — integração Postgres real (#752)', () => {
 
   beforeAll(async () => {
     trava = new PrismaClient({ datasources: { db: { url: urlComUmaConexao(url as string) } } });
-    await trava.$queryRawUnsafe(`SELECT pg_advisory_lock(${CHAVE_DA_TRAVA})`);
+    await travarBanco(trava);
 
     prisma = new PrismaClient({ datasources: { db: { url } } });
     // O service só usa company.findUnique, userRoleAssignment.count e
@@ -196,7 +223,7 @@ d('LastAdminInvariantService — integração Postgres real (#752)', () => {
     }
     await prisma.$disconnect();
     if (trava) {
-      await trava.$queryRawUnsafe(`SELECT pg_advisory_unlock(${CHAVE_DA_TRAVA})`);
+      await destravarBanco(trava);
       await trava.$disconnect();
     }
   }, 60_000);
