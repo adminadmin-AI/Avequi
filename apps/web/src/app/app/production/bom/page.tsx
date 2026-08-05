@@ -104,13 +104,13 @@ export default function BomPage() {
         <CardContent className="py-5">
           <Label>Produto pai</Label>
           <Combobox
-            options={products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
+            options={products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
             value={productId}
             onValueChange={(v) => {
               setProductId(v);
               setSelectedVersionId('');
             }}
-            placeholder="— Selecione um produto —"
+            placeholder="Selecione um produto"
             searchPlaceholder="Buscar por SKU ou nome..."
             clearable
             className="max-w-md"
@@ -161,7 +161,7 @@ export default function BomPage() {
 
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <CardTitle className="text-base">Componentes — v{selected?.version}</CardTitle>
+              <CardTitle className="text-base">Componentes (v{selected?.version})</CardTitle>
               {selected && !selected.isActive && (
                 <Button
                   onClick={() =>
@@ -205,7 +205,8 @@ export default function BomPage() {
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
               O BOM é <strong>versionado e imutável</strong>: para alterar a estrutura, crie uma
-              <strong> nova versão</strong> e ative-a. Não há edição/remoção de item individual no backend.
+              <strong> nova versão</strong> e ative-a. Não é possível editar nem remover um item
+              individual à parte.
             </span>
           </div>
         </>
@@ -235,10 +236,10 @@ export default function BomPage() {
               <Combobox
                 options={products
                   .filter((p) => p.id !== productId)
-                  .map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
+                  .map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
                 value={newComp}
                 onValueChange={setNewComp}
-                placeholder="— Selecione —"
+                placeholder="Selecione"
                 searchPlaceholder="Buscar por SKU ou nome..."
               />
             </div>
@@ -272,7 +273,7 @@ export default function BomPage() {
                   const p = productMap.get(it.componentId);
                   return (
                     <tr key={idx} className="border-b border-line">
-                      <td className="py-1.5">{p?.sku} — {p?.name}</td>
+                      <td className="py-1.5">{p?.sku} · {p?.name}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.quantity}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.scrapPct}%</td>
                       <td className="py-1.5 text-right">

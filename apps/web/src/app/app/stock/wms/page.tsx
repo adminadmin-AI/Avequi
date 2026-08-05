@@ -5,6 +5,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/rea
 import { PackageCheck, Hand } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -143,7 +144,7 @@ export default function WmsTasksPage() {
           setConfirmTask(null);
           setLocationId('');
         },
-        onError: () => toast.error('Não foi possível confirmar'),
+        onError: (e) => toast.error(erroDeAcao('confirmar a alocação', e)),
       },
     );
   }
@@ -159,7 +160,7 @@ export default function WmsTasksPage() {
       { orderId: t.orderId, taskId: t.id },
       {
         onSuccess: () => toast.success('Pick confirmado'),
-        onError: () => toast.error('Não foi possível confirmar'),
+        onError: (e) => toast.error(erroDeAcao('confirmar a separação', e)),
       },
     );
   }
@@ -258,7 +259,7 @@ export default function WmsTasksPage() {
           <div>
             <Label required>Localização real</Label>
             <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {locsForWarehouse.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.code}
@@ -274,7 +275,7 @@ export default function WmsTasksPage() {
         open={!!serialTask}
         onOpenChange={(o) => !o && setSerialTask(null)}
         title="Escolher chassi separado"
-        description={serialTask ? `${serialTask.product?.name ?? ''} — selecione o chassi do reboque que saiu do pátio` : ''}
+        description={serialTask ? `${serialTask.product?.name ?? ''}: selecione o chassi do reboque que saiu do pátio` : ''}
         formId="serial-pick-form"
         submitLabel="Confirmar pick"
         loading={confirmPick.isPending}
@@ -295,8 +296,7 @@ export default function WmsTasksPage() {
                   toast.success('Pick confirmado com chassi vinculado');
                   setSerialTask(null);
                 },
-                onError: (err: any) =>
-                  toast.error(err?.response?.data?.message ?? 'Não foi possível confirmar'),
+                onError: (err: any) => toast.error(erroDeAcao('confirmar a separação', err)),
               },
             );
           }}
@@ -305,7 +305,7 @@ export default function WmsTasksPage() {
           <div>
             <Label required>Chassi / Serial</Label>
             <Select aria-label="Chassi" value={serialId} onChange={(e) => setSerialId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {serialsDisponiveis.map((sn) => (
                 <option key={sn.id} value={sn.id}>
                   {sn.chassi ?? sn.serial}
@@ -314,7 +314,7 @@ export default function WmsTasksPage() {
             </Select>
             {serialsDisponiveis.length === 0 && (
               <p className="mt-1 text-xs text-content-muted">
-                Nenhum chassi IN_STOCK para este produto — cadastre os seriais do estoque.
+                Nenhum chassi em estoque para este produto. Cadastre os seriais do estoque.
               </p>
             )}
           </div>

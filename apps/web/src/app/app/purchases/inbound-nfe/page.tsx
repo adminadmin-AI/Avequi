@@ -93,7 +93,7 @@ export default function InboundNfePage() {
         setImportOpen(false);
         setXmlContent('');
       },
-      onError: () => toast.error('Falha ao importar — verifique o XML'),
+      onError: () => toast.error('Falha ao importar. Verifique o XML.'),
     });
   }
 
@@ -223,7 +223,7 @@ export default function InboundNfePage() {
     <div>
       <PageHeader
         title="NF-e de entrada"
-        description="Notas fiscais de fornecedores — importação e vínculo com pedidos de compra."
+        description="Notas fiscais de fornecedores: importação e vínculo com pedidos de compra."
         actions={
           <Button onClick={() => setImportOpen(true)}>
             <Plus size={16} />
@@ -276,7 +276,8 @@ export default function InboundNfePage() {
             />
           </div>
           <p className="text-xs text-content-muted">
-            A consulta automática à SEFAZ por chave de acesso não está disponível no backend; use o XML.
+            A consulta automática à SEFAZ por chave de acesso ainda não está disponível. Use o XML
+            por enquanto. Em breve.
           </p>
         </form>
       </FormDialog>
@@ -302,16 +303,16 @@ export default function InboundNfePage() {
           <div>
             <Label required>Pedido de Compra (aprovado)</Label>
             <Select value={linkPoId} onChange={(e) => setLinkPoId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {approvedPOs.map((p) => (
                 <option key={p.id} value={p.id}>
-                  PO #{shortId(p.id)} — {p.supplier?.name ?? 'sem fornecedor'}
+                  PO #{shortId(p.id)} · {p.supplier?.name ?? 'sem fornecedor'}
                 </option>
               ))}
             </Select>
           </div>
           <p className="text-xs text-content-muted">
-            Ao vincular, o backend gera o recebimento (GR) e a conta a pagar automaticamente.
+            Ao vincular, o recebimento e a conta a pagar são gerados automaticamente.
           </p>
         </form>
       </FormDialog>

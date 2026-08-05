@@ -46,10 +46,10 @@ export function ScheduleForm({
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
       <Field label="Pagável (em aberto)" required error={errors.financialEntryId?.message}>
         <Select {...register('financialEntryId')} error={!!errors.financialEntryId}>
-          <option value="">— Selecione —</option>
+          <option value="">Selecione</option>
           {payables.map((p) => {
             const supplier = p.purchaseOrder?.supplier?.name;
-            const label = `${p.description ?? 'Lançamento'}${supplier ? ` — ${supplier}` : ''} (${formatBRL(Number(p.amount))})`;
+            const label = `${p.description ?? 'Lançamento'}${supplier ? ` · ${supplier}` : ''} (${formatBRL(Number(p.amount))})`;
             return (
               <option key={p.id} value={p.id}>
                 {label}
@@ -62,7 +62,7 @@ export function ScheduleForm({
       <div className="grid grid-cols-2 gap-4">
         <Field label="Conta a debitar" required error={errors.bankAccountId?.message}>
           <Select {...register('bankAccountId')} error={!!errors.bankAccountId}>
-            <option value="">— Selecione —</option>
+            <option value="">Selecione</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}

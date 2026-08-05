@@ -91,7 +91,7 @@ export function DisableMfaDialog({
               <ShieldAlert size={14} className="mt-0.5 shrink-0" />
               <span>
                 O portal da operadora exige MFA ativo. Se você é operador da Avecchi, perde o acesso
-                ao console assim que desativar — só volta reativando aqui.
+                ao console assim que desativar. Só volta reativando aqui.
               </span>
             </p>
 

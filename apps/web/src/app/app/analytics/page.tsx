@@ -241,11 +241,10 @@ export default function AnalyticsPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          Gráficos sobre os endpoints reais de <code>/analytics</code> e <code>/finance</code> (sales-cube,
-          production-costs, inventory-aging, summary e DRE). A seção Financeiro usa o DRE realizado
-          (<code>/finance/reports/dre</code>). Ainda <strong>sem endpoint</strong>: "margem bruta por produto",
-          "OPs planejadas vs concluídas" e "lead time médio" (pendência #247). O filtro de período afeta
-          Comercial, Financeiro e Produção; Estoque é um retrato atual.
+          Os gráficos usam dados reais de vendas, produção, estoque e o DRE realizado. Ainda não
+          temos <strong>"margem bruta por produto"</strong>, "ordens de produção planejadas vs.
+          concluídas" nem "prazo de entrega médio". O filtro de período afeta Comercial, Financeiro
+          e Produção; Estoque mostra a posição atual. Em breve.
         </span>
       </div>
 

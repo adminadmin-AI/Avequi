@@ -6,6 +6,7 @@ import { Loader2, Send } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 interface Template {
   id: string;
@@ -49,7 +50,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
       toast.success('Template enviado');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao enviar template'),
+    onError: (e: any) => toast.error(erroDeAcao('enviar o template', e)),
   });
 
   const preview = useMemo(() => {
@@ -60,7 +61,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
   if (templates.length === 0) {
     return (
       <p className="text-center text-xs text-content-muted">
-        Janela de 24h expirada. Nenhum template aprovado — sincronize no menu do funil (gerente).
+        Janela de 24h expirada. Nenhum template aprovado. Sincronize no menu do funil (gerente).
       </p>
     );
   }
@@ -68,7 +69,7 @@ export function TemplateSender({ leadId }: { leadId: string }) {
   return (
     <div className="space-y-2">
       <p className="text-center text-xs text-content-muted">
-        Janela de 24h expirada — reengaje com um template aprovado (custo Meta).
+        Janela de 24h expirada. Reengaje com um template aprovado (custo Meta).
       </p>
       <select
         className="w-full rounded-md border bg-surface px-2 py-2 text-sm"

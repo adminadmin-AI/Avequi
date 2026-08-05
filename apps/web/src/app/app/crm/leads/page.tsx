@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { DateRangePicker, dateToISO, isoToDate } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { SOURCE_LABEL, StageRef } from '../inbox/inbox-types';
 import { LOST_REASON_OPTIONS, type LostReasonCategory } from '@/lib/crm-lost-reasons';
 
@@ -162,7 +163,7 @@ export default function LeadListPage() {
         })
       ).data,
     onSuccess: afterBulk,
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha na reatribuição'),
+    onError: (e: any) => toast.error(erroDeAcao('reatribuir os leads', e)),
   });
 
   // LGPD (#558): anonimização a pedido do titular — irreversível, 2 passos
@@ -201,7 +202,7 @@ export default function LeadListPage() {
         })
       ).data,
     onSuccess: afterBulk,
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha na mudança de estágio'),
+    onError: (e: any) => toast.error(erroDeAcao('mudar o estágio dos leads', e)),
   });
 
   async function exportCsv() {

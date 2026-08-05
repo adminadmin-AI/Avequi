@@ -167,7 +167,7 @@ export default function AccountSecurityPage() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-secondary px-3 py-2.5 text-caption text-content-secondary">
           <span className="flex items-start gap-2">
             <KeyRound size={16} className="mt-px shrink-0 text-content-muted" />
-            Sua senha continua sendo a primeira barreira — troque-a se suspeitar de qualquer acesso
+            Sua senha continua sendo a primeira barreira. Troque-a se suspeitar de qualquer acesso
             indevido.
           </span>
           <Link

@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail, useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { ProductionOrder, ProductionOrderStatus, StockBalance } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -102,11 +103,18 @@ export default function ProductionDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
   });
 
+  const ACTION_SUCCESS: Record<ProductionAction['endpoint'], string> = {
+    release: 'Ordem liberada para produção',
+    start: 'Produção iniciada',
+    complete: 'Ordem de produção concluída',
+    cancel: 'Ordem de produção cancelada',
+  };
+
   function runAction(a: ProductionAction) {
     const doIt = () =>
       transition.mutate(a.endpoint, {
-        onSuccess: () => toast.success('Status atualizado'),
-        onError: () => toast.error('Não foi possível executar a ação'),
+        onSuccess: () => toast.success(ACTION_SUCCESS[a.endpoint]),
+        onError: (e) => toast.error(erroDeAcao('atualizar a ordem de produção', e)),
       });
     if (a.endpoint === 'cancel' || a.endpoint === 'complete') {
       confirm({

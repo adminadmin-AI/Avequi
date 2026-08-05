@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Can } from '@/components/can';
 import { formatBRL, formatDateTime } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { FISCAL_STATUS, FISCAL_TYPE_LABEL, FISCAL_FINALIDADE_LABEL, TIPO_NOTA_DEBITO_LABEL, TIPO_NOTA_CREDITO_LABEL } from '../fiscal-status';
 import { AdjustmentNoteDialog } from '../adjustment-note-dialog';
 
@@ -83,7 +84,7 @@ export default function FiscalDetailPage() {
         ok &&
         retry.mutate(undefined, {
           onSuccess: () => toast.success('Documento reenviado para processamento'),
-          onError: () => toast.error('Falha ao reprocessar'),
+          onError: (e: unknown) => toast.error(erroDeAcao('reprocessar o documento', e)),
         }),
     );
   }
@@ -95,7 +96,7 @@ export default function FiscalDetailPage() {
         setCancelOpen(false);
         setJustificativa('');
       },
-      onError: () => toast.error('Falha ao cancelar'),
+      onError: (e: unknown) => toast.error(erroDeAcao('cancelar o documento', e)),
     });
   }
   function submitCce() {
@@ -106,7 +107,7 @@ export default function FiscalDetailPage() {
         setCceOpen(false);
         setCorrecao('');
       },
-      onError: () => toast.error('Falha ao emitir CC-e'),
+      onError: (e: unknown) => toast.error(erroDeAcao('emitir a carta de correção', e)),
     });
   }
   function submitReturn() {
@@ -116,7 +117,7 @@ export default function FiscalDetailPage() {
         setReturnOpen(false);
         setReturnMotivo('');
       },
-      onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Falha ao emitir NF-e de devolução'),
+      onError: (err: any) => toast.error(erroDeAcao('emitir a NF-e de devolução', err)),
     });
   }
 
@@ -321,7 +322,8 @@ export default function FiscalDetailPage() {
             </table>
           )}
           <p className="mt-3 text-xs text-content-muted">
-            Itens exibidos a partir da OV vinculada. Download do XML não disponível (sem endpoint no backend).
+            Itens exibidos a partir do pedido de venda vinculado. O download do XML ainda não está
+            disponível. Em breve.
           </p>
         </CardContent>
       </Card>
@@ -339,7 +341,7 @@ export default function FiscalDetailPage() {
                 className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline dark:text-brand-400"
               >
                 <Link2 size={14} />
-                Referencia {FISCAL_TYPE_LABEL[doc.referencedDocument.type]} {doc.referencedDocument.number ?? '—'}/{doc.referencedDocument.series ?? 1}
+                Referência {FISCAL_TYPE_LABEL[doc.referencedDocument.type]} {doc.referencedDocument.number ?? '—'}/{doc.referencedDocument.series ?? 1}
               </Link>
             )}
             {doc.referencingDocuments && doc.referencingDocuments.length > 0 && (

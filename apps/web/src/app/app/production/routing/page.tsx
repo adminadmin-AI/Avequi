@@ -131,10 +131,10 @@ export default function RoutingPage() {
         <CardContent className="py-5">
           <Label>Produto</Label>
           <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="max-w-md">
-            <option value="">— Selecione um produto —</option>
+            <option value="">Selecione um produto</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.sku} — {p.name}
+                {p.sku} · {p.name}
               </option>
             ))}
           </Select>

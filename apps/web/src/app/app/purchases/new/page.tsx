@@ -102,11 +102,11 @@ export default function NewPurchaseOrderPage() {
           <div>
             <Label required>Fornecedor</Label>
             <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
-                  {s.cnpj ? ` — ${s.cnpj}` : ''}
+                  {s.cnpj ? ` · ${s.cnpj}` : ''}
                 </option>
               ))}
             </Select>
@@ -129,10 +129,10 @@ export default function NewPurchaseOrderPage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">— Selecione —</option>
+                <option value="">Selecione</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>

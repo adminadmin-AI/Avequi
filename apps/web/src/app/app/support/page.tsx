@@ -46,7 +46,7 @@ export default function SupportPage() {
   function handleSubmit(values: CreateIncidentPayload) {
     create.mutate(values, {
       onSuccess: (data) => {
-        toast.success(`Recebemos seu reporte — protocolo ${data.protocol}`);
+        toast.success(`Recebemos seu reporte: protocolo ${data.protocol}`);
         setDialogOpen(false);
       },
       onError: () => toast.error('Erro ao enviar o reporte'),
@@ -108,7 +108,7 @@ export default function SupportPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         title="Reportar problema"
-        description="Conte o que aconteceu — nosso time vai analisar."
+        description="Conte o que aconteceu. Nosso time vai analisar."
         formId="incident-form"
         loading={create.isPending}
       >

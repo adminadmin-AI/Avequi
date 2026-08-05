@@ -222,7 +222,7 @@ export function QuickNotesWidget(_: WidgetComponentProps) {
             <EmptyState
               icon={StickyNote}
               title="Nenhuma nota no mural"
-              hint={canManage ? 'Fixe um lembrete rápido — só seu.' : 'Nada por aqui.'}
+              hint={canManage ? 'Fixe um lembrete rápido: só seu.' : 'Nada por aqui.'}
             />
             {canManage && (
               <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ function PostIt({
               onArchive();
             }}
             aria-label="Arrancar nota (vai para as arquivadas)"
-            title="Arrancar — vai para as arquivadas"
+            title="Arrancar nota (vai para as arquivadas)"
             className="group absolute left-1/2 top-[-13px] z-20 h-[30px] w-[26px] focus:outline-none"
             style={{ transform: `translateX(-50%) rotate(${-tilt}deg)` }}
           >
@@ -462,7 +462,7 @@ function PostIt({
           className="whitespace-pre-wrap break-words text-sm leading-snug"
           style={{ color: pal.text }}
         >
-          {note.text || <span className="opacity-45">Nota vazia — toque para escrever</span>}
+          {note.text || <span className="opacity-45">Nota vazia: toque para escrever</span>}
         </p>
       )}
     </div>

@@ -16,6 +16,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { extractPixKeyFromBrCode } from './pix-brcode';
+import { erroDeAcao } from '@/lib/feedback';
 
 const schema = z.object({
   description: z.string().min(1, 'Informe a descrição'),
@@ -159,19 +160,19 @@ export function EditEntryDialog({
       toast.success('Chave PIX salva no cadastro do fornecedor');
       qc.invalidateQueries({ queryKey: ['/finance'] });
       qc.invalidateQueries({ queryKey: ['/suppliers'] });
-    } catch {
-      toast.error('Não foi possível salvar a chave no fornecedor');
+    } catch (e) {
+      toast.error(erroDeAcao('salvar a chave no fornecedor', e));
     }
   }
 
   function onSubmit(values: FormValues) {
     update.mutate(values, {
       onSuccess: () => {
-        toast.success('Lançamento atualizado');
+        toast.success('Título atualizado');
         onOpenChange(false);
         void maybeCaptureSupplierPix(values);
       },
-      onError: () => toast.error('Erro ao atualizar lançamento'),
+      onError: (e: unknown) => toast.error(erroDeAcao('atualizar o título', e)),
     });
   }
 
@@ -205,7 +206,7 @@ export function EditEntryDialog({
           </Field>
           <Field label="Fornecedor" error={errors.supplierId?.message}>
             <Select {...register('supplierId')}>
-              <option value="">— Nenhum —</option>
+              <option value="">Nenhum</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -218,7 +219,7 @@ export function EditEntryDialog({
         <div className="grid grid-cols-2 gap-4">
           <Field label="Categoria" error={errors.categoryId?.message}>
             <Select {...register('categoryId')}>
-              <option value="">— Nenhuma —</option>
+              <option value="">Nenhuma</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
@@ -252,7 +253,7 @@ export function EditEntryDialog({
         <div className="grid grid-cols-2 gap-4">
           <Field label="Forma de pagamento" error={errors.paymentMethod?.message}>
             <Select {...register('paymentMethod')}>
-              <option value="">— Não informada —</option>
+              <option value="">Não informada</option>
               {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}

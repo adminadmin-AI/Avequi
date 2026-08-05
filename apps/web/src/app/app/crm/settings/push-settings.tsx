@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   getCurrentSubscription,
   isIosWithoutPwa,
@@ -43,7 +44,7 @@ export function PushSettings() {
           setState('on');
           toast.success('Push ativado neste dispositivo');
         } else if (result === 'denied') {
-          toast.error('Permissão negada — libere as notificações nas configurações do navegador');
+          toast.error('Permissão negada. Libere as notificações nas configurações do navegador.');
         } else if (result === 'disabled') {
           toast.error('Push desativado no servidor (VAPID não configurado)');
         }
@@ -52,8 +53,8 @@ export function PushSettings() {
         setState('off');
         toast.info('Push desativado neste dispositivo');
       }
-    } catch {
-      toast.error('Falha ao alterar o push');
+    } catch (e) {
+      toast.error(erroDeAcao('alterar as notificações push', e));
     } finally {
       setBusy(false);
     }
@@ -81,7 +82,7 @@ export function PushSettings() {
       </div>
       <p className="text-xs text-content-muted">
         Lead novo, lead quente da IA, lembrete vencido e cliente sem resposta chegam no
-        celular mesmo com o app fechado. O opt-in é por dispositivo — ative em cada
+        celular mesmo com o app fechado. O opt-in é por dispositivo. Ative em cada
         aparelho que usar.
       </p>
       <details className="text-xs text-content-muted">
@@ -97,7 +98,7 @@ export function PushSettings() {
           <p>
             <strong>iPhone/iPad (Safari):</strong> abra o Avequi no Safari → botão
             compartilhar (quadrado com seta) → <em>&quot;Adicionar à Tela de Início&quot;</em> →
-            confirme. <strong>No iOS o push SÓ funciona pelo app instalado</strong> — depois de
+            confirme. <strong>No iOS o push SÓ funciona pelo app instalado.</strong> Depois de
             instalar, abra pelo ícone e ative o toggle acima.
           </p>
         </div>

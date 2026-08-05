@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 /**
  * #476 — Tags de segmentação + anexos do cliente (docs de emplacamento: CNH,
@@ -62,7 +63,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
       qc.invalidateQueries({ queryKey: ['/customers'] });
       qc.invalidateQueries({ queryKey: ['/customers', customerId] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao salvar tags'),
+    onError: (e: any) => toast.error(erroDeAcao('salvar as tags', e)),
   });
 
   const createTag = useMutation({
@@ -73,7 +74,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
       // já vincula a tag recém-criada ao cliente
       setTags.mutate([...selected, res.data.id]);
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao criar tag'),
+    onError: (e: any) => toast.error(erroDeAcao('criar a tag', e)),
   });
 
   function toggleTag(tagId: string) {
@@ -101,7 +102,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
       qc.invalidateQueries({ queryKey: ['/customers', customerId, 'attachments'] });
       toast.success('Anexo enviado');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro no upload (máx 10MB)'),
+    onError: (e: any) => toast.error(erroDeAcao('enviar o anexo (máx 10MB)', e)),
   });
 
   const removeAttachment = useMutation({
@@ -110,7 +111,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
       qc.invalidateQueries({ queryKey: ['/customers', customerId, 'attachments'] });
       toast.success('Anexo removido');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao remover anexo'),
+    onError: (e: any) => toast.error(erroDeAcao('remover o anexo', e)),
   });
 
   async function download(att: Attachment) {
@@ -179,7 +180,7 @@ export function CustomerExtras({ customerId }: { customerId: string }) {
         <div className="mb-2 flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-sm font-medium text-content-secondary">
             <Paperclip size={14} />
-            Anexos (CNH, comprovante — emplacamento)
+            Anexos para emplacamento (CNH, comprovante)
           </p>
           <input
             ref={fileRef}

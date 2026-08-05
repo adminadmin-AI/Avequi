@@ -42,8 +42,8 @@ function SupportAccessList() {
                     {log.newValue?.targetEmail && (
                       <>
                         {' '}
-                        — visualizando como{' '}
-                        <span className="font-mono text-xs">{log.newValue.targetEmail}</span>
+                        (visualizando como{' '}
+                        <span className="font-mono text-xs">{log.newValue.targetEmail}</span>)
                       </>
                     )}
                   </span>

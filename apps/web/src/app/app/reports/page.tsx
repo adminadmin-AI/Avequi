@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Download, FileSpreadsheet, Loader2, Info, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,7 +30,7 @@ const ASYNC_REPORTS: { name: string; file: string; label: string; desc: string }
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  waiting: 'Na fila…',
+  waiting: 'Aguardando processamento…',
   active: 'Processando…',
   delayed: 'Aguardando…',
   completed: 'Pronto',
@@ -94,7 +95,7 @@ function AsyncReportCard({ report }: { report: (typeof ASYNC_REPORTS)[number] })
       setJobId(data.jobId);
       toast.success('Relatório enfileirado');
     },
-    onError: () => toast.error('Não foi possível enfileirar (a fila pode estar indisponível)'),
+    onError: (e) => toast.error(erroDeAcao('gerar o relatório', e)),
   });
 
   const statusQ = useQuery({
@@ -171,10 +172,11 @@ export default function ReportsPage() {
       <div className="mb-5 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          O backend gera os relatórios em <strong>Excel (.xlsx)</strong> para download — não há pré-visualização em
-          tela nem exportação em CSV, e os filtros por relatório (período/depósito/status) ainda não existem na API
-          (cada export traz o conjunto completo). Pendências registradas na <strong>#247</strong>. Os relatórios
-          "pesados" são processados em fila: clique em <em>Gerar</em> e aguarde ficar pronto para baixar.
+          Os relatórios são gerados em <strong>Excel (.xlsx)</strong> para download. Ainda não há
+          pré-visualização em tela, exportação em CSV nem filtros por relatório (período, depósito,
+          status): cada exportação traz o conjunto completo de dados por enquanto. Os relatórios
+          mais pesados demoram um pouco para processar: clique em <em>Gerar</em> e aguarde ficar
+          pronto para baixar. Em breve.
         </span>
       </div>
 

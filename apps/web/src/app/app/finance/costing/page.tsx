@@ -37,7 +37,7 @@ export default function CostingPage() {
   const [productId, setProductId] = useState('');
 
   const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })),
+    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
     [products],
   );
 
@@ -157,7 +157,7 @@ export default function CostingPage() {
                   <CardTitle>
                     Custo por absorção
                     <span className="ml-2 text-caption font-normal text-content-muted">
-                      {cost.data.sku} — {cost.data.name}
+                      {cost.data.sku} · {cost.data.name}
                     </span>
                   </CardTitle>
                   {cost.data.cifImpactPct != null && (

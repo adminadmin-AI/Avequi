@@ -90,7 +90,7 @@ export default function PurchasesPage() {
     <div>
       <PageHeader
         title="Pedidos de compra"
-        description="Ordens de compra a fornecedores — do rascunho ao recebimento."
+        description="Ordens de compra a fornecedores, do rascunho ao recebimento."
         actions={
           <Button onClick={() => router.push('/app/purchases/new')}>
             <Plus size={16} />

@@ -92,7 +92,7 @@ export default function OpsBillingPage() {
     const ok = await confirm({
       title: 'Rodar cobrança agora?',
       description:
-        'Gera as faturas da competência corrente para as assinaturas ativas e roda a régua de inadimplência (idempotente — seguro rodar mais de uma vez).',
+        'Gera as faturas da competência corrente para as assinaturas ativas e roda a régua de inadimplência (idempotente: seguro rodar mais de uma vez).',
       confirmLabel: 'Rodar cobrança',
     });
     if (ok) runBilling.mutate();

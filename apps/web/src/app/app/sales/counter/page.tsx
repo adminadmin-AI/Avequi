@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { FormSection } from '@/components/ui/form-section';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL } from '@/lib/format';
 import {
   PaymentPlanEditor,
@@ -77,9 +78,6 @@ export default function CounterSalePage() {
   const hasCard = payments.some((p) => isCard(p.method));
   const locked = phase !== 'building';
 
-  const apiError = (err: any, fallback: string) =>
-    toast.error(err?.response?.data?.message ?? fallback);
-
   // ─── Itens ────────────────────────────────────────────────────────────────
 
   function addItem() {
@@ -140,14 +138,14 @@ export default function CounterSalePage() {
       qc.invalidateQueries({ queryKey: ['/sales'] });
       setSaleId(sale.id);
       setPhase('closed');
-      toast.success(hasCard ? 'Venda fechada — passe o cartão' : 'Venda fechada — pronta pra faturar');
+      toast.success(hasCard ? 'Venda fechada. Passe o cartão.' : 'Venda fechada. Pronta pra faturar.');
     },
-    onError: (err: any) => apiError(err, 'Erro ao fechar a venda'),
+    onError: (err: any) => toast.error(erroDeAcao('fechar a venda', err)),
   });
 
   function validateAndClose() {
     if (!customerId) {
-      toast.error('Selecione o cliente — a NF-e do reboque precisa do destinatário');
+      toast.error('Selecione o cliente. A NF-e do reboque precisa do destinatário.');
       return;
     }
     if (!warehouseId) {
@@ -190,23 +188,23 @@ export default function CounterSalePage() {
     },
     onSuccess: (res) => {
       if (res.denied > 0) {
-        toast.error(res.message || 'Cartão negado — tente outro cartão ou forma');
+        toast.error(res.message || 'Cartão negado. Tente outro cartão ou forma.');
         return;
       }
       setPhase('authorized');
       toast.success('Cartão autorizado');
     },
-    onError: (err: any) => apiError(err, 'Erro ao autorizar o cartão'),
+    onError: (err: any) => toast.error(erroDeAcao('autorizar o cartão', err)),
   });
 
   const invoice = useMutation({
     mutationFn: async () => apiClient.patch(`/sales/${saleId}/invoice`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['/sales'] });
-      toast.success('Venda faturada — NF-e em emissão');
+      toast.success('Venda faturada. NF-e em emissão.');
       router.push(`/app/sales/${saleId}`);
     },
-    onError: (err: any) => apiError(err, 'Erro ao faturar — verifique o pagamento e o chassi'),
+    onError: (err: any) => toast.error(erroDeAcao('faturar a venda', err)),
   });
 
   const canInvoice = phase === 'authorized' || (phase === 'closed' && !hasCard);
@@ -217,7 +215,7 @@ export default function CounterSalePage() {
     <div>
       <PageHeader
         title="Venda balcão"
-        description="Cliente presente na loja: escaneie o chassi, monte o pagamento e fature direto — sem separação."
+        description="Cliente presente na loja: escaneie o chassi, monte o pagamento e fature direto. Sem separação."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/sales')}>
             <ArrowLeft size={16} />
@@ -240,11 +238,11 @@ export default function CounterSalePage() {
             onChange={(e) => setCustomerId(e.target.value)}
             disabled={locked}
           >
-            <option value="">— Selecione —</option>
+            <option value="">Selecione</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
-                {c.document ? ` — ${c.document}` : ''}
+                {c.document ? ` · ${c.document}` : ''}
               </option>
             ))}
           </Select>
@@ -261,10 +259,10 @@ export default function CounterSalePage() {
             }}
             disabled={locked}
           >
-            <option value="">— Selecione —</option>
+            <option value="">Selecione</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.code} — {w.name}
+                {w.code} · {w.name}
               </option>
             ))}
           </Select>
@@ -297,10 +295,10 @@ export default function CounterSalePage() {
                   value={newProductId}
                   onChange={(e) => setNewProductId(e.target.value)}
                 >
-                  <option value="">— Selecione —</option>
+                  <option value="">Selecione</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.sku} — {p.name}
+                      {p.sku} · {p.name}
                       {p.tracksSerial ? ' (chassi)' : ''}
                     </option>
                   ))}
@@ -507,11 +505,11 @@ function ChassiSelect({
       disabled={disabled || isLoading}
       className="min-w-[220px]"
     >
-      <option value="">{isLoading ? 'Carregando…' : options.length === 0 ? 'Sem chassi disponível' : '— Escanear/selecionar —'}</option>
+      <option value="">{isLoading ? 'Carregando…' : options.length === 0 ? 'Sem chassi disponível' : 'Escanear/selecionar'}</option>
       {options.map((s) => (
         <option key={s.id} value={s.id}>
           {s.chassi ?? s.serial}
-          {s.descricaoCor ? ` — ${s.descricaoCor}` : ''}
+          {s.descricaoCor ? ` · ${s.descricaoCor}` : ''}
         </option>
       ))}
     </Select>

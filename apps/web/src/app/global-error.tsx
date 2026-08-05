@@ -36,7 +36,7 @@ export default function GlobalError({
         >
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Algo deu errado</h2>
           <p style={{ color: '#64748b', fontSize: 14, margin: 0, maxWidth: 420 }}>
-            Ocorreu um erro inesperado. Recarregue a página e tente novamente.
+            Não conseguimos carregar o Avecchi. Tente de novo. Se continuar, avise o suporte.
           </p>
           <button
             onClick={() => reset()}

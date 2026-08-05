@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatDate } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 import { CARD_BRANDS } from '../../sales/payment-plan-editor';
 
 /**
@@ -87,13 +88,13 @@ export default function AcquirersPage() {
       setAcqOpen(false);
       toast.success(editingId ? 'Adquirente atualizada' : 'Adquirente criada');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao salvar adquirente'),
+    onError: (e: any) => toast.error(erroDeAcao('salvar a adquirente', e)),
   });
 
   const toggleAcquirer = useMutation({
     mutationFn: (a: Acquirer) => apiClient.patch(`${RESOURCE}/${a.id}`, { isActive: !a.isActive }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao alterar status'),
+    onError: (e: any) => toast.error(erroDeAcao('alterar o status da adquirente', e)),
   });
 
   // ── dialog de taxa ─────────────────────────────────────────────────────────
@@ -138,16 +139,16 @@ export default function AcquirersPage() {
       setFeeOpen(false);
       toast.success('Taxa cadastrada');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao cadastrar taxa'),
+    onError: (e: any) => toast.error(erroDeAcao('cadastrar a taxa', e)),
   });
 
   const deactivateFee = useMutation({
     mutationFn: (feeId: string) => apiClient.patch(`${RESOURCE}/fees/${feeId}`, { isActive: false }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
-      toast.success('Taxa desativada — cadastre a nova vigência');
+      toast.success('Taxa desativada. Cadastre a nova vigência.');
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erro ao desativar taxa'),
+    onError: (e: any) => toast.error(erroDeAcao('desativar a taxa', e)),
   });
 
   if (isLoading) {
@@ -162,7 +163,7 @@ export default function AcquirersPage() {
     <div>
       <PageHeader
         title="Adquirentes e taxas"
-        description="Credenciadoras de cartão, taxas MDR e prazo de liquidação — a taxa vigente é congelada em cada venda."
+        description="Credenciadoras de cartão, taxas MDR e prazo de liquidação. A taxa vigente é congelada em cada venda."
         actions={
           <Button
             onClick={() => {
@@ -184,7 +185,7 @@ export default function AcquirersPage() {
           <CardContent className="py-10 text-center text-sm text-content-muted">
             <CreditCard className="mx-auto mb-2" size={24} />
             Nenhuma adquirente cadastrada. Cadastre a credenciadora (Cielo, Rede, Stone…) e as taxas
-            contratadas — sem taxa vigente a venda com cartão é bloqueada.
+            contratadas. Sem taxa vigente a venda com cartão é bloqueada.
           </CardContent>
         </Card>
       ) : (
@@ -233,7 +234,7 @@ export default function AcquirersPage() {
 
                 {a.fees.length === 0 ? (
                   <p className="py-3 text-sm text-content-muted">
-                    Sem taxa ativa — venda com cartão nesta adquirente será bloqueada até cadastrar.
+                    Sem taxa ativa. Venda com cartão nesta adquirente será bloqueada até cadastrar.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -332,7 +333,7 @@ export default function AcquirersPage() {
               ))}
             </Select>
             <p className="mt-1 text-xs text-content-muted">
-              Cada adquirente autoriza no seu próprio TEF — InfinitePay e Getnet podem coexistir.
+              Cada adquirente autoriza no seu próprio TEF. InfinitePay e Getnet podem coexistir.
               “Não integrada” só autoriza simulado (dev/homologação).
             </p>
           </div>
@@ -418,11 +419,11 @@ export default function AcquirersPage() {
             />
           </div>
           <div>
-            <Label>Vigência — início</Label>
+            <Label>Vigência: início</Label>
             <Input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
           </div>
           <div>
-            <Label>Vigência — fim</Label>
+            <Label>Vigência: fim</Label>
             <Input type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} />
           </div>
         </form>

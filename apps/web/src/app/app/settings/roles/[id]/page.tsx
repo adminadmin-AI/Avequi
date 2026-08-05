@@ -99,7 +99,7 @@ export default function RolePermissionsPage() {
       },
       {
         onSuccess: (created) => {
-          toast.success('Perfil duplicado — agora ele é editável');
+          toast.success('Perfil duplicado. Agora ele é editável.');
           router.push(`/app/settings/roles/${created.id}`);
         },
         onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao duplicar perfil')),
@@ -133,7 +133,7 @@ export default function RolePermissionsPage() {
         backHref="/app/settings/roles"
         description={
           isSystem
-            ? 'Perfil de sistema — somente leitura. Duplique para personalizar.'
+            ? 'Perfil de sistema: somente leitura. Duplique para personalizar.'
             : 'Marque as permissões deste perfil e salve (o conjunto é substituído por completo).'
         }
         meta={

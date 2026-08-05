@@ -106,7 +106,7 @@ export default function ForecastPage() {
     <div className="space-y-6">
       <PageHeader
         title="Projeção financeira"
-        description="Projeção trimestral rolante — receita (demanda × preço) e despesa (tendência), vs orçado e realizado"
+        description="Projeção trimestral rolante: receita (demanda × preço) e despesa (tendência), vs orçado e realizado"
         actions={
           <SegmentedControl
             aria-label="Trimestres à frente"

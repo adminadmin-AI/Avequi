@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { formatBRL, formatDate } from '@/lib/format';
 import { chartTooltipProps, chartGridProps, chartTickFill } from '@/lib/chart-theme';
+import { erroDeAcao } from '@/lib/feedback';
 
 type CollectionChannel = 'EMAIL' | 'WHATSAPP' | 'PHONE';
 
@@ -94,7 +95,7 @@ export default function CollectionMonitorPage() {
       qc.invalidateQueries({ queryKey: ['/billing/daily-report'] });
       toast.success(`Cobrança registrada via ${CHANNEL_LABEL[channel]}`);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erro ao registrar cobrança'),
+    onError: (err: any) => toast.error(erroDeAcao('registrar a cobrança', err)),
   });
 
   const report = reportQ.data;
@@ -243,7 +244,7 @@ export default function CollectionMonitorPage() {
 
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-base">Régua de cobrança — recebíveis vencidos</CardTitle>
+              <CardTitle className="text-base">Régua de cobrança (recebíveis vencidos)</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable

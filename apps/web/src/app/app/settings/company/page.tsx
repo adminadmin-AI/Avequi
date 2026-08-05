@@ -24,9 +24,9 @@ const REGIME_LABEL: Record<TaxRegime, string> = {
   LUCRO_REAL: 'Lucro Real',
 };
 const CRT_LABEL: Record<number, string> = {
-  1: '1 — Simples Nacional',
-  2: '2 — SN, excesso de sublimite',
-  3: '3 — Regime Normal',
+  1: '1: Simples Nacional',
+  2: '2: SN, excesso de sublimite',
+  3: '3: Regime Normal',
 };
 
 function Row({ label, value }: { label: string; value?: React.ReactNode }) {

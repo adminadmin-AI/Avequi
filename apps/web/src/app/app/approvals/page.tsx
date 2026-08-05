@@ -52,7 +52,7 @@ export default function ApprovalsPage() {
   async function handleApprove(item: PendingApproval) {
     const ok = await confirm({
       title: 'Aprovar pedido de compra?',
-      description: `PO #${shortId(item.id)} — ${formatBRL(item.totalAmount)} (${item.supplier?.name ?? 'sem fornecedor'}).`,
+      description: `PO #${shortId(item.id)} · ${formatBRL(item.totalAmount)} (${item.supplier?.name ?? 'sem fornecedor'}).`,
       confirmLabel: 'Aprovar',
       variant: 'primary',
     });
@@ -132,9 +132,9 @@ export default function ApprovalsPage() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          O backend expõe aprovação de <strong>Pedidos de Compra</strong> por alçada. Rejeição com
-          motivo e aprovações de <strong>pagamento</strong> ainda não têm endpoint — serão ligadas
-          quando o backend disponibilizar.
+          Por enquanto esta tela cobre a aprovação de <strong>Pedidos de Compra</strong> por alçada.
+          Rejeição com motivo e aprovação de <strong>pagamentos</strong> ainda não estão disponíveis.
+          Em breve.
         </span>
       </div>
 

@@ -102,9 +102,9 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
     retry: false,
   });
 
-  function copy(v: string) {
+  function copy(v: string, label: string) {
     navigator.clipboard?.writeText(v);
-    toast.success('Copiado');
+    toast.success(`${label} copiado`);
   }
 
   if (!entry) return null;
@@ -186,7 +186,7 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
             {vis.boleto && (
               <Row label="Boleto (código de barras)">
                 {entry.boletoBarcode ? (
-                  <Copyable value={entry.boletoBarcode} copied={copy} />
+                  <Copyable value={entry.boletoBarcode} copied={(v) => copy(v, 'Código de barras')} />
                 ) : (
                   DASH
                 )}
@@ -196,12 +196,12 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
               <>
                 {entry.pixCopiaECola && (
                   <Row label="PIX Copia e Cola desta conta">
-                    <Copyable value={entry.pixCopiaECola} copied={copy} />
+                    <Copyable value={entry.pixCopiaECola} copied={(v) => copy(v, 'Código copia e cola')} />
                   </Row>
                 )}
                 <Row label="Chave PIX do fornecedor">
                   {supplier?.pixKey ? (
-                    <Copyable value={supplier.pixKey} copied={copy} />
+                    <Copyable value={supplier.pixKey} copied={(v) => copy(v, 'Chave PIX')} />
                   ) : supplier ? (
                     // deep-link: abre a tela de fornecedores já com ESTE fornecedor em edição
                     <Link
@@ -289,7 +289,7 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
                   <li key={i} className="text-sm">
                     <span className="font-medium text-content">{actionLabel(ev.action)}</span>
                     {ev.user && <span className="text-content-muted"> por {ev.user.name}</span>}
-                    <span className="text-content-muted"> — {formatDateTime(ev.at)}</span>
+                    <span className="text-content-muted"> · {formatDateTime(ev.at)}</span>
                     {fields && <div className="text-xs text-content-muted">alterou: {fields}</div>}
                   </li>
                 );
@@ -297,12 +297,12 @@ export function EntryDetailSheet({ entry, onOpenChange, statusBadge }: Props) {
               {/* âncora: criação (títulos migrados não têm log de criação) */}
               <li className="text-sm">
                 <span className="font-medium text-content">Criado</span>
-                <span className="text-content-muted"> — {formatDateTime(entry.createdAt)}</span>
+                <span className="text-content-muted"> · {formatDateTime(entry.createdAt)}</span>
               </li>
             </ol>
             {history.isError && (
               <p className="pt-2 text-xs text-content-muted">
-                Linha do tempo completa disponível após a próxima atualização do servidor.
+                A linha do tempo completa chega em breve.
               </p>
             )}
           </Section>

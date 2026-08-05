@@ -34,7 +34,7 @@ export function RemindersStrip({ onOpenLead }: { onOpenLead: (leadId: string) =>
       if (notified.current.has(r.id)) continue;
       notified.current.add(r.id);
       const lead = r.lead?.name ?? r.lead?.phone ?? 'lead';
-      toast.info(`⏰ Lembrete: ${r.text} — ${lead}`);
+      toast.info(`⏰ Lembrete: ${r.text} · ${lead}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [due.map((r) => r.id).join(',')]);

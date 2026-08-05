@@ -11,6 +11,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { TaxRuleForm, TAX_OPERATION_LABELS, type TaxRuleFormValues } from './tax-rule-form';
 
 const RESOURCE = '/tax-rules';
@@ -126,7 +127,11 @@ export default function TaxRulesPage() {
             toast.success('Regra fiscal atualizada');
             setDialogOpen(false);
           },
-          onError: () => toast.error('Erro ao atualizar regra — confira se não duplica escopo+vigência'),
+          onError: (e: unknown) =>
+            toast.error(
+              erroDeAcao('salvar a regra fiscal', e) +
+                ' Confira se já não existe regra com o mesmo escopo e vigência.',
+            ),
         },
       );
     } else {
@@ -135,7 +140,11 @@ export default function TaxRulesPage() {
           toast.success('Regra fiscal criada');
           setDialogOpen(false);
         },
-        onError: () => toast.error('Erro ao criar regra — confira se não duplica escopo+vigência'),
+        onError: (e: unknown) =>
+          toast.error(
+            erroDeAcao('salvar a regra fiscal', e) +
+              ' Confira se já não existe regra com o mesmo escopo e vigência.',
+          ),
       });
     }
   }
@@ -155,7 +164,7 @@ export default function TaxRulesPage() {
       { id: r.id, data: { isActive: !r.isActive } },
       {
         onSuccess: () => toast.success(turningOff ? 'Regra desativada' : 'Regra reativada'),
-        onError: () => toast.error('Erro ao alterar status'),
+        onError: (e: unknown) => toast.error(erroDeAcao('alterar o status da regra', e)),
       },
     );
   }
@@ -250,7 +259,7 @@ export default function TaxRulesPage() {
     <div>
       <PageHeader
         title="Regras fiscais"
-        description="Parametrização tributária por operação, NCM e UF — o motor escolhe a regra mais específica vigente na data de emissão."
+        description="Parametrização tributária por operação, NCM e UF. O motor escolhe a regra mais específica vigente na data de emissão."
         actions={
           <Button onClick={openCreate}>
             <Plus size={16} />

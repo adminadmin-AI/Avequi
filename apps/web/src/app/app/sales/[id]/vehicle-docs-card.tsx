@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Can } from '@/components/can';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 const RESOURCE = '/vehicle-tracking/renave/sales-order';
 
@@ -131,15 +132,13 @@ function ChassiRow({
       toast.success('Operação reenviada');
       onRetried();
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Não foi possível reenviar a operação'),
+    onError: (err: any) => toast.error(erroDeAcao('reenviar a operação ao RENAVE', err)),
   });
 
   const resendEmail = useMutation({
     mutationFn: () => apiClient.post(`/vehicle-tracking/atpve/${atpveRecord?.id}/resend-email`),
     onSuccess: () => toast.success('E-mail da ATPV-e reenviado'),
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Não foi possível reenviar o e-mail'),
+    onError: (err: any) => toast.error(erroDeAcao('reenviar o e-mail da ATPV-e', err)),
   });
 
   async function downloadPdf() {
@@ -156,7 +155,7 @@ function ChassiRow({
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Erro ao baixar o PDF da ATPV-e');
+      toast.error(erroDeAcao('baixar o PDF da ATPV-e', err));
     } finally {
       setDownloading(false);
     }

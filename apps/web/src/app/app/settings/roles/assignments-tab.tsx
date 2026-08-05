@@ -174,7 +174,7 @@ export function AssignmentsTab({
 
   const userOptions: ComboboxOption[] = users.map((u) => ({
     value: u.id,
-    label: `${u.name} — ${u.email}`,
+    label: `${u.name} · ${u.email}`,
   }));
 
   return (
@@ -207,7 +207,7 @@ export function AssignmentsTab({
               <Skeleton className="h-24 w-full" />
             ) : assignments.length === 0 ? (
               <p className="py-4 text-center text-xs text-content-muted">
-                Nenhum perfil atribuído — o usuário depende apenas do papel legado.
+                Nenhum perfil atribuído. O usuário depende apenas do papel legado.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -283,7 +283,7 @@ export function AssignmentsTab({
               <Skeleton className="h-24 w-full" />
             ) : exceptions.length === 0 ? (
               <p className="py-4 text-center text-xs text-content-muted">
-                Nenhuma exceção — valem apenas as permissões dos perfis.
+                Nenhuma exceção. Valem apenas as permissões dos perfis.
               </p>
             ) : (
               <ul className="space-y-2">

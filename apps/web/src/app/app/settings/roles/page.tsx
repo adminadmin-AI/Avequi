@@ -99,7 +99,7 @@ export default function RolesPage() {
         },
         {
           onSuccess: (created) => {
-            toast.success('Perfil criado — agora defina as permissões');
+            toast.success('Perfil criado. Agora defina as permissões.');
             setDialogOpen(false);
             router.push(`/app/settings/roles/${created.id}`);
           },

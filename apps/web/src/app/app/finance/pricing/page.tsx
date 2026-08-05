@@ -50,7 +50,7 @@ export default function PricingPage() {
   const [params, setParams] = useState<SimParams | null>(null);
 
   const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })),
+    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
     [products],
   );
 
@@ -215,7 +215,7 @@ function Result({
           <CardTitle>
             Preço sugerido
             <span className="ml-2 text-caption font-normal text-content-muted">
-              {sim.sku} — {sim.name}
+              {sim.sku} · {sim.name}
             </span>
           </CardTitle>
           <Badge variant="brand">margem {formatPercent(sim.marginPct)}</Badge>
@@ -252,7 +252,7 @@ function Result({
               )}
             </div>
           ) : (
-            <p className="text-body text-content-muted">Produto sem preço de venda cadastrado — sem comparativo.</p>
+            <p className="text-body text-content-muted">Produto sem preço de venda cadastrado. Sem comparativo.</p>
           )}
         </CardContent>
       </Card>
@@ -280,7 +280,7 @@ function Result({
             />
           ) : (
             <p className="text-body text-content-muted">
-              Produto sem BOM ativa — custo tratado como valor único (sem explosão de materiais).
+              Produto sem BOM ativa. Custo tratado como valor único (sem explosão de materiais).
             </p>
           )}
         </CardContent>

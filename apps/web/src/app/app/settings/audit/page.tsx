@@ -116,9 +116,9 @@ export default function AuditLogPage() {
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs text-warning">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>
-            O endpoint <code>GET /audit-logs</code> ainda <strong>não está disponível no backend</strong> — os
-            AuditLogs são gravados por alguns serviços, mas não há rota de leitura consolidada. Esta tela já está
-            pronta para consumi-lo assim que existir (pendência registrada na #247).
+            A trilha de auditoria ainda <strong>não está disponível para consulta</strong>. Os registros
+            já são gravados, mas a leitura consolidada ainda não existe. Esta tela está pronta para
+            exibi-los assim que estiverem disponíveis. Em breve.
           </span>
         </div>
       )}
@@ -162,7 +162,9 @@ export default function AuditLogPage() {
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : paged.length === 0 ? (
             <p className="py-16 text-center text-sm text-content-muted">
-              {logsQ.isError ? 'Sem dados (endpoint indisponível).' : 'Nenhum registro de auditoria encontrado.'}
+              {logsQ.isError
+                ? 'Ainda não conseguimos carregar a trilha. Tente de novo mais tarde.'
+                : 'Nenhum registro de auditoria encontrado.'}
             </p>
           ) : (
             <table className="w-full text-sm">

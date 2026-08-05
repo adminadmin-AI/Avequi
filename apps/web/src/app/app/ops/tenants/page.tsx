@@ -58,7 +58,7 @@ export default function OpsTenantsPage() {
   const runMetering = useMutation({
     mutationFn: () => apiClient.post<RunMeteringResult>('/ops/metering/run', { days: 7 }),
     onSuccess: (res) => {
-      toast.success(`Métricas reprocessadas — ${res.data.processedDays} dia(s) recalculados`);
+      toast.success(`Métricas reprocessadas (${res.data.processedDays} dia(s) recalculados)`);
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       qc.invalidateQueries({ queryKey: ['/ops/alerts'] });
     },
@@ -69,7 +69,7 @@ export default function OpsTenantsPage() {
     const ok = await confirm({
       title: 'Reprocessar métricas dos últimos 7 dias?',
       description:
-        'Reagrega o metering diário da carteira inteira — use após um incidente do cron ou para conferir os números na hora.',
+        'Recalcula o uso diário de toda a carteira. Use depois de uma falha na rotina automática ou para conferir os números na hora.',
       confirmLabel: 'Reprocessar',
     });
     if (ok) runMetering.mutate();
@@ -220,7 +220,7 @@ export default function OpsTenantsPage() {
     <div>
       <PageHeader
         title="Contas de cliente"
-        description="Contas da operadora Avecchi — onboarding, ciclo de vida e suporte."
+        description="Contas da operadora Avecchi: onboarding, ciclo de vida e suporte."
         actions={
           <div className="flex items-center gap-2">
             <Can permission="ops.tenants.manage">

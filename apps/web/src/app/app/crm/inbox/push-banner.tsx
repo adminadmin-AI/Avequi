@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   getCurrentSubscription,
   isIosWithoutPwa,
@@ -40,17 +41,17 @@ export function PushBanner() {
     try {
       const result = await subscribeToPush();
       if (result === 'ok') {
-        toast.success('Notificações ativadas — você recebe lead novo no celular');
+        toast.success('Notificações ativadas. Você recebe lead novo no celular.');
         setVisible(false);
       } else if (result === 'denied') {
         toast.error('Permissão negada no navegador');
         setVisible(false);
       } else {
-        toast.info('Push indisponível no servidor — avise o suporte');
+        toast.info('Push indisponível no servidor. Avise o suporte.');
         setVisible(false);
       }
-    } catch {
-      toast.error('Falha ao ativar notificações');
+    } catch (e) {
+      toast.error(erroDeAcao('ativar as notificações', e));
     } finally {
       setBusy(false);
     }

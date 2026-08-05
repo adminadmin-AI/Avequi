@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 import {
   ConversationSummary,
   QuickReply,
@@ -131,7 +132,7 @@ export default function InboxPage() {
       queryClient.invalidateQueries({ queryKey: ['crm-messages', selectedLeadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha no envio'),
+    onError: (e: any) => toast.error(erroDeAcao('enviar a mensagem', e)),
   });
 
   const sendMedia = useMutation({
@@ -144,7 +145,7 @@ export default function InboxPage() {
       queryClient.invalidateQueries({ queryKey: ['crm-messages', selectedLeadId] });
       queryClient.invalidateQueries({ queryKey: ['crm-conversations'] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Falha ao enviar mídia'),
+    onError: (e: any) => toast.error(erroDeAcao('enviar o arquivo', e)),
   });
 
   function handleSend() {

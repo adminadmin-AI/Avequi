@@ -7,11 +7,20 @@ import { apiClient } from '@/lib/api-client';
 import type { SalesOrder, SalesOrderStatus } from '@/types/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { cn } from '@/lib/utils';
 import { formatBRL, formatDate } from '@/lib/format';
 import { SALES_STATUS, salesOrderTotal } from './sales-status';
 
 const RESOURCE = '/sales';
+
+/** Infinitivo com objeto p/ mensagem de erro, e particípio p/ mensagem de sucesso. */
+const ACAO_POR_ENDPOINT: Record<string, { infinitivo: string; feito: string }> = {
+  reserve: { infinitivo: 'reservar o estoque do pedido', feito: 'reservado' },
+  confirm: { infinitivo: 'confirmar o pedido', feito: 'confirmado' },
+  invoice: { infinitivo: 'faturar o pedido', feito: 'faturado' },
+  cancel: { infinitivo: 'cancelar o pedido', feito: 'cancelado' },
+};
 
 /** Colunas do quadro e quais status caem em cada uma. */
 const COLUMNS: { id: string; label: string; statuses: SalesOrderStatus[] }[] = [
@@ -86,21 +95,22 @@ export function SalesKanban({ orders }: { orders: SalesOrder[] }) {
 
     const resolved = resolveDrop(order.status, targetColumn);
     if (!resolved) {
-      toast.error('Transição não permitida a partir deste status.');
+      toast.error('Esse pedido não pode ser movido para essa coluna neste status.');
       return;
     }
     const ok = await confirm({
       title: resolved.label + '?',
-      description: `OV #${shortId(order.id)} — ${SALES_STATUS[order.status].label} → ${resolved.label}.`,
+      description: `OV #${shortId(order.id)}: ${SALES_STATUS[order.status].label} → ${resolved.label}.`,
       confirmLabel: 'Confirmar',
       variant: resolved.endpoint === 'cancel' ? 'danger' : 'primary',
     });
     if (!ok) return;
+    const acao = ACAO_POR_ENDPOINT[resolved.endpoint];
     transition.mutate(
       { id: order.id, endpoint: resolved.endpoint },
       {
-        onSuccess: () => toast.success('Status atualizado'),
-        onError: () => toast.error('Não foi possível executar a transição'),
+        onSuccess: () => toast.success(`Pedido #${shortId(order.id)} ${acao?.feito ?? 'atualizado'}`),
+        onError: (err) => toast.error(erroDeAcao(acao?.infinitivo ?? 'mover o pedido', err)),
       },
     );
   }

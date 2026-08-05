@@ -48,7 +48,7 @@ export default function AccountPasswordPage() {
         <ShieldCheck size={16} className="mt-px shrink-0 text-content-muted" />
         <span>
           Por segurança, ao alterar a senha todas as suas outras sessões (outros navegadores e
-          dispositivos) são desconectadas — só esta permanece ativa.
+          dispositivos) são desconectadas. Só esta permanece ativa.
         </span>
       </div>
     </div>

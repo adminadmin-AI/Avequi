@@ -81,7 +81,7 @@ export const WIDGET_META: Record<WidgetId, WidgetMeta> = {
   },
   'cashflow-13w': {
     id: 'cashflow-13w',
-    title: 'Fluxo de caixa — 13 semanas',
+    title: 'Fluxo de caixa (13 semanas)',
     permission: ['finance.reports.view'], // GET /banking/cash-flow/weekly
     zone: 'work',
     defaultSize: 'medium',

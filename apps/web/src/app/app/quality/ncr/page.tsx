@@ -6,6 +6,7 @@ import { Plus, Search, Wrench, CheckCircle2, Ban, Pencil, Info } from 'lucide-re
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
+import { erroDeAcao } from '@/lib/feedback';
 import type { User } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -101,8 +102,22 @@ export default function NcrPage() {
       close: 'Fechar NCR?',
       cancel: 'Cancelar NCR?',
     };
+    const successLabels: Record<string, string> = {
+      analyze: 'Não conformidade em análise',
+      'corrective-action': 'Ação corretiva registrada',
+      close: 'Não conformidade fechada',
+      cancel: 'Não conformidade cancelada',
+    };
     confirm({ title: labels[endpoint], confirmLabel: 'Confirmar', variant: endpoint === 'cancel' ? 'danger' : 'primary' }).then(
-      (ok) => ok && action.mutate({ id: n.id, endpoint }, { onSuccess: () => toast.success('Status atualizado'), onError: () => toast.error('Erro') }),
+      (ok) =>
+        ok &&
+        action.mutate(
+          { id: n.id, endpoint },
+          {
+            onSuccess: () => toast.success(successLabels[endpoint]),
+            onError: (e) => toast.error(erroDeAcao('atualizar a não conformidade', e)),
+          },
+        ),
     );
   }
   function submitEdit() {
@@ -182,7 +197,7 @@ export default function NcrPage() {
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Ciclo: Aberta → Em análise → Ação corretiva → Fechada (ou Cancelada). Causa raiz e ação
-          corretiva são registradas na edição. O backend não tem "reabrir" — uma NCR fechada é final.
+          corretiva são registradas na edição. Uma NCR fechada é definitiva: não é possível reabrir.
         </span>
       </div>
 
@@ -232,7 +247,7 @@ export default function NcrPage() {
             <div>
               <Label>Responsável</Label>
               <Select value={form.responsibleId} onChange={(e) => setForm((f) => ({ ...f, responsibleId: e.target.value }))}>
-                <option value="">— Nenhum —</option>
+                <option value="">Nenhum</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}

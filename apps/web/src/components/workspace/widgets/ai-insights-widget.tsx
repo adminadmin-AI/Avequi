@@ -65,8 +65,8 @@ function briefing(firstName: string, count: number, status: 'critical' | 'attent
   const nome = firstName ? `${firstName}, ` : '';
   const verbo = status === 'critical' ? 'precisam da sua atenção agora' : 'valem seu olhar hoje';
   return count === 1
-    ? `${nome}analisei sua operação — 1 ponto ${verbo}.`
-    : `${nome}analisei sua operação — ${count} pontos ${verbo}.`;
+    ? `${nome}analisei sua operação. 1 ponto ${verbo}.`
+    : `${nome}analisei sua operação. ${count} pontos ${verbo}.`;
 }
 
 export function AiInsightsWidget(_: WidgetComponentProps) {

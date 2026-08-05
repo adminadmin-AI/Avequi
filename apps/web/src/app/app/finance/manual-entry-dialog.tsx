@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
+import { erroDeAcao } from '@/lib/feedback';
 
 const schema = z.object({
   type: z.enum(['RECEIVABLE', 'PAYABLE']),
@@ -85,11 +86,11 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
     };
     create.mutate(payload, {
       onSuccess: () => {
-        toast.success('Lançamento criado');
+        toast.success('Título criado');
         setOpen(false);
         reset({ type: defaultType, dueDate: new Date().toISOString().slice(0, 10) });
       },
-      onError: () => toast.error('Erro ao criar lançamento'),
+      onError: (e: unknown) => toast.error(erroDeAcao('criar o título', e)),
     });
   }
 
@@ -143,7 +144,7 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
             </Field>
             <Field label="Fornecedor" error={errors.supplierId?.message}>
               <Select {...register('supplierId')}>
-                <option value="">— Nenhum —</option>
+                <option value="">Nenhum</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -156,7 +157,7 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
           <div className="grid grid-cols-2 gap-4">
             <Field label="Categoria" error={errors.categoryId?.message}>
               <Select {...register('categoryId')}>
-                <option value="">— Nenhuma —</option>
+                <option value="">Nenhuma</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
@@ -166,7 +167,7 @@ export function ManualEntryDialog({ defaultType }: { defaultType: FinancialEntry
             </Field>
             <Field label="Centro de custo" error={errors.costCenterId?.message}>
               <Select {...register('costCenterId')}>
-                <option value="">— Nenhum —</option>
+                <option value="">Nenhum</option>
                 {costCenters.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}

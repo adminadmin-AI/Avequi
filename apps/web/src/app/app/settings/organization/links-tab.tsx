@@ -132,7 +132,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
 
   const userOptions: ComboboxOption[] = users.map((u) => ({
     value: u.id,
-    label: `${u.name} — ${u.email}`,
+    label: `${u.name} · ${u.email}`,
   }));
 
   return (
@@ -288,7 +288,7 @@ export function LinksTab({ canAssign }: { canAssign: boolean }) {
                     <option value="">Selecione uma equipe</option>
                     {availableTeams.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name} — {t.department?.name ?? ''}
+                        {t.name} · {t.department?.name ?? ''}
                       </option>
                     ))}
                   </Select>

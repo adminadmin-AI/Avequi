@@ -13,6 +13,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { salesOrderTotal } from '../sales/sales-status';
 import { formatBRL } from '@/lib/format';
+import { erroDeAcao } from '@/lib/feedback';
 
 /**
  * Botão "Emitir NF-e" + dialog. O backend NÃO tem endpoint dedicado
@@ -55,20 +56,20 @@ export function EmitNfeDialog() {
       }
     }
     setPolling(false);
-    toast.success('Emissão em processamento — acompanhe na lista.');
+    toast.success('Emissão em processamento. Acompanhe na lista.');
   }
 
   function submit() {
-    if (!salesOrderId) return toast.error('Selecione a ordem de venda');
+    if (!salesOrderId) return toast.error('Selecione o pedido de venda');
     emit.mutate(salesOrderId, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ['/sales'] });
         qc.invalidateQueries({ queryKey: ['/fiscal'] });
-        toast.success('Faturamento disparado — emitindo NF-e...');
+        toast.success('Faturamento disparado. Emitindo a NF-e...');
         setOpen(false);
         void pollFiscal();
       },
-      onError: () => toast.error('Não foi possível faturar/emitir'),
+      onError: (e: unknown) => toast.error(erroDeAcao('faturar e emitir a NF-e', e)),
     });
   }
 
@@ -92,10 +93,10 @@ export function EmitNfeDialog() {
           <div>
             <Label required>Ordem de venda (pronta para faturar)</Label>
             <Select value={salesOrderId} onChange={(e) => setSalesOrderId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {ready.map((o) => (
                 <option key={o.id} value={o.id}>
-                  OV #{o.id.slice(-6).toUpperCase()} — {o.customer?.name ?? 'sem cliente'} ({formatBRL(salesOrderTotal(o))})
+                  OV #{o.id.slice(-6).toUpperCase()} · {o.customer?.name ?? 'sem cliente'} ({formatBRL(salesOrderTotal(o))})
                 </option>
               ))}
             </Select>
@@ -109,9 +110,9 @@ export function EmitNfeDialog() {
           <div className="flex items-start gap-2 rounded-lg border border-line bg-surface-secondary px-3 py-2 text-xs text-content-muted">
             <Info size={14} className="mt-0.5 shrink-0" />
             <span>
-              A emissão é feita ao <strong>faturar a OV</strong> (o backend não tem endpoint
-              dedicado de emissão). Após confirmar, acompanhamos o status por ~30s; o resultado
-              também aparece na lista de documentos.
+              A emissão acontece ao <strong>faturar o pedido de venda</strong>. Após confirmar,
+              acompanhamos o status por cerca de 30 segundos; o resultado também aparece na lista
+              de documentos.
             </span>
           </div>
         </form>

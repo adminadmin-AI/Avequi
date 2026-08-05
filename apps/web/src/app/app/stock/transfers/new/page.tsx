@@ -103,10 +103,10 @@ export default function NewTransferPage() {
           <div>
             <Label required>Depósito de origem</Label>
             <Select value={fromWarehouseId} onChange={(e) => setFromWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -114,10 +114,10 @@ export default function NewTransferPage() {
           <div>
             <Label required>Depósito de destino</Label>
             <Select value={toWarehouseId} onChange={(e) => setToWarehouseId(e.target.value)}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} — {w.name}
+                  {w.code} · {w.name}
                 </option>
               ))}
             </Select>
@@ -136,10 +136,10 @@ export default function NewTransferPage() {
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
               <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)} disabled={!fromWarehouseId}>
-                <option value="">{fromWarehouseId ? '— Selecione —' : 'Escolha a origem primeiro'}</option>
+                <option value="">{fromWarehouseId ? 'Selecione' : 'Escolha a origem primeiro'}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
+                    {p.sku} · {p.name}
                   </option>
                 ))}
               </Select>

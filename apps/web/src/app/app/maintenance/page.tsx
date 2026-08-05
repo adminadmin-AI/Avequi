@@ -235,7 +235,7 @@ export default function MaintenancePage() {
     {
       key: 'equipment',
       header: 'Equipamento',
-      cell: (o) => (o.equipment ? `${o.equipment.code} — ${o.equipment.name}` : '—'),
+      cell: (o) => (o.equipment ? `${o.equipment.code} · ${o.equipment.name}` : '—'),
     },
     { key: 'title', header: 'Descrição', cell: (o) => o.title },
     {
@@ -393,7 +393,7 @@ export default function MaintenancePage() {
     },
     {
       key: 'nextMaintenanceAt',
-      header: 'Próxima manut.',
+      header: 'Próxima manutenção',
       sortable: true,
       accessor: (e) => e.nextMaintenanceAt ?? '',
       cell: (e) => {
@@ -519,7 +519,7 @@ export default function MaintenancePage() {
               <Select value={equipFilter} onChange={(e) => setEquipFilter(e.target.value)}>
                 <option value="">Todos</option>
                 {equipment.map((e) => (
-                  <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
+                  <option key={e.id} value={e.id}>{e.code} · {e.name}</option>
                 ))}
               </Select>
             </div>
@@ -570,9 +570,9 @@ export default function MaintenancePage() {
         <form id="om-form" onSubmit={(e) => { e.preventDefault(); submitOm(); }} className="space-y-4 py-1">
           <Field label="Equipamento" required>
             <Select value={omForm.equipmentId} onChange={(e) => setOmForm((f) => ({ ...f, equipmentId: e.target.value }))}>
-              <option value="">— Selecione —</option>
+              <option value="">Selecione</option>
               {equipment.map((e) => (
-                <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
+                <option key={e.id} value={e.id}>{e.code} · {e.name}</option>
               ))}
             </Select>
           </Field>
@@ -596,7 +596,7 @@ export default function MaintenancePage() {
           </Field>
           <Field label="Técnico responsável">
             <Select value={omForm.technicianId} onChange={(e) => setOmForm((f) => ({ ...f, technicianId: e.target.value }))}>
-              <option value="">— Não atribuído —</option>
+              <option value="">Não atribuído</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
@@ -695,7 +695,7 @@ export default function MaintenancePage() {
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-content-secondary">
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-content-muted">Equipamento</dt>
-                    <dd>{selected.equipment ? `${selected.equipment.code} — ${selected.equipment.name}` : '—'}</dd>
+                    <dd>{selected.equipment ? `${selected.equipment.code} · ${selected.equipment.name}` : '—'}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-content-muted">Técnico</dt>

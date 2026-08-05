@@ -63,7 +63,7 @@ export default function BudgetPlansPage() {
   const plans = useList<BudgetPlanRow>('/budget-plans');
   const { data: products = [] } = useList<Product>('/products');
   const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })),
+    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
     [products],
   );
 
@@ -195,7 +195,7 @@ export default function BudgetPlansPage() {
     }
   }
 
-  const planOptions = (plans.data ?? []).map((p) => ({ value: p.id, label: `${p.name} — ${p.year}` }));
+  const planOptions = (plans.data ?? []).map((p) => ({ value: p.id, label: `${p.name} · ${p.year}` }));
   const selectedPlan = (plans.data ?? []).find((p) => p.id === planId) ?? null;
 
   const driverColumns: Column<BudgetProjectionDriver>[] = [
@@ -244,7 +244,7 @@ export default function BudgetPlansPage() {
                 options={planOptions}
                 value={planId}
                 onValueChange={setPlanId}
-                placeholder={plans.isLoading ? 'Carregando...' : planOptions.length ? 'Selecione um plano' : 'Nenhum plano — crie um'}
+                placeholder={plans.isLoading ? 'Carregando...' : planOptions.length ? 'Selecione um plano' : 'Nenhum plano. Crie um.'}
                 searchPlaceholder="Buscar plano..."
                 clearable
               />
@@ -323,7 +323,7 @@ export default function BudgetPlansPage() {
                       rowKey={(r) => r.id ?? r.label}
                       searchable={false}
                       pageSize={100}
-                      emptyMessage="Sem drivers — adicione na aba Drivers."
+                      emptyMessage="Sem drivers. Adicione na aba Drivers."
                     />
                   </CardContent>
                 </Card>
@@ -360,7 +360,7 @@ export default function BudgetPlansPage() {
             ) : sensitivity.data ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Sensibilidade — ±10% volume, ±5% preço</CardTitle>
+                  <CardTitle>Sensibilidade: ±10% volume, ±5% preço</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4 sm:max-w-md">
@@ -487,7 +487,7 @@ export default function BudgetPlansPage() {
           <Field label="Rótulo" required>
             <Input value={driverForm.label} onChange={(e) => setDriverForm({ ...driverForm, label: e.target.value })} required placeholder="Ex.: Reboque Basculante" />
           </Field>
-          <Field label="Produto (opcional — habilita comparativo realizado)">
+          <Field label="Produto (opcional: habilita comparativo realizado)">
             <Combobox
               options={productOptions}
               value={driverForm.productId}

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { erroDeAcao } from '@/lib/feedback';
 import { unmask } from '@/lib/format';
 import { lookupCep } from '@/lib/address-lookup';
 
@@ -46,7 +47,7 @@ function formatAddressLine(a: CustomerAddress): string {
     a.neighborhood,
     `${a.city}/${a.state}`,
   ].filter(Boolean);
-  return parts.join(' — ');
+  return parts.join(' · ');
 }
 
 /**
@@ -90,7 +91,7 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
       toast.success(editing ? 'Endereço atualizado' : 'Endereço adicionado');
       closeForm();
     },
-    onError: () => toast.error('Erro ao salvar endereço'),
+    onError: (err) => toast.error(erroDeAcao('salvar o endereço', err)),
   });
 
   const remove = useMutation({
@@ -100,8 +101,7 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
       invalidate();
       toast.success('Endereço removido');
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Erro ao remover endereço'),
+    onError: (err: any) => toast.error(erroDeAcao('remover o endereço', err)),
   });
 
   function openCreate() {
@@ -134,8 +134,8 @@ export function CustomerAddresses({ customerId }: { customerId: string }) {
 
   async function handleRemove(a: CustomerAddress) {
     const ok = await confirm({
-      title: 'Remover endereço de entrega?',
-      description: `"${a.label}" será removido. Endereços usados em vendas não podem ser excluídos.`,
+      title: `Remover o endereço "${a.label}"?`,
+      description: 'Você não vai conseguir desfazer isso. Endereços usados em vendas não podem ser removidos.',
       confirmLabel: 'Remover',
       variant: 'danger',
     });

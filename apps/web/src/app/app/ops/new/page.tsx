@@ -176,7 +176,7 @@ export default function NewTenantWizardPage() {
       router.replace(`/app/ops/new?tenantId=${data.company.id}`);
       setStep(firstPendingStep(data.checklist));
       setPositioned(true);
-      toast.success('Conta criada — continue o onboarding');
+      toast.success('Conta criada. Continue o onboarding.');
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Erro ao criar a conta'),
   });
@@ -203,7 +203,7 @@ export default function NewTenantWizardPage() {
       toast[res.data.emailSent ? 'success' : 'warning'](
         res.data.emailSent
           ? `Convite enviado para ${res.data.email}`
-          : `Convite criado, mas o e-mail falhou — reenvie depois (${res.data.emailError ?? 'erro no envio'})`,
+          : `Convite criado, mas o e-mail falhou. Reenvie depois (${res.data.emailError ?? 'erro no envio'})`,
       );
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Erro ao convidar o admin'),
@@ -230,7 +230,7 @@ export default function NewTenantWizardPage() {
   const activate = useMutation({
     mutationFn: () => apiClient.post(`${RESOURCE}/${companyId}/activate`),
     onSuccess: () => {
-      toast.success('Conta ativada — go-live concluído');
+      toast.success('Conta ativada. Go-live concluído.');
       router.push('/app/ops/tenants');
     },
     onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível ativar a conta'),
@@ -249,7 +249,7 @@ export default function NewTenantWizardPage() {
     <div>
       <PageHeader
         title="Nova conta de cliente"
-        description="Onboarding de um tenant novo — pode ser retomado a qualquer momento pelo link com ?tenantId=."
+        description="Onboarding de um tenant novo. Pode ser retomado a qualquer momento pelo link com ?tenantId=."
         actions={
           <Button variant="secondary" onClick={() => router.push('/app/ops/tenants')}>
             <ArrowLeft size={16} />
@@ -284,7 +284,7 @@ export default function NewTenantWizardPage() {
         ) : (
           <FormSection
             title="Dados da empresa"
-            description="Nasce como TRIAL. CNPJ é único — se já existir um onboarding aberto com este CNPJ, ele é retomado."
+            description="Nasce como TRIAL. CNPJ é único: se já existir um onboarding aberto com este CNPJ, ele é retomado."
             className="mb-5"
           >
             <Field label="Nome" required error={companyForm.formState.errors.name?.message}>
@@ -316,15 +316,15 @@ export default function NewTenantWizardPage() {
             </Field>
             <Field label="Regime tributário" error={companyForm.formState.errors.crt?.message}>
               <Select {...companyForm.register('crt')}>
-                <option value="">—</option>
-                <option value="1">1 — Simples Nacional</option>
-                <option value="2">2 — Simples Nacional, excesso sublimite</option>
-                <option value="3">3 — Regime Normal</option>
+                <option value="">Selecione</option>
+                <option value="1">1 · Simples Nacional</option>
+                <option value="2">2 · Simples Nacional, excesso sublimite</option>
+                <option value="3">3 · Regime Normal</option>
               </Select>
             </Field>
             <Field label="Regime de tributação" error={companyForm.formState.errors.taxRegime?.message}>
               <Select {...companyForm.register('taxRegime')}>
-                <option value="">—</option>
+                <option value="">Selecione</option>
                 <option value="SIMPLES_NACIONAL">Simples Nacional</option>
                 <option value="LUCRO_PRESUMIDO">Lucro Presumido</option>
                 <option value="LUCRO_REAL">Lucro Real</option>
@@ -335,7 +335,7 @@ export default function NewTenantWizardPage() {
             </Field>
             <Field label="UF" error={companyForm.formState.errors.state?.message}>
               <Select {...companyForm.register('state')}>
-                <option value="">—</option>
+                <option value="">Selecione</option>
                 {UF.map((uf) => (
                   <option key={uf} value={uf}>
                     {uf}
@@ -371,11 +371,11 @@ export default function NewTenantWizardPage() {
                 <div>
                   <p>
                     Convite para <strong>{checklist.admin.email}</strong>
-                    {checklist.admin.accepted ? ' — aceito ✓' : ' — aguardando aceite'}
+                    {checklist.admin.accepted ? ' · aceito ✓' : ' · aguardando aceite'}
                   </p>
                   {!checklist.admin.emailSent && (
                     <p className="mt-1 flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                      <AlertCircle size={13} /> E-mail falhou ao enviar — copie o link ou reenvie.
+                      <AlertCircle size={13} /> E-mail falhou ao enviar. Copie o link ou reenvie.
                     </p>
                   )}
                   {!checklist.admin.accepted && checklist.admin.inviteExpiresAt && (
@@ -431,7 +431,7 @@ export default function NewTenantWizardPage() {
           <CardContent className="space-y-4 py-5">
             <h3 className="text-sm font-semibold text-content-secondary">Configuração fiscal</h3>
             <p className="text-xs text-content-muted">
-              Exige um token Focus NFe ESCOPADO para este tenant — o fallback global pertence à
+              Exige um token Focus NFe ESCOPADO para esta conta: o token global pertence à
               matriz GDR (decisão #695) e não pode ser usado para outro cliente.
             </p>
 

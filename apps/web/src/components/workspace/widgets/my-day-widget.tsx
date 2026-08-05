@@ -132,7 +132,7 @@ export function MyDayWidget(_: WidgetComponentProps) {
           <>
             {nothingToday ? (
               <p className="mt-3 text-body text-content-secondary">
-                Nada registrado hoje ainda — o dia está começando.
+                Nada registrado hoje ainda. O dia está começando.
               </p>
             ) : (
               <div className="mt-3 flex flex-wrap gap-x-12 gap-y-4">

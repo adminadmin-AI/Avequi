@@ -69,7 +69,7 @@ export function ImpersonationBanner() {
       <span className="flex min-w-0 items-center gap-2">
         <span aria-hidden>🛟</span>
         <span className="truncate">
-          Suporte Avecchi visualizando como {session.targetName} — expira em{' '}
+          Suporte Avecchi visualizando como {session.targetName}, expira em{' '}
           <span className="font-mono tabular-nums">{formatCountdown(remainingMs)}</span>
         </span>
       </span>
