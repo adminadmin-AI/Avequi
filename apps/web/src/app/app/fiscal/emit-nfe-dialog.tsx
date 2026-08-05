@@ -84,25 +84,25 @@ export function EmitNfeDialog() {
         open={open}
         onOpenChange={setOpen}
         title="Emitir NF-e"
-        description="Fatura uma ordem de venda pronta e emite a NF-e."
+        description="Fatura um pedido de venda pronto e emite a NF-e."
         formId="emit-form"
         submitLabel="Faturar e emitir"
         loading={emit.isPending}
       >
         <form id="emit-form" onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4 py-1">
           <div>
-            <Label required>Ordem de venda (pronta para faturar)</Label>
+            <Label required>Pedido de venda (pronto para faturar)</Label>
             <Select value={salesOrderId} onChange={(e) => setSalesOrderId(e.target.value)}>
               <option value="">Selecione</option>
               {ready.map((o) => (
                 <option key={o.id} value={o.id}>
-                  OV #{o.id.slice(-6).toUpperCase()} · {o.customer?.name ?? 'sem cliente'} ({formatBRL(salesOrderTotal(o))})
+                  Pedido #{o.id.slice(-6).toUpperCase()} · {o.customer?.name ?? 'sem cliente'} ({formatBRL(salesOrderTotal(o))})
                 </option>
               ))}
             </Select>
             {ready.length === 0 && (
               <p className="mt-1 text-xs text-warning">
-                Nenhuma OV no status "Pronta p/ faturar" no momento.
+                Nenhum pedido no status "Pronta p/ faturar" no momento.
               </p>
             )}
           </div>

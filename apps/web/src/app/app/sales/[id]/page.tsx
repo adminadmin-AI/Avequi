@@ -547,8 +547,7 @@ export default function SalesDetailPage() {
               </table>
             </div>
             <p className="mt-1 text-xs text-warning">
-              A devolução é <strong>total</strong> (todos os itens, quantidade integral). O backend
-              ainda não suporta devolução parcial por item.
+              A devolução é <strong>total</strong> (todos os itens, quantidade integral). A devolução parcial por item ainda não está disponível.
             </p>
           </div>
 

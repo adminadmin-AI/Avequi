@@ -87,7 +87,8 @@ export function ResetPasswordDialog({
           toast.success('Senha redefinida. O usuário deverá trocá-la no próximo login.');
           handleOpenChange(false);
         },
-        onError: (err) => setError(resolveApiError(err, 'Erro ao redefinir a senha')),
+        onError: (err) =>
+          setError(resolveApiError(err, 'Não conseguimos redefinir a senha. Tente de novo.')),
       },
     );
   }

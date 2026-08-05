@@ -24,7 +24,7 @@ const SHORTCUT_ACTIONS: Record<
 > = {
   'new-sale': {
     label: 'Nova venda',
-    desc: 'Criar uma ordem de venda',
+    desc: 'Criar um pedido de venda',
     href: '/app/sales/new',
     icon: ShoppingCart,
     permission: ['sales.orders.create'],

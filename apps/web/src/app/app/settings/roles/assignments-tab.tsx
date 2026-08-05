@@ -5,7 +5,6 @@ import { CalendarClock, Plus, ShieldMinus, ShieldPlus, Trash2 } from 'lucide-rea
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import {
-  apiErrorMessage,
   useAssignUserRole,
   useGrantUserPermission,
   usePermissionsCatalog,
@@ -14,6 +13,7 @@ import {
   useUserPermissions,
   useUserRoles,
 } from '@/hooks/use-iam';
+import { erroDeAcao } from '@/lib/feedback';
 import type { IamRole, User } from '@/types/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,7 +85,7 @@ export function AssignmentsTab({
           setRoleToAssign('');
           setRoleExpiresAt('');
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao atribuir perfil')),
+        onError: (e) => toast.error(erroDeAcao('atribuir o perfil', e)),
       },
     );
   }
@@ -102,7 +102,7 @@ export function AssignmentsTab({
       { userId: selectedUserId, roleId },
       {
         onSuccess: () => toast.success('Perfil removido'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover perfil')),
+        onError: (e) => toast.error(erroDeAcao('remover o perfil', e)),
       },
     );
   }
@@ -150,7 +150,7 @@ export function AssignmentsTab({
           setPermissionExpiresAt('');
           setPermissionReason('');
         },
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao salvar exceção')),
+        onError: (e) => toast.error(erroDeAcao('salvar a exceção', e)),
       },
     );
   }
@@ -167,7 +167,7 @@ export function AssignmentsTab({
       { userId: selectedUserId, userPermissionId: id },
       {
         onSuccess: () => toast.success('Exceção removida'),
-        onError: (e) => toast.error(apiErrorMessage(e, 'Erro ao remover exceção')),
+        onError: (e) => toast.error(erroDeAcao('remover a exceção', e)),
       },
     );
   }

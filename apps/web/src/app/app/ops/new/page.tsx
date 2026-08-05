@@ -17,7 +17,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { unmask } from '@/lib/format';
 import type {
   CreateTenantInput,
@@ -178,7 +178,7 @@ export default function NewTenantWizardPage() {
       setPositioned(true);
       toast.success('Conta criada. Continue o onboarding.');
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Erro ao criar a conta'),
+    onError: (err) => toast.error(erroDeAcao('criar a conta', err)),
   });
 
   // ── Passo 2 — Admin ──────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ export default function NewTenantWizardPage() {
           : `Convite criado, mas o e-mail falhou. Reenvie depois (${res.data.emailError ?? 'erro no envio'})`,
       );
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Erro ao convidar o admin'),
+    onError: (err) => toast.error(erroDeAcao('convidar o admin', err)),
   });
 
   function submitAdmin(e: React.FormEvent) {
@@ -223,7 +223,7 @@ export default function NewTenantWizardPage() {
     mutationFn: () =>
       apiClient.post<FiscalCheckResult>(`${RESOURCE}/${companyId}/provisioning/fiscal-check`),
     onSuccess: () => refreshProvisioning(),
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Erro ao verificar a config fiscal'),
+    onError: (err) => toast.error(erroDeAcao('verificar a configuração fiscal', err)),
   });
 
   // ── Passo 4 — Go-live ────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ export default function NewTenantWizardPage() {
       toast.success('Conta ativada. Go-live concluído.');
       router.push('/app/ops/tenants');
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível ativar a conta'),
+    onError: (err) => toast.error(erroDeAcao('ativar a conta', err)),
   });
 
   const checklist = provisioning?.checklist;

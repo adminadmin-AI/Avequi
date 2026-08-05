@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatDateTime } from '@/lib/format';
 import type {
   AssignTenantPlanInput,
@@ -209,7 +210,7 @@ function CurrentPlanCard({
       qc.invalidateQueries({ queryKey: [RESOURCE, tenantId, 'entitlements'] });
     },
     onError: (err) => {
-      toast.error(mensagemDoErro(err) ?? 'Não foi possível trocar o plano');
+      toast.error(erroDeAcao('trocar o plano', err));
       setSelected(data.plan?.id ?? '');
     },
   });
@@ -299,7 +300,7 @@ export function EntitlementsTab({ tenantId }: { tenantId: string }) {
       invalidate();
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível salvar a exceção'),
+    onError: (err) => toast.error(erroDeAcao('salvar a exceção', err)),
   });
 
   const removeOverride = useMutation({
@@ -308,7 +309,7 @@ export function EntitlementsTab({ tenantId }: { tenantId: string }) {
       toast.success('Exceção removida. A conta volta ao valor do plano.');
       invalidate();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível remover a exceção'),
+    onError: (err) => toast.error(erroDeAcao('remover a exceção', err)),
   });
 
   function openCreate() {

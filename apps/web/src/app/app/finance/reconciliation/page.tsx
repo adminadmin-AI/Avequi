@@ -24,7 +24,7 @@ const RETORNO_STATUS: Record<string, { label: string; variant: BadgeVariant }> =
   PENDING: { label: 'Pendente', variant: 'neutral' },
   PROCESSING: { label: 'Processando', variant: 'info' },
   PROCESSED: { label: 'Processado', variant: 'success' },
-  ERROR: { label: 'Erro', variant: 'danger' },
+  ERROR: { label: 'Com erro', variant: 'danger' },
 };
 
 interface CnabRetorno {

@@ -8,7 +8,7 @@ export const FISCAL_STATUS: Record<FiscalStatus, { label: string; variant: Badge
   AUTHORIZED: { label: 'Autorizada', variant: 'success' },
   REJECTED: { label: 'Rejeitada', variant: 'danger' },
   CANCELLED: { label: 'Cancelada', variant: 'neutral' },
-  ERROR: { label: 'Erro', variant: 'danger' },
+  ERROR: { label: 'Com erro', variant: 'danger' },
 };
 
 export const FISCAL_STATUS_OPTIONS = Object.entries(FISCAL_STATUS).map(([value, meta]) => ({

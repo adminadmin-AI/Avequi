@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FileText, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatDate } from '@/lib/format';
 import type {
   CreateProposalInput,
@@ -219,7 +220,7 @@ function SubscriptionCard({
       invalidate();
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível salvar a assinatura'),
+    onError: (err) => toast.error(erroDeAcao('salvar a assinatura', err)),
   });
 
   // #992 — abre o contrato em PDF numa aba nova (gerado on-demand na API).
@@ -231,7 +232,7 @@ function SubscriptionCard({
       // revoga depois que a aba nova já carregou o blob
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível gerar o contrato'),
+    onError: (err) => toast.error(erroDeAcao('gerar o contrato', err)),
   });
 
   const cancel = useMutation({
@@ -240,7 +241,7 @@ function SubscriptionCard({
       toast.success('Assinatura cancelada');
       invalidate();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível cancelar a assinatura'),
+    onError: (err) => toast.error(erroDeAcao('cancelar a assinatura', err)),
   });
 
   async function handleCancel() {
@@ -353,22 +354,22 @@ function InvoicesCard({ tenantId, invoices }: { tenantId: string; invoices: Invo
     mutationFn: ({ id, method }: { id: string; method: InvoiceMethod }) =>
       apiClient.post(`/ops/billing/invoices/${id}/pay`, { method }),
     onSuccess: () => {
-      toast.success('Baixa registrada');
+      toast.success(`Baixa registrada na fatura de ${formatPeriod(payTarget!.period)}`);
       invalidate();
       setPayTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível dar baixa na fatura'),
+    onError: (err) => toast.error(erroDeAcao('dar baixa na fatura', err)),
   });
 
   const voidInvoice = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       apiClient.post(`/ops/billing/invoices/${id}/void`, { reason }),
     onSuccess: () => {
-      toast.success('Fatura anulada');
+      toast.success(`Fatura de ${formatPeriod(voidTarget!.period)} anulada`);
       invalidate();
       setVoidTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível anular a fatura'),
+    onError: (err) => toast.error(erroDeAcao('anular a fatura', err)),
   });
 
   return (
@@ -758,7 +759,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       invalidateProposals();
       setDialogOpen(false);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível criar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('criar a proposta', err)),
   });
 
   const send = useMutation({
@@ -767,7 +768,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       toast.success('Proposta marcada como enviada');
       invalidateProposals();
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível enviar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('enviar a proposta', err)),
   });
 
   const accept = useMutation({
@@ -778,7 +779,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       invalidateConta();
       setAcceptTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível aceitar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('aceitar a proposta', err)),
   });
 
   const decline = useMutation({
@@ -789,7 +790,7 @@ function ProposalsCard({ tenantId }: { tenantId: string }) {
       invalidateProposals();
       setDeclineTarget(null);
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível recusar a proposta'),
+    onError: (err) => toast.error(erroDeAcao('recusar a proposta', err)),
   });
 
   const proposals = proposalsQuery.data ?? [];

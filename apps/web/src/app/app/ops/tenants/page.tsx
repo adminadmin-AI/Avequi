@@ -7,6 +7,7 @@ import { Building2, LogIn, Plus, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
 import { ehNegativaDeAcesso, mensagemDoErro } from '@/lib/api-error';
+import { erroDeAcao } from '@/lib/feedback';
 import type { RunMeteringResult, Tenant } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { EntrarNaContaDialog } from '../entrar-na-conta-dialog';
@@ -62,7 +63,7 @@ export default function OpsTenantsPage() {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
       qc.invalidateQueries({ queryKey: ['/ops/alerts'] });
     },
-    onError: (err) => toast.error(mensagemDoErro(err) ?? 'Não foi possível reprocessar as métricas'),
+    onError: (err) => toast.error(erroDeAcao('reprocessar as métricas', err)),
   });
 
   async function handleReprocessMetering() {

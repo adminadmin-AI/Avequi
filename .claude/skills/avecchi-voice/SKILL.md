@@ -98,10 +98,19 @@ custeio por absorção, dar baixa, conciliação, alçada.
 
 ## Onde mexer (infra de mensagens)
 
-- Fallbacks de erro e sucesso: centralizar/consultar o helper compartilhado
-  (Onda 2 do #987) — não inventar "Erro ao X" novo em tela.
+- Fallbacks de erro: `erroDeAcao('<ação com objeto>', e)` de `@/lib/feedback`
+  — não inventar "Erro ao X" novo em tela.
 - `ErrorState` tem default humano — não sobrescrever com texto de máquina.
-- Confirmações destrutivas usam o dicionário compartilhado.
+- Confirmações destrutivas: título verbo+objeto (com o valor quando houver).
+
+## Gate no CI (voice-lint)
+
+Este glossário é EXECUTADO: `apps/web/src/lib/voice-lint/` varre as strings de
+`src/app` e `src/components` no vitest (roda no job `test` do CI) e QUEBRA o
+build se um termo banido, travessão ou frase de máquina voltar. Falhou? Corrija
+o texto por este documento; exceção consciente usa
+`// voice-lint: ok (<motivo>)` na linha — sempre com motivo, revisável em PR.
+Termo novo aposentado aqui deve entrar também no `BANNED_PATTERNS` de lá.
 
 ## Checklist antes de entregar tela nova
 

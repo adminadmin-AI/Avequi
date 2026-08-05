@@ -147,8 +147,7 @@ function PortalDashboard({ onLogout }: { onLogout: () => void }) {
           <Info size={14} className="mt-0.5 shrink-0" />
           <span>
             Bem-vindo{profile?.name ? `, ${profile.name}` : ''}. Acompanhe seus pedidos e pagamentos.
-            As seções de <strong>cotações</strong> e <strong>upload de NF-e/documentos</strong> da especificação ainda
-            não têm endpoint no portal do backend (pendência #247).
+            As seções de <strong>cotações</strong> e <strong>upload de NF-e/documentos</strong> chegam em breve ao portal.
           </span>
         </div>
 
