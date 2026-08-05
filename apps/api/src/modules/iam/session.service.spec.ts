@@ -2,6 +2,7 @@ import { HttpException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SessionDenylistService } from './session-denylist.service';
+import { AuditService } from './audit.service';
 import {
   LOCKOUT_LADDER_MINUTES,
   LOCKOUT_THRESHOLD,
@@ -36,6 +37,11 @@ const mockPrisma = {
   $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
 };
 
+/** #1001-C2: auditoria mockada para provar que o ATOR vai para a trilha. */
+const mockAudit = {
+  logWithDiff: jest.fn(),
+};
+
 const mockDenylist = {
   deny: jest.fn(),
   isSessionDenylisted: jest.fn(),
@@ -60,6 +66,7 @@ describe('SessionService', () => {
         SessionService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: SessionDenylistService, useValue: mockDenylist },
+        { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
 
@@ -471,6 +478,131 @@ describe('SessionService', () => {
       await service.revokeSession('sess-1', 'LOGOUT' as any, 'u1');
 
       expect(mockPrisma.userSession.update).not.toHaveBeenCalled();
+    });
+
+    // ── #1001-C2: escopo empresarial e auditoria do ator ───────────────────
+
+    it('#1001-C2: sessão FORA do escopo autorizado → 404, sem revogar nada', async () => {
+      // Mesma resposta de "não existe": distinguir os casos entregaria um
+      // oráculo de sessões alheias a quem não pode agir sobre elas.
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-outra-empresa',
+        userId: 'u-de-outro-tenant',
+        companyId: 'c-outra',
+        refreshTokenId: 'rt-9',
+        revokedAt: null,
+      });
+
+      await expect(
+        service.revokeSession('sess-outra-empresa', 'ADMIN_REVOKE' as any, undefined, {
+          actorUserId: 'admin-1',
+          allowedCompanyIds: ['c1', 'c2'],
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockPrisma.userSession.update).not.toHaveBeenCalled();
+      expect(mockDenylist.deny).not.toHaveBeenCalled();
+    });
+
+    it('#1001-C2: sessão DENTRO do escopo é revogada normalmente', async () => {
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-2',
+        userId: 'vitima',
+        companyId: 'c2',
+        refreshTokenId: 'rt-2',
+        revokedAt: null,
+      });
+
+      await service.revokeSession('sess-2', 'ADMIN_REVOKE' as any, undefined, {
+        actorUserId: 'admin-1',
+        allowedCompanyIds: ['c1', 'c2'],
+      });
+
+      expect(mockPrisma.userSession.update).toHaveBeenCalled();
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalled(); // refresh invalidado
+      expect(mockDenylist.deny).toHaveBeenCalledWith('sess-2'); // access na denylist
+    });
+
+    it('#1001-C2: a auditoria registra o ATOR, não a vítima', async () => {
+      // Era aqui que a trilha mentia: `expectedUserId ?? session.userId`
+      // gravava o dono da sessão sempre que um admin revogava, porque nesse
+      // caminho o expected é undefined. Quem revogou ficava invisível.
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-3',
+        userId: 'vitima',
+        companyId: 'c1',
+        refreshTokenId: 'rt-3',
+        revokedAt: null,
+      });
+
+      await service.revokeSession('sess-3', 'ADMIN_REVOKE' as any, undefined, {
+        actorUserId: 'admin-1',
+        allowedCompanyIds: ['c1'],
+      });
+
+      expect(mockAudit.logWithDiff).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ userId: 'admin-1', entity: 'UserSession' }),
+      );
+    });
+
+    it('#1001-C2: o SecurityEvent continua sendo da VÍTIMA, com o ator no metadado', async () => {
+      // O histórico de segurança de quem teve a sessão derrubada precisa
+      // mostrar o evento — mas com rastro de quem fez.
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-4',
+        userId: 'vitima',
+        companyId: 'c1',
+        refreshTokenId: 'rt-4',
+        revokedAt: null,
+      });
+
+      await service.revokeSession('sess-4', 'ADMIN_REVOKE' as any, undefined, {
+        actorUserId: 'admin-1',
+        allowedCompanyIds: ['c1'],
+      });
+
+      expect(mockPrisma.securityEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'vitima',
+          metadata: expect.objectContaining({ actorUserId: 'admin-1', porTerceiro: true }),
+        }),
+      });
+    });
+
+    it('#1001-C2: logout próprio marca porTerceiro=false', async () => {
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-5',
+        userId: 'u1',
+        companyId: 'c1',
+        refreshTokenId: 'rt-5',
+        revokedAt: null,
+      });
+
+      await service.revokeSession('sess-5', 'LOGOUT' as any, 'u1', { actorUserId: 'u1' });
+
+      expect(mockPrisma.securityEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({ actorUserId: 'u1', porTerceiro: false }),
+        }),
+      });
+    });
+
+    it('#1001-C2: sem escopo informado o comportamento antigo é preservado', async () => {
+      // Chamadas internas (troca de senha, incidente de segurança) continuam
+      // funcionando sem passar escopo — a restrição é só do caminho HTTP.
+      mockPrisma.userSession.findUnique.mockResolvedValue({
+        id: 'sess-6',
+        userId: 'u1',
+        companyId: 'c-qualquer',
+        refreshTokenId: 'rt-6',
+        revokedAt: null,
+      });
+
+      await service.revokeSession('sess-6', 'SECURITY' as any);
+
+      expect(mockPrisma.userSession.update).toHaveBeenCalled();
     });
 
     it('revokeAllSessions revoga todas as ativas (logout global)', async () => {

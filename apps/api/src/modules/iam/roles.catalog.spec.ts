@@ -183,6 +183,10 @@ describe('Catálogo de perfis system (#339)', () => {
       'analytics.export.execute',
       'finance.reports.export',
       'fiscal.documents.export',
+      // #1001-C2: `view-all` é LEITURA — amplia o recorte de "só as minhas"
+      // para "as de todos", sem conceder nenhuma escrita. O auditor recebe a
+      // visão ampla e continua SEM approve e SEM configure (ver c2-1001-matriz).
+      'sales.commissions.view-all',
     ];
     const mutacoes = auditor.permissions.filter(
       (p) => !p.endsWith('.view') && !EXPORTS_DE_LEITURA.includes(p),

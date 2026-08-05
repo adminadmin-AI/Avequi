@@ -126,7 +126,11 @@ describe('Catálogo de permissões (#338)', () => {
     //       iam.tenant-scope.cross-company. As duas primeiras não são rotas
     //       próprias — são exceções DENTRO de rotas existentes; a terceira é
     //       capability estrutural de escopo, exclusiva do ADMIN_GLOBAL.
-    expect(PERMISSIONS_CATALOG.length).toBe(322);
+    // 324 = 322 + as duas da #1001-C2: sales.commissions.view-all (ver a
+    //       comissão e o percentual dos outros — antes era o enum COMMERCIAL
+    //       que restringia) e iam.sessions.revoke-any (revogar sessão de
+    //       terceiro — antes era `role === 'SUPER_ADMIN'` no handler).
+    expect(PERMISSIONS_CATALOG.length).toBe(324);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

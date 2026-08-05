@@ -625,37 +625,68 @@ export class SessionService {
   }
 
   /**
-   * Revoga UMA sessão. `expectedUserId` limita ao dono (404 em mismatch —
-   * sem vazar existência, anti-IDOR); admin passa undefined.
-   * Revogação crítica (ADMIN_REVOKE / SECURITY) entra na denylist Redis →
-   * o access token morre imediatamente quando o guard consultar (#341).
+   * Revoga UMA sessão.
+   *
+   * ── #1001-C2: três papéis, três parâmetros ─────────────────────────────────
+   * Antes havia só `expectedUserId`, e ele acumulava duas funções incompatíveis:
+   * era o DONO esperado da sessão e, na auditoria, virava o ATOR. No caminho de
+   * admin ele vinha `undefined`, então a trilha registrava o **dono da sessão**
+   * como autor — era impossível saber quem tinha derrubado quem.
+   *
+   * Agora cada coisa tem seu nome:
+   *   - `expectedUserId` — o DONO esperado. Presente = revogação da própria
+   *     sessão; mismatch → 404, sem vazar existência (anti-IDOR).
+   *   - `actorUserId`    — QUEM pediu a revogação. É o que vai para a trilha.
+   *   - `allowedCompanyIds` — o ESCOPO autorizado. Sessão fora dele responde
+   *     404, igual a inexistente: quem não pode agir sobre ela também não
+   *     precisa saber que ela existe.
+   *
+   * Revogação crítica (ADMIN_REVOKE / SECURITY) entra na denylist Redis → o
+   * access token morre imediatamente quando o guard consultar (#341); o
+   * refresh é invalidado em qualquer caso.
    */
   async revokeSession(
     sessionId: string,
     reason: SessionRevokedReason,
     expectedUserId?: string,
+    opcoes: { actorUserId?: string; allowedCompanyIds?: string[] } = {},
   ): Promise<void> {
     const session = await this.prisma.userSession.findUnique({
       where: { id: sessionId },
       select: { id: true, userId: true, companyId: true, refreshTokenId: true, revokedAt: true },
     });
-    if (!session || (expectedUserId && session.userId !== expectedUserId)) {
+    const foraDoEscopo =
+      !!opcoes.allowedCompanyIds && !opcoes.allowedCompanyIds.includes(session?.companyId ?? '');
+    if (!session || (expectedUserId && session.userId !== expectedUserId) || foraDoEscopo) {
+      // Mesma resposta para "não existe", "não é sua" e "fora do seu escopo":
+      // distinguir os casos entregaria um oráculo de sessões alheias.
       throw new NotFoundException('Sessão não encontrada');
     }
     if (session.revokedAt) return; // idempotente
 
     await this.revokeSessionRow(session.id, session.refreshTokenId, reason);
 
+    const ator = opcoes.actorUserId ?? expectedUserId ?? session.userId;
+
     await this.prisma.securityEvent.create({
       data: {
         companyId: session.companyId,
+        // O evento continua sendo DA VÍTIMA: é o histórico de segurança dela
+        // que precisa mostrar que a sessão caiu.
         userId: session.userId,
         eventType: SecurityEventType.SESSION_REVOKED,
         severity:
           reason === SessionRevokedReason.SECURITY
             ? SecurityEventSeverity.CRITICAL
             : SecurityEventSeverity.INFO,
-        metadata: { sessionId: session.id, reason },
+        // #1001-C2: o ator vai no metadado. Sem isso, uma revogação
+        // administrativa fica indistinguível de um logout do próprio usuário.
+        metadata: {
+          sessionId: session.id,
+          reason,
+          actorUserId: ator,
+          porTerceiro: ator !== session.userId,
+        },
       },
     });
 
@@ -672,7 +703,11 @@ export class SessionService {
       { revokedAt: new Date(), revokedReason: reason },
       {
         companyId: session.companyId,
-        userId: expectedUserId ?? session.userId,
+        // #1001-C2: o ATOR, não a vítima. Era aqui que a trilha mentia:
+        // `expectedUserId ?? session.userId` registrava o dono da sessão
+        // sempre que um admin revogava, porque nesse caminho o expected é
+        // undefined. Quem revogou ficava invisível.
+        userId: ator,
         sessionId: session.id,
         entity: 'UserSession',
         entityId: session.id,

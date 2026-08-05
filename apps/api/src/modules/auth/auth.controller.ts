@@ -28,7 +28,17 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { PermissionService } from '../iam/permission.service';
+import { TenantScopeService } from '../iam/tenant-scope.service';
 import { SessionService } from '../iam/session.service';
+
+/**
+ * Permissão que autoriza revogar a sessão de OUTRO usuário (#1001-C2).
+ *
+ * Revogar a própria sessão é self-service e não exige permissão nenhuma —
+ * como trocar a própria senha. O que esta permissão governa é o poder sobre
+ * terceiros, que é crítico: mata o refresh e põe o access na denylist.
+ */
+export const SESSION_REVOKE_ANY_PERMISSION = 'iam.sessions.revoke-any';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -39,6 +49,7 @@ export class AuthController {
     private readonly mfaService: MfaService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly permissionService: PermissionService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   @Public()
@@ -272,17 +283,39 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Revogar uma sessão específica (própria; SUPER_ADMIN revoga de qualquer usuário — entra na denylist)',
+      'Revogar uma sessão específica (própria; com iam.sessions.revoke-any, de terceiro dentro do escopo — entra na denylist)',
   })
   async revokeSession(@CurrentUser() user: any, @Param('id') id: string) {
-    if (user.role === 'SUPER_ADMIN') {
-      // Admin revoga sessão de qualquer usuário — revogação CRÍTICA:
-      // além de matar o refresh, o sessionId entra na denylist Redis.
-      await this.sessionService.revokeSession(id, SessionRevokedReason.ADMIN_REVOKE);
+    // #1001-C2: quem revoga sessão ALHEIA é quem tem a permissão — não mais
+    // `user.role === 'SUPER_ADMIN'`.
+    //
+    // `hasAnyPermission` resolve o RBAC v2 puro, SEM o fallback legado do
+    // #946: o espelho do enum SUPER_ADMIN é o ADMIN_GLOBAL, que TEM esta
+    // permissão — honrar o fallback devolveria pelo enum o poder que este PR
+    // passa a exigir por permissão.
+    const podeRevogarDeTerceiros = await this.permissionService.hasAnyPermission(
+      user.id,
+      user.companyId,
+      [SESSION_REVOKE_ANY_PERMISSION],
+    );
+
+    if (podeRevogarDeTerceiros) {
+      // O poder é real, mas não é ilimitado: só alcança sessões das empresas
+      // do escopo autorizado. `resolverEscopo` devolve só a própria empresa
+      // para quem não tem a capability de grupo (#947) — que é o caso do
+      // ADMIN_EMPRESA — e a raiz + filiais para quem tem (ADMIN_GLOBAL).
+      const { companyIds } = await this.tenantScope.resolverEscopo(user.id, user.companyId);
+      await this.sessionService.revokeSession(id, SessionRevokedReason.ADMIN_REVOKE, undefined, {
+        actorUserId: user.id,
+        allowedCompanyIds: companyIds,
+      });
       return;
     }
+
     // Dono revoga a própria sessão (mismatch → 404, sem vazar existência).
-    await this.sessionService.revokeSession(id, SessionRevokedReason.LOGOUT, user.id);
+    await this.sessionService.revokeSession(id, SessionRevokedReason.LOGOUT, user.id, {
+      actorUserId: user.id,
+    });
   }
 
   @Delete('sessions')

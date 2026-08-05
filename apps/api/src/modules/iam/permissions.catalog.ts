@@ -205,6 +205,11 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ]),
   ...r('sales', 'commissions', 'Comissões', [
     ['view', 'ver', 'GET /commissions, GET /commissions/rules (leitura restrita 🔒)'],
+    [
+      'view-all',
+      'ver comissões e percentuais de todos',
+      'sem ela, GET /commissions e /commissions/rules devolvem SÓ o do próprio usuário (#1001-C2)',
+    ],
     ['approve', 'aprovar lote', 'POST /commissions/approve-batch'],
     ['configure', 'configurar regras', 'POST /commissions/rules'],
   ]),
@@ -648,6 +653,17 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'cross-company',
       'ampliar consultas para todas as empresas do grupo',
       'ampliação explícita em GET /companies e GET /users (#947)',
+    ],
+  ]),
+
+  // ── iam ── (auth/auth.controller.ts, #1001-C2) 🔒
+  // Revogar a PRÓPRIA sessão não exige permissão nenhuma (self-service, como
+  // trocar a própria senha). Esta permissão governa só o poder sobre TERCEIROS.
+  ...r('iam', 'sessions', 'Sessões de usuários', [
+    [
+      'revoke-any',
+      'revogar sessão de outro usuário',
+      'DELETE /auth/sessions/:id de terceiro — revogação crítica: mata o refresh e põe o access na denylist (#1001-C2)',
     ],
   ]),
 

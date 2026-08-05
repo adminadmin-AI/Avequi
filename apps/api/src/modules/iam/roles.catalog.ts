@@ -64,7 +64,16 @@ function dedupe(codes: string[]): string[] {
  * Quem os tem, tem por LISTA EXPLÍCITA (hoje: DIRETOR e, dinamicamente, o
  * ADMIN_GLOBAL/ADMIN_EMPRESA via tenantPermissionCodes()).
  */
-const PODERES_EXCECAO_SALES = ['sales.discount.override', 'sales.orders.billing-block-override'];
+const PODERES_EXCECAO_SALES = [
+  'sales.discount.override',
+  'sales.orders.billing-block-override',
+  // #1001-C2: ver a comissão e o PERCENTUAL de todo mundo é dado de
+  // remuneração. Vários perfis recebem vendas por varredura e não têm
+  // responsabilidade comercial nenhuma — GERENTE_INDUSTRIAL é o exemplo. Fica
+  // na lista de exceção pelo mesmo motivo dos outros dois: varredura não
+  // distingue "operar vendas" de "ver quanto cada um ganha".
+  'sales.commissions.view-all',
+];
 
 /** Remove os poderes de exceção de uma varredura ampla do módulo sales (#947). */
 const semExcecoesDeVendas = (codes: string[]) =>
@@ -230,6 +239,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // gerencial na 347-B antes de atribuir este perfil nesse cenário.
       ...CRM_OPERACIONAL,
       ...CRM_GERENCIAL_SEM_LGPD,
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
 
@@ -305,6 +316,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // (o DIRECTOR legado tinha todas as rotas do CRM — zero regressão).
       // As leituras crm.*.view já entram pelo actionCodes('view') acima.
       ...moduleCodes('crm'),
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
 
@@ -399,6 +412,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // as rotas do CRM, incluindo anonimização; GERENTE_GERAL preserva
       // (espelhamento obrigatório, zero regressão).
       ...moduleCodes('crm'),
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
   {
@@ -444,6 +459,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...moduleCodes('analytics', 'vehicle-tracking').filter(
         (c) => !c.startsWith('vehicle-tracking.documents.'),
       ),
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
   {
@@ -480,6 +497,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // (anonymize/retention-update, exclusivas da alta gestão).
       ...CRM_OPERACIONAL,
       ...CRM_GERENCIAL_SEM_LGPD,
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
   {
@@ -559,6 +578,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'crm.distribution.view',
       'crm.sdr.monitor',
       'crm.leads.reassign',
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ],
   },
 
@@ -821,6 +842,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...moduleCodes('vehicle-tracking').filter(
         (c) => !c.startsWith('vehicle-tracking.documents.'),
       ),
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
   {
@@ -938,6 +961,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // management book e massa fiscal (XMLs) — sem nenhuma mutação.
       'finance.reports.export',
       'fiscal.documents.export',
+      // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
+      'sales.commissions.view-all',
     ]),
   },
   {
@@ -1030,6 +1055,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'stock.movements.view',
       'sales.quotations.view',
       'sales.commissions.view',
+      // #1001-C2 (decisão Rafael): administra a equipe comercial da loja e
+      // precisa ver a comissão e a regra dos vendedores sob sua gestão. Sem
+      // isto veria apenas a própria. O escopo continua sendo a Company do
+      // JWT — a filial —, sem visão cross-tenant.
+      'sales.commissions.view-all',
       // #625 (bloco G): gerência da filial consulta transportadoras.
       'sales.carriers.view',
       'analytics.dashboards.view',
