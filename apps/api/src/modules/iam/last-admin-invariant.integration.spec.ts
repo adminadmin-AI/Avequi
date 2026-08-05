@@ -13,8 +13,10 @@ type PrismaClient = import('@prisma/client').PrismaClient;
 /**
  * Prova REAL de lock e serialização da invariante #752 — roda contra um
  * PostgreSQL de verdade (descartável), apontado por TEST_DATABASE_URL.
- * Sem a env, a suíte é pulada (o CI atual não tem Postgres de teste; a
- * lógica/ordenação é coberta pelo unit spec ao lado).
+ *
+ * Desde a #937 o CI provisiona esse Postgres como serviço do job de teste:
+ * estes testes rodam em TODO PR, não são mais opcionais. Fora do CI, sem a
+ * env, a suíte é pulada (a lógica/ordenação é coberta pelo unit spec ao lado).
  *
  * Pré-requisito: schema aplicado no banco de teste (npx prisma db push).
  *
@@ -35,9 +37,10 @@ type PrismaClient = import('@prisma/client').PrismaClient;
  *   TEST_DATABASE_URL=postgresql://u:p@localhost:5433/itg752 \
  *     npx jest last-admin-invariant.integration --runInBand
  *
- * Sem TEST_DATABASE_URL a suíte é PULADA (o CI atual não tem Postgres de
- * serviço — ver issue de infra). O spec ESCREVE e APAGA dados: por isso
- * recusa qualquer URL que não seja de banco descartável/local.
+ * No CI isso é automático (#937): o job sobe um `postgres:16-alpine` de
+ * serviço, aplica o schema e exporta a env. Localmente, sem TEST_DATABASE_URL
+ * a suíte é PULADA. O spec ESCREVE e APAGA dados: por isso recusa qualquer
+ * URL que não seja de banco descartável/local.
  */
 
 const url = process.env.TEST_DATABASE_URL;
@@ -62,6 +65,28 @@ if (url && !urlEhDescartavel(url)) {
   throw new Error(
     'TEST_DATABASE_URL aponta para um host REMOTO. Esta suíte escreve e apaga dados: ' +
       'use um PostgreSQL descartável local (localhost/127.0.0.1/serviço de CI).',
+  );
+}
+
+/**
+ * No CI, a ausência do banco é ERRO, não motivo para pular (#937).
+ *
+ * O workflow provisiona um PostgreSQL de serviço no job de teste. Se a env não
+ * chegou até aqui — serviço fora do ar, variável renomeada, `env` do turbo
+ * removida — a suíte tem de FALHAR alto. Pulando em silêncio, o CI ficaria
+ * verde justamente quando a prova de serialização deixou de existir, que é o
+ * cenário que esta issue foi aberta para eliminar.
+ *
+ * Fora do CI o comportamento não muda: quem não tem Postgres à mão continua
+ * rodando o resto da suíte normalmente.
+ */
+if (!url && process.env.CI) {
+  throw new Error(
+    '[#752/#937] TEST_DATABASE_URL ausente no CI. A prova de serialização do ' +
+      'lock é obrigatória em todo PR — o job de teste sobe um PostgreSQL de ' +
+      'serviço e exporta esta variável. Se este erro apareceu, o encanamento ' +
+      'quebrou (serviço, workflow ou `env` do turbo) e a proteção do último ' +
+      'administrador global deixou de ser verificada.',
   );
 }
 

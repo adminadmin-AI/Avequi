@@ -51,6 +51,43 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+
+    # PostgreSQL descartável do job (#937).
+    #
+    # Por que um banco de verdade: a invariante do último administrador global
+    # (#752) é protegida por lock pessimista (SELECT … FOR UPDATE na empresa
+    # raiz, dentro de transação). Provar que isso funciona exige DUAS transações
+    # simultâneas disputando a mesma linha — e mock de Prisma não serializa
+    # nada, ele devolve o que mandarmos. Sem este serviço, uma regressão que
+    # quebrasse o lock (trocar o $transaction interativo por escritas soltas,
+    # por exemplo) passaria VERDE no CI.
+    #
+    # O container sobe vazio, vive só enquanto o job roda e morre com ele. As
+    # credenciais abaixo são locais e efêmeras: não existem fora deste job e
+    # não têm relação nenhuma com produção.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: avequi_test
+        ports:
+          - 5432:5432
+        # Sem healthcheck o job corre para o `db push` antes do banco aceitar
+        # conexão e falha de forma intermitente.
+        options: >-
+          --health-cmd "pg_isready -U ci -d avequi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # `localhost` porque os steps rodam no runner, não dentro de um container:
+      # a porta do serviço é publicada no host. O spec de integração RECUSA
+      # qualquer host remoto antes de escrever a primeira linha.
+      TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/avequi_test
+
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -62,4 +99,20 @@ jobs:
           path: .turbo
           key: turbo-test-${{ github.sha }}
           restore-keys: turbo-test-
+      # Cria o schema no banco do job a partir do `schema.prisma`.
+      #
+      # `db push` e não `migrate deploy` de propósito: o Prisma Client que o
+      # código usa é gerado a partir do schema, então o banco de teste tem de
+      # espelhar o SCHEMA — não a história de migrations, que está em
+      # re-baseline na #640. Rodar as 86 migrations do zero é um teste válido,
+      # mas é OUTRO teste, e prendê-lo aqui faria o problema de uma issue
+      # derrubar o CI de todo mundo.
+      #
+      # DIRECT_URL vai junto porque o datasource declara `directUrl`, e é ele
+      # que o `db push` usa — sem a variável o comando falha na validação.
+      - name: Preparar schema no Postgres do job
+        run: npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.TEST_DATABASE_URL }}
       - run: npm run test
