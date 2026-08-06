@@ -4,9 +4,27 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
+
+/** Campos que a TELA DE LISTA usa (apps/web/src/app/app/products/page.tsx) — #1028 */
+const PRODUCT_LIST_SELECT = {
+  id: true,
+  sku: true,
+  name: true,
+  type: true,
+  unit: true,
+  ncm: true,
+  costPrice: true,
+  salePrice: true,
+  isActive: true,
+} satisfies Prisma.ProductSelect;
+
+export type ProductListItem = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
 
 @Injectable()
 export class ProductService {
@@ -48,9 +66,9 @@ export class ProductService {
 
   async findAll(
     companyId: string,
-    query: { search?: string; type?: string; isActive?: string },
-  ) {
-    const where: any = { companyId };
+    query: ProductQueryDto,
+  ): Promise<PaginatedResult<ProductListItem>> {
+    const where: Prisma.ProductWhereInput = { companyId };
 
     if (query.type) {
       where.type = query.type;
@@ -67,9 +85,13 @@ export class ProductService {
       ];
     }
 
-    return this.prisma.product.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
+    return paginate({
+      orderBy: { createdAt: 'desc' as const },
+      page: query.page,
+      pageSize: query.pageSize,
+      count: () => this.prisma.product.count({ where }),
+      findMany: (args) =>
+        this.prisma.product.findMany({ where, select: PRODUCT_LIST_SELECT, ...args }),
     });
   }
 

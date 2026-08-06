@@ -5,9 +5,34 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CustomerQueryDto } from './dto/customer-query.dto';
+
+/** Campos que a TELA DE LISTA usa (apps/web/src/app/app/customers/page.tsx) — #1028 */
+const CUSTOMER_LIST_SELECT = {
+  id: true,
+  type: true,
+  name: true,
+  document: true,
+  email: true,
+  city: true,
+  state: true,
+  isActive: true,
+  billingBlocked: true,
+  billingBlockReason: true,
+  // #476: chips de tag na listagem — só {id, name, color}, não o objeto inteiro
+  tagLinks: {
+    select: {
+      tag: { select: { id: true, name: true, color: true } },
+    },
+  },
+} satisfies Prisma.CustomerSelect;
+
+export type CustomerListItem = Prisma.CustomerGetPayload<{ select: typeof CUSTOMER_LIST_SELECT }>;
 
 /** Produtor rural e contribuinte exigem IE numérica (#474) — evita rejeição SEFAZ 728/234 */
 function validateFiscalConsistency(dto: { indIeDest?: string | null; isRuralProducer?: boolean; ie?: string | null }) {
@@ -63,9 +88,9 @@ export class CustomerService {
 
   async findAll(
     companyId: string,
-    query: { search?: string; type?: string; isActive?: string; tagId?: string },
-  ) {
-    const where: any = { companyId };
+    query: CustomerQueryDto,
+  ): Promise<PaginatedResult<CustomerListItem>> {
+    const where: Prisma.CustomerWhereInput = { companyId };
 
     // #476: segmentação — só clientes com a tag
     if (query.tagId) {
@@ -87,10 +112,13 @@ export class CustomerService {
       ];
     }
 
-    return this.prisma.customer.findMany({
-      where,
-      include: { tagLinks: { include: { tag: true } } }, // #476 — chips na listagem
-      orderBy: { createdAt: 'desc' },
+    return paginate({
+      orderBy: { createdAt: 'desc' as const },
+      page: query.page,
+      pageSize: query.pageSize,
+      count: () => this.prisma.customer.count({ where }),
+      findMany: (args) =>
+        this.prisma.customer.findMany({ where, select: CUSTOMER_LIST_SELECT, ...args }),
     });
   }
 

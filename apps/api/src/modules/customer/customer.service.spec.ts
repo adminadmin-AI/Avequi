@@ -4,7 +4,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CustomerService } from './customer.service';
 
 const mockPrisma = {
-  customer: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+  customer: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
+  },
   customerTag: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), delete: jest.fn() },
   customerTagLink: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
   customerAttachment: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), delete: jest.fn() },
@@ -53,12 +60,67 @@ describe('CustomerService — tags e anexos (#476)', () => {
       await expect(service.setCustomerTags('co-1', 'c-x', [])).rejects.toThrow(NotFoundException);
     });
 
-    it('findAll filtra por tagId', async () => {
+  });
+
+  describe('findAll (#1028)', () => {
+    it('escopa por companyId e devolve o envelope paginado', async () => {
+      mockPrisma.customer.count.mockResolvedValue(2);
+      mockPrisma.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
+
+      const res = await service.findAll('co-1', {});
+
+      expect(mockPrisma.customer.count).toHaveBeenCalledWith({ where: { companyId: 'co-1' } });
+      expect(res).toEqual({ items: [{ id: 'c1' }, { id: 'c2' }], total: 2, page: 1, pageSize: 25 });
+    });
+
+    it('filtra por tagId (#476) no where do Prisma', async () => {
       mockPrisma.customer.findMany.mockResolvedValue([]);
       await service.findAll('co-1', { tagId: 't-1' });
       expect(mockPrisma.customer.findMany.mock.calls[0][0].where.tagLinks).toEqual({
         some: { tagId: 't-1' },
       });
+    });
+
+    it('aplica busca (nome/documento) e isActive como where do Prisma — nunca em memória', async () => {
+      await service.findAll('co-1', { search: 'João', isActive: 'false' });
+
+      const where = mockPrisma.customer.findMany.mock.calls[0][0].where;
+      expect(where.companyId).toBe('co-1');
+      expect(where.isActive).toBe(false);
+      expect(where.OR).toEqual([
+        { name: { contains: 'João', mode: 'insensitive' } },
+        { document: { contains: 'João', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('usa select explícito e traz tag só como {id, name, color} (não o objeto inteiro)', async () => {
+      await service.findAll('co-1', {});
+
+      const args = mockPrisma.customer.findMany.mock.calls[0][0];
+      expect(args.select).toEqual({
+        id: true,
+        type: true,
+        name: true,
+        document: true,
+        email: true,
+        city: true,
+        state: true,
+        isActive: true,
+        billingBlocked: true,
+        billingBlockReason: true,
+        tagLinks: { select: { tag: { select: { id: true, name: true, color: true } } } },
+      });
+      // não usa include (que traria o objeto Tag inteiro)
+      expect(args.include).toBeUndefined();
+    });
+
+    it('respeita page/pageSize e aplica desempate por id na ordenação', async () => {
+      await service.findAll('co-1', { page: 3, pageSize: 50 });
+
+      const args = mockPrisma.customer.findMany.mock.calls[0][0];
+      expect(args.skip).toBe(100);
+      expect(args.take).toBe(50);
+      expect(args.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'asc' }]);
     });
   });
 

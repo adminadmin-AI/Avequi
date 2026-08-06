@@ -14,9 +14,10 @@ describe('ProductService', () => {
       product: {
         findUnique: jest.fn(),
         create: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
         update: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
       },
       auditLog: {
         create: jest.fn().mockResolvedValue({}),
@@ -126,6 +127,57 @@ describe('ProductService', () => {
       const createArg = prisma.product.create.mock.calls[0][0];
       expect(createArg.data.companyId).toBe('company-1');
       expect(createArg.data.companyId).not.toBe('company-VITIMA');
+    });
+  });
+
+  describe('findAll (#1028)', () => {
+    it('escopa por companyId e devolve o envelope paginado', async () => {
+      prisma.product.count.mockResolvedValue(2);
+      prisma.product.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+
+      const res = await service.findAll('company-1', {});
+
+      expect(prisma.product.count).toHaveBeenCalledWith({ where: { companyId: 'company-1' } });
+      expect(res).toEqual({ items: [{ id: 'p1' }, { id: 'p2' }], total: 2, page: 1, pageSize: 25 });
+    });
+
+    it('aplica busca (SKU/nome), tipo e isActive como where do Prisma — nunca em memória', async () => {
+      await service.findAll('company-1', { search: 'Calçado', type: 'FINISHED_GOOD' as any, isActive: 'true' });
+
+      const where = prisma.product.findMany.mock.calls[0][0].where;
+      expect(where.companyId).toBe('company-1');
+      expect(where.type).toBe('FINISHED_GOOD');
+      expect(where.isActive).toBe(true);
+      expect(where.OR).toEqual([
+        { name: { contains: 'Calçado', mode: 'insensitive' } },
+        { sku: { contains: 'Calçado', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('usa select explícito com só os campos da listagem (sem trazer todas as colunas)', async () => {
+      await service.findAll('company-1', {});
+
+      const args = prisma.product.findMany.mock.calls[0][0];
+      expect(args.select).toEqual({
+        id: true,
+        sku: true,
+        name: true,
+        type: true,
+        unit: true,
+        ncm: true,
+        costPrice: true,
+        salePrice: true,
+        isActive: true,
+      });
+    });
+
+    it('respeita page/pageSize e aplica desempate por id na ordenação', async () => {
+      await service.findAll('company-1', { page: 2, pageSize: 10 });
+
+      const args = prisma.product.findMany.mock.calls[0][0];
+      expect(args.skip).toBe(10);
+      expect(args.take).toBe(10);
+      expect(args.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'asc' }]);
     });
   });
 

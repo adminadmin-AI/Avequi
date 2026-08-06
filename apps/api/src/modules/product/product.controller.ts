@@ -7,10 +7,11 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -34,17 +35,9 @@ export class ProductController {
 
   @Get()
   @RequirePermission('products.catalog.view')
-  @ApiOperation({ summary: 'Listar produtos' })
-  @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'type', required: false })
-  @ApiQuery({ name: 'isActive', required: false })
-  findAll(
-    @CurrentUser() user: any,
-    @Query('search') search?: string,
-    @Query('type') type?: string,
-    @Query('isActive') isActive?: string,
-  ) {
-    return this.productService.findAll(user.companyId, { search, type, isActive });
+  @ApiOperation({ summary: 'Listar produtos (paginado — #1028)' })
+  findAll(@CurrentUser() user: any, @Query() query: ProductQueryDto) {
+    return this.productService.findAll(user.companyId, query);
   }
 
   @Get(':id')
