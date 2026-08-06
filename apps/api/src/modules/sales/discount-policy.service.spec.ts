@@ -75,24 +75,24 @@ describe('DiscountPolicyService (#391 + #947)', () => {
     ).resolves.toBeUndefined();
   });
 
-  // Auditoria de segurança 06/08/2026 — este teste travava o comportamento
-  // ERRADO. "Sem preço de tabela = sem base de alçada" liberava passagem: o
-  // item ia para a OV com o unitPrice que viesse no corpo da requisição, sem
-  // teto nenhum, justamente porque não havia com o que comparar. A alçada
-  // existe para limitar preço vindo do cliente — faltar a base tem de fechar
-  // a porta, não abrir. Contrato invertido para fail-closed.
-  it('produto sem salePrice é RECUSADO (não há base para validar a alçada)', async () => {
+  // Produto sem preço de tabela passa SEM validação de alçada. É um buraco
+  // conhecido e documentado no serviço, não um descuido: o fail-closed foi
+  // escrito nesta onda e revertido antes do deploy porque 338 dos 339 produtos
+  // ativos da GDR têm salePrice nulo — recusar travaria o catálogo inteiro no
+  // POST /sales. O caso fica coberto aqui para que a mudança de contrato, se
+  // um dia acontecer, seja deliberada e não um efeito colateral.
+  it('produto sem salePrice passa sem validação (buraco conhecido, ver issue)', async () => {
     mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: null }]);
     await expect(
       service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
-    ).rejects.toThrow(/X não tem preço de tabela/);
+    ).resolves.toBeUndefined();
   });
 
-  it('salePrice zero também é recusado (mesma ausência de base)', async () => {
+  it('salePrice zero também passa (mesma ausência de base)', async () => {
     mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: 0 }]);
     await expect(
       service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
-    ).rejects.toThrow(BadRequestException);
+    ).resolves.toBeUndefined();
   });
 
   it('produto de OUTRA empresa (findMany não retorna) é recusado, não ignorado', async () => {

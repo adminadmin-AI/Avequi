@@ -140,18 +140,22 @@ export class DiscountPolicyService {
         );
       }
       const salePrice = Number(p.salePrice ?? 0);
-      // ANTES: `continue` — "sem preço de tabela = sem base de alçada". O
-      // efeito prático era o oposto do pretendido: produto sem salePrice
-      // aceitava QUALQUER unitPrice do corpo da requisição, sem teto nenhum,
-      // justamente porque não havia com o que comparar. A alçada existe para
-      // limitar o preço vindo do cliente; ausência de base tem de fechar a
-      // porta, não abrir. Cadastrar o preço é o caminho — e é barato.
-      if (salePrice <= 0) {
-        throw new BadRequestException(
-          `Produto ${p.sku} não tem preço de tabela cadastrado — sem ele não há ` +
-            'como validar a alçada de desconto. Cadastre o preço de venda antes de vender.',
-        );
-      }
+      // Produto sem preço de tabela segue SEM validação de alçada, e isso é
+      // um buraco conhecido: o `unitPrice` do corpo passa sem teto, porque não
+      // há base com o que comparar.
+      //
+      // O fail-closed (recusar a venda) foi escrito e revertido antes de ir ao
+      // ar: 338 dos 339 produtos ativos da GDR têm `salePrice` nulo, então a
+      // regra recusaria o catálogo inteiro, em qualquer papel, logo no POST
+      // /sales. E o dado não está faltando por descuido — reboque é vendido
+      // por negociação, não por tabela; exigir a base assume um modelo de
+      // negócio que não é o do cliente.
+      //
+      // Fechar de verdade exige decidir ANTES o que é a base de preço nesse
+      // modelo (preço mínimo? custo + margem?). Enquanto isso não é decidido,
+      // recusar a venda troca um risco interno controlado por RBAC por uma
+      // parada de operação. Ver a issue de alçada sem tabela de preço.
+      if (salePrice <= 0) continue;
       const discount = ((salePrice - Number(i.unitPrice)) / salePrice) * 100;
       if (discount > maxDiscount) {
         maxDiscount = discount;
