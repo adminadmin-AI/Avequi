@@ -34,6 +34,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       ignoreExpiration: false,
       secretOrKey: config.get('JWT_SECRET'),
+      // Defesa em profundidade: fixa o algoritmo aceito. Hoje o
+      // `jsonwebtoken` já deriva HS256/384/512 de um secret string (então
+      // `alg: none` nunca passaria), mas isso é comportamento implícito de
+      // biblioteca — trocar o secret por uma chave pública no futuro faria a
+      // derivação virar RS*, e um token forjado com alg trocado passaria a
+      // ser aceito. Declarado, o contrato não depende disso.
+      algorithms: ['HS256'],
     });
   }
 

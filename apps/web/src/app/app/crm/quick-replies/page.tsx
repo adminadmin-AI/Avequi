@@ -43,11 +43,24 @@ export default function QuickRepliesPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['crm-quick-replies'] });
 
+  // `async` + `await` de propósito: desde o axios 1.19 o tipo do corpo da
+  // requisição é propagado para o AxiosResponse, então os dois ramos do
+  // ternário (PATCH sem `scope`, POST com `scope`) passaram a ter tipos de
+  // retorno incompatíveis entre si. Nenhum dos dois é usado — o onSuccess só
+  // invalida a query —, então resolver para void encerra a divergência sem
+  // inventar um tipo comum artificial.
   const save = useMutation({
-    mutationFn: (f: FormState) =>
-      f.id
-        ? apiClient.patch(`/crm/quick-replies/${f.id}`, { shortcut: f.shortcut, text: f.text })
-        : apiClient.post('/crm/quick-replies', { shortcut: f.shortcut, text: f.text, scope: f.scope }),
+    mutationFn: async (f: FormState) => {
+      if (f.id) {
+        await apiClient.patch(`/crm/quick-replies/${f.id}`, { shortcut: f.shortcut, text: f.text });
+        return;
+      }
+      await apiClient.post('/crm/quick-replies', {
+        shortcut: f.shortcut,
+        text: f.text,
+        scope: f.scope,
+      });
+    },
     onSuccess: () => {
       invalidate();
       setForm(null);

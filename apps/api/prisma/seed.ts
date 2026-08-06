@@ -6,7 +6,36 @@ import { seedPlans } from './seeds/plans.seed';
 
 const prisma = new PrismaClient();
 
+/**
+ * Senha dos usuários de demonstração. NUNCA tem default: o seed nasceu com
+ * `admin123` fixo no código e o repositório foi público — uma senha padrão
+ * aqui é uma credencial publicada, não um atalho de desenvolvimento.
+ *
+ * Local: exporte SEED_USER_PASSWORD antes de rodar (o .env.example documenta).
+ */
+function senhaDosUsuariosDemo(): string {
+  const senha = process.env.SEED_USER_PASSWORD;
+  if (!senha) {
+    throw new Error(
+      'SEED_USER_PASSWORD não definida. O seed não cria usuário com senha padrão — ' +
+        'defina uma senha forte na env antes de rodar (ex.: export SEED_USER_PASSWORD="$(openssl rand -base64 18)").',
+    );
+  }
+  return senha;
+}
+
 async function main() {
+  // Este seed cria empresas, usuários e catálogo de DEMONSTRAÇÃO (calçados,
+  // clientes fictícios). Rodá-lo contra produção mistura dado de exemplo com
+  // dado real e — o que é pior — materializa contas administrativas que
+  // ninguém pediu. Fail-closed: em produção só roda com liberação explícita.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PROD_SEED !== 'true') {
+    throw new Error(
+      'Seed de demonstração bloqueado em produção. Se a intenção é mesmo popular ' +
+        'este ambiente, rode com ALLOW_PROD_SEED=true — e saiba que ele cria usuários.',
+    );
+  }
+
   // Create GDR Matriz — dados fiscais reais
   const matriz = await prisma.company.upsert({
     where: { cnpj: '12.345.678/0001-90' },
@@ -92,19 +121,29 @@ async function main() {
     },
   });
 
-  // Create users
+  // Create users — senha vem da env (ver senhaDosUsuariosDemo), nunca do código.
+  // Todos nascem com mustChangePassword: a senha do seed é de bootstrap, não
+  // de uso; o primeiro login obriga a troca pela política real (#345).
+  const senhaDemo = await bcrypt.hash(senhaDosUsuariosDemo(), 10);
   const users = [
-    { name: 'Super Admin', email: 'admin@gdr.com.br', password: 'admin123', role: UserRole.SUPER_ADMIN, companyId: matriz.id },
-    { name: 'Diretor GDR', email: 'diretor@gdr.com.br', password: 'diretor123', role: UserRole.DIRECTOR, companyId: matriz.id },
-    { name: 'Gerente Produção', email: 'gerente@gdr.com.br', password: 'gerente123', role: UserRole.MANAGER, companyId: matriz.id },
-    { name: 'Vendedor SP', email: 'loja@gdr.com.br', password: 'loja123', role: UserRole.STORE, companyId: filialSP.id },
+    { name: 'Super Admin', email: 'admin@gdr.com.br', role: UserRole.SUPER_ADMIN, companyId: matriz.id },
+    { name: 'Diretor GDR', email: 'diretor@gdr.com.br', role: UserRole.DIRECTOR, companyId: matriz.id },
+    { name: 'Gerente Produção', email: 'gerente@gdr.com.br', role: UserRole.MANAGER, companyId: matriz.id },
+    { name: 'Vendedor SP', email: 'loja@gdr.com.br', role: UserRole.STORE, companyId: filialSP.id },
   ];
 
   for (const u of users) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: {},
-      create: { name: u.name, email: u.email, passwordHash: await bcrypt.hash(u.password, 10), role: u.role, companyId: u.companyId },
+      create: {
+        name: u.name,
+        email: u.email,
+        passwordHash: senhaDemo,
+        role: u.role,
+        companyId: u.companyId,
+        mustChangePassword: true,
+      },
     });
   }
 

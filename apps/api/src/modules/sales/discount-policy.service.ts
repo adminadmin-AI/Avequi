@@ -131,8 +131,27 @@ export class DiscountPolicyService {
     let worst: { sku: string; discount: number } | null = null;
     for (const i of items) {
       const p = byId.get(i.productId);
-      const salePrice = Number(p?.salePrice ?? 0);
-      if (!p || salePrice <= 0) continue; // sem preço de tabela = sem base de alçada
+      // Produto que não é desta empresa (ou não existe) nunca deve chegar
+      // numa OV — deixar passar aqui significava vender um id arbitrário sem
+      // nenhuma base de preço para comparar.
+      if (!p) {
+        throw new BadRequestException(
+          `Produto ${i.productId} não encontrado nesta empresa.`,
+        );
+      }
+      const salePrice = Number(p.salePrice ?? 0);
+      // ANTES: `continue` — "sem preço de tabela = sem base de alçada". O
+      // efeito prático era o oposto do pretendido: produto sem salePrice
+      // aceitava QUALQUER unitPrice do corpo da requisição, sem teto nenhum,
+      // justamente porque não havia com o que comparar. A alçada existe para
+      // limitar o preço vindo do cliente; ausência de base tem de fechar a
+      // porta, não abrir. Cadastrar o preço é o caminho — e é barato.
+      if (salePrice <= 0) {
+        throw new BadRequestException(
+          `Produto ${p.sku} não tem preço de tabela cadastrado — sem ele não há ` +
+            'como validar a alçada de desconto. Cadastre o preço de venda antes de vender.',
+        );
+      }
       const discount = ((salePrice - Number(i.unitPrice)) / salePrice) * 100;
       if (discount > maxDiscount) {
         maxDiscount = discount;

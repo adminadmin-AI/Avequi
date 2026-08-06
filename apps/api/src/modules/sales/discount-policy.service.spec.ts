@@ -75,11 +75,31 @@ describe('DiscountPolicyService (#391 + #947)', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('produto sem salePrice não tem base de alçada', async () => {
+  // Auditoria de segurança 06/08/2026 — este teste travava o comportamento
+  // ERRADO. "Sem preço de tabela = sem base de alçada" liberava passagem: o
+  // item ia para a OV com o unitPrice que viesse no corpo da requisição, sem
+  // teto nenhum, justamente porque não havia com o que comparar. A alçada
+  // existe para limitar preço vindo do cliente — faltar a base tem de fechar
+  // a porta, não abrir. Contrato invertido para fail-closed.
+  it('produto sem salePrice é RECUSADO (não há base para validar a alçada)', async () => {
     mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: null }]);
     await expect(
       service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow(/X não tem preço de tabela/);
+  });
+
+  it('salePrice zero também é recusado (mesma ausência de base)', async () => {
+    mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: 0 }]);
+    await expect(
+      service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('produto de OUTRA empresa (findMany não retorna) é recusado, não ignorado', async () => {
+    mockPrisma.product.findMany.mockResolvedValue([]);
+    await expect(
+      service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'de-outro-tenant', unitPrice: 1 }]),
+    ).rejects.toThrow(/não encontrado nesta empresa/);
   });
 
   it('papel sem política usa fallback 10%', async () => {
