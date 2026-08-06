@@ -181,6 +181,62 @@ describe('ProductService', () => {
     });
   });
 
+  describe('findOptions (#1028 parte 2 — combobox de formulário)', () => {
+    it('escopa por companyId, sem envelope de paginação (array puro)', async () => {
+      prisma.product.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+
+      const res = await service.findOptions('company-1', {});
+
+      expect(prisma.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: 'company-1' } }),
+      );
+      expect(res).toEqual([{ id: 'p1' }, { id: 'p2' }]);
+    });
+
+    it('aplica busca por SKU ou nome (insensível a caso) como where do Prisma', async () => {
+      await service.findOptions('company-1', { search: 'calcado' });
+
+      const args = prisma.product.findMany.mock.calls[0][0];
+      expect(args.where.OR).toEqual([
+        { name: { contains: 'calcado', mode: 'insensitive' } },
+        { sku: { contains: 'calcado', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('aplica isActive só quando informado (sem filtro por padrão — mesmo comportamento de findAll)', async () => {
+      await service.findOptions('company-1', {});
+      expect(prisma.product.findMany.mock.calls[0][0].where.isActive).toBeUndefined();
+
+      await service.findOptions('company-1', { isActive: 'true' });
+      expect(prisma.product.findMany.mock.calls[1][0].where.isActive).toBe(true);
+    });
+
+    it('teto do take: default 50, clampa acima de 100 e ignora page/pageSize (não pagina)', async () => {
+      await service.findOptions('company-1', {});
+      expect(prisma.product.findMany.mock.calls[0][0].take).toBe(50);
+
+      await service.findOptions('company-1', { take: 500 });
+      expect(prisma.product.findMany.mock.calls[1][0].take).toBe(100);
+    });
+
+    it('payload mínimo: só {id, sku, name} — nada de custo/margem/dados sensíveis', async () => {
+      await service.findOptions('company-1', {});
+      expect(prisma.product.findMany.mock.calls[0][0].select).toEqual({
+        id: true,
+        sku: true,
+        name: true,
+      });
+    });
+
+    it('ordenação estável (nome + desempate por id)', async () => {
+      await service.findOptions('company-1', {});
+      expect(prisma.product.findMany.mock.calls[0][0].orderBy).toEqual([
+        { name: 'asc' },
+        { id: 'asc' },
+      ]);
+    });
+  });
+
   describe('update', () => {
     it('IDOR: busca escopada pela empresa do usuário (não edita produto de outro tenant)', async () => {
       prisma.product.findFirst.mockResolvedValue(null);

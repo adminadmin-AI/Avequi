@@ -92,6 +92,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [ProductController, 'products', {
     create: 'products.catalog.create',
     findAll: 'products.catalog.view',
+    findOptions: 'products.catalog.view',
     findOne: 'products.catalog.view',
     update: 'products.catalog.update',
   }],
@@ -104,6 +105,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [CustomerController, 'customers', {
     create: 'customers.registry.create',
     findAll: 'customers.registry.view',
+    findOptions: 'customers.registry.view',
     creditStatus: 'customers.registry.view',
     findOne: 'customers.registry.view',
     update: 'customers.registry.update',

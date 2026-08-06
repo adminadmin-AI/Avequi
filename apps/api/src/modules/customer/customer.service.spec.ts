@@ -124,6 +124,67 @@ describe('CustomerService — tags e anexos (#476)', () => {
     });
   });
 
+  describe('findOptions (#1028 parte 2 — combobox de formulário)', () => {
+    it('escopa por companyId, sem envelope de paginação (array puro)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
+
+      const res = await service.findOptions('co-1', {});
+
+      expect(mockPrisma.customer.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: 'co-1' } }),
+      );
+      expect(res).toEqual([{ id: 'c1' }, { id: 'c2' }]);
+    });
+
+    it('aplica busca por nome ou documento (insensível a caso) como where do Prisma', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      await service.findOptions('co-1', { search: 'joao' });
+
+      const args = mockPrisma.customer.findMany.mock.calls[0][0];
+      expect(args.where.OR).toEqual([
+        { name: { contains: 'joao', mode: 'insensitive' } },
+        { document: { contains: 'joao', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('aplica isActive só quando informado (sem filtro por padrão)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      await service.findOptions('co-1', {});
+      expect(mockPrisma.customer.findMany.mock.calls[0][0].where.isActive).toBeUndefined();
+
+      await service.findOptions('co-1', { isActive: 'true' });
+      expect(mockPrisma.customer.findMany.mock.calls[1][0].where.isActive).toBe(true);
+    });
+
+    it('teto do take: default 50, clampa acima de 100 e ignora page/pageSize (não pagina)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      await service.findOptions('co-1', {});
+      expect(mockPrisma.customer.findMany.mock.calls[0][0].take).toBe(50);
+
+      await service.findOptions('co-1', { take: 500 });
+      expect(mockPrisma.customer.findMany.mock.calls[1][0].take).toBe(100);
+    });
+
+    it('payload mínimo: só {id, name, document} — nada de crédito/endereço/dados sensíveis', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      await service.findOptions('co-1', {});
+      expect(mockPrisma.customer.findMany.mock.calls[0][0].select).toEqual({
+        id: true,
+        name: true,
+        document: true,
+      });
+    });
+
+    it('ordenação estável (nome + desempate por id)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      await service.findOptions('co-1', {});
+      expect(mockPrisma.customer.findMany.mock.calls[0][0].orderBy).toEqual([
+        { name: 'asc' },
+        { id: 'asc' },
+      ]);
+    });
+  });
+
   describe('anexos', () => {
     const file = (size: number) => ({
       buffer: Buffer.alloc(10),

@@ -19,6 +19,7 @@ import { CustomerService } from './customer.service';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
+import { CustomerOptionsQueryDto } from './dto/customer-options-query.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -49,6 +50,15 @@ export class CustomerController {
   @ApiOperation({ summary: 'Listar clientes (paginado — #1028)' })
   findAll(@CurrentUser() user: any, @Query() query: CustomerQueryDto) {
     return this.customerService.findAll(user.companyId, query);
+  }
+
+  // Rota estática ANTES de :id — "/customers/options" seria capturado por
+  // findOne com id="options" senão.
+  @Get('options')
+  @RequirePermission('customers.registry.view')
+  @ApiOperation({ summary: 'Opções para combobox de formulário — payload mínimo, sem paginação (#1028)' })
+  findOptions(@CurrentUser() user: any, @Query() query: CustomerOptionsQueryDto) {
+    return this.customerService.findOptions(user.companyId, query);
   }
 
   // ─── #476: tags de segmentação (rotas estáticas ANTES de :id) ───────────────

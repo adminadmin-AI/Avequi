@@ -7,10 +7,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
+import { clampTake, paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
+import { CustomerOptionsQueryDto } from './dto/customer-options-query.dto';
 
 /** Campos que a TELA DE LISTA usa (apps/web/src/app/app/customers/page.tsx) — #1028 */
 const CUSTOMER_LIST_SELECT = {
@@ -33,6 +34,19 @@ const CUSTOMER_LIST_SELECT = {
 } satisfies Prisma.CustomerSelect;
 
 export type CustomerListItem = Prisma.CustomerGetPayload<{ select: typeof CUSTOMER_LIST_SELECT }>;
+
+/**
+ * Payload MÍNIMO do combobox de formulário (#1028 parte 2) — os
+ * consumidores de `/customers` que esperam array puro (seleção de cliente na
+ * venda/orçamento) só precisam disto para montar o rótulo `${name} · ${document}`.
+ */
+const CUSTOMER_OPTIONS_SELECT = {
+  id: true,
+  name: true,
+  document: true,
+} satisfies Prisma.CustomerSelect;
+
+export type CustomerOption = Prisma.CustomerGetPayload<{ select: typeof CUSTOMER_OPTIONS_SELECT }>;
 
 /** Produtor rural e contribuinte exigem IE numérica (#474) — evita rejeição SEFAZ 728/234 */
 function validateFiscalConsistency(dto: { indIeDest?: string | null; isRuralProducer?: boolean; ie?: string | null }) {
@@ -119,6 +133,33 @@ export class CustomerService {
       count: () => this.prisma.customer.count({ where }),
       findMany: (args) =>
         this.prisma.customer.findMany({ where, select: CUSTOMER_LIST_SELECT, ...args }),
+    });
+  }
+
+  /**
+   * GET /customers/options (#1028 parte 2) — combobox de formulário. Sem
+   * paginação (lote único, teto de `take`), payload mínimo, ordenação
+   * estável por nome. Mesma permissão de `findAll` (customers.registry.view).
+   */
+  async findOptions(companyId: string, query: CustomerOptionsQueryDto): Promise<CustomerOption[]> {
+    const where: Prisma.CustomerWhereInput = { companyId };
+
+    if (query.isActive !== undefined) {
+      where.isActive = query.isActive === 'true';
+    }
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { document: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.customer.findMany({
+      where,
+      select: CUSTOMER_OPTIONS_SELECT,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: clampTake(query.take),
     });
   }
 

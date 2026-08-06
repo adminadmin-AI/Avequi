@@ -1,6 +1,8 @@
 import {
   clampPage,
   clampPageSize,
+  clampTake,
+  DEFAULT_OPTIONS_TAKE,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   paginate,
@@ -26,6 +28,28 @@ describe('paginate util (#1028)', () => {
 
     it('trunca valores fracionários', () => {
       expect(clampPageSize(30.7)).toBe(30);
+    });
+  });
+
+  describe('clampTake (#1028 parte 2 — endpoint de opções)', () => {
+    it('aplica o mesmo teto de 100 que clampPageSize', () => {
+      expect(clampTake(500)).toBe(MAX_PAGE_SIZE);
+    });
+
+    it('aplica piso de 1', () => {
+      expect(clampTake(0)).toBe(1);
+      expect(clampTake(-10)).toBe(1);
+    });
+
+    it('usa default 50 (maior que o de página) quando ausente ou inválido', () => {
+      expect(clampTake(undefined)).toBe(DEFAULT_OPTIONS_TAKE);
+      expect(clampTake(null)).toBe(DEFAULT_OPTIONS_TAKE);
+      expect(clampTake(NaN)).toBe(DEFAULT_OPTIONS_TAKE);
+      expect(DEFAULT_OPTIONS_TAKE).toBe(50);
+    });
+
+    it('trunca valores fracionários', () => {
+      expect(clampTake(30.7)).toBe(30);
     });
   });
 

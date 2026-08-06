@@ -12,6 +12,7 @@ import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { ProductOptionsQueryDto } from './dto/product-options-query.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -38,6 +39,15 @@ export class ProductController {
   @ApiOperation({ summary: 'Listar produtos (paginado — #1028)' })
   findAll(@CurrentUser() user: any, @Query() query: ProductQueryDto) {
     return this.productService.findAll(user.companyId, query);
+  }
+
+  // Rota estática ANTES de :id (mesmo padrão do CustomerController) — senão
+  // "/products/options" seria capturado por findOne com id="options".
+  @Get('options')
+  @RequirePermission('products.catalog.view')
+  @ApiOperation({ summary: 'Opções para combobox de formulário — payload mínimo, sem paginação (#1028)' })
+  findOptions(@CurrentUser() user: any, @Query() query: ProductOptionsQueryDto) {
+    return this.productService.findOptions(user.companyId, query);
   }
 
   @Get(':id')

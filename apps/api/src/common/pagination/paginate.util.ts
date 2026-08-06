@@ -23,6 +23,9 @@
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
 
+/** default do `take` de endpoints "options" (combobox de formulário) — #1028 parte 2 */
+export const DEFAULT_OPTIONS_TAKE = 50;
+
 export interface PaginatedResult<Item> {
   items: Item[];
   total: number;
@@ -41,6 +44,19 @@ export function clampPageSize(pageSize?: number | null): number {
   if (pageSize === undefined || pageSize === null) return DEFAULT_PAGE_SIZE;
   const n = Number(pageSize);
   if (!Number.isFinite(n)) return DEFAULT_PAGE_SIZE;
+  return Math.min(Math.max(Math.trunc(n), 1), MAX_PAGE_SIZE);
+}
+
+/**
+ * `take` sempre em 1..100 — default 50 quando ausente/inválido. Mesmo teto de
+ * `clampPageSize` (nunca ilimitado), mas default maior: endpoint de opções
+ * (combobox de formulário) não pagina — devolve um lote único já ordenado,
+ * e 50 cobre a maioria dos catálogos sem exigir busca.
+ */
+export function clampTake(take?: number | null): number {
+  if (take === undefined || take === null) return DEFAULT_OPTIONS_TAKE;
+  const n = Number(take);
+  if (!Number.isFinite(n)) return DEFAULT_OPTIONS_TAKE;
   return Math.min(Math.max(Math.trunc(n), 1), MAX_PAGE_SIZE);
 }
 

@@ -6,10 +6,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
+import { clampTake, paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { ProductOptionsQueryDto } from './dto/product-options-query.dto';
 
 /** Campos que a TELA DE LISTA usa (apps/web/src/app/app/products/page.tsx) — #1028 */
 const PRODUCT_LIST_SELECT = {
@@ -25,6 +26,20 @@ const PRODUCT_LIST_SELECT = {
 } satisfies Prisma.ProductSelect;
 
 export type ProductListItem = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
+
+/**
+ * Payload MÍNIMO do combobox de formulário (#1028 parte 2) — os ~21
+ * consumidores de `/products` que esperam array puro (selects de venda,
+ * produção, compra etc.) só precisam disto para montar o rótulo
+ * `${sku} · ${name}`. Ver `apps/web/src/components/ui/combobox.tsx`.
+ */
+const PRODUCT_OPTIONS_SELECT = {
+  id: true,
+  sku: true,
+  name: true,
+} satisfies Prisma.ProductSelect;
+
+export type ProductOption = Prisma.ProductGetPayload<{ select: typeof PRODUCT_OPTIONS_SELECT }>;
 
 @Injectable()
 export class ProductService {
@@ -92,6 +107,33 @@ export class ProductService {
       count: () => this.prisma.product.count({ where }),
       findMany: (args) =>
         this.prisma.product.findMany({ where, select: PRODUCT_LIST_SELECT, ...args }),
+    });
+  }
+
+  /**
+   * GET /products/options (#1028 parte 2) — combobox de formulário. Sem
+   * paginação (lote único, teto de `take`), payload mínimo, ordenação
+   * estável por nome. Mesma permissão de `findAll` (products.catalog.view).
+   */
+  async findOptions(companyId: string, query: ProductOptionsQueryDto): Promise<ProductOption[]> {
+    const where: Prisma.ProductWhereInput = { companyId };
+
+    if (query.isActive !== undefined) {
+      where.isActive = query.isActive === 'true';
+    }
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { sku: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.product.findMany({
+      where,
+      select: PRODUCT_OPTIONS_SELECT,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: clampTake(query.take),
     });
   }
 
