@@ -51,11 +51,13 @@ import { parseTenantModels } from '../tenant-query-lint/tenant-query-lint';
  *  cobertura completa quando não é.
  *
  * ── A regra da chamada ──────────────────────────────────────────────────────
- *  Uma chamada `findMany` em modelo de alto volume é aprovada se os
- *  argumentos da própria chamada tiverem `take:` OU `cursor:` — diferente do
+ *  Uma chamada `findMany` em modelo de alto volume é aprovada se o PRIMEIRO
+ *  NÍVEL do objeto de argumento tiver `take:` OU `cursor:` — diferente do
  *  tenant-query-lint, aqui o escopo é a CHAMADA, não o método: paginação é
  *  uma decisão local da query, não algo que "conta" se aparecer em outro
- *  lugar do método.
+ *  lugar do método. E é primeiro nível de propósito: teto dentro de
+ *  `include`/`select` limita a RELAÇÃO, não a listagem (ver
+ *  `hasTopLevelTakeOrCursor`).
  *
  * ── Exceções ────────────────────────────────────────────────────────────────
  *  - waiver por linha: comentário `// list-lint: ok (<motivo>)` na linha da
@@ -111,8 +113,34 @@ export const CADASTRO_EXCEPTIONS: Record<string, string> = {
   quickReply: 'resposta rápida pré-cadastrada — configuração',
 };
 
-const TAKE_OR_CURSOR = /\btake\s*:|\bcursor\s*:/;
 const WAIVER = /list-lint:\s*ok\s*\((.+?)\)/;
+
+/**
+ * Teto provado no PRIMEIRO NÍVEL do argumento da chamada.
+ *
+ * Precisa ser AST, não regex sobre o texto dos argumentos: `take` aninhado em
+ * `include: { items: { take: 5 } }` limita a RELAÇÃO, não a listagem raiz — e
+ * uma regex textual aprovaria a query justamente no caso que este lint existe
+ * para pegar. Idem para `take:` dentro de string literal no `where`. Os dois
+ * casos estão fixados no spec como regressão.
+ *
+ * Fail-closed deliberado: se o argumento não for um objeto literal (montado em
+ * variável, ou com spread que pode ou não trazer o teto), a chamada NÃO é
+ * aprovada — não dá para provar o teto estaticamente. Mesma assimetria já
+ * assumida na escolha dos modelos: falso-positivo custa um `take` a mais numa
+ * lista pequena (ou um waiver com motivo); falso-negativo custa o incidente.
+ */
+function hasTopLevelTakeOrCursor(node: ts.CallExpression): boolean {
+  const arg = node.arguments[0];
+  if (!arg || !ts.isObjectLiteralExpression(arg)) return false;
+  return arg.properties.some((prop) => {
+    if (ts.isSpreadAssignment(prop)) return false; // conteúdo desconhecido
+    const name = prop.name;
+    if (!name) return false;
+    const key = ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : null;
+    return key === 'take' || key === 'cursor';
+  });
+}
 
 export interface ListLintOffender {
   file: string; // relativo ao dir varrido
@@ -169,9 +197,7 @@ export function lintSource(
         highVolumeModels.has(receiver.name.text)
       ) {
         const model = receiver.name.text;
-        const args = node.arguments.map((a) => a.getText(sf)).join(',');
-        const aprovado = TAKE_OR_CURSOR.test(args);
-        if (!aprovado) {
+        if (!hasTopLevelTakeOrCursor(node)) {
           const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
           if (!hasValidWaiver(lines, line + 1)) {
             offenders.push({

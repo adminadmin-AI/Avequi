@@ -48,6 +48,19 @@ describe('List Query Lint — fixtures dos achados da #1028 (zero falso-negativo
     expect(off).toEqual([]);
   });
 
+  // Regressão da revisão da #1028: o matcher original era textual sobre os
+  // argumentos e aprovava os dois primeiros casos abaixo — falso-negativo
+  // exatamente na classe de query que o lint existe para pegar.
+  it('teto aninhado em relação e "take:" dentro de string NÃO valem como paginação → 3 offenders', () => {
+    const off = lintSource(
+      fixture('teto-aninhado-nao-vale.ts.fixture'),
+      'teto-aninhado.ts',
+      new Set(['product', 'customer', 'salesOrder']),
+    );
+    expect(off).toHaveLength(3);
+    expect(off.map((o) => o.model)).toEqual(['product', 'customer', 'salesOrder']);
+  });
+
   it('waiver sem motivo (sem parênteses, parênteses vazios, ou só espaço) → continua reprovando', () => {
     const off = lintSource(
       fixture('waiver-sem-motivo.ts.fixture'),
