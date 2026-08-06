@@ -28,17 +28,38 @@ export class VehicleDocumentService {
     });
   }
 
-  listDocuments(companyId: string, productId?: string) {
-    return this.prisma.vehicleDocument.findMany({
+  /**
+   * #1028 parte 2: o web resolvia o nome do produto de cada linha contra o
+   * catálogo INTEIRO baixado à parte. Agora que `/products` virou combobox de
+   * busca server-side (sem catálogo completo no cliente), a linha precisa
+   * trazer o nome junto — senão a coluna "Produto" quebra silenciosamente
+   * para qualquer produto fora do resultado de busca atual.
+   *
+   * `VehicleDocument.productId` é uma coluna solta: NÃO existe relação Prisma
+   * para `Product` neste modelo, então `include: { product }` não compila.
+   * Criar a relação exigiria migration, fora do escopo desta entrega — o nome
+   * é resolvido numa segunda consulta, limitada aos produtos que aparecem na
+   * página, e devolvido no mesmo formato que a tela espera.
+   */
+  async listDocuments(companyId: string, productId?: string) {
+    const documentos = await this.prisma.vehicleDocument.findMany({
       where: { companyId, ...(productId ? { productId } : {}) },
-      // #1028 parte 2: o web resolvia o nome do produto de cada linha contra
-      // o catálogo INTEIRO baixado à parte — agora que /products virou
-      // combobox de busca server-side (sem catálogo completo no cliente), a
-      // linha precisa trazer o nome junto (senão a coluna "Produto" quebra
-      // silenciosamente para qualquer produto fora do resultado de busca atual).
-      include: { product: { select: { id: true, sku: true, name: true } } },
       orderBy: { issuedAt: 'desc' },
     });
+
+    const produtoIds = [...new Set(documentos.map((d) => d.productId))];
+    const produtos = produtoIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: produtoIds }, companyId },
+          select: { id: true, sku: true, name: true },
+        })
+      : [];
+    const porId = new Map(produtos.map((p) => [p.id, p]));
+
+    return documentos.map((doc) => ({
+      ...doc,
+      product: porId.get(doc.productId) ?? null,
+    }));
   }
 
   async getDocument(companyId: string, id: string) {
