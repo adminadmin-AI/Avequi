@@ -1,0 +1,29 @@
+// Reprodução do achado que motiva a #1028 — product.service.ts:70.
+// findMany sem take, sem cursor e sem select: todas as colunas de todos os
+// produtos da conta. O lint TEM que flagrar esta chamada.
+export class ProductServiceReproducao {
+  constructor(private readonly prisma: any) {}
+
+  async findAll(
+    companyId: string,
+    query: { search?: string; type?: string; isActive?: string },
+  ) {
+    const where: any = { companyId };
+
+    if (query.type) {
+      where.type = query.type;
+    }
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { sku: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.product.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+}
