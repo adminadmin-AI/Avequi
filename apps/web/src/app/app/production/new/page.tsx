@@ -6,11 +6,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { erroDeAcao } from '@/lib/feedback';
-import type { Product, Warehouse, ProductionOrder } from '@/types/api';
+import type { Warehouse, ProductionOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -21,8 +23,14 @@ export default function NewProductionOrderPage() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { data: products = [] } = useList<Product>('/products');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
+
+  // Produto (#1028 parte 2) — busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
 
   const [productId, setProductId] = useState('');
   const [plannedQty, setPlannedQty] = useState('');
@@ -75,14 +83,21 @@ export default function NewProductionOrderPage() {
         <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label required>Produto a fabricar</Label>
-            <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">Selecione</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sku} · {p.name}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              options={productOptions}
+              value={productId}
+              onValueChange={(v) => {
+                setProductId(v);
+                const p = productItems.find((i) => i.id === v);
+                setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+              }}
+              onQueryChange={setProductSearch}
+              serverSideSearch
+              selectedLabel={productLabel}
+              loading={productsLoading}
+              placeholder="Selecione"
+              searchPlaceholder="Buscar por SKU ou nome..."
+            />
           </div>
           <div>
             <Label required>Quantidade</Label>

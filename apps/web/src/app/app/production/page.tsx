@@ -4,10 +4,12 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { useList } from '@/hooks/use-resource';
-import type { ProductionOrder, ProductionOrderStatus, Product } from '@/types/api';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
+import type { ProductionOrder, ProductionOrderStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/badge';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -27,7 +29,17 @@ export default function ProductionPage() {
   const router = useRouter();
 
   const { data: orders = [], isLoading } = useList<ProductionOrder>(RESOURCE);
-  const { data: products = [] } = useList<Product>('/products');
+
+  // Produto (#1028 parte 2) — filtro com busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const [productFilterLabel, setProductFilterLabel] = useState<string | undefined>();
+  const { items: productItems, options: productOptionsRaw, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
+  const productFilterOptions = useMemo(
+    () => [{ value: '', label: 'Todos' }, ...productOptionsRaw],
+    [productOptionsRaw],
+  );
 
   const [statusFilter, setStatusFilter] = useState<'' | ProductionOrderStatus>('');
   const [productFilter, setProductFilter] = useState('');
@@ -125,14 +137,21 @@ export default function ProductionPage() {
         </div>
         <div>
           <Label>Produto</Label>
-          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
-            <option value="">Todos</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.sku} · {p.name}
-              </option>
-            ))}
-          </Select>
+          <Combobox
+            options={productFilterOptions}
+            value={productFilter}
+            onValueChange={(v) => {
+              setProductFilter(v);
+              const p = productItems.find((i) => i.id === v);
+              setProductFilterLabel(p ? `${p.sku} · ${p.name}` : undefined);
+            }}
+            onQueryChange={setProductSearch}
+            serverSideSearch
+            selectedLabel={productFilterLabel}
+            loading={productsLoading}
+            placeholder="Todos"
+            searchPlaceholder="Buscar por SKU ou nome..."
+          />
         </div>
         <div>
           <Label>Criação</Label>

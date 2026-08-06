@@ -4,15 +4,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { erroDeAcao } from '@/lib/feedback';
-import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
@@ -42,7 +41,12 @@ export default function RoutingPage() {
   const confirm = useConfirm();
   const qc = useQueryClient();
 
-  const { data: products = [] } = useList<Product>('/products');
+  // Produto (#1028 parte 2) — busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
 
   const [productId, setProductId] = useState('');
   const stepsQ = useQuery({
@@ -134,14 +138,23 @@ export default function RoutingPage() {
       <Card className="mb-5">
         <CardContent className="py-5">
           <Label>Produto</Label>
-          <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="max-w-md">
-            <option value="">Selecione um produto</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.sku} · {p.name}
-              </option>
-            ))}
-          </Select>
+          <Combobox
+            options={productOptions}
+            value={productId}
+            onValueChange={(v) => {
+              setProductId(v);
+              const p = productItems.find((i) => i.id === v);
+              setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+            }}
+            onQueryChange={setProductSearch}
+            serverSideSearch
+            selectedLabel={productLabel}
+            loading={productsLoading}
+            placeholder="Selecione um produto"
+            searchPlaceholder="Buscar por SKU ou nome..."
+            clearable
+            className="max-w-md"
+          />
         </CardContent>
       </Card>
 
