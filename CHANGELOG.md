@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-08-06
+
+### Added
+- feat(ops): contrato AVQ-CT v2 — minuta jurídica completa no gerador (#992/#1025) (#1026)
+
 ## [1.41.1] - 2026-08-05
 
 ### Fixed
@@ -477,7 +482,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...HEAD
+[1.42.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...v1.42.0
 [1.41.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.0...v1.41.1
 [1.41.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.40.0...v1.41.0
 [1.40.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.39.0...v1.40.0
