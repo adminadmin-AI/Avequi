@@ -6,6 +6,27 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-08-06
+
+### Added
+- feat(ops): contrato AVQ-CT v2 — minuta jurídica completa no gerador (#992/#1025) (#1026)
+
+## [1.41.1] - 2026-08-05
+
+### Fixed
+- fix(ops): render do contrato em PDF — marcador WinAnsi-safe e rodapé sem páginas fantasma (#992) (#1020)
+
+## [1.41.0] - 2026-08-05
+
+### Added
+- feat(crm): ranking de receita por loja no painel de carteira (#850) (#1009)
+- feat(iam): migra comissões e sessões para permissões v2 (#1001) (#1008)
+
+### Changed
+- refactor(iam): remove gates legados redundantes (#1000) (#1007)
+- ci(iam): executa invariante do último admin em PostgreSQL (#937) (#999)
+- refactor(production): extrai BomExplosionService — explosão de BOM em ledger de arestas (#980) (#983)
+
 ## [1.40.0] - 2026-08-05
 
 ### Added
@@ -461,7 +482,10 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.40.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...HEAD
+[1.42.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...v1.42.0
+[1.41.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.0...v1.41.1
+[1.41.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.40.0...v1.41.0
 [1.40.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.38.0...v1.39.0
 [1.38.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.37.0...v1.38.0

@@ -1,8 +1,9 @@
 import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ContractPdfService } from './contract-pdf.service';
-import { renderClauses, TEMPLATE_VERSION } from './contract-template';
+import { ContractPdfService, reaisPorExtenso } from './contract-pdf.service';
+import { montarDocumento, PENDENTE, TEMPLATE_VERSION } from './contract-template';
+import { ContratoV2Params } from './contract-v2-tipos';
 
 const OPERADORA = {
   id: 'op-1',
@@ -10,7 +11,7 @@ const OPERADORA = {
   razaoSocial: 'AVECCHI SOLUCOES EMPRESARIAIS LTDA',
   cnpj: '67846692000164',
   im: '23116509',
-  email: null,
+  email: 'claudio@avecchi.ai',
   street: 'Rua Um',
   number: '100',
   neighborhood: 'Centro',
@@ -45,7 +46,7 @@ const SUBSCRIPTION = {
   canceledAt: null,
 };
 
-describe('ContractPdfService (#992)', () => {
+describe('ContractPdfService — AVQ-CT v2 (#992/#1025)', () => {
   let service: ContractPdfService;
   let prisma: any;
 
@@ -75,7 +76,16 @@ describe('ContractPdfService (#992)', () => {
     const { buffer, filename } = await service.generate('cli-1');
     expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
     expect(filename).toBe('contrato-avecchi-gdr-reboques.pdf');
-  });
+  }, 30000);
+
+  it('documento completo: dezenas de páginas, sem explosão nem truncamento', async () => {
+    const { buffer } = await service.generate('cli-1');
+    const pages = buffer.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? [];
+    // 43 capítulos + 4 anexos: o v2 é um documento longo (referência ~30 págs).
+    // < 15 = truncou; > 80 = regressão de páginas fantasma do rodapé.
+    expect(pages.length).toBeGreaterThanOrEqual(15);
+    expect(pages.length).toBeLessThanOrEqual(80);
+  }, 30000);
 
   it('sem OPERADORA_COMPANY_ID → 503 fail-closed', async () => {
     delete process.env.OPERADORA_COMPANY_ID;
@@ -100,15 +110,15 @@ describe('ContractPdfService (#992)', () => {
   });
 });
 
-describe('contract-template (#992) — o texto amarra nos dados reais', () => {
-  const params = {
+describe('montarDocumento — AVQ-CT v2 amarra nos dados reais', () => {
+  const params: ContratoV2Params = {
     operadora: {
       razaoSocial: 'AVECCHI SOLUCOES EMPRESARIAIS LTDA',
       cnpj: '67.846.692/0001-64',
       im: '23116509',
       endereco: 'Rua Um, 100 — Centro — Sao Jose dos Pinhais/PR',
-      email: null,
-      cidadeForo: 'Sao Jose dos Pinhais/PR',
+      email: 'claudio@avecchi.ai',
+      comarca: 'Sao Jose dos Pinhais/PR',
     },
     cliente: {
       razaoSocial: 'GDR LTDA',
@@ -118,6 +128,7 @@ describe('contract-template (#992) — o texto amarra nos dados reais', () => {
     },
     comercial: {
       mensalidadeFormatada: 'R$ 1.500,00',
+      mensalidadePorExtenso: 'mil e quinhentos reais',
       diaCobranca: 5,
       inicioVigencia: '04/08/2026',
       planoNome: null,
@@ -125,31 +136,94 @@ describe('contract-template (#992) — o texto amarra nos dados reais', () => {
     },
   };
 
-  it('valor, dia de cobrança, vigência e foro entram nas cláusulas', () => {
-    const texto = renderClauses(params)
-      .map((c) => `${c.title} ${c.body}`)
+  const textoDe = (caps: { titulo: string; blocos: any[] }[]) =>
+    caps
+      .map(
+        (c) =>
+          `${c.titulo}\n` +
+          c.blocos
+            .map((b: any) => (b.tipo === 'par' ? b.texto : [b.colunas, ...b.linhas].flat().join(' | ')))
+            .join('\n'),
+      )
       .join('\n');
-    expect(texto).toContain('R$ 1.500,00');
-    expect(texto).toContain('dia 5 de cada mês');
-    expect(texto).toContain('04/08/2026');
-    expect(texto).toContain('Sao Jose dos Pinhais/PR');
-    // régua de inadimplência espelha a régua REAL do billing (D+3/D+10/D+20)
-    expect(texto).toMatch(/3º \(terceiro\) dia/);
-    expect(texto).toMatch(/10º \(décimo\) dia/);
-    expect(texto).toMatch(/20\s*\(vinte\) dias/);
+
+  it('estrutura completa: 43 capítulos e 4 anexos', () => {
+    const d = montarDocumento(params);
+    expect(d.capitulos).toHaveLength(43);
+    expect(d.anexos).toHaveLength(4);
+    expect(d.capitulos[0].titulo).toContain('QUALIFICAÇÃO DAS PARTES');
+    expect(d.capitulos[42].titulo).toContain('FORO');
   });
 
-  it('foro sem cidade cadastrada sinaliza pendência em vez de inventar', () => {
-    const texto = renderClauses({
+  it('qualificação, valores, vigência e foro entram com os dados vivos', () => {
+    const d = montarDocumento(params);
+    const texto = textoDe(d.capitulos);
+    expect(texto).toContain('AVECCHI SOLUCOES EMPRESARIAIS LTDA');
+    expect(texto).toContain('67.846.692/0001-64');
+    expect(texto).toContain('23116509');
+    expect(texto).toContain('Sao Jose dos Pinhais/PR');
+    const anexoTexto = textoDe(d.anexos);
+    expect(anexoTexto).toContain('R$ 1.500,00 (mil e quinhentos reais)');
+    expect(anexoTexto).toContain('Todo dia 5 de cada mês');
+    expect(anexoTexto).toContain('04/08/2026');
+  });
+
+  it('régua de cobrança contratual: 3º/10º/20º/25º/60º dia (cap. 31)', () => {
+    const cap31 = montarDocumento(params).capitulos.find((c) => c.titulo.includes('INADIMPLÊNCIA'))!;
+    const texto = textoDe([cap31]);
+    expect(texto).toContain('3º dia de atraso');
+    expect(texto).toContain('10º dia');
+    expect(texto).toContain('20º dia');
+    expect(texto).toContain('25º dia');
+    expect(texto).toContain('60º dia');
+    expect(texto).toContain('bloqueio de emissão de novos usuários');
+  });
+
+  it('cláusula 40.4 (aceite pelo Portal) presente — base do #1025', () => {
+    const texto = textoDe(montarDocumento(params).capitulos);
+    expect(texto).toContain('aceitação eletrônica pelo Portal Avecchi');
+    expect(texto).toContain('título executivo extrajudicial');
+  });
+
+  it('Anexo IV reflete a infraestrutura REAL (correção factual autorizada)', () => {
+    const anexoTexto = textoDe(montarDocumento(params).anexos);
+    expect(anexoTexto).toContain('Railway');
+    expect(anexoTexto).toContain('Pluggy');
+    expect(anexoTexto).toContain('Anthropic');
+    expect(anexoTexto).not.toContain('Cloudflare');
+    expect(anexoTexto).not.toContain('OpenPix');
+  });
+
+  it('dado cadastral faltante sinaliza pendência em vez de inventar', () => {
+    const semComarca = montarDocumento({
       ...params,
-      operadora: { ...params.operadora, cidadeForo: null },
-    })
-      .map((c) => c.body)
-      .join('\n');
-    expect(texto).toContain('[● PREENCHER NO CADASTRO DA EMPRESA]');
+      operadora: { ...params.operadora, comarca: null },
+      cliente: { ...params.cliente, endereco: null },
+    });
+    const texto = textoDe(semComarca.capitulos) + textoDe(semComarca.anexos);
+    expect(texto).toContain(PENDENTE);
+    expect(semComarca.localAssinatura).toBe(PENDENTE);
   });
 
   it('versão do template é estável e rastreável', () => {
-    expect(TEMPLATE_VERSION).toBe('AVQ-CT v1');
+    expect(TEMPLATE_VERSION).toBe('AVQ-CT v2');
+  });
+});
+
+describe('reaisPorExtenso', () => {
+  it.each([
+    [150000, 'mil e quinhentos reais'],
+    [100, 'um real'],
+    [99, 'noventa e nove centavos'],
+    [123456, 'mil e duzentos e trinta e quatro reais e cinquenta e seis centavos'],
+    [10000000, 'cem mil reais'],
+    [0, 'zero reais'],
+  ])('%s centavos → "%s"', (cents, esperado) => {
+    expect(reaisPorExtenso(cents as number)).toBe(esperado);
+  });
+
+  it('fora da faixa → null (nunca extenso errado)', () => {
+    expect(reaisPorExtenso(-1)).toBeNull();
+    expect(reaisPorExtenso(1.5)).toBeNull();
   });
 });
