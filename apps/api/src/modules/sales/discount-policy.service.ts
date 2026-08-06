@@ -131,8 +131,31 @@ export class DiscountPolicyService {
     let worst: { sku: string; discount: number } | null = null;
     for (const i of items) {
       const p = byId.get(i.productId);
-      const salePrice = Number(p?.salePrice ?? 0);
-      if (!p || salePrice <= 0) continue; // sem preço de tabela = sem base de alçada
+      // Produto que não é desta empresa (ou não existe) nunca deve chegar
+      // numa OV — deixar passar aqui significava vender um id arbitrário sem
+      // nenhuma base de preço para comparar.
+      if (!p) {
+        throw new BadRequestException(
+          `Produto ${i.productId} não encontrado nesta empresa.`,
+        );
+      }
+      const salePrice = Number(p.salePrice ?? 0);
+      // Produto sem preço de tabela segue SEM validação de alçada, e isso é
+      // um buraco conhecido: o `unitPrice` do corpo passa sem teto, porque não
+      // há base com o que comparar.
+      //
+      // O fail-closed (recusar a venda) foi escrito e revertido antes de ir ao
+      // ar: 338 dos 339 produtos ativos da GDR têm `salePrice` nulo, então a
+      // regra recusaria o catálogo inteiro, em qualquer papel, logo no POST
+      // /sales. E o dado não está faltando por descuido — reboque é vendido
+      // por negociação, não por tabela; exigir a base assume um modelo de
+      // negócio que não é o do cliente.
+      //
+      // Fechar de verdade exige decidir ANTES o que é a base de preço nesse
+      // modelo (preço mínimo? custo + margem?). Enquanto isso não é decidido,
+      // recusar a venda troca um risco interno controlado por RBAC por uma
+      // parada de operação. Ver a issue de alçada sem tabela de preço.
+      if (salePrice <= 0) continue;
       const discount = ((salePrice - Number(i.unitPrice)) / salePrice) * 100;
       if (discount > maxDiscount) {
         maxDiscount = discount;

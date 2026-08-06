@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
+import { expiryToMs } from '../../common/auth/auth-cookies';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
@@ -69,6 +70,21 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * Validade do registro do refresh token no banco.
+   *
+   * Antes era `+7 dias` fixo nos dois pontos de emissão, enquanto o JWT usava
+   * JWT_REFRESH_EXPIRY. Não abria bypass (o mais curto dos dois barra
+   * primeiro), mas encurtar a env para '24h' — a reação natural a um
+   * incidente — deixava a linha viva no banco por mais 6 dias, e o
+   * `revokedAt` passava a ser o único mecanismo real de corte. Agora a fonte
+   * é uma só: a env. Formato inválido cai no mesmo default de 7d do cookie.
+   */
+  private refreshExpiresAt(): Date {
+    const ms = expiryToMs(process.env.JWT_REFRESH_EXPIRY, 7 * 86_400_000);
+    return new Date(Date.now() + ms);
   }
 
   /**
@@ -286,15 +302,12 @@ export class AuthService {
       expiresIn: process.env.JWT_REFRESH_EXPIRY ?? '7d',
     });
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
     // #221: store hashed refresh token
     const stored = await this.prisma.refreshToken.create({
       data: {
         token: this.hashToken(refreshToken),
         userId: user.id,
-        expiresAt,
+        expiresAt: this.refreshExpiresAt(),
       },
     });
 
@@ -398,14 +411,11 @@ export class AuthService {
       expiresIn: process.env.JWT_REFRESH_EXPIRY ?? '7d',
     });
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
     const newStored = await this.prisma.refreshToken.create({
       data: {
         token: this.hashToken(newRefreshToken),
         userId: stored.userId,
-        expiresAt,
+        expiresAt: this.refreshExpiresAt(),
       },
     });
 

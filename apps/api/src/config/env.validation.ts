@@ -164,4 +164,20 @@ export const envValidationSchema = Joi.object({
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   // Modelo de STT da OpenAI. Default barato; fallback documentado: 'whisper-1'.
   CRM_STT_MODEL: Joi.string().allow('').optional(),
+
+  // ─── SDR IA (#521-#524) ───
+  // Chave da API do Claude que move o agente SDR. Passava por `allowUnknown`
+  // e ninguém validava o formato: uma chave truncada/colada errada só
+  // aparecia como 401 da Anthropic NO MEIO de um atendimento, com o breaker
+  // abrindo e o lead caindo em handoff silencioso. Opcional de propósito —
+  // sem ela o SDR não roda e o fluxo humano segue intocado (sdr-agent
+  // .service.ts: `if (!this.apiKey()) return`).
+  ANTHROPIC_API_KEY: Joi.string()
+    .pattern(/^sk-ant-/)
+    .allow('')
+    .optional()
+    .messages({
+      'string.pattern.base':
+        'ANTHROPIC_API_KEY deve começar com "sk-ant-" — verifique se a chave foi colada inteira',
+    }),
 });

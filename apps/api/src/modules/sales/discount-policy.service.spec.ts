@@ -75,11 +75,31 @@ describe('DiscountPolicyService (#391 + #947)', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('produto sem salePrice não tem base de alçada', async () => {
+  // Produto sem preço de tabela passa SEM validação de alçada. É um buraco
+  // conhecido e documentado no serviço, não um descuido: o fail-closed foi
+  // escrito nesta onda e revertido antes do deploy porque 338 dos 339 produtos
+  // ativos da GDR têm salePrice nulo — recusar travaria o catálogo inteiro no
+  // POST /sales. O caso fica coberto aqui para que a mudança de contrato, se
+  // um dia acontecer, seja deliberada e não um efeito colateral.
+  it('produto sem salePrice passa sem validação (buraco conhecido, ver issue)', async () => {
     mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: null }]);
     await expect(
       service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
     ).resolves.toBeUndefined();
+  });
+
+  it('salePrice zero também passa (mesma ausência de base)', async () => {
+    mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'X', salePrice: 0 }]);
+    await expect(
+      service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'p1', unitPrice: 1 }]),
+    ).resolves.toBeUndefined();
+  });
+
+  it('produto de OUTRA empresa (findMany não retorna) é recusado, não ignorado', async () => {
+    mockPrisma.product.findMany.mockResolvedValue([]);
+    await expect(
+      service.assertWithinLimit('co-1', 'COMMERCIAL', [{ productId: 'de-outro-tenant', unitPrice: 1 }]),
+    ).rejects.toThrow(/não encontrado nesta empresa/);
   });
 
   it('papel sem política usa fallback 10%', async () => {
