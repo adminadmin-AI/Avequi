@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, PanelLeftClose, PanelLeft, Search, X } from 'lucide-react';
 import { NAV, flatNav, navItemAllowed, resolveActiveHref, type NavItem } from '@/lib/nav-config';
@@ -81,18 +82,33 @@ function SidebarInner({
           mini ? 'justify-center px-2' : 'gap-2.5 px-4',
         )}
       >
+        {/* A marca é o atalho para o início — substitui o ícone de casinha que
+            ficava nos breadcrumbs. No drawer do mobile também fecha o menu,
+            senão o overlay fica aberto por cima da tela de destino. */}
         {mini ? (
-          <Image
-            src="/brand/logo.png"
-            alt="Avecchi"
-            width={287}
-            height={299}
-            className="h-6 w-auto"
-          />
+          <Link
+            href="/app"
+            onClick={onClose}
+            aria-label="Ir para o início"
+            className="rounded-lg transition-opacity hover:opacity-80"
+          >
+            <Image
+              src="/brand/logo.png"
+              alt="Avecchi"
+              width={287}
+              height={299}
+              className="h-6 w-auto"
+            />
+          </Link>
         ) : (
-          <span className="flex flex-1 items-center">
+          <Link
+            href="/app"
+            onClick={onClose}
+            aria-label="Ir para o início"
+            className="flex flex-1 items-center rounded-lg transition-opacity hover:opacity-80"
+          >
             <AvecchiWordmark tone="auto" className="text-[17px]" />
-          </span>
+          </Link>
         )}
         {showClose ? (
           <button

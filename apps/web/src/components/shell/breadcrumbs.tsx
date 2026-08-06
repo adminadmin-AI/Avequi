@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronRight, Home } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { buildBreadcrumbs } from '@/lib/nav-config';
 import { cn } from '@/lib/utils';
 
@@ -11,23 +11,18 @@ export function Breadcrumbs() {
   const pathname = usePathname();
   const crumbs = buildBreadcrumbs(pathname);
 
-  // O primeiro crumb (/app) vira o ícone Home.
+  // O primeiro crumb (/app) sai da trilha: o atalho para o início agora é a
+  // própria marca, no topo da barra lateral. Sem ele, o primeiro nível real
+  // abre a trilha e não leva chevron na frente.
   const rest = crumbs.slice(1);
 
   return (
     <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1 text-caption">
-      <Link
-        href="/app"
-        className="flex items-center rounded p-1 text-content-muted transition-colors hover:text-content"
-        aria-label="Início"
-      >
-        <Home size={15} />
-      </Link>
       {rest.map((crumb, i) => {
         const last = i === rest.length - 1;
         return (
           <span key={crumb.href} className="flex min-w-0 items-center gap-1">
-            <ChevronRight size={13} className="shrink-0 text-content-muted" />
+            {i > 0 && <ChevronRight size={13} className="shrink-0 text-content-muted" />}
             {last || crumb.isId ? (
               <span
                 className={cn('truncate', last ? 'font-medium text-content' : 'text-content-secondary')}
