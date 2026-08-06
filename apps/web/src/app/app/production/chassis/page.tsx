@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, ScanBarcode } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,17 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/compo
 import { formatDateTime, formatNumber } from '@/lib/format';
 
 const RESOURCE = '/chassi';
+
+/**
+ * Instalador autocontido da ferramenta OpenClaw (asset público da tag
+ * `openclaw-v1.0.0` — fora do trem de releases `vX.Y.Z` do ERP). Leva o
+ * Python embutido: o PC da fábrica não precisa de Python nem de internet
+ * durante a instalação. Nova versão da ferramenta = nova tag `openclaw-*`
+ * e atualizar estas duas constantes.
+ */
+const INSTALADOR_URL =
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.0/OpenClaw_Setup_v1.0.0.exe';
+const INSTALADOR_VERSAO = '1.0.0';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
 interface ChassiGravacao {
@@ -299,11 +311,19 @@ export default function ChassisPage() {
                 Os dados vão direto para o ERP. As gravações aparecem nesta tela.
               </p>
 
+              <a
+                href={INSTALADOR_URL}
+                download
+                className={cn(buttonVariants({ variant: 'primary', size: 'md' }), 'w-full')}
+              >
+                <Download size={16} />
+                Baixar o instalador (v{INSTALADOR_VERSAO} · ~59 MB)
+              </a>
+
               <div>
                 <p className="mb-1 font-medium">Pré-requisitos do computador</p>
                 <ul className="list-disc space-y-1 pl-5 text-content-secondary">
-                  <li>Windows 10/11 com acesso à internet</li>
-                  <li>Python 3.11 ou superior instalado</li>
+                  <li>Windows 10/11 (64 bits). <strong>Não precisa de Python nem de internet durante a instalação</strong>: o instalador leva tudo</li>
                   <li>Marcadora conectada via USB (adaptador serial FTDI)</li>
                   <li>Impressora de etiquetas Elgin L42-DT instalada (driver Generic/Text Only)</li>
                 </ul>
@@ -312,29 +332,36 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Passo a passo</p>
                 <ol className="list-decimal space-y-1 pl-5 text-content-secondary">
-                  <li>Extraia o pacote <span className="font-mono text-xs">OpenClaw_Instalador_*.zip</span> em uma pasta fixa, como <span className="font-mono text-xs">C:\OpenClaw</span> (evite OneDrive ou Área de Trabalho)</li>
-                  <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">.streamlit\secrets.toml</span> conforme o modelo do pacote</li>
-                  <li>Execute <span className="font-mono text-xs">instalar.cmd</span> (cria o ambiente Python isolado e instala as dependências)</li>
-                  <li>Para usar, execute <span className="font-mono text-xs">iniciar.cmd</span>. O navegador abre em <span className="font-mono text-xs">http://localhost:8503</span></li>
+                  <li>Execute o <span className="font-mono text-xs">OpenClaw_Setup_*.exe</span> baixado acima: ele instala em <span className="font-mono text-xs">C:\OpenClaw</span> e cria o atalho <strong>“Marcadora de Chassi”</strong> na área de trabalho (não precisa de administrador)</li>
+                  <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">C:\OpenClaw\app\.streamlit\secrets.toml</span> conforme o modelo que acompanha a instalação</li>
+                  <li>Abra o atalho <strong>“Marcadora de Chassi”</strong>: a tela abre sozinha no navegador, sem janela de terminal</li>
+                  <li>Use o botão <strong>“🩺 Diagnóstico da estação”</strong> na tela inicial: ele confere banco local, nuvem, fila offline, impressora, marcadora no USB e a trava de segurança, sem tocar na máquina</li>
                   <li>Confirme o chip “☁ Nuvem sincronizada” no topo da ferramenta</li>
                   <li>Faça uma gravação de teste em sucata antes de liberar para o operador</li>
                 </ol>
                 <p className="mt-1 text-xs text-content-muted">
-                  O guia completo (com problemas comuns) vai junto no pacote, em{' '}
-                  <span className="font-mono">LEIA-ME_INSTALACAO.md</span>.
+                  Para desinstalar: Painel de Controle → Programas (os registros e a credencial da
+                  estação são preservados). Atualização: instalar a versão nova por cima.
                 </p>
               </div>
 
               <Alert variant="warning" title="Credencial de acesso ao banco">
                 A credencial da ferramenta (usuário dedicado, privilégio mínimo) <strong>não acompanha o
-                pacote</strong> e não deve ser copiada de outra máquina. O provisionamento é feito por
+                instalador</strong> e não deve ser copiada de outra máquina. O provisionamento é feito por
                 máquina, por canal seguro. Fale com o responsável pelo ERP.
               </Alert>
 
+              <Alert variant="info" title="Gravação física ainda travada">
+                A ferramenta instala com a trava de segurança <strong>ligada</strong>: registra e imprime
+                etiqueta, mas não envia comando à marcadora. A liberação acontece só no teste
+                controlado em sucata (issue #1033).
+              </Alert>
+
               <p className="text-xs text-content-muted">
-                O pacote é gerado pelo empacotador do projeto producao_v2
-                (<span className="font-mono">scripts/openclaw/instalador/empacotar.py</span>).
-                Download direto nesta página: em preparação (issue #889).
+                O instalador é autocontido (Python embutido) e é gerado por{' '}
+                <span className="font-mono">scripts/openclaw/instalador/construir_setup.py</span> do
+                projeto producao_v2, publicado na tag <span className="font-mono">openclaw-v{INSTALADOR_VERSAO}</span> deste
+                repositório (fora do trem de releases do ERP).
               </p>
             </div>
           </SheetBody>
