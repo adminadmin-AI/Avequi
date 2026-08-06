@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Package } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
+import { usePagedList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,24 @@ export default function ProductsPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const { data: products = [], isLoading } = useList<Product>(RESOURCE);
+  // #1028 parte 3 — modo servidor do DataTable: página/busca vêm do backend
+  // paginado (GET /products), não é mais o catálogo inteiro em memória.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState('');
+  const { data, isLoading } = usePagedList<Product>(RESOURCE, { page, pageSize, search });
+  const products = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1); // busca nova invalida a página atual
+  }
+  function handlePageSizeChange(value: number) {
+    setPageSize(value);
+    setPage(1);
+  }
+
   const create = useCreate<Product, ProductFormValues>(RESOURCE);
   const update = useUpdate<Product, Partial<Product> | ProductFormValues>(RESOURCE);
 
@@ -102,18 +119,21 @@ export default function ProductsPage() {
     );
   }
 
+  // Sem `sortable` (#1028 parte 3): a ordenação era 100% client-side sobre o
+  // catálogo inteiro; em modo servidor só existe o que a API expõe, e
+  // GET /products hoje só ordena por createdAt (sem sortBy exposto no
+  // ProductQueryDto — forbidNonWhitelisted rejeitaria qualquer outro param).
+  // Cabeçalho clicável sem efeito seria pior que sem cabeçalho clicável.
   const columns: Column<Product>[] = [
     {
       key: 'sku',
       header: 'SKU',
-      sortable: true,
       cell: (p) => <span className="font-mono text-xs text-content-secondary">{p.sku}</span>,
     },
-    { key: 'name', header: 'Nome', sortable: true },
+    { key: 'name', header: 'Nome' },
     {
       key: 'type',
       header: 'Tipo',
-      sortable: true,
       cell: (p) => <Badge variant="neutral">{PRODUCT_TYPE_LABELS[p.type]}</Badge>,
     },
     { key: 'unit', header: 'Un.', align: 'center' },
@@ -126,7 +146,6 @@ export default function ProductsPage() {
       key: 'costPrice',
       header: 'Custo',
       align: 'right',
-      sortable: true,
       accessor: (p) => Number(p.costPrice ?? 0),
       cell: (p) => (p.costPrice != null ? formatBRL(p.costPrice) : '—'),
     },
@@ -134,7 +153,6 @@ export default function ProductsPage() {
       key: 'salePrice',
       header: 'Venda',
       align: 'right',
-      sortable: true,
       accessor: (p) => Number(p.salePrice ?? 0),
       cell: (p) => (p.salePrice != null ? formatBRL(p.salePrice) : '—'),
     },
@@ -142,7 +160,6 @@ export default function ProductsPage() {
       key: 'isActive',
       header: 'Status',
       align: 'center',
-      sortable: true,
       accessor: (p) => (p.isActive ? 1 : 0),
       cell: (p) => (
         <Badge variant={p.isActive ? 'success' : 'neutral'}>
@@ -242,6 +259,14 @@ export default function ProductsPage() {
             action={{ label: 'Novo produto', icon: <Plus size={16} />, onClick: openCreate }}
           />
         }
+        serverMode
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+        searchValue={search}
+        onSearchChange={handleSearchChange}
       />
 
       <FormDialog

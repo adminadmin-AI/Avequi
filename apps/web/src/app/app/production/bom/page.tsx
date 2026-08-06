@@ -98,7 +98,7 @@ export default function BomPage() {
     const qty = Number(newQty);
     if (!(qty > 0)) return toast.error('Quantidade deve ser maior que zero');
     const comp = compItems.find((p) => p.id === newComp);
-    if (!comp) return toast.error('Componente inválido — busque novamente');
+    if (!comp) return toast.error('Componente inválido. Busque novamente.');
     setItems((prev) => [
       ...prev,
       { componentId: newComp, sku: comp.sku, name: comp.name, quantity: qty, scrapPct: Number(newScrap) || 0 },
