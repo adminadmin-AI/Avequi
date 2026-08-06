@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Plus, Pencil, Trash2, Target } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useDetail, useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import type {
   Product,
   BudgetPlanRow,
@@ -61,11 +62,13 @@ export default function BudgetPlansPage() {
   const confirm = useConfirm();
 
   const plans = useList<BudgetPlanRow>('/budget-plans');
-  const { data: products = [] } = useList<Product>('/products');
-  const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
-    [products],
-  );
+
+  // Produto do driver (#1028 parte 2) — busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
 
   const [planId, setPlanId] = useState('');
   const [tab, setTab] = useState('projecao');
@@ -103,6 +106,13 @@ export default function BudgetPlansPage() {
 
   const [driverDialog, setDriverDialog] = useState(false);
   const [driverForm, setDriverForm] = useState<DriverForm>(EMPTY_DRIVER);
+  // Ao editar um driver existente, o combobox de produto (busca server-side,
+  // #1028 parte 2) não tem garantia de que o produto já selecionado esteja
+  // na página de resultados atual — busca o detalhe só pra resolver o rótulo.
+  const { data: driverProductDetail } = useDetail<Product>('/products', driverForm.productId || undefined);
+  useEffect(() => {
+    setProductLabel(driverProductDetail ? `${driverProductDetail.sku} · ${driverProductDetail.name}` : undefined);
+  }, [driverProductDetail]);
 
   const savePlan = useMutation({
     mutationFn: async (f: PlanForm) => {
@@ -491,7 +501,16 @@ export default function BudgetPlansPage() {
             <Combobox
               options={productOptions}
               value={driverForm.productId}
-              onValueChange={(v) => setDriverForm({ ...driverForm, productId: v })}
+              onValueChange={(v) => {
+                setDriverForm({ ...driverForm, productId: v });
+                const p = productItems.find((i) => i.id === v);
+                if (p) setProductLabel(`${p.sku} · ${p.name}`);
+                else if (!v) setProductLabel(undefined);
+              }}
+              onQueryChange={setProductSearch}
+              serverSideSearch
+              selectedLabel={productLabel}
+              loading={productsLoading}
               placeholder="Sem produto (agregado)"
               searchPlaceholder="Buscar produto..."
               clearable

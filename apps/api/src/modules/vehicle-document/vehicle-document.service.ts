@@ -31,6 +31,12 @@ export class VehicleDocumentService {
   listDocuments(companyId: string, productId?: string) {
     return this.prisma.vehicleDocument.findMany({
       where: { companyId, ...(productId ? { productId } : {}) },
+      // #1028 parte 2: o web resolvia o nome do produto de cada linha contra
+      // o catálogo INTEIRO baixado à parte — agora que /products virou
+      // combobox de busca server-side (sem catálogo completo no cliente), a
+      // linha precisa trazer o nome junto (senão a coluna "Produto" quebra
+      // silenciosamente para qualquer produto fora do resultado de busca atual).
+      include: { product: { select: { id: true, sku: true, name: true } } },
       orderBy: { issuedAt: 'desc' },
     });
   }

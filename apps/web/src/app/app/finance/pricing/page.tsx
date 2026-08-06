@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Tags, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
-import type { Product, PricingSimulation, PricingBreakdownItem, ApiError } from '@/types/api';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
+import type { PricingSimulation, PricingBreakdownItem, ApiError } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Combobox } from '@/components/ui/combobox';
@@ -42,17 +42,16 @@ function apiMessage(err: unknown): string | null {
 }
 
 export default function PricingPage() {
-  const { data: products = [], isLoading: loadingProducts } = useList<Product>('/products');
-
   const [productId, setProductId] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const [productSearch, setProductSearch] = useState('');
+  const { items: productItems, options: productOptions, isLoading: loadingProducts } = useProductOptions({
+    search: productSearch,
+  });
+
   const [marginPct, setMarginPct] = useState('');
   const [costOverride, setCostOverride] = useState('');
   const [params, setParams] = useState<SimParams | null>(null);
-
-  const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
-    [products],
-  );
 
   const marginNum = Number(marginPct);
   const canSimulate = productId !== '' && marginPct.trim() !== '' && !Number.isNaN(marginNum) && marginNum >= 0;
@@ -100,7 +99,14 @@ export default function PricingPage() {
               <Combobox
                 options={productOptions}
                 value={productId}
-                onValueChange={setProductId}
+                onValueChange={(v) => {
+                  setProductId(v);
+                  const p = productItems.find((i) => i.id === v);
+                  setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                }}
+                onQueryChange={setProductSearch}
+                serverSideSearch
+                selectedLabel={productLabel}
                 placeholder={loadingProducts ? 'Carregando produtos...' : 'Selecione um produto'}
                 searchPlaceholder="Buscar por SKU ou nome..."
                 clearable

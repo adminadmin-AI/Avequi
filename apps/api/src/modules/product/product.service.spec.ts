@@ -168,6 +168,7 @@ describe('ProductService', () => {
         costPrice: true,
         salePrice: true,
         isActive: true,
+        minStock: true,
       });
     });
 
@@ -219,12 +220,16 @@ describe('ProductService', () => {
       expect(prisma.product.findMany.mock.calls[1][0].take).toBe(100);
     });
 
-    it('payload mínimo: só {id, sku, name} — nada de custo/margem/dados sensíveis', async () => {
+    it('payload enxuto: {id, sku, name} + só o que consumidores usam pra pré-preencher item (sem NCM/pesos/dados fiscais)', async () => {
       await service.findOptions('company-1', {});
       expect(prisma.product.findMany.mock.calls[0][0].select).toEqual({
         id: true,
         sku: true,
         name: true,
+        salePrice: true,
+        costPrice: true,
+        avgCost: true,
+        tracksSerial: true,
       });
     });
 

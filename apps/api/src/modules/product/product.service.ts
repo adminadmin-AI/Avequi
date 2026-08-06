@@ -12,7 +12,13 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductOptionsQueryDto } from './dto/product-options-query.dto';
 
-/** Campos que a TELA DE LISTA usa (apps/web/src/app/app/products/page.tsx) — #1028 */
+/**
+ * Campos que a TELA DE LISTA usa (apps/web/src/app/app/products/page.tsx) —
+ * #1028. `minStock` entrou depois (parte 2): o monitor de reposição
+ * (`purchases/automation`) também lê `/products` (paginado, várias páginas)
+ * e precisava do campo — sem ele a classificação OK/ALERTA/CRÍTICO ficava
+ * sempre "sem mínimo definido" silenciosamente.
+ */
 const PRODUCT_LIST_SELECT = {
   id: true,
   sku: true,
@@ -23,20 +29,32 @@ const PRODUCT_LIST_SELECT = {
   costPrice: true,
   salePrice: true,
   isActive: true,
+  minStock: true,
 } satisfies Prisma.ProductSelect;
 
 export type ProductListItem = Prisma.ProductGetPayload<{ select: typeof PRODUCT_LIST_SELECT }>;
 
 /**
- * Payload MÍNIMO do combobox de formulário (#1028 parte 2) — os ~21
- * consumidores de `/products` que esperam array puro (selects de venda,
- * produção, compra etc.) só precisam disto para montar o rótulo
- * `${sku} · ${name}`. Ver `apps/web/src/components/ui/combobox.tsx`.
+ * Payload do combobox de formulário (#1028 parte 2) — os ~21 consumidores de
+ * `/products` que esperam array puro (selects de venda, produção, compra
+ * etc.). Começou só `{id, sku, name}` (rótulo do combobox); levantamento no
+ * apps/web mostrou 3 consumidores que precisam de mais, todos para PRÉ-
+ * PREENCHER o item ao adicionar (não dá pra buscar de novo depois — o
+ * catálogo completo não existe mais no cliente):
+ *  - `salePrice` — preço unitário default em venda/orçamento novo
+ *  - `costPrice`/`avgCost` — custo de referência default em pedido de compra
+ *  - `tracksSerial` — balcão trava quantidade e exige scan de chassi
+ * Ainda assim MUITO mais enxuto que o Product inteiro (sem descrição, NCM,
+ * pesos, dados fiscais etc. — nenhum consumidor de combobox usa isso).
  */
 const PRODUCT_OPTIONS_SELECT = {
   id: true,
   sku: true,
   name: true,
+  salePrice: true,
+  costPrice: true,
+  avgCost: true,
+  tracksSerial: true,
 } satisfies Prisma.ProductSelect;
 
 export type ProductOption = Prisma.ProductGetPayload<{ select: typeof PRODUCT_OPTIONS_SELECT }>;

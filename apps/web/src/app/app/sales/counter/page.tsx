@@ -1,15 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CreditCard, Plus, ScanBarcode, Store, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
-import type { Customer, Warehouse, Product, SalesOrder } from '@/types/api';
+import { useList, useOptions } from '@/hooks/use-resource';
+import { useCustomerOptions } from '@/hooks/use-product-customer-options';
+import type { Warehouse, SalesOrder, ProductOption } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -35,6 +37,12 @@ import {
 
 interface DraftItem {
   productId: string;
+  // capturados no momento da seleção (#1028 parte 2) — o combobox de produto
+  // busca no servidor, o item pode sair da página de resultados atual antes
+  // do fechamento da venda.
+  sku: string;
+  name: string;
+  tracksSerial: boolean;
   quantity: number;
   unitPrice: number;
   serialNumberId?: string;
@@ -54,11 +62,25 @@ export default function CounterSalePage() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
-  const { data: products = [] } = useList<Product>('/products');
 
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  // Cliente (#1028 parte 2) — busca server-side
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerLabel, setCustomerLabel] = useState<string | undefined>();
+  const { items: customerItems, options: customerOptions, isLoading: customersLoading } = useCustomerOptions({
+    search: customerSearch,
+  });
+
+  // Produto (#1028 parte 2) — busca server-side. Rótulo próprio (marca
+  // "(chassi)"), por isso usa `useOptions` direto em vez do wrapper padrão.
+  const [productSearch, setProductSearch] = useState('');
+  const { data: productItems = [], isLoading: productsLoading } = useOptions<ProductOption>('/products', {
+    search: productSearch,
+  });
+  const productOptions = productItems.map((p) => ({
+    value: p.id,
+    label: `${p.sku} · ${p.name}${p.tracksSerial ? ' (chassi)' : ''}`,
+  }));
 
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
@@ -72,7 +94,10 @@ export default function CounterSalePage() {
 
   // Linha de adição de item
   const [newProductId, setNewProductId] = useState('');
+  const [newProductLabel, setNewProductLabel] = useState<string | undefined>();
   const [newQty, setNewQty] = useState('1');
+  const newProduct = productItems.find((p) => p.id === newProductId);
+  const newProductTracksSerial = Boolean(newProduct?.tracksSerial);
 
   const total = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
   const hasCard = payments.some((p) => isCard(p.method));
@@ -81,7 +106,7 @@ export default function CounterSalePage() {
   // ─── Itens ────────────────────────────────────────────────────────────────
 
   function addItem() {
-    const product = productMap.get(newProductId);
+    const product = newProduct;
     if (!product) {
       toast.error('Selecione um produto');
       return;
@@ -94,9 +119,17 @@ export default function CounterSalePage() {
     }
     setItems((prev) => [
       ...prev,
-      { productId: product.id, quantity: qty, unitPrice: Number(product.salePrice ?? 0) },
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        tracksSerial: tracks,
+        quantity: qty,
+        unitPrice: Number(product.salePrice ?? 0),
+      },
     ]);
     setNewProductId('');
+    setNewProductLabel(undefined);
     setNewQty('1');
   }
 
@@ -160,13 +193,9 @@ export default function CounterSalePage() {
       toast.error('Quantidade e preço devem ser maiores que zero');
       return;
     }
-    const missingSerial = items.find(
-      (it) => productMap.get(it.productId)?.tracksSerial && !it.serialNumberId,
-    );
+    const missingSerial = items.find((it) => it.tracksSerial && !it.serialNumberId);
     if (missingSerial) {
-      toast.error(
-        `Escaneie o chassi de "${productMap.get(missingSerial.productId)?.name}" antes de fechar`,
-      );
+      toast.error(`Escaneie o chassi de "${missingSerial.name}" antes de fechar`);
       return;
     }
     const planError = validatePlan(payments, total);
@@ -232,20 +261,22 @@ export default function CounterSalePage() {
       >
         <div>
           <Label required>Cliente</Label>
-          <Select
-            aria-label="Cliente"
+          <Combobox
+            options={customerOptions}
             value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
+            onValueChange={(v) => {
+              setCustomerId(v);
+              const c = customerItems.find((i) => i.id === v);
+              setCustomerLabel(c ? (c.document ? `${c.name} · ${c.document}` : c.name) : undefined);
+            }}
+            onQueryChange={setCustomerSearch}
+            serverSideSearch
+            selectedLabel={customerLabel}
+            loading={customersLoading}
+            placeholder="Selecione"
+            searchPlaceholder="Buscar por nome ou documento..."
             disabled={locked}
-          >
-            <option value="">Selecione</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.document ? ` · ${c.document}` : ''}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
         <div>
           <Label required>Depósito da loja</Label>
@@ -290,19 +321,21 @@ export default function CounterSalePage() {
             <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
               <div className="min-w-[240px] flex-1">
                 <Label>Produto</Label>
-                <Select
-                  aria-label="Produto"
+                <Combobox
+                  options={productOptions}
                   value={newProductId}
-                  onChange={(e) => setNewProductId(e.target.value)}
-                >
-                  <option value="">Selecione</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.sku} · {p.name}
-                      {p.tracksSerial ? ' (chassi)' : ''}
-                    </option>
-                  ))}
-                </Select>
+                  onValueChange={(v) => {
+                    setNewProductId(v);
+                    const p = productItems.find((i) => i.id === v);
+                    setNewProductLabel(p ? `${p.sku} · ${p.name}${p.tracksSerial ? ' (chassi)' : ''}` : undefined);
+                  }}
+                  onQueryChange={setProductSearch}
+                  serverSideSearch
+                  selectedLabel={newProductLabel}
+                  loading={productsLoading}
+                  placeholder="Selecione"
+                  searchPlaceholder="Buscar por SKU ou nome..."
+                />
               </div>
               <div className="w-28">
                 <Label>Quantidade</Label>
@@ -310,14 +343,10 @@ export default function CounterSalePage() {
                   type="number"
                   min="0.01"
                   step="0.01"
-                  value={productMap.get(newProductId)?.tracksSerial ? '1' : newQty}
+                  value={newProductTracksSerial ? '1' : newQty}
                   onChange={(e) => setNewQty(e.target.value)}
-                  disabled={Boolean(productMap.get(newProductId)?.tracksSerial)}
-                  title={
-                    productMap.get(newProductId)?.tracksSerial
-                      ? 'Produto rastreável: 1 chassi por linha'
-                      : undefined
-                  }
+                  disabled={newProductTracksSerial}
+                  title={newProductTracksSerial ? 'Produto rastreável: 1 chassi por linha' : undefined}
                 />
               </div>
               <Button type="button" variant="secondary" onClick={addItem}>
@@ -344,15 +373,14 @@ export default function CounterSalePage() {
                 </thead>
                 <tbody>
                   {items.map((it, idx) => {
-                    const p = productMap.get(it.productId);
                     return (
                       <tr key={idx} className="border-b border-line">
                         <td className="py-2">
-                          <p className="text-content">{p?.name ?? '—'}</p>
-                          <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
+                          <p className="text-content">{it.name}</p>
+                          <p className="font-mono text-xs text-content-muted">{it.sku}</p>
                         </td>
                         <td className="py-2">
-                          {p?.tracksSerial ? (
+                          {it.tracksSerial ? (
                             <ChassiSelect
                               productId={it.productId}
                               warehouseId={warehouseId}
@@ -369,7 +397,7 @@ export default function CounterSalePage() {
                           )}
                         </td>
                         <td className="py-2 text-right tabular-nums">
-                          {p?.tracksSerial || locked ? (
+                          {it.tracksSerial || locked ? (
                             it.quantity
                           ) : (
                             <Input
