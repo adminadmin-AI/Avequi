@@ -8,6 +8,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LeadSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LeadIntakeService } from './lead-intake.service';
+import { SellerEligibilityService } from './seller-eligibility.service';
 
 const COMPANY = 'company-1';
 
@@ -27,6 +28,13 @@ const p2002 = () =>
     code: 'P2002',
     clientVersion: 'test',
   });
+
+/** #1002-C3: fonte única de elegibilidade — o rodízio consome daqui. */
+const elegibilidade = {
+  candidatosParaAtribuicao: jest.fn().mockResolvedValue([]),
+  candidatosParaConfiguracao: jest.fn().mockResolvedValue([]),
+  registrarSemElegivel: jest.fn(),
+};
 
 describe('LeadIntakeService', () => {
   let service: LeadIntakeService;
@@ -60,6 +68,7 @@ describe('LeadIntakeService', () => {
         LeadIntakeService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: events },
+        { provide: SellerEligibilityService, useValue: elegibilidade },
       ],
     }).compile();
 
@@ -89,7 +98,12 @@ describe('LeadIntakeService', () => {
 
   describe('intake — criação', () => {
     beforeEach(() => {
-      prisma.user.findMany.mockResolvedValue([{ id: 'seller-1' }, { id: 'seller-2' }]);
+      // #1002-C3: a elegibilidade vem do SellerEligibilityService; o CRITÉRIO
+      // do rodízio (menos leads hoje) continua sendo do LeadIntakeService.
+      elegibilidade.candidatosParaAtribuicao.mockResolvedValue([
+        { id: 'seller-1' },
+        { id: 'seller-2' },
+      ]);
       prisma.lead.create.mockImplementation(({ data }: any) =>
         Promise.resolve({ id: 'lead-new', ...data }),
       );
@@ -123,13 +137,19 @@ describe('LeadIntakeService', () => {
     });
 
     it('sem vendedor elegível → lead criado sem atribuição (não explode)', async () => {
-      prisma.user.findMany.mockResolvedValue([]);
+      elegibilidade.candidatosParaAtribuicao.mockResolvedValue([]);
       const result = await service.intake(COMPANY, {
         phone: '45999998888',
         source: LeadSource.TELEFONE,
       });
       expect(result.created).toBe(true);
       expect(prisma.lead.create.mock.calls[0][0].data.assignedToId).toBeNull();
+      // #1002-C3: o caso é registrado com motivo nomeado, para dar para medir
+      // depois quantas captações ficaram sem destino.
+      expect(elegibilidade.registrarSemElegivel).toHaveBeenCalledWith(
+        COMPANY,
+        'lead-intake.pickNextSeller',
+      );
     });
 
     it('sem loja identificada → triagem na matriz do tenant da env SEM vendedor (#984)', async () => {

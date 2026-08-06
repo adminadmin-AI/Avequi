@@ -411,8 +411,12 @@ async function runScenario(scenario: Scenario, model: string) {
   const world = makeWorld();
   const { prisma, crmStub, whatsappStub } = makeStubs(world);
 
-  // emitter inerte: o eval não testa web push (#568), só o agente
-  const tools = new SdrToolsService(prisma, crmStub, { emit: () => true } as any);
+  // emitter inerte: o eval não testa web push (#568), só o agente.
+  // #1002-C3: o rodízio (LeadIntakeService) também é stub — o eval mede a
+  // conversa do agente, e os cenários já chegam com vendedor atribuído, então
+  // o caminho de fallback não é exercitado aqui.
+  const leadIntakeStub = { pickNextSeller: async () => null } as any;
+  const tools = new SdrToolsService(prisma, crmStub, { emit: () => true } as any, leadIntakeStub);
   const realExecute = tools.execute.bind(tools);
   tools.execute = async (companyId: string, leadId: string, name: string, input: any) => {
     world.toolCalls.push({ name, input });

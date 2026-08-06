@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SellerEligibilityService } from './seller-eligibility.service';
 
 /** Parâmetros de CRM guardados em SystemParameter (por company) */
 const PARAM_KEYS = {
@@ -65,7 +66,10 @@ export interface CrmSettings {
  */
 @Injectable()
 export class CrmSettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eligibility: SellerEligibilityService,
+  ) {}
 
   async get(companyId: string): Promise<CrmSettings> {
     const [params, company] = await Promise.all([
@@ -173,11 +177,15 @@ export class CrmSettingsService {
 
   /** Vendedores da loja com disponibilidade no rodízio (tela de config) */
   async sellers(companyId: string) {
-    return this.prisma.user.findMany({
-      where: { companyId, isActive: true, role: { in: ['COMMERCIAL', 'STORE', 'MANAGER'] } },
-      select: { id: true, name: true, role: true, crmAvailable: true },
-      orderBy: { name: 'asc' },
-    });
+    // #1002-C3: esta lista aceitava COMMERCIAL, STORE e MANAGER, enquanto o
+    // rodízio aceitava só COMMERCIAL e STORE. O gestor via o gerente aqui,
+    // ligava o toggle de disponibilidade dele — e o gerente nunca recebia
+    // lead nenhum. A tela prometia o que o rodízio não cumpria.
+    //
+    // Agora as duas bebem da MESMA fonte. Aqui sem o filtro de
+    // `crmAvailable`, de propósito: é nesta tela que ele é editado, e
+    // esconder quem está de férias impediria de trazer a pessoa de volta.
+    return this.eligibility.candidatosParaConfiguracao(companyId);
   }
 
   /** Liga/desliga vendedor no rodízio (férias/folga) */

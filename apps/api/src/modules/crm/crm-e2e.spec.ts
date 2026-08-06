@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FunnelService } from './funnel.service';
 import { LeadConversionService } from './lead-conversion.service';
 import { LeadIntakeService } from './lead-intake.service';
+import { SellerEligibilityService } from './seller-eligibility.service';
 
 /**
  * F3.4 (#520) — E2E do caminho crítico do CRM com serviços REAIS encadeados
@@ -144,6 +145,15 @@ describe('CRM E2E — caminho crítico (F3.4 #520)', () => {
         LeadConversionService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          // #1002-C3: elegibilidade resolvida pelo SellerEligibilityService.
+          provide: SellerEligibilityService,
+          useValue: {
+            candidatosParaAtribuicao: jest.fn().mockResolvedValue([]),
+            candidatosParaConfiguracao: jest.fn().mockResolvedValue([]),
+            registrarSemElegivel: jest.fn(),
+          },
+        },
       ],
     }).compile();
     intake = module.get(LeadIntakeService);

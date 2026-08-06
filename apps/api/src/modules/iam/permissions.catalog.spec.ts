@@ -135,7 +135,10 @@ describe('Catálogo de permissões (#338)', () => {
     //       production.orders.view: ver o que cada setor produz e recebe é
     //       leitura de chão de fábrica, não administração de Ordem de Produção.
     //       O endpoint é somente leitura e não grava nada.)
-    expect(PERMISSIONS_CATALOG.length).toBe(325);
+    // 326 = 325 + crm.leads.assignable (#1002-C3): marca a CLASSE de quem
+    //       pode receber lead. Não é permissão de ação — quem participa do
+    //       rodízio agora é decidido por User.crmAvailable.
+    expect(PERMISSIONS_CATALOG.length).toBe(326);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

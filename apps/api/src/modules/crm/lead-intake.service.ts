@@ -6,12 +6,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LeadActivityType, LeadSource, Prisma, UserRole } from '@prisma/client';
+import { LeadActivityType, LeadSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntakeLeadDto } from './dto/intake-lead.dto';
-
-/** Perfis elegíveis pro rodízio de atendimento de lead */
-const SELLER_ROLES: UserRole[] = [UserRole.COMMERCIAL, UserRole.STORE];
+import { SellerEligibilityService } from './seller-eligibility.service';
 
 /** Lead Perdido há menos de N dias volta pro funil quando o cliente chama de novo */
 const DEFAULT_REOPEN_LOST_DAYS = 90;
@@ -36,6 +34,7 @@ export class LeadIntakeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly eligibility: SellerEligibilityService,
   ) {}
 
   /**
@@ -228,19 +227,12 @@ export class LeadIntakeService {
   /** Próximo vendedor do rodízio. PÚBLICO p/ o escalonamento de SLA (#569)
    *  reusar o mesmo critério, excluindo quem deixou o lead estourar. */
   async pickNextSeller(companyId: string, excludeUserId?: string): Promise<string | null> {
-    const sellers = await this.prisma.user.findMany({
-      where: {
-        companyId,
-        isActive: true,
-        crmAvailable: true,
-        role: { in: SELLER_ROLES },
-        ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
-      },
-      select: { id: true },
-      orderBy: { id: 'asc' },
-    });
+    // #1002-C3: a elegibilidade saiu daqui e virou fonte única
+    // (SellerEligibilityService) — a lista de enums local divergia da tela de
+    // configuração. O CRITÉRIO do rodízio, abaixo, não mudou.
+    const sellers = await this.eligibility.candidatosParaAtribuicao(companyId, excludeUserId);
     if (sellers.length === 0) {
-      this.logger.warn(`Nenhum vendedor elegível na company ${companyId} — lead ficará sem atribuição`);
+      this.eligibility.registrarSemElegivel(companyId, 'lead-intake.pickNextSeller');
       return null;
     }
     const grouped = await this.prisma.lead.groupBy({

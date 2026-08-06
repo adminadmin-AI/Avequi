@@ -82,9 +82,14 @@ describe('Catálogo de perfis system (#339)', () => {
     }
   });
 
-  it('ADMIN_GLOBAL tem TODAS as permissões DE TENANT (catálogo menos ops.*)', () => {
+  it('ADMIN_GLOBAL tem as permissões DE TENANT, menos a elegibilidade de atendimento', () => {
     const admin = findSystemRole('ADMIN_GLOBAL')!;
-    expect(new Set(admin.permissions)).toEqual(new Set(tenantPermissionCodes()));
+    // #1002-C3: `crm.leads.assignable` marca quem PODE RECEBER lead. É função
+    // operacional, não privilégio — sem esta exclusão o dono da empresa
+    // entraria sozinho no rodízio de balcão pela varredura dinâmica.
+    expect(admin.permissions).not.toContain('crm.leads.assignable');
+    const esperado = tenantPermissionCodes().filter((c) => c !== 'crm.leads.assignable');
+    expect(new Set(admin.permissions)).toEqual(new Set(esperado));
   });
 
   it('ADMIN_EMPRESA tem tudo de tenant exceto as ações globais do sistema', () => {
@@ -94,7 +99,9 @@ describe('Catálogo de perfis system (#339)', () => {
     // #947: a capability de escopo empresarial é a terceira exclusão — quem
     // administra UMA empresa não atravessa as outras do grupo.
     expect(admin.permissions).not.toContain('iam.tenant-scope.cross-company');
-    expect(admin.permissions.length).toBe(tenantPermissionCodes().length - 3);
+    // #1002-C3: a quarta exclusão — elegibilidade para receber lead.
+    expect(admin.permissions).not.toContain('crm.leads.assignable');
+    expect(admin.permissions.length).toBe(tenantPermissionCodes().length - 4);
   });
 
   // ── #947: os três poderes que saíram do enum legado ────────────────────────

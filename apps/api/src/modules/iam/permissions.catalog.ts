@@ -242,6 +242,11 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['reassign', 'reatribuir (individual)', 'PATCH /crm/leads/:id/assignee — D6: coordenador resolve ajustes do dia a dia'],
     ['bulk-reassign', 'reatribuir em massa', 'POST /crm/leads/bulk/reassign (gerencial)'],
     ['bulk-stage', 'mudar estágio em massa', 'POST /crm/leads/bulk/stage (gerencial)'],
+    [
+      'assignable',
+      'pode RECEBER leads (elegível ao rodízio)',
+      'não é permissão de AÇÃO: marca a classe de quem pode ser vendedor. Quem participa do rodízio agora é decidido por User.crmAvailable (#1002-C3)',
+    ],
   ]),
   ...r('crm', 'conversations', 'Conversas (inbox WhatsApp)', [
     ['view', 'ver', 'GET /crm/conversations, /whatsapp/leads/:leadId/messages, /whatsapp/media/:messageId, /crm/templates, /crm/quick-replies'],

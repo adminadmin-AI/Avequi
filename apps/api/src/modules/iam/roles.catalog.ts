@@ -79,6 +79,24 @@ const PODERES_EXCECAO_SALES = [
 const semExcecoesDeVendas = (codes: string[]) =>
   codes.filter((c) => !PODERES_EXCECAO_SALES.includes(c));
 
+/**
+ * Permissões OPERACIONAIS que um administrador NÃO deve receber por ser
+ * administrador (#1002-C3).
+ *
+ * `crm.leads.assignable` não autoriza uma ação: marca quem PODE RECEBER lead.
+ * É função de atendimento, não privilégio. O ADMIN_GLOBAL e o ADMIN_EMPRESA
+ * recebem o catálogo de tenant inteiro por varredura dinâmica
+ * (`tenantPermissionCodes()`), e sem esta exclusão entrariam no rodízio de
+ * vendas sozinhos — o dono da empresa começaria a receber lead de balcão.
+ *
+ * Quem precisar atender, recebe pelo perfil operacional correspondente.
+ */
+const PERMISSOES_OPERACIONAIS_NAO_ADMIN = ['crm.leads.assignable'];
+
+/** Remove as permissões operacionais de uma varredura administrativa (#1002-C3). */
+const semOperacionaisDeAtendimento = (codes: string[]) =>
+  codes.filter((c) => !PERMISSOES_OPERACIONAIS_NAO_ADMIN.includes(c));
+
 /** Dashboards operacionais (todos exceto o financeiro, que é leitura restrita 🔒) */
 const DASHBOARDS_OPERACIONAIS = [
   'dashboard.executive.view',
@@ -174,7 +192,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: 'Administrador Global',
     description:
       'Administrador do sistema — todas as permissões DE TENANT, inclusive ações globais (criar empresas, sincronizar tabelas de referência). Equivale ao enum SUPER_ADMIN. NÃO inclui o namespace ops.* (control plane da operadora Avecchi — perfil AVECCHI_OPERATOR): admin de cliente não enxerga outros tenants.',
-    permissions: tenantPermissionCodes(),
+    // #1002-C3: a varredura dinâmica NÃO traz `crm.leads.assignable` —
+    // administrar o sistema não é o mesmo que atender lead.
+    permissions: semOperacionaisDeAtendimento(tenantPermissionCodes()),
   },
 
   // ── Nível Operadora (Avecchi — control plane, OPS WP1 #908) ────────────────
@@ -193,7 +213,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: 'Administrador da Empresa',
     description:
       'Tudo dentro da empresa, exceto ações globais do sistema (criar empresas, sincronizar tabela cClassTrib, ampliar o escopo para o grupo).',
-    permissions: tenantPermissionCodes().filter(
+    permissions: semOperacionaisDeAtendimento(tenantPermissionCodes()).filter(
       (code) =>
         code !== 'settings.companies.create' &&
         code !== 'fiscal.tributary-classifications.sync' &&
@@ -315,7 +335,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Bloco F (#624, D5): CRM completo 29/29, incluindo as duas ações LGPD
       // (o DIRECTOR legado tinha todas as rotas do CRM — zero regressão).
       // As leituras crm.*.view já entram pelo actionCodes('view') acima.
-      ...moduleCodes('crm'),
+      // #1002-C3: varredura ampla NAO concede elegibilidade de atendimento.
+      ...semOperacionaisDeAtendimento(moduleCodes('crm')),
       // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
       'sales.commissions.view-all',
     ]),
@@ -411,7 +432,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Bloco F (#624, D5): CRM completo 29/29 — o MANAGER legado tinha todas
       // as rotas do CRM, incluindo anonimização; GERENTE_GERAL preserva
       // (espelhamento obrigatório, zero regressão).
-      ...moduleCodes('crm'),
+      // #1002-C3: varredura ampla NAO concede elegibilidade de atendimento.
+      ...semOperacionaisDeAtendimento(moduleCodes('crm')),
       // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
       'sales.commissions.view-all',
     ]),
@@ -499,6 +521,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...CRM_GERENCIAL_SEM_LGPD,
       // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
       'sales.commissions.view-all',
+      // #1002-C3: elegível a RECEBER lead. Quem participa do rodízio agora
+      // é decidido por User.crmAvailable, não por esta permissão.
+      'crm.leads.assignable',
     ]),
   },
   {
@@ -580,6 +605,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'crm.leads.reassign',
       // #1001-C2: visão ampla de comissões e percentuais (matriz aprovada).
       'sales.commissions.view-all',
+      // #1002-C3: elegível a RECEBER lead. Quem participa do rodízio agora
+      // é decidido por User.crmAvailable, não por esta permissão.
+      'crm.leads.assignable',
     ],
   },
 
@@ -663,6 +691,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Bloco F (#624, D1–D3): vendedor opera o CRM da loja inteira — vê e
       // atua em qualquer lead da loja (atuar não muda o assignedTo).
       ...CRM_OPERACIONAL,
+      // #1002-C3: elegível a RECEBER lead. Quem participa do rodízio agora
+      // é decidido por User.crmAvailable, não por esta permissão.
+      'crm.leads.assignable',
     ]),
   },
   {
@@ -1044,6 +1075,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Bloco F (#624, D3): paridade com o VENDEDOR no CRM — o balcão atende
       // WhatsApp, conduz e converte o lead da loja (o STORE legado fazia).
       ...CRM_OPERACIONAL,
+      // #1002-C3: elegível a RECEBER lead. Quem participa do rodízio agora
+      // é decidido por User.crmAvailable, não por esta permissão.
+      'crm.leads.assignable',
     ]),
   },
   {
@@ -1083,6 +1117,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // herança de LOJA_OPERACIONAL); lista explícita — SEM crm.lgpd.anonymize
       // e SEM crm.lgpd.retention-update (exclusivas da alta gestão).
       ...CRM_GERENCIAL_SEM_LGPD,
+      // #1002-C3: elegível a RECEBER lead. Quem participa do rodízio agora
+      // é decidido por User.crmAvailable, não por esta permissão.
+      'crm.leads.assignable',
     ]),
   },
 ];
