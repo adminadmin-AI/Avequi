@@ -13,11 +13,18 @@ import { cn } from '@/lib/utils';
  * dependência nova). Para listas longas (produtos, clientes, fornecedores)
  * onde o <Select> nativo não escala.
  *
- *  - Busca com filtro acento-insensível
+ *  - Busca com filtro acento-insensível (client-side, default)
  *  - Single (Combobox) e multi-select com tags (MultiCombobox)
  *  - Groups opcionais, empty state, loading state, clear button
  *  - Teclado: ↑/↓ navega, Enter seleciona, Esc fecha
  *  - Dark mode via tokens
+ *
+ * Busca server-side (#1028 parte 2): passe `onQueryChange` + `serverSideSearch`.
+ * `onQueryChange` recebe cada tecla digitada (o chamador decide o que fazer —
+ * tipicamente alimentar um `useOptions(...)`); com `serverSideSearch`, o painel
+ * PARA de filtrar `options` localmente (já vem filtrado do servidor) e usa a
+ * lista como está. Sem essas props, comportamento 100% igual ao anterior
+ * (filtro local em memória) — mudança aditiva, não quebra nenhum uso existente.
  */
 
 export interface ComboboxOption {
@@ -41,6 +48,10 @@ interface PanelProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   loading?: boolean;
+  /** Chamado a cada tecla digitada na busca — busca server-side (#1028 parte 2). */
+  onQueryChange?: (query: string) => void;
+  /** `true` = `options` já vem filtrado do servidor; o painel não refiltra localmente. */
+  serverSideSearch?: boolean;
 }
 
 /** Painel interno compartilhado (busca + lista) do Combobox e MultiCombobox. */
@@ -51,16 +62,19 @@ function ComboboxPanel({
   searchPlaceholder = 'Buscar...',
   emptyMessage = 'Nenhum resultado',
   loading,
+  onQueryChange,
+  serverSideSearch,
 }: PanelProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
+    if (serverSideSearch) return options; // já veio filtrado do servidor
     if (!query) return options;
     const q = norm(query);
     return options.filter((o) => norm(o.label).includes(q));
-  }, [options, query]);
+  }, [options, query, serverSideSearch]);
 
   // agrupa preservando a ordem (sem grupo primeiro)
   const groups = useMemo(() => {
@@ -104,7 +118,10 @@ function ComboboxPanel({
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onQueryChange?.(e.target.value);
+          }}
           placeholder={searchPlaceholder}
           className="h-10 w-full bg-transparent pl-9 pr-3 text-sm text-content placeholder:text-content-muted focus:outline-none"
           role="combobox"
@@ -183,6 +200,16 @@ interface BaseProps {
   /** Botão X no trigger para limpar a seleção. */
   clearable?: boolean;
   className?: string;
+  /** Busca server-side (#1028 parte 2) — ver comentário no topo do arquivo. */
+  onQueryChange?: (query: string) => void;
+  serverSideSearch?: boolean;
+  /**
+   * Rótulo do valor selecionado quando ele pode não estar em `options` — caso
+   * normal em busca server-side: depois de trocar a busca, `options` só tem
+   * o resultado da busca atual, não o item que já estava selecionado antes.
+   * Sem isto, o trigger mostraria vazio mesmo com `value` preenchido.
+   */
+  selectedLabel?: string;
 }
 
 export interface ComboboxProps extends BaseProps {
@@ -202,9 +229,13 @@ export function Combobox({
   error,
   clearable,
   className,
+  onQueryChange,
+  serverSideSearch,
+  selectedLabel,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const selectedOption = options.find((o) => o.value === value);
+  const displayLabel = selectedOption?.label ?? (value ? selectedLabel : undefined);
 
   return (
     // modal: necessário p/ funcionar dentro de Dialog (o Dialog bloqueia
@@ -212,8 +243,8 @@ export function Combobox({
     <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} className={cn(triggerClass(error, disabled), className)}>
-          <span className={cn('flex-1 truncate', !selectedOption && 'text-content-muted')}>
-            {selectedOption?.label ?? placeholder}
+          <span className={cn('flex-1 truncate', !displayLabel && 'text-content-muted')}>
+            {displayLabel ?? placeholder}
           </span>
           {clearable && value && !disabled && (
             <span
@@ -246,6 +277,8 @@ export function Combobox({
           searchPlaceholder={searchPlaceholder}
           emptyMessage={emptyMessage}
           loading={loading}
+          onQueryChange={onQueryChange}
+          serverSideSearch={serverSideSearch}
         />
       </PopoverContent>
     </Popover>
@@ -272,6 +305,8 @@ export function MultiCombobox({
   clearable,
   maxTags = 3,
   className,
+  onQueryChange,
+  serverSideSearch,
 }: MultiComboboxProps) {
   const [open, setOpen] = useState(false);
   const selectedSet = useMemo(() => new Set(values), [values]);
@@ -350,6 +385,8 @@ export function MultiCombobox({
           searchPlaceholder={searchPlaceholder}
           emptyMessage={emptyMessage}
           loading={loading}
+          onQueryChange={onQueryChange}
+          serverSideSearch={serverSideSearch}
         />
       </PopoverContent>
     </Popover>

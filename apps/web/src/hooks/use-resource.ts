@@ -7,6 +7,7 @@ import {
   type UseQueryOptions,
 } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import type { Paged } from '@/types/api';
 
 /**
  * Hooks CRUD genéricos sobre a API Avequi.
@@ -19,6 +20,10 @@ import { apiClient } from '@/lib/api-client';
  *   const { data, isLoading } = useList<Product>('/products', { companyId });
  *   const create = useCreate<Product>('/products');
  *   create.mutate({ ...payload });
+ *
+ * `/products` e `/customers` são exceção: devolvem o envelope `Paged<T>`
+ * (#1028) — use `usePagedList` para a tela de lista e `useOptions` para
+ * combobox de formulário (endpoint `/options`, array puro, payload mínimo).
  */
 
 type Params = Record<string, string | number | boolean | undefined | null>;
@@ -43,6 +48,53 @@ export function useList<T>(
     queryKey: [resource, clean ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<T[]>(resource, { params: clean });
+      return data;
+    },
+    ...options,
+  });
+}
+
+// ─── Paged list (#1028) ─────────────────────────────────────────────────────
+/**
+ * Para telas de lista que já consomem o envelope `{ items, total, page,
+ * pageSize }` (hoje: `/products`, `/customers`). O chamador controla
+ * `page`/`pageSize` em `params` e lê `total` para os controles de página.
+ */
+export function usePagedList<T>(
+  resource: string,
+  params?: Params,
+  options?: Omit<UseQueryOptions<Paged<T>>, 'queryKey' | 'queryFn'>,
+) {
+  const clean = cleanParams(params);
+  return useQuery<Paged<T>>({
+    queryKey: [resource, 'paged', clean ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<Paged<T>>(resource, { params: clean });
+      return data;
+    },
+    ...options,
+  });
+}
+
+// ─── Options (#1028 parte 2) ────────────────────────────────────────────────
+/**
+ * Combobox de formulário — GET `${resource}/options` (payload mínimo, array
+ * puro, busca server-side via `params.search`). NÃO filtra em memória: cada
+ * mudança de `params` (ex.: search debounced pelo chamador) refaz a query.
+ *
+ *   const [search, setSearch] = useState('');
+ *   const { data: options = [] } = useOptions<ProductOption>('/products', { search });
+ */
+export function useOptions<T>(
+  resource: string,
+  params?: Params,
+  options?: Omit<UseQueryOptions<T[]>, 'queryKey' | 'queryFn'>,
+) {
+  const clean = cleanParams(params);
+  return useQuery<T[]>({
+    queryKey: [resource, 'options', clean ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<T[]>(`${resource}/options`, { params: clean });
       return data;
     },
     ...options,
