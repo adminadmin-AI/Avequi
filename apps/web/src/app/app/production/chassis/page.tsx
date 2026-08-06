@@ -323,7 +323,7 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Pré-requisitos do computador</p>
                 <ul className="list-disc space-y-1 pl-5 text-content-secondary">
-                  <li>Windows 10/11 (64 bits) — <strong>não precisa de Python nem de internet durante a instalação</strong>: o instalador leva tudo</li>
+                  <li>Windows 10/11 (64 bits). <strong>Não precisa de Python nem de internet durante a instalação</strong>: o instalador leva tudo</li>
                   <li>Marcadora conectada via USB (adaptador serial FTDI)</li>
                   <li>Impressora de etiquetas Elgin L42-DT instalada (driver Generic/Text Only)</li>
                 </ul>
@@ -332,9 +332,9 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Passo a passo</p>
                 <ol className="list-decimal space-y-1 pl-5 text-content-secondary">
-                  <li>Execute o <span className="font-mono text-xs">OpenClaw_Setup_*.exe</span> baixado acima — ele instala em <span className="font-mono text-xs">C:\OpenClaw</span> e cria o atalho <strong>“Marcadora de Chassi”</strong> na área de trabalho (não precisa de administrador)</li>
+                  <li>Execute o <span className="font-mono text-xs">OpenClaw_Setup_*.exe</span> baixado acima: ele instala em <span className="font-mono text-xs">C:\OpenClaw</span> e cria o atalho <strong>“Marcadora de Chassi”</strong> na área de trabalho (não precisa de administrador)</li>
                   <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">C:\OpenClaw\app\.streamlit\secrets.toml</span> conforme o modelo que acompanha a instalação</li>
-                  <li>Abra o atalho <strong>“Marcadora de Chassi”</strong> — a tela abre sozinha no navegador, sem janela de terminal</li>
+                  <li>Abra o atalho <strong>“Marcadora de Chassi”</strong>: a tela abre sozinha no navegador, sem janela de terminal</li>
                   <li>Use o botão <strong>“🩺 Diagnóstico da estação”</strong> na tela inicial: ele confere banco local, nuvem, fila offline, impressora, marcadora no USB e a trava de segurança, sem tocar na máquina</li>
                   <li>Confirme o chip “☁ Nuvem sincronizada” no topo da ferramenta</li>
                   <li>Faça uma gravação de teste em sucata antes de liberar para o operador</li>
