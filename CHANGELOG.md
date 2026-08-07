@@ -6,6 +6,21 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-08-07
+
+### Added
+- feat(chassis): ano do chassi como coluna e filtro + reservados no painel (#889) (#1048)
+- feat(chassis): mostra quais marcações a gravação concluiu (#889) (#1047)
+
+### Fixed
+- fix(web): breadcrumbs sem links mortos — agrupador de rota sem página sai da trilha (#1045)
+- fix(chassis): status "Não concluída" + instalador v1.0.4 (#889) (#1046)
+- fix(#1036): congela o relógio no getMyDay — fim do flaky de fuso no CI (#1044)
+
+### Changed
+- perf(#1032): export CSV server-side com cursor — respeitar filtros, não só a página (#1051)
+- perf(#1031): monitor de reposição com join no servidor — fim do loop de páginas (#1049)
+
 ## [1.43.0] - 2026-08-07
 
 ### Added
@@ -499,7 +514,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...HEAD
+[1.44.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...v1.42.0
 [1.41.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.0...v1.41.1
