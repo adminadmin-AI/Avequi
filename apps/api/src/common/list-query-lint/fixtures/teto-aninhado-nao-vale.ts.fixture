@@ -1,0 +1,35 @@
+/**
+ * Fixture de regressão — falso-negativo achado na revisão da #1028.
+ *
+ * Nenhuma das 3 chamadas abaixo tem teto na LISTAGEM. As duas primeiras
+ * enganavam o matcher textual original: `take` aninhado limita a relação, e
+ * `take:` dentro de string literal não é teto nenhum. As três devem ser
+ * reportadas.
+ */
+export class TetoAninhadoService {
+  constructor(private readonly prisma: any) {}
+
+  /** take limita a RELAÇÃO `items`, a lista de produtos segue sem teto */
+  async comIncludeAninhado(companyId: string) {
+    return this.prisma.product.findMany({
+      where: { companyId },
+      include: { items: { take: 5 } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** `take:` aqui é conteúdo de busca do usuário, não paginação */
+  async comStringEnganosa(companyId: string) {
+    return this.prisma.customer.findMany({
+      where: { companyId, name: { contains: 'take: 10' } },
+    });
+  }
+
+  /** select aninhado com cursor — mesma classe do primeiro caso */
+  async comSelectAninhado(companyId: string) {
+    return this.prisma.salesOrder.findMany({
+      where: { companyId },
+      select: { id: true, items: { cursor: { id: 'x' } } },
+    });
+  }
+}

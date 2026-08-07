@@ -1,0 +1,30 @@
+// Reprodução do achado que motiva a #1028 — customer.service.ts:90.
+// findMany sem take, sem cursor, e AINDA traz include aninhado de tags
+// (tagLinks -> tag) na listagem inteira. O lint TEM que flagrar esta chamada.
+export class CustomerServiceReproducao {
+  constructor(private readonly prisma: any) {}
+
+  async findAll(
+    companyId: string,
+    query: { search?: string; type?: string; isActive?: string; tagId?: string },
+  ) {
+    const where: any = { companyId };
+
+    if (query.tagId) {
+      where.tagLinks = { some: { tagId: query.tagId } };
+    }
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { document: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.customer.findMany({
+      where,
+      include: { tagLinks: { include: { tag: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+}

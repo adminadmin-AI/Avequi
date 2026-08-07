@@ -1,0 +1,37 @@
+// Padrões CORRETOS da casa — o lint NÃO pode flagrar nada aqui (zero
+// falso-positivo). Cobre: take, cursor, waiver justificado e modelo de
+// cadastro (fora do conjunto de alto volume) sem take.
+export class ServicoCorreto {
+  constructor(private readonly prisma: any) {}
+
+  // take + skip + orderBy estável (padrão do contrato de paginação)
+  async list(companyId: string, page: number, pageSize: number) {
+    return this.prisma.product.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+  }
+
+  // cursor em vez de take — export/streaming em lote
+  async streamAll(companyId: string, cursorId?: string) {
+    return this.prisma.customer.findMany({
+      where: { companyId },
+      orderBy: { id: 'asc' },
+      cursor: cursorId ? { id: cursorId } : undefined,
+      skip: cursorId ? 1 : 0,
+    });
+  }
+
+  // waiver com motivo — exceção CONSCIENTE
+  async relatorioFechamento(companyId: string) {
+    // list-lint: ok (relatório de fechamento mensal roda 1x/mês, volume auditado)
+    return this.prisma.product.findMany({ where: { companyId } });
+  }
+
+  // modelo de cadastro (fora do conjunto de alto volume) — sem take é OK
+  async listCostCenters(companyId: string) {
+    return this.prisma.costCenter.findMany({ where: { companyId } });
+  }
+}

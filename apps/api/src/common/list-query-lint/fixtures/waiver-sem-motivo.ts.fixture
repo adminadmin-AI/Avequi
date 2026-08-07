@@ -1,0 +1,21 @@
+// Waiver SEM motivo (ou com motivo vazio/só-espaço) NÃO vale — a #1028 é
+// explícita: "waiver vira porta dos fundos se aceitar motivo vazio". As três
+// chamadas abaixo têm que continuar sendo flagradas.
+export class ServicoWaiverInvalido {
+  constructor(private readonly prisma: any) {}
+
+  async semParenteses(companyId: string) {
+    // list-lint: ok
+    return this.prisma.product.findMany({ where: { companyId } });
+  }
+
+  async parentesesVazios(companyId: string) {
+    // list-lint: ok ()
+    return this.prisma.customer.findMany({ where: { companyId } });
+  }
+
+  async soEspaco(companyId: string) {
+    // list-lint: ok (   )
+    return this.prisma.product.findMany({ where: { companyId } });
+  }
+}
