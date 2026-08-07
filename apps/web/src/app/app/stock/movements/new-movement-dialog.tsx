@@ -6,9 +6,11 @@ import { Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { erroDeAcao } from '@/lib/feedback';
-import type { Product, Warehouse, StockBalance } from '@/types/api';
+import type { Warehouse, StockBalance } from '@/types/api';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -43,7 +45,13 @@ export function NewMovementDialog() {
   const companyId = useAuthStore((s) => s.user?.companyId ?? '');
   const [open, setOpen] = useState(false);
 
-  const { data: products = [] } = useList<Product>('/products');
+  // Produto (#1028 parte 2) — busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
+
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
   const { data: balances = [] } = useList<StockBalance>('/stock/balances');
 
@@ -72,6 +80,7 @@ export function NewMovementDialog() {
 
   function reset() {
     setProductId('');
+    setProductLabel(undefined);
     setWarehouseId('');
     setType('ENTRY');
     setQuantity('');
@@ -131,14 +140,21 @@ export function NewMovementDialog() {
           className="space-y-4 py-1"
         >
           <Field label="Produto" required>
-            <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">Selecione</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sku} · {p.name}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              options={productOptions}
+              value={productId}
+              onValueChange={(v) => {
+                setProductId(v);
+                const p = productItems.find((i) => i.id === v);
+                setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+              }}
+              onQueryChange={setProductSearch}
+              serverSideSearch
+              selectedLabel={productLabel}
+              loading={productsLoading}
+              placeholder="Selecione"
+              searchPlaceholder="Buscar por SKU ou nome..."
+            />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

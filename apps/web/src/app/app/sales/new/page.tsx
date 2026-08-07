@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail, useList } from '@/hooks/use-resource';
-import type { Carrier, Customer, Warehouse, Product, SalesOrder } from '@/types/api';
+import { useCustomerOptions, useProductOptions } from '@/hooks/use-product-customer-options';
+import type { Carrier, Customer, Warehouse, SalesOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -28,6 +30,11 @@ const STEPS: Step[] = [
 
 interface DraftItem {
   productId: string;
+  // sku/name capturados no momento da seleção (#1028 parte 2): o combobox de
+  // produto busca no servidor — o item pode sair da página de resultados
+  // atual antes da revisão/submit, não dá pra reconsultar por id depois.
+  sku: string;
+  name: string;
   quantity: number;
   unitPrice: number;
 }
@@ -40,12 +47,15 @@ export default function NewSalePage() {
   // Conversão de lead (CRM F2.2 #515): chega com ?customerId=&leadId=
   const leadId = searchParams.get('leadId');
 
-  const { data: customers = [] } = useList<Customer>('/customers');
   const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
-  const { data: products = [] } = useList<Product>('/products');
   const { data: carriers = [] } = useList<Carrier>('/carriers', { isActive: true });
 
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  // Cliente (#1028 parte 2) — busca server-side (sem filtro de isActive: o
+  // comportamento de GET /customers hoje já não filtra, preservado aqui).
+  const [customerSearch, setCustomerSearch] = useState('');
+  const { options: customerOptions, isLoading: customersLoading } = useCustomerOptions({
+    search: customerSearch,
+  });
 
   const [customerId, setCustomerId] = useState(searchParams.get('customerId') ?? '');
   const [warehouseId, setWarehouseId] = useState('');
@@ -61,17 +71,31 @@ export default function NewSalePage() {
   const [items, setItems] = useState<DraftItem[]>([]);
   const [step, setStep] = useState(0);
 
-  // Endereços de entrega do cliente (#474) — o detail inclui `addresses`
+  // Endereços de entrega do cliente (#474) — o detail inclui `addresses`, e
+  // também dá o rótulo confiável do combobox de cliente (independente da
+  // busca atual — ver comentário sobre selectedLabel em combobox.tsx)
   const { data: customerDetail } = useDetail<Customer>('/customers', customerId || undefined);
   const deliveryAddresses = customerDetail?.addresses ?? [];
+  const customerLabel = customerDetail
+    ? customerDetail.document
+      ? `${customerDetail.name} · ${customerDetail.document}`
+      : customerDetail.name
+    : undefined;
 
   // Ao trocar de cliente, pré-seleciona o endereço padrão (ou volta ao fiscal)
   useEffect(() => {
     setDeliveryAddressId(customerDetail?.addresses?.find((a) => a.isDefault)?.id ?? '');
   }, [customerDetail?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Produto (#1028 parte 2) — combobox de formulário, busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
+
   // Linha de adição de item
   const [newProductId, setNewProductId] = useState('');
+  const [newProductLabel, setNewProductLabel] = useState<string | undefined>();
   const [newQty, setNewQty] = useState('1');
 
   const create = useMutation({
@@ -80,7 +104,7 @@ export default function NewSalePage() {
   });
 
   function addItem() {
-    const product = productMap.get(newProductId);
+    const product = productItems.find((p) => p.id === newProductId);
     if (!product) {
       toast.error('Selecione um produto');
       return;
@@ -92,9 +116,16 @@ export default function NewSalePage() {
     }
     setItems((prev) => [
       ...prev,
-      { productId: product.id, quantity: qty, unitPrice: Number(product.salePrice ?? 0) },
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantity: qty,
+        unitPrice: Number(product.salePrice ?? 0),
+      },
     ]);
     setNewProductId('');
+    setNewProductLabel(undefined);
     setNewQty('1');
   }
 
@@ -194,15 +225,18 @@ export default function NewSalePage() {
         >
           <div>
             <Label>Cliente</Label>
-            <Select aria-label="Cliente" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              <option value="">Sem cliente</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.document ? ` · ${c.document}` : ''}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              options={customerOptions}
+              value={customerId}
+              onValueChange={setCustomerId}
+              onQueryChange={setCustomerSearch}
+              serverSideSearch
+              selectedLabel={customerLabel}
+              loading={customersLoading}
+              placeholder="Sem cliente"
+              searchPlaceholder="Buscar por nome ou documento..."
+              clearable
+            />
           </div>
           <div>
             <Label required>Depósito</Label>
@@ -324,14 +358,21 @@ export default function NewSalePage() {
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
-              <Select aria-label="Produto" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">Selecione</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </Select>
+              <Combobox
+                options={productOptions}
+                value={newProductId}
+                onValueChange={(v) => {
+                  setNewProductId(v);
+                  const p = productItems.find((i) => i.id === v);
+                  setNewProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                }}
+                onQueryChange={setProductSearch}
+                serverSideSearch
+                selectedLabel={newProductLabel}
+                loading={productsLoading}
+                placeholder="Selecione"
+                searchPlaceholder="Buscar por SKU ou nome..."
+              />
             </div>
             <div className="w-28">
               <Label>Quantidade</Label>
@@ -360,12 +401,11 @@ export default function NewSalePage() {
                 </thead>
                 <tbody>
                   {items.map((it, idx) => {
-                    const p = productMap.get(it.productId);
                     return (
                       <tr key={idx} className="border-b border-line">
                         <td className="py-2">
-                          <p className="text-content">{p?.name ?? '—'}</p>
-                          <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
+                          <p className="text-content">{it.name}</p>
+                          <p className="font-mono text-xs text-content-muted">{it.sku}</p>
                         </td>
                         <td className="py-2 text-right">
                           <Input
@@ -425,7 +465,7 @@ export default function NewSalePage() {
       {step === 2 && (
         <div className="mb-5 space-y-5">
           <FormSection title="Dados da venda" columns={3}>
-            <Summary label="Cliente" value={customers.find((c) => c.id === customerId)?.name ?? 'Sem cliente'} />
+            <Summary label="Cliente" value={customerDetail?.name ?? 'Sem cliente'} />
             <Summary
               label="Depósito"
               value={(() => {
@@ -470,12 +510,11 @@ export default function NewSalePage() {
               </thead>
               <tbody>
                 {items.map((it, idx) => {
-                  const p = productMap.get(it.productId);
                   return (
                     <tr key={idx} className="border-b border-line last:border-0">
                       <td className="py-2">
-                        <p className="text-content">{p?.name ?? '—'}</p>
-                        <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
+                        <p className="text-content">{it.name}</p>
+                        <p className="font-mono text-xs text-content-muted">{it.sku}</p>
                       </td>
                       <td className="py-2 text-right tabular-nums">{it.quantity}</td>
                       <td className="py-2 text-right tabular-nums">{formatBRL(it.unitPrice)}</td>

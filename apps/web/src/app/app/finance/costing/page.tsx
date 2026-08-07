@@ -1,13 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Layers } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import type {
-  Product,
   CifRate,
   ProductAbsorptionCost,
   PricingBreakdownItem,
@@ -33,13 +32,12 @@ function apiMessage(err: unknown): string | null {
 }
 
 export default function CostingPage() {
-  const { data: products = [], isLoading: loadingProducts } = useList<Product>('/products');
   const [productId, setProductId] = useState('');
-
-  const productOptions = useMemo(
-    () => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
-    [products],
-  );
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const [productSearch, setProductSearch] = useState('');
+  const { items: productItems, options: productOptions, isLoading: loadingProducts } = useProductOptions({
+    search: productSearch,
+  });
 
   const cifRateQuery = useQuery<CifRate>({
     queryKey: ['costing-cif-rate'],
@@ -105,7 +103,14 @@ export default function CostingPage() {
               <Combobox
                 options={productOptions}
                 value={productId}
-                onValueChange={setProductId}
+                onValueChange={(v) => {
+                  setProductId(v);
+                  const p = productItems.find((i) => i.id === v);
+                  setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                }}
+                onQueryChange={setProductSearch}
+                serverSideSearch
+                selectedLabel={productLabel}
                 placeholder={loadingProducts ? 'Carregando produtos...' : 'Selecione um produto'}
                 searchPlaceholder="Buscar por SKU ou nome..."
                 clearable

@@ -5,9 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Plus, Pencil, Trash2, Truck, PackageCheck, FileCheck2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import type {
-  Product,
   Delivery,
   DeliveryStatus,
   VehicleDocument,
@@ -84,9 +83,22 @@ export default function ShippingPage() {
   const confirm = useConfirm();
   const [tab, setTab] = useState('entregas');
 
-  const { data: products = [] } = useList<Product>('/products');
-  const productName = useMemo(() => new Map(products.map((p) => [p.id, `${p.sku} · ${p.name}`])), [products]);
-  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })), [products]);
+  // Combobox de filtro (barra de documentos) — busca server-side (#1028 parte 2)
+  const [filterProductSearch, setFilterProductSearch] = useState('');
+  const [filterProductLabel, setFilterProductLabel] = useState<string | undefined>();
+  const { items: filterProductItems, options: filterProductOptionsRaw, isLoading: filterProductsLoading } =
+    useProductOptions({ search: filterProductSearch });
+  const filterProductOptions = useMemo(
+    () => [{ value: '', label: 'Todos os produtos' }, ...filterProductOptionsRaw],
+    [filterProductOptionsRaw],
+  );
+
+  // Combobox do formulário "Novo documento" — busca própria
+  const [formProductSearch, setFormProductSearch] = useState('');
+  const [formProductLabel, setFormProductLabel] = useState<string | undefined>();
+  const { items: formProductItems, options: formProductOptions, isLoading: formProductsLoading } = useProductOptions({
+    search: formProductSearch,
+  });
 
   // ─── Entregas ───────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('');
@@ -187,7 +199,7 @@ export default function ShippingPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['vehicle-documents'] }); setDocDeliveryDialog(false); },
   });
 
-  function openNewDoc() { setDocForm(EMPTY_DOC); setDocDialog(true); }
+  function openNewDoc() { setDocForm(EMPTY_DOC); setFormProductLabel(undefined); setDocDialog(true); }
   function openEditDoc(d: VehicleDocument) {
     setDocForm({ id: d.id, productId: d.productId, type: d.type, documentNumber: d.documentNumber, issuedAt: d.issuedAt.slice(0, 10), expiresAt: d.expiresAt?.slice(0, 10) ?? '', fileUrl: d.fileUrl ?? '', status: d.status });
     setDocDialog(true);
@@ -198,7 +210,7 @@ export default function ShippingPage() {
   }
 
   const docColumns: Column<VehicleDocument>[] = [
-    { key: 'productId', header: 'Produto', cell: (r) => productName.get(r.productId) ?? short(r.productId) },
+    { key: 'productId', header: 'Produto', cell: (r) => (r.product ? `${r.product.sku} · ${r.product.name}` : short(r.productId)) },
     { key: 'type', header: 'Tipo', cell: (r) => <Badge variant="neutral">{DOC_TYPE[r.type]}</Badge> },
     { key: 'documentNumber', header: 'Nº documento' },
     { key: 'issuedAt', header: 'Emitido', cell: (r) => formatDate(r.issuedAt) },
@@ -266,7 +278,22 @@ export default function ShippingPage() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-64 flex-1 max-w-sm">
               <Field label="Filtrar por produto">
-                <Combobox options={[{ value: '', label: 'Todos os produtos' }, ...productOptions]} value={docProductFilter} onValueChange={setDocProductFilter} placeholder="Todos os produtos" searchPlaceholder="Buscar produto..." clearable />
+                <Combobox
+                  options={filterProductOptions}
+                  value={docProductFilter}
+                  onValueChange={(v) => {
+                    setDocProductFilter(v);
+                    const p = filterProductItems.find((i) => i.id === v);
+                    setFilterProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                  }}
+                  onQueryChange={setFilterProductSearch}
+                  serverSideSearch
+                  selectedLabel={filterProductLabel}
+                  loading={filterProductsLoading}
+                  placeholder="Todos os produtos"
+                  searchPlaceholder="Buscar produto..."
+                  clearable
+                />
               </Field>
             </div>
             <Button onClick={openNewDoc}><Plus className="mr-1.5 h-4 w-4" /> Novo documento</Button>
@@ -333,7 +360,21 @@ export default function ShippingPage() {
           {!docForm.id && (
             <>
               <Field label="Produto (modelo de reboque)" required>
-                <Combobox options={productOptions} value={docForm.productId} onValueChange={(v) => setDocForm({ ...docForm, productId: v })} placeholder="Selecione o produto" searchPlaceholder="Buscar produto..." />
+                <Combobox
+                  options={formProductOptions}
+                  value={docForm.productId}
+                  onValueChange={(v) => {
+                    setDocForm({ ...docForm, productId: v });
+                    const p = formProductItems.find((i) => i.id === v);
+                    setFormProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                  }}
+                  onQueryChange={setFormProductSearch}
+                  serverSideSearch
+                  selectedLabel={formProductLabel}
+                  loading={formProductsLoading}
+                  placeholder="Selecione o produto"
+                  searchPlaceholder="Buscar produto..."
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Tipo" required>

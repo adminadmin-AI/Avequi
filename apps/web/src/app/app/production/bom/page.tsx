@@ -4,9 +4,8 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, CheckCircle2, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { erroDeAcao } from '@/lib/feedback';
-import type { Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +33,11 @@ interface BomVersion {
 }
 interface DraftItem {
   componentId: string;
+  // sku/name capturados no momento da seleção (#1028 parte 2): o combobox de
+  // componente busca no servidor, então o item pode sair da página de
+  // resultados atual antes do submit — não dá pra reconsultar por id depois.
+  sku: string;
+  name: string;
   quantity: number;
   scrapPct: number;
 }
@@ -42,10 +46,13 @@ export default function BomPage() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { data: products = [] } = useList<Product>('/products');
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-
   const [productId, setProductId] = useState('');
+  const [productLabel, setProductLabel] = useState<string | undefined>();
+  const [productSearch, setProductSearch] = useState('');
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
+
   const [selectedVersionId, setSelectedVersionId] = useState('');
 
   const versionsQ = useQuery({
@@ -65,8 +72,21 @@ export default function BomPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [items, setItems] = useState<DraftItem[]>([]);
   const [newComp, setNewComp] = useState('');
+  const [newCompLabel, setNewCompLabel] = useState<string | undefined>();
   const [newQty, setNewQty] = useState('1');
   const [newScrap, setNewScrap] = useState('0');
+
+  const [compSearch, setCompSearch] = useState('');
+  const { items: compItems, options: compOptionsRaw, isLoading: compLoading } = useProductOptions({
+    search: compSearch,
+  });
+  // exclui o próprio produto pai da lista de componentes (evita BOM
+  // autorreferente) — filtro em CIMA da página já buscada no servidor, não
+  // no catálogo inteiro.
+  const compOptions = useMemo(
+    () => compOptionsRaw.filter((o) => o.value !== productId),
+    [compOptionsRaw, productId],
+  );
 
   const create = useMutation({
     mutationFn: (payload: any) => apiClient.post('/bom', payload),
@@ -77,8 +97,14 @@ export default function BomPage() {
     if (!newComp) return toast.error('Selecione um componente');
     const qty = Number(newQty);
     if (!(qty > 0)) return toast.error('Quantidade deve ser maior que zero');
-    setItems((prev) => [...prev, { componentId: newComp, quantity: qty, scrapPct: Number(newScrap) || 0 }]);
+    const comp = compItems.find((p) => p.id === newComp);
+    if (!comp) return toast.error('Componente inválido. Busque novamente.');
+    setItems((prev) => [
+      ...prev,
+      { componentId: newComp, sku: comp.sku, name: comp.name, quantity: qty, scrapPct: Number(newScrap) || 0 },
+    ]);
     setNewComp('');
+    setNewCompLabel(undefined);
     setNewQty('1');
     setNewScrap('0');
   }
@@ -105,12 +131,18 @@ export default function BomPage() {
         <CardContent className="py-5">
           <Label>Produto pai</Label>
           <Combobox
-            options={products.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
+            options={productOptions}
             value={productId}
             onValueChange={(v) => {
               setProductId(v);
               setSelectedVersionId('');
+              const p = productItems.find((i) => i.id === v);
+              setProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
             }}
+            onQueryChange={setProductSearch}
+            serverSideSearch
+            selectedLabel={productLabel}
+            loading={productsLoading}
             placeholder="Selecione um produto"
             searchPlaceholder="Buscar por SKU ou nome..."
             clearable
@@ -235,11 +267,17 @@ export default function BomPage() {
             <div className="min-w-[180px] flex-1">
               <Label>Componente</Label>
               <Combobox
-                options={products
-                  .filter((p) => p.id !== productId)
-                  .map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` }))}
+                options={compOptions}
                 value={newComp}
-                onValueChange={setNewComp}
+                onValueChange={(v) => {
+                  setNewComp(v);
+                  const p = compItems.find((i) => i.id === v);
+                  setNewCompLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                }}
+                onQueryChange={setCompSearch}
+                serverSideSearch
+                selectedLabel={newCompLabel}
+                loading={compLoading}
                 placeholder="Selecione"
                 searchPlaceholder="Buscar por SKU ou nome..."
               />
@@ -271,10 +309,9 @@ export default function BomPage() {
               </thead>
               <tbody>
                 {items.map((it, idx) => {
-                  const p = productMap.get(it.componentId);
                   return (
                     <tr key={idx} className="border-b border-line">
-                      <td className="py-1.5">{p?.sku} · {p?.name}</td>
+                      <td className="py-1.5">{it.sku} · {it.name}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.quantity}</td>
                       <td className="py-1.5 text-right tabular-nums">{it.scrapPct}%</td>
                       <td className="py-1.5 text-right">

@@ -4,8 +4,20 @@
  * Convenções:
  * - Campos Decimal do Prisma chegam como `string` no JSON.
  * - Campos DateTime chegam como `string` ISO.
- * - Endpoints de lista retornam array puro (sem envelope de paginação).
+ * - Endpoints de lista retornam array puro (sem envelope de paginação) —
+ *   EXCETO GET /products e GET /customers (#1028), que devolvem `Paged<T>`
+ *   abaixo. Os endpoints `/products/options` e `/customers/options` (#1028
+ *   parte 2) continuam array puro — são combobox de formulário, não lista.
  */
+
+/** Envelope canônico de paginação (#1028) — espelha `PaginatedResult` da API
+ *  (`apps/api/src/common/pagination/paginate.util.ts`). */
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 // ─── Enums (espelham o schema Prisma) ─────────────────────────────────────────
 export type CompanyType = 'MATRIZ' | 'FILIAL';
@@ -407,6 +419,23 @@ export interface Product extends BaseEntity {
   tracksSerial?: boolean; // rastreável por chassi — balcão exige scan (#595)
 }
 
+/**
+ * Payload de GET /products/options (#1028 parte 2) — combobox de formulário.
+ * Além do rótulo (sku/name), traz o que os consumidores usam pra
+ * PRÉ-PREENCHER um item ao adicionar (sales/new, sales/counter,
+ * quotations/new, purchases/new) — não dá pra buscar de novo depois, o
+ * catálogo completo não existe mais no cliente.
+ */
+export interface ProductOption {
+  id: string;
+  sku: string;
+  name: string;
+  salePrice?: string | null;
+  costPrice?: string | null;
+  avgCost?: string | null;
+  tracksSerial?: boolean;
+}
+
 export interface Supplier extends BaseEntity {
   companyId: string;
   name: string;
@@ -477,6 +506,13 @@ export interface Customer extends BaseEntity {
   zipCode?: string | null;
   ibgeCode?: string | null;
   isActive: boolean;
+}
+
+/** Payload mínimo de GET /customers/options (#1028 parte 2) — combobox de formulário. */
+export interface CustomerOption {
+  id: string;
+  name: string;
+  document?: string | null;
 }
 
 /** Transportadora — grupo transp da NF-e (#481) */
@@ -1250,6 +1286,10 @@ export interface VehicleDocument {
   createdAt: string;
   updatedAt: string;
   deliveries?: VehicleDocumentDelivery[];
+  /** #1028 parte 2 — GET /vehicle-documents já traz o produto (sku/nome) da
+   *  linha; o web não resolve mais isso contra um catálogo completo baixado à
+   *  parte (que não existe mais, /products virou combobox de busca). */
+  product?: { id: string; sku: string; name: string } | null;
 }
 export interface SaleMissingDoc {
   id: string;

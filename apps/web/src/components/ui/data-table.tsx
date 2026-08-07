@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
@@ -46,9 +46,22 @@ import {
  *    botões primeira/última página
  *  - Zebra striping sutil + sort indicator em cor brand
  *
- * Fora de escopo (follow-up na #310): column resizing, card view mobile,
- * virtualização (>100 linhas já paginadas), filtros por coluna (as telas
- * têm filter bars próprias acima da tabela).
+ * Fora de escopo (follow-up na #310): column resizing, virtualização
+ * (>100 linhas já paginadas), filtros por coluna (as telas têm filter bars
+ * próprias acima da tabela).
+ *
+ * ─── Modo servidor (#1028 parte 3) ──────────────────────────────────────────
+ * Aditivo, mesma filosofia do `serverSideSearch` do `Combobox` (#1028 parte
+ * 2): default é `serverMode` ausente/false, e o componente continua 100%
+ * client-side — as ~48 telas que já usam <DataTable> não mudam nem uma
+ * linha. Com `serverMode`, `data` deve ser SÓ a página atual (já filtrada/
+ * ordenada pelo servidor); o componente para de refiltrar/reordenar/paginar
+ * em memória e delega isso a `onSearchChange`/`onSortChange`/`onPageChange`/
+ * `onPageSizeChange`, usando `page`/`pageSize`/`total` (controlados) para
+ * desenhar o rodapé. viewOptions (densidade/colunas), seleção + bulkActions
+ * (sobre a página carregada) e a card view mobile continuam funcionando
+ * iguais — só o ESCOPO dos dados muda, não os recursos. CSV em modo
+ * servidor exporta só a página atual (ver rótulo do botão).
  */
 
 export interface Column<T> {
@@ -111,6 +124,22 @@ interface DataTableProps<T> {
   viewOptions?: boolean;
   /** botão de exportar CSV (true = "export.csv" ou passe o nome do arquivo) */
   exportCsv?: boolean | string;
+
+  // ─── Modo servidor (#1028 parte 3) — ver comentário no topo do arquivo ────
+  /** liga o modo servidor. Default false: comportamento 100% client-side, igual a antes. */
+  serverMode?: boolean;
+  /** página atual, 1-based (mesma convenção do usePagedList — #1028) */
+  page?: number;
+  /** total de registros no servidor (não só os desta página) */
+  total?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  /** valor controlado do campo de busca — sem isto o campo fica sem estado em serverMode */
+  searchValue?: string;
+  onSearchChange?: (search: string) => void;
+  sortKey?: string | null;
+  sortDir?: 'asc' | 'desc';
+  onSortChange?: (key: string, dir: 'asc' | 'desc') => void;
 }
 
 export function DataTable<T>({
@@ -121,7 +150,7 @@ export function DataTable<T>({
   onRowClick,
   searchable = true,
   searchPlaceholder = 'Buscar...',
-  pageSize: initialPageSize = 10,
+  pageSize: pageSizeProp,
   emptyMessage = 'Nenhum registro encontrado.',
   empty,
   selectable,
@@ -129,16 +158,39 @@ export function DataTable<T>({
   rowActions,
   viewOptions,
   exportCsv,
+  serverMode,
+  page: pageProp,
+  total,
+  onPageChange,
+  onPageSizeChange,
+  searchValue,
+  onSearchChange,
+  sortKey: sortKeyProp,
+  sortDir: sortDirProp,
+  onSortChange,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKeyState, setSortKeyState] = useState<string | null>(null);
+  const [sortDirState, setSortDirState] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [pageSizeState, setPageSizeState] = useState(pageSizeProp ?? 10);
   const [density, setDensity] = useState<Density>('comfortable');
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const headerCheckRef = useRef<HTMLInputElement>(null);
+
+  // ─── modo servidor: valores efetivos (controlados pelo chamador) ──────────
+  const effectiveSearch = serverMode ? (searchValue ?? '') : search;
+  const effectiveSortKey = serverMode ? (sortKeyProp ?? null) : sortKeyState;
+  const effectiveSortDir = serverMode ? (sortDirProp ?? 'asc') : sortDirState;
+  const effectivePageSize = serverMode ? (pageSizeProp ?? 10) : pageSizeState;
+
+  // navegação real (page/search/sort) muda → a seleção não pode continuar
+  // referenciando linhas que talvez nem estejam mais carregadas
+  useEffect(() => {
+    if (serverMode) setSelected(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverMode, pageProp, effectivePageSize, searchValue, sortKeyProp, sortDirProp]);
 
   const visibleColumns = columns.filter((c) => !hiddenCols.has(c.key));
 
@@ -146,19 +198,22 @@ export function DataTable<T>({
     col.accessor ?? ((row: T) => (row as Record<string, unknown>)[col.key] as string | number);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.toLowerCase();
+    if (serverMode) return data; // já filtrado no servidor
+    if (!effectiveSearch.trim()) return data;
+    const q = effectiveSearch.toLowerCase();
     return data.filter((row) =>
       columns.some((col) => {
         const v = accessorFor(col)(row);
         return v != null && String(v).toLowerCase().includes(q);
       }),
     );
-  }, [data, search, columns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, effectiveSearch, columns, serverMode]);
 
   const sorted = useMemo(() => {
-    if (!sortKey) return filtered;
-    const col = columns.find((c) => c.key === sortKey);
+    if (serverMode) return filtered; // já ordenado no servidor
+    if (!effectiveSortKey) return filtered;
+    const col = columns.find((c) => c.key === effectiveSortKey);
     if (!col) return filtered;
     const acc = accessorFor(col);
     return [...filtered].sort((a, b) => {
@@ -170,13 +225,24 @@ export function DataTable<T>({
         typeof av === 'number' && typeof bv === 'number'
           ? av - bv
           : String(av).localeCompare(String(bv), 'pt-BR', { numeric: true });
-      return sortDir === 'asc' ? cmp : -cmp;
+      return effectiveSortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filtered, sortKey, sortDir, columns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, effectiveSortKey, effectiveSortDir, columns, serverMode]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const paged = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const totalCount = serverMode ? (total ?? data.length) : sorted.length;
+  const pageCount = Math.max(1, Math.ceil(totalCount / effectivePageSize));
+  const safePage = serverMode
+    ? Math.max(0, Math.min((pageProp ?? 1) - 1, pageCount - 1))
+    : Math.min(page, pageCount - 1);
+  const paged = serverMode
+    ? data
+    : sorted.slice(safePage * effectivePageSize, safePage * effectivePageSize + effectivePageSize);
+
+  function goToPage(newSafePage0: number) {
+    if (serverMode) onPageChange?.(newSafePage0 + 1);
+    else setPage(newSafePage0);
+  }
 
   // ─── seleção ────────────────────────────────────────────────────────────────
   const selectedRows = useMemo(
@@ -212,15 +278,23 @@ export function DataTable<T>({
 
   function toggleSort(col: Column<T>) {
     if (!col.sortable) return;
-    if (sortKey === col.key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (serverMode) {
+      const nextDir: 'asc' | 'desc' =
+        effectiveSortKey === col.key && effectiveSortDir === 'asc' ? 'desc' : 'asc';
+      onSortChange?.(col.key, nextDir);
+      return;
+    }
+    if (sortKeyState === col.key) {
+      setSortDirState((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
-      setSortKey(col.key);
-      setSortDir('asc');
+      setSortKeyState(col.key);
+      setSortDirState('asc');
     }
   }
 
   // ─── export CSV (resultado filtrado/ordenado, colunas visíveis) ─────────────
+  // Em modo servidor, `sorted` já é só a página atual — exporta só o que está
+  // carregado (rótulo/tooltip do botão avisa; ver comentário no topo do arquivo).
   function downloadCsv() {
     const esc = (v: unknown) => {
       const s = String(v ?? '');
@@ -245,8 +319,16 @@ export function DataTable<T>({
     visibleColumns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
   const checkboxClass =
     'h-4 w-4 cursor-pointer rounded border-line accent-brand-600';
-  const from = sorted.length === 0 ? 0 : safePage * pageSize + 1;
-  const to = Math.min(sorted.length, (safePage + 1) * pageSize);
+  const from = totalCount === 0 ? 0 : safePage * effectivePageSize + 1;
+  const to = Math.min(totalCount, (safePage + 1) * effectivePageSize);
+  // condição de "sem resultado por causa da busca" (vs. "sem dados mesmo") —
+  // em modo servidor `data` já É o resultado filtrado, então o sinal é só ter busca ativa
+  const noResultFromSearch = serverMode ? effectiveSearch.trim().length > 0 : data.length > 0 && effectiveSearch.trim().length > 0;
+
+  function clearSearch() {
+    if (serverMode) onSearchChange?.('');
+    else setSearch('');
+  }
 
   return (
     <div className="space-y-3">
@@ -256,10 +338,14 @@ export function DataTable<T>({
             <div className="relative max-w-xs flex-1 basis-64">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
               <Input
-                value={search}
+                value={effectiveSearch}
                 onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
+                  if (serverMode) {
+                    onSearchChange?.(e.target.value);
+                  } else {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }
                 }}
                 placeholder={searchPlaceholder}
                 className="pl-9"
@@ -269,14 +355,26 @@ export function DataTable<T>({
           {/* F2: contexto ao lado da busca — a linha da toolbar trabalha
               em telas largas em vez de deixar um vazio até as ações */}
           <span className="whitespace-nowrap text-caption tabular-nums text-content-muted">
-            {search.trim()
-              ? `${sorted.length} de ${data.length} registros`
-              : `${sorted.length} ${sorted.length === 1 ? 'registro' : 'registros'}`}
+            {serverMode
+              ? `${totalCount} ${totalCount === 1 ? 'registro' : 'registros'}`
+              : effectiveSearch.trim()
+                ? `${sorted.length} de ${data.length} registros`
+                : `${sorted.length} ${sorted.length === 1 ? 'registro' : 'registros'}`}
           </span>
           <div className="ml-auto flex items-center gap-2">
             {exportCsv && (
-              <Button variant="ghost" size="sm" onClick={downloadCsv} leftIcon={<Download size={15} />}>
-                CSV
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={downloadCsv}
+                leftIcon={<Download size={15} />}
+                title={
+                  serverMode
+                    ? 'Exporta só a página atual carregada. Os demais registros não foram baixados.'
+                    : undefined
+                }
+              >
+                {serverMode ? 'CSV (página atual)' : 'CSV'}
               </Button>
             )}
             {viewOptions && (
@@ -327,13 +425,15 @@ export function DataTable<T>({
         </div>
       )}
 
-      {/* barra de ações em massa */}
+      {/* barra de ações em massa (sobre a página carregada, em modo servidor) */}
       {selectable && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-600/30 bg-brand-600/10 px-4 py-2.5 text-sm">
           <span className="font-medium text-brand-700 dark:text-brand-300">
             {selected.size} selecionado{selected.size === 1 ? '' : 's'}
           </span>
-          {selected.size < sorted.length && (
+          {/* "selecionar todos os N filtrados" só faz sentido client-side —
+              em modo servidor o resto dos filtrados não está carregado */}
+          {!serverMode && selected.size < sorted.length && (
             <button
               onClick={() => setSelected(new Set(sorted.map(rowKey)))}
               className="text-brand-600 hover:underline dark:text-brand-400"
@@ -366,13 +466,13 @@ export function DataTable<T>({
           ))
         ) : paged.length === 0 ? (
           <div className="shadow-soft rounded-xl border border-line bg-surface px-5">
-            {data.length > 0 && search.trim() ? (
+            {noResultFromSearch ? (
               <EmptyState
                 compact
                 icon={SearchX}
                 title="Nenhum resultado"
-                description={`Nada encontrado para “${search.trim()}”.`}
-                action={{ label: 'Limpar busca', onClick: () => setSearch('') }}
+                description={`Nada encontrado para “${effectiveSearch.trim()}”.`}
+                action={{ label: 'Limpar busca', onClick: clearSearch }}
               />
             ) : empty ? (
               empty
@@ -498,7 +598,7 @@ export function DataTable<T>({
                     col.align === 'center' && 'text-center',
                     !col.align && 'text-left',
                     col.sortable && 'group/th cursor-pointer select-none hover:text-content-secondary',
-                    sortKey === col.key && 'text-brand-600 dark:text-brand-400',
+                    effectiveSortKey === col.key && 'text-brand-600 dark:text-brand-400',
                   )}
                 >
                   <span
@@ -509,9 +609,9 @@ export function DataTable<T>({
                   >
                     {col.header}
                     {col.sortable &&
-                      (sortKey !== col.key ? (
+                      (effectiveSortKey !== col.key ? (
                         <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity duration-micro group-hover/th:opacity-40" />
-                      ) : sortDir === 'asc' ? (
+                      ) : effectiveSortDir === 'asc' ? (
                         <ChevronUp className="h-3.5 w-3.5" />
                       ) : (
                         <ChevronDown className="h-3.5 w-3.5" />
@@ -558,13 +658,13 @@ export function DataTable<T>({
             ) : paged.length === 0 ? (
               <tr>
                 <td colSpan={colSpan} className="px-5">
-                  {data.length > 0 && search.trim() ? (
+                  {noResultFromSearch ? (
                     <EmptyState
                       compact
                       icon={SearchX}
                       title="Nenhum resultado"
-                      description={`Nada encontrado para “${search.trim()}”.`}
-                      action={{ label: 'Limpar busca', onClick: () => setSearch('') }}
+                      description={`Nada encontrado para “${effectiveSearch.trim()}”.`}
+                      action={{ label: 'Limpar busca', onClick: clearSearch }}
                     />
                   ) : empty ? (
                     empty
@@ -651,18 +751,23 @@ export function DataTable<T>({
       </div>
 
       {/* rodapé: contagem + page size + navegação */}
-      {sorted.length > 0 && (
+      {totalCount > 0 && (
         <div className="flex flex-wrap items-center gap-3 text-sm text-content-secondary">
           <span>
-            Mostrando {from}–{to} de {sorted.length}
+            Mostrando {from}–{to} de {totalCount}
           </span>
           <label className="flex items-center gap-1.5">
             <span className="text-content-muted">Por página:</span>
             <select
-              value={pageSize}
+              value={effectivePageSize}
               onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(0);
+                const v = Number(e.target.value);
+                if (serverMode) {
+                  onPageSizeChange?.(v);
+                } else {
+                  setPageSizeState(v);
+                  setPage(0);
+                }
               }}
               className="rounded-md border border-line bg-surface px-1.5 py-0.5 text-sm text-content focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
             >
@@ -676,7 +781,7 @@ export function DataTable<T>({
           {pageCount > 1 && (
             <div className="ml-auto flex items-center gap-1">
               <button
-                onClick={() => setPage(0)}
+                onClick={() => goToPage(0)}
                 disabled={safePage === 0}
                 aria-label="Primeira página"
                 className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
@@ -684,7 +789,7 @@ export function DataTable<T>({
                 <ChevronsLeft size={16} />
               </button>
               <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() => goToPage(Math.max(0, safePage - 1))}
                 disabled={safePage === 0}
                 aria-label="Página anterior"
                 className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
@@ -695,7 +800,7 @@ export function DataTable<T>({
                 {safePage + 1} / {pageCount}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                onClick={() => goToPage(Math.min(pageCount - 1, safePage + 1))}
                 disabled={safePage >= pageCount - 1}
                 aria-label="Próxima página"
                 className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
@@ -703,7 +808,7 @@ export function DataTable<T>({
                 <ChevronRight size={16} />
               </button>
               <button
-                onClick={() => setPage(pageCount - 1)}
+                onClick={() => goToPage(pageCount - 1)}
                 disabled={safePage >= pageCount - 1}
                 aria-label="Última página"
                 className="rounded-md p-1.5 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"

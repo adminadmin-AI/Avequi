@@ -1,14 +1,40 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Info } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
-import type { Product } from '@/types/api';
+import type { Paged, Product } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { StatGroup } from '@/components/ui/stat-group';
 import { formatNumber } from '@/lib/format';
+
+/**
+ * #1028 parte 2 — GET /products virou paginado (teto de 100/página) e este
+ * monitor precisa do CATÁLOGO ATIVO INTEIRO (não é um combobox de formulário,
+ * é uma varredura de reposição — perder produtos silenciosamente aqui esconde
+ * alerta de estoque). Busca todas as páginas em sequência, `isActive: true`
+ * já filtrado no servidor (o `.filter(p => p.isActive)` que existia aqui
+ * antes saía do cliente).
+ */
+async function fetchAllActiveProducts(): Promise<Product[]> {
+  const pageSize = 100;
+  let page = 1;
+  let all: Product[] = [];
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data } = await apiClient.get<Paged<Product>>('/products', {
+      params: { isActive: true, page, pageSize },
+    });
+    all = all.concat(data.items);
+    if (all.length >= data.total || data.items.length === 0) break;
+    page += 1;
+  }
+  return all;
+}
 
 interface StockBalance {
   id: string;
@@ -39,7 +65,10 @@ const STATUS_META: Record<MonitorRow['status'], { label: string; variant: any }>
 };
 
 export default function PurchaseAutomationPage() {
-  const { data: products = [], isLoading: pLoading } = useList<Product>('/products');
+  const { data: products = [], isLoading: pLoading } = useQuery({
+    queryKey: ['/products', 'all-active-for-monitor'],
+    queryFn: fetchAllActiveProducts,
+  });
   const { data: balances = [], isLoading: bLoading } = useList<StockBalance>('/stock/balances');
 
   // Soma saldo disponível por produto (pode haver saldo em vários depósitos).

@@ -6,10 +6,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Check, X, ArrowRightCircle, Send } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
-import type { Quotation, QuotationStatus, Customer } from '@/types/api';
+import { useCustomerOptions } from '@/hooks/use-product-customer-options';
+import type { Quotation, QuotationStatus } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/badge';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -48,7 +50,17 @@ export default function QuotationsPage() {
   const qc = useQueryClient();
 
   const { data: quotations = [], isLoading } = useList<Quotation>(RESOURCE);
-  const { data: customers = [] } = useList<Customer>('/customers');
+
+  // Cliente (#1028 parte 2) — filtro com busca server-side
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerFilterLabel, setCustomerFilterLabel] = useState<string | undefined>();
+  const { items: customerItems, options: customerOptionsRaw, isLoading: customersLoading } = useCustomerOptions({
+    search: customerSearch,
+  });
+  const customerFilterOptions = useMemo(
+    () => [{ value: '', label: 'Todos' }, ...customerOptionsRaw],
+    [customerOptionsRaw],
+  );
 
   const [statusFilter, setStatusFilter] = useState<'' | QuotationStatus>('');
   const [customerFilter, setCustomerFilter] = useState('');
@@ -206,14 +218,21 @@ export default function QuotationsPage() {
         </div>
         <div>
           <Label>Cliente</Label>
-          <Select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
-            <option value="">Todos</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          <Combobox
+            options={customerFilterOptions}
+            value={customerFilter}
+            onValueChange={(v) => {
+              setCustomerFilter(v);
+              const c = customerItems.find((i) => i.id === v);
+              setCustomerFilterLabel(c ? c.name : undefined);
+            }}
+            onQueryChange={setCustomerSearch}
+            serverSideSearch
+            selectedLabel={customerFilterLabel}
+            loading={customersLoading}
+            placeholder="Todos"
+            searchPlaceholder="Buscar cliente..."
+          />
         </div>
         <div>
           <Label>Período</Label>

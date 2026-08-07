@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Pencil, Power, Users } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useList, useCreate, useUpdate } from '@/hooks/use-resource';
+import { usePagedList, useCreate, useUpdate } from '@/hooks/use-resource';
 import type { Customer } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -28,10 +28,34 @@ export default function CustomersPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  // #1028 parte 3 — modo servidor do DataTable: página/busca vêm do backend
+  // paginado (GET /customers), não é mais o cadastro inteiro em memória.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState('');
-  const { data: customers = [], isLoading } = useList<Customer>(RESOURCE, {
+  const { data, isLoading } = usePagedList<Customer>(RESOURCE, {
+    page,
+    pageSize,
+    search,
     tagId: tagFilter || undefined,
   });
+  const customers = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+  function handlePageSizeChange(value: number) {
+    setPageSize(value);
+    setPage(1);
+  }
+  function handleTagFilterChange(value: string) {
+    setTagFilter(value);
+    setPage(1);
+  }
+
   // #476: tags com contagem — filtro + contadores de segmentação
   const { data: tags = [] } = useQuery<Array<{ id: string; name: string; _count?: { links: number } }>>({
     queryKey: ['/customers/tags'],
@@ -117,12 +141,15 @@ export default function CustomersPage() {
     );
   }
 
+  // Sem `sortable` (#1028 parte 3): a ordenação era 100% client-side sobre o
+  // cadastro inteiro; GET /customers em modo servidor não expõe sortBy
+  // (forbidNonWhitelisted rejeitaria) — cabeçalho clicável sem efeito seria
+  // pior que sem cabeçalho clicável.
   const columns: Column<Customer>[] = [
     {
       key: 'type',
       header: 'Tipo',
       align: 'center',
-      sortable: true,
       cell: (c) => (
         <span className="inline-flex items-center gap-1">
           <Badge variant={c.type === 'COMPANY' ? 'brand' : 'neutral'}>
@@ -137,7 +164,7 @@ export default function CustomersPage() {
       ),
       accessor: (c) => CUSTOMER_TYPE_LABELS[c.type],
     },
-    { key: 'name', header: 'Nome / Razão social', sortable: true },
+    { key: 'name', header: 'Nome / Razão social' },
     {
       key: 'document',
       header: 'CPF/CNPJ',
@@ -168,7 +195,6 @@ export default function CustomersPage() {
       key: 'isActive',
       header: 'Status',
       align: 'center',
-      sortable: true,
       accessor: (c) => (c.isActive ? 1 : 0),
       cell: (c) => (
         <Badge variant={c.isActive ? 'success' : 'neutral'}>
@@ -225,7 +251,7 @@ export default function CustomersPage() {
           <Select
             aria-label="Filtrar por tag"
             value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
+            onChange={(e) => handleTagFilterChange(e.target.value)}
             className="w-64"
           >
             <option value="">Todas as tags</option>
@@ -252,6 +278,14 @@ export default function CustomersPage() {
             action={{ label: 'Novo cliente', icon: <Plus size={16} />, onClick: openCreate }}
           />
         }
+        serverMode
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+        searchValue={search}
+        onSearchChange={handleSearchChange}
       />
 
       <FormDialog

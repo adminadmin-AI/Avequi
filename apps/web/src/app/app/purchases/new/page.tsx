@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useList } from '@/hooks/use-resource';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { erroDeAcao } from '@/lib/feedback';
-import type { Supplier, Product, PurchaseOrder } from '@/types/api';
+import type { Supplier, PurchaseOrder } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -19,6 +21,9 @@ import { formatBRL } from '@/lib/format';
 
 interface DraftItem {
   productId: string;
+  // capturados na seleção (#1028 parte 2) — combobox busca no servidor
+  sku: string;
+  name: string;
   quantity: number;
   unitCost: number;
 }
@@ -29,14 +34,19 @@ export default function NewPurchaseOrderPage() {
   const qc = useQueryClient();
 
   const { data: suppliers = [] } = useList<Supplier>('/suppliers');
-  const { data: products = [] } = useList<Product>('/products');
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  // Produto (#1028 parte 2) — busca server-side
+  const [productSearch, setProductSearch] = useState('');
+  const { items: productItems, options: productOptions, isLoading: productsLoading } = useProductOptions({
+    search: productSearch,
+  });
 
   const [supplierId, setSupplierId] = useState('');
   const [expectedAt, setExpectedAt] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [newProductId, setNewProductId] = useState('');
+  const [newProductLabel, setNewProductLabel] = useState<string | undefined>();
   const [newQty, setNewQty] = useState('1');
 
   const create = useMutation({
@@ -45,14 +55,18 @@ export default function NewPurchaseOrderPage() {
   });
 
   function addItem() {
-    const product = productMap.get(newProductId);
+    const product = productItems.find((p) => p.id === newProductId);
     if (!product) return toast.error('Selecione um produto');
     const qty = Number(newQty);
     if (!(qty > 0)) return toast.error('Quantidade deve ser maior que zero');
     // custo de referência: costPrice ou avgCost do produto
     const cost = Number(product.costPrice ?? product.avgCost ?? 0);
-    setItems((prev) => [...prev, { productId: product.id, quantity: qty, unitCost: cost }]);
+    setItems((prev) => [
+      ...prev,
+      { productId: product.id, sku: product.sku, name: product.name, quantity: qty, unitCost: cost },
+    ]);
     setNewProductId('');
+    setNewProductLabel(undefined);
     setNewQty('1');
   }
   function updateItem(idx: number, patch: Partial<DraftItem>) {
@@ -129,14 +143,21 @@ export default function NewPurchaseOrderPage() {
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-secondary p-3">
             <div className="min-w-[240px] flex-1">
               <Label>Produto</Label>
-              <Select value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
-                <option value="">Selecione</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </Select>
+              <Combobox
+                options={productOptions}
+                value={newProductId}
+                onValueChange={(v) => {
+                  setNewProductId(v);
+                  const p = productItems.find((i) => i.id === v);
+                  setNewProductLabel(p ? `${p.sku} · ${p.name}` : undefined);
+                }}
+                onQueryChange={setProductSearch}
+                serverSideSearch
+                selectedLabel={newProductLabel}
+                loading={productsLoading}
+                placeholder="Selecione"
+                searchPlaceholder="Buscar por SKU ou nome..."
+              />
             </div>
             <div className="w-28">
               <Label>Quantidade</Label>
@@ -164,12 +185,11 @@ export default function NewPurchaseOrderPage() {
                 </thead>
                 <tbody>
                   {items.map((it, idx) => {
-                    const p = productMap.get(it.productId);
                     return (
                       <tr key={idx} className="border-b border-line">
                         <td className="py-2">
-                          <p className="text-content">{p?.name ?? '—'}</p>
-                          <p className="font-mono text-xs text-content-muted">{p?.sku}</p>
+                          <p className="text-content">{it.name}</p>
+                          <p className="font-mono text-xs text-content-muted">{it.sku}</p>
                         </td>
                         <td className="py-2 text-right">
                           <Input
