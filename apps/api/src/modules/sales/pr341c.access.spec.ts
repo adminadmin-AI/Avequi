@@ -151,6 +151,10 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [StockController, 'stock', {
     getBalances: 'stock.balances.view',
     getBalance: 'stock.balances.view',
+    // #1031: monitor de reposição reusa stock.balances.view — mesmo dado
+    // (saldo por depósito), só que já cruzado com Product.minStock e
+    // classificado no servidor.
+    getReplenishment: 'stock.balances.view',
     getMovements: 'stock.movements.view',
     move: 'stock.movements.create',
     reverse: 'stock.movements.reverse',
