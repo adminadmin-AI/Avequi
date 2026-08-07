@@ -31,8 +31,8 @@ const RESOURCE = '/chassi';
  * renomeia download cross-origin, então o renomeio é no próprio asset.
  */
 const INSTALADOR_URL =
-  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.0/Marcadora_de_Chassi_v1.0.0.exe';
-const INSTALADOR_VERSAO = '1.0.0';
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.4/Marcadora_de_Chassi_v1.0.4.exe';
+const INSTALADOR_VERSAO = '1.0.4';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
 interface ChassiGravacao {
@@ -43,7 +43,7 @@ interface ChassiGravacao {
   numero: number;
   ano: number;
   operador: string;
-  status: 'em_andamento' | 'concluida' | 'cancelada';
+  status: 'em_andamento' | 'concluida' | 'cancelada' | 'nao_concluida';
   criadoEm: string;
   concluidoEm: string | null;
   quadro: { codigo: string; nome: string } | null;
@@ -81,11 +81,17 @@ interface ChassiSerie {
 const STATUS_LABEL: Record<ChassiGravacao['status'], string> = {
   em_andamento: 'Em andamento',
   concluida: 'Concluída',
+  // A ferramenta encerra assim a gravação que ficou pendurada quando o
+  // operador começa a próxima (queda de energia, erro, janela fechada no
+  // meio). Antes ficava "Em andamento" para sempre, e a tela dava a entender
+  // que a carretinha ainda estava sendo gravada.
+  nao_concluida: 'Não concluída',
   cancelada: 'Cancelada',
 };
-const STATUS_VARIANT: Record<ChassiGravacao['status'], 'success' | 'warning' | 'neutral'> = {
+const STATUS_VARIANT: Record<ChassiGravacao['status'], 'success' | 'warning' | 'neutral' | 'danger'> = {
   concluida: 'success',
   em_andamento: 'warning',
+  nao_concluida: 'danger',
   cancelada: 'neutral',
 };
 const EVENTO_LABEL: Record<string, string> = {
@@ -93,6 +99,7 @@ const EVENTO_LABEL: Record<string, string> = {
   etapa_gravada: 'Etapa gravada',
   etapa_refeita: 'Etapa refeita',
   interrompida: 'Interrompida',
+  nao_concluida: 'Não concluída',
   concluida: 'Concluída',
   cancelada: 'Cancelada',
 };
@@ -220,6 +227,7 @@ export default function ChassisPage() {
             <option value="">Todos</option>
             <option value="concluida">Concluída</option>
             <option value="em_andamento">Em andamento</option>
+            <option value="nao_concluida">Não concluída</option>
             <option value="cancelada">Cancelada</option>
           </Select>
         </div>
