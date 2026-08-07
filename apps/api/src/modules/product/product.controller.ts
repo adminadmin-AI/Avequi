@@ -58,9 +58,11 @@ export class ProductController {
   @Get('export')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // mesmo limite dos exports em lote (#349)
   // Ver a lista e EXTRAIR a lista são privilégios diferentes: exige as duas
-  // (semântica AND do decorator). Mesma fechadura de /reports/export/products,
-  // o caminho legado que exporta o mesmo dado.
-  @RequirePermission('products.catalog.view', 'analytics.export.execute')
+  // (semântica AND do decorator). Por recurso e não a
+  // `analytics.export.execute` genérica: aquela abre as 6 rotas de
+  // /reports/export/* de uma vez (fornecedores, compras, vendas, estoque).
+  // O legado some na #1050 e adota estes codes.
+  @RequirePermission('products.catalog.view', 'products.catalog.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="produtos.csv"')
   @ApiOperation({ summary: 'Exportar produtos em CSV — mesmos filtros da listagem, conjunto completo via cursor (#1032)' })

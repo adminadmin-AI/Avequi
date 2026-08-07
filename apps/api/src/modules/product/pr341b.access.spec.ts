@@ -97,7 +97,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string | string[]>]> = [
     findOptions: 'products.catalog.view',
     // #1032: ver a lista e EXTRAIR a lista são privilégios diferentes —
     // export exige as duas, mesma fechadura de /reports/export/products.
-    exportCsv: ['products.catalog.view', 'analytics.export.execute'],
+    exportCsv: ['products.catalog.view', 'products.catalog.export'],
     findOne: 'products.catalog.view',
     update: 'products.catalog.update',
   }],
@@ -114,7 +114,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string | string[]>]> = [
     // #1032: ver a lista e EXTRAIR a lista são privilégios diferentes —
     // export exige as duas, mesma fechadura de /reports/export/customers.
     // Base de cliente é dado pessoal (CPF/CNPJ, e-mail) saindo do sistema.
-    exportCsv: ['customers.registry.view', 'analytics.export.execute'],
+    exportCsv: ['customers.registry.view', 'customers.registry.export'],
     creditStatus: 'customers.registry.view',
     findOne: 'customers.registry.view',
     update: 'customers.registry.update',

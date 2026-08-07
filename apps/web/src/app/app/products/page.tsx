@@ -50,7 +50,7 @@ export default function ProductsPage() {
   // PermissionGuard barra de qualquer jeito; sem isto o botão aparecia para
   // VENDEDOR/ALMOXARIFE e só entregava 403.
   const { can } = usePermission();
-  const podeExportar = can('analytics.export.execute');
+  const podeExportar = can('products.catalog.export');
 
   async function handleExportProducts() {
     try {

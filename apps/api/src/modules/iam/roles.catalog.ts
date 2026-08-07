@@ -240,6 +240,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // #947: varredura ampla NÃO traz os poderes de exceção de vendas.
       ...semExcecoesDeVendas(moduleCodes('sales', 'purchases', 'stock', 'production')),
       'products.catalog.view',
+      // #1032: acompanha o `customers.registry.export` que já entra pelo
+      // moduleCodes('customers') abaixo — quem exporta a base de clientes da
+      // filial exporta o catálogo também.
+      'products.catalog.export',
       'products.pricing.view',
       ...moduleCodes('customers'),
       'suppliers.registry.view',
@@ -315,6 +319,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'lgpd.anonymization.process',
       'analytics.reports.create',
       'analytics.export.execute',
+      // #1032: export por recurso passou a ser privilégio próprio. Mantém o
+      // que o DIRETOR já podia fazer via analytics.export.execute.
+      'products.catalog.export',
+      'customers.registry.export',
       'suppliers.portal-tokens.view',
       // #352 (decisão Rafael): DIRETOR NÃO administra acessos IAM — sem
       // iam.roles.manage e sem iam.roles.assign. Gestão de perfis e exceções
@@ -406,6 +414,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'products.catalog.view',
       'products.catalog.create',
       'products.catalog.update',
+      // #1032: acompanha o `customers.registry.export` que já entra pelo
+      // moduleCodes('customers') acima.
+      'products.catalog.export',
       'products.pricing.view',
       'products.pricing.create',
       // Financeiro e fiscal: SOMENTE leitura (sem operar/configurar)
@@ -455,6 +466,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...moduleCodes('finance').filter(
         (c) => c !== 'finance.investments.approve',
       ),
+      // #1032: export por recurso passou a ser privilégio próprio. Sem estes
+      // dois o GERENTE_FINANCEIRO PERDERIA o export de produtos e clientes
+      // que já tinha via analytics.export.execute — preserva o status quo.
+      'products.catalog.export',
+      'customers.registry.export',
       // #623 (E2, decisão Rafael): perdeu o fiscal OPERACIONAL amplo que vinha
       // de moduleCodes('fiscal') (eventos NF-e, manifestar, tax-rules CUD,
       // tributary sync) — a operação fiscal é do perfil FISCAL. Mantém só as
@@ -514,6 +530,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'analytics.reports.view',
       'analytics.reports.create',
       'analytics.export.execute',
+      // #1032: export por recurso passou a ser privilégio próprio. Mantém o
+      // que o GERENTE_COMERCIAL já podia fazer via analytics.export.execute.
+      'products.catalog.export',
+      'customers.registry.export',
       // Bloco F (#624, D5/D7): dono do domínio comercial — CRM operacional +
       // gerencial completos por lista explícita; SEM as duas ações LGPD
       // (anonymize/retention-update, exclusivas da alta gestão).
@@ -685,6 +705,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ),
       'products.catalog.view',
       'products.catalog.create',
+      // #1032 (decisão Claudio 07/08): vendedor exporta catálogo e carteira
+      // para trabalhar a lista dele. NÃO recebe `analytics.export.execute`,
+      // que abriria junto /reports/export/{suppliers,purchases,sales,stock}
+      // — custo e condição de fornecedor ficam fora do alcance do vendedor.
+      // `customers.registry.export` já vem do moduleCodes('customers') acima.
+      'products.catalog.export',
       'products.pricing.view',
       'products.pricing.create',
       'stock.balances.view',
@@ -1003,6 +1029,10 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
           code === 'crm.conversations.view',
       ),
       'analytics.export.execute',
+      // #1032: export por recurso passou a ser privilégio próprio. Mantém o
+      // que o AUDITOR já podia fazer via analytics.export.execute.
+      'products.catalog.export',
+      'customers.registry.export',
       // #623 (E1, decisão Rafael): auditor exporta os pacotes de auditoria —
       // management book e massa fiscal (XMLs) — sem nenhuma mutação.
       'finance.reports.export',
