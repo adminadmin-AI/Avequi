@@ -1,127 +1,78 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Info } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
-import { useList } from '@/hooks/use-resource';
-import type { Paged, Product } from '@/types/api';
+import { usePagedList, useList } from '@/hooks/use-resource';
+import type { ReplenishmentItem, ReplenishmentStatus, Warehouse, ProductType } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { StatGroup } from '@/components/ui/stat-group';
 import { formatNumber } from '@/lib/format';
+import { PRODUCT_TYPE_LABELS } from '@/lib/enums';
 
-/**
- * #1028 parte 2 — GET /products virou paginado (teto de 100/página) e este
- * monitor precisa do CATÁLOGO ATIVO INTEIRO (não é um combobox de formulário,
- * é uma varredura de reposição — perder produtos silenciosamente aqui esconde
- * alerta de estoque). Busca todas as páginas em sequência, `isActive: true`
- * já filtrado no servidor (o `.filter(p => p.isActive)` que existia aqui
- * antes saía do cliente).
- */
-async function fetchAllActiveProducts(): Promise<Product[]> {
-  const pageSize = 100;
-  let page = 1;
-  let all: Product[] = [];
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { data } = await apiClient.get<Paged<Product>>('/products', {
-      params: { isActive: true, page, pageSize },
-    });
-    all = all.concat(data.items);
-    if (all.length >= data.total || data.items.length === 0) break;
-    page += 1;
-  }
-  return all;
-}
+const RESOURCE = '/stock/replenishment';
 
-interface StockBalance {
-  id: string;
-  productId: string;
-  available: string;
-  product?: Product | null;
-}
-
-interface MonitorRow {
-  productId: string;
-  sku: string;
-  name: string;
-  current: number;
-  minStock: number;
-  status: 'OK' | 'ALERTA' | 'CRITICO';
-}
-
-function classify(current: number, min: number): MonitorRow['status'] {
-  if (current <= 0) return 'CRITICO';
-  if (min > 0 && current < min) return 'ALERTA';
-  return 'OK';
-}
-
-const STATUS_META: Record<MonitorRow['status'], { label: string; variant: any }> = {
+const STATUS_META: Record<ReplenishmentStatus, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
+  BELOW_MIN: { label: 'Abaixo do mínimo', variant: 'danger' },
+  AT_RISK: { label: 'Em risco', variant: 'warning' },
   OK: { label: 'OK', variant: 'success' },
-  ALERTA: { label: 'Alerta', variant: 'warning' },
-  CRITICO: { label: 'Crítico', variant: 'danger' },
 };
 
 export default function PurchaseAutomationPage() {
-  const { data: products = [], isLoading: pLoading } = useQuery({
-    queryKey: ['/products', 'all-active-for-monitor'],
-    queryFn: fetchAllActiveProducts,
+  // #1031 — join produto × saldo e classificação vêm prontos do servidor
+  // (GET /stock/replenishment, paginado). A tela faz UMA requisição para a
+  // tabela, mais uma segunda leve (pageSize=1, só para ler `total`) que dá o
+  // recorte "abaixo do mínimo" do indicador. Nenhuma das duas cresce com o
+  // tamanho do catálogo — é a diferença central em relação ao loop antigo.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [status, setStatus] = useState<ReplenishmentStatus | ''>('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [type, setType] = useState<ProductType | ''>('');
+
+  const { data, isLoading } = usePagedList<ReplenishmentItem>(RESOURCE, {
+    page,
+    pageSize,
+    status: status || undefined,
+    warehouseId: warehouseId || undefined,
+    type: type || undefined,
   });
-  const { data: balances = [], isLoading: bLoading } = useList<StockBalance>('/stock/balances');
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
+  // Rótulo do 1º indicador acompanha o filtro de status ativo: sem filtro
+  // (default do servidor) é "precisa de reposição" (abaixo do mínimo + em
+  // risco); com filtro explícito, o indicador reflete exatamente o que a
+  // tabela está mostrando.
+  const totalLabel = status ? STATUS_META[status].label : 'Precisa de reposição';
 
-  // Soma saldo disponível por produto (pode haver saldo em vários depósitos).
-  const availableByProduct = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const b of balances) {
-      map.set(b.productId, (map.get(b.productId) ?? 0) + Number(b.available ?? 0));
-    }
-    return map;
-  }, [balances]);
+  const { data: belowMinData } = usePagedList<ReplenishmentItem>(RESOURCE, {
+    page: 1,
+    pageSize: 1,
+    status: 'BELOW_MIN',
+    warehouseId: warehouseId || undefined,
+    type: type || undefined,
+  });
+  const belowMinTotal = belowMinData?.total ?? 0;
 
-  const rows = useMemo<MonitorRow[]>(() => {
-    return products
-      .filter((p) => p.isActive)
-      .map((p) => {
-        const current = availableByProduct.get(p.id) ?? 0;
-        const minStock = Number(p.minStock ?? 0);
-        return {
-          productId: p.id,
-          sku: p.sku,
-          name: p.name,
-          current,
-          minStock,
-          status: classify(current, minStock),
-        };
-      })
-      // Mostra primeiro os que precisam de atenção
-      .sort((a, b) => {
-        const order = { CRITICO: 0, ALERTA: 1, OK: 2 };
-        return order[a.status] - order[b.status];
-      });
-  }, [products, availableByProduct]);
+  const { data: warehouses = [] } = useList<Warehouse>('/warehouses');
 
-  const counts = useMemo(() => {
-    let critico = 0,
-      alerta = 0;
-    for (const r of rows) {
-      if (r.status === 'CRITICO') critico += 1;
-      else if (r.status === 'ALERTA') alerta += 1;
-    }
-    return { critico, alerta };
-  }, [rows]);
+  function handleFilterChange<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setPage(1); // filtro novo invalida a página atual
+  }
 
-  const columns: Column<MonitorRow>[] = [
+  const columns: Column<ReplenishmentItem>[] = [
     { key: 'name', header: 'Produto', cell: (r) => r.name },
     { key: 'sku', header: 'SKU', cell: (r) => <span className="font-mono text-xs">{r.sku}</span> },
+    { key: 'type', header: 'Categoria', cell: (r) => PRODUCT_TYPE_LABELS[r.type] },
     {
-      key: 'current',
+      key: 'available',
       header: 'Estoque atual',
       align: 'right',
-      sortable: true,
-      accessor: (r) => r.current,
-      cell: (r) => <span className="tabular-nums">{formatNumber(r.current)}</span>,
+      cell: (r) => <span className="tabular-nums">{formatNumber(r.available)}</span>,
     },
     {
       key: 'minStock',
@@ -133,8 +84,6 @@ export default function PurchaseAutomationPage() {
       key: 'status',
       header: 'Status',
       align: 'center',
-      sortable: true,
-      accessor: (r) => r.status,
       cell: (r) => <Badge variant={STATUS_META[r.status].variant}>{STATUS_META[r.status].label}</Badge>,
     },
   ];
@@ -150,14 +99,14 @@ export default function PurchaseAutomationPage() {
         className="mb-6"
         stats={[
           {
-            label: 'Crítico (sem estoque)',
-            value: String(counts.critico),
-            tone: counts.critico > 0 ? 'danger' : 'neutral',
+            label: totalLabel,
+            value: String(total),
+            tone: total > 0 ? 'warning' : 'neutral',
           },
           {
             label: 'Abaixo do mínimo',
-            value: String(counts.alerta),
-            tone: counts.alerta > 0 ? 'warning' : 'neutral',
+            value: String(belowMinTotal),
+            tone: belowMinTotal > 0 ? 'danger' : 'neutral',
           },
         ]}
       />
@@ -172,12 +121,61 @@ export default function PurchaseAutomationPage() {
         </span>
       </div>
 
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <Label>Status</Label>
+          <Select
+            value={status}
+            onChange={(e) => handleFilterChange(setStatus, e.target.value as ReplenishmentStatus | '')}
+          >
+            <option value="">Precisa de atenção (padrão)</option>
+            <option value="BELOW_MIN">Abaixo do mínimo</option>
+            <option value="AT_RISK">Em risco</option>
+            <option value="OK">OK</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Depósito</Label>
+          <Select
+            value={warehouseId}
+            onChange={(e) => handleFilterChange(setWarehouseId, e.target.value)}
+          >
+            <option value="">Todos</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.code} · {w.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Categoria</Label>
+          <Select
+            value={type}
+            onChange={(e) => handleFilterChange(setType, e.target.value as ProductType | '')}
+          >
+            <option value="">Todas</option>
+            {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
       <DataTable
         data={rows}
         columns={columns}
-        loading={pLoading || bLoading}
-        searchPlaceholder="Buscar por produto ou SKU..."
-        emptyMessage="Nenhum produto cadastrado."
+        loading={isLoading}
+        searchable={false}
+        emptyMessage="Nenhum produto encontrado para os filtros selecionados."
+        serverMode
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(v) => handleFilterChange(setPageSize, v)}
       />
     </div>
   );

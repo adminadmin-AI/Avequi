@@ -306,6 +306,24 @@ export interface StockBalance {
   pendingPutaway: string;
 }
 
+/** Status de reposição calculado no servidor (#1031) — ver
+ *  `apps/api/src/modules/stock/dto/replenishment-query.dto.ts` para a
+ *  definição exata dos limites. */
+export type ReplenishmentStatus = 'BELOW_MIN' | 'AT_RISK' | 'OK';
+
+/** Item de GET /stock/replenishment (#1031) — join produto × saldo somado
+ *  por depósito, já classificado e ordenado por criticidade no servidor. */
+export interface ReplenishmentItem {
+  productId: string;
+  sku: string;
+  name: string;
+  type: ProductType;
+  minStock: number;
+  available: number;
+  gap: number;
+  status: ReplenishmentStatus;
+}
+
 export interface StockMovement {
   id: string;
   warehouseId: string;
