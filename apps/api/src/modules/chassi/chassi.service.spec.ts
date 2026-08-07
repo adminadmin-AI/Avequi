@@ -22,6 +22,8 @@ const GRAVACAO = {
   concluidoEm: new Date('2026-07-31T10:03:00Z'),
   quadro: { codigo: 'CON-CHA-001', nome: 'Chassi 1,50m x 1,10m V80' },
   serie: { codigo: 'CARRETINHA_A', nome: 'Carretinha A' },
+  // As três marcações da carretinha, como o include da listagem devolve.
+  eventos: [{ etapa: 'plaqueta' }, { etapa: 'esquerdo' }, { etapa: 'direito' }],
 };
 
 describe('ChassiService', () => {
@@ -46,6 +48,27 @@ describe('ChassiService', () => {
       expect(typeof result[0].id).toBe('number');
       expect(result[0].vin).toBe('92UPRTA75TS005696');
       expect(result[0].quadro).toEqual({ codigo: 'CON-CHA-001', nome: 'Chassi 1,50m x 1,10m V80' });
+      expect(result[0].etapasGravadas).toEqual(['plaqueta', 'esquerdo', 'direito']);
+    });
+
+    it('gravação interrompida mostra só as marcações que chegou a fazer', async () => {
+      // O caso que motivou o campo: a carretinha parou na plaqueta, e a tela
+      // precisa dizer isso — um chassi com número em um lado não é o mesmo
+      // caso de um que nem começou.
+      mockPrisma.gdrChassiGravacao.findMany.mockResolvedValue([
+        { ...GRAVACAO, status: 'nao_concluida', eventos: [{ etapa: 'plaqueta' }] },
+      ]);
+      const result = await service.listarGravacoes({});
+      expect(result[0].status).toBe('nao_concluida');
+      expect(result[0].etapasGravadas).toEqual(['plaqueta']);
+    });
+
+    it('não repete etapa quando o operador refez a marcação', async () => {
+      mockPrisma.gdrChassiGravacao.findMany.mockResolvedValue([
+        { ...GRAVACAO, eventos: [{ etapa: 'plaqueta' }, { etapa: 'plaqueta' }, { etapa: 'esquerdo' }] },
+      ]);
+      const result = await service.listarGravacoes({});
+      expect(result[0].etapasGravadas).toEqual(['plaqueta', 'esquerdo']);
     });
 
     it('aplica filtros: vin em maiúsculas, tipo, status e quadroCodigo', async () => {
