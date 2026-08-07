@@ -65,7 +65,7 @@ export default function CustomersPage() {
   // PermissionGuard barra de qualquer jeito; sem isto o botão aparecia para
   // VENDEDOR/ALMOXARIFE e só entregava 403.
   const { can } = usePermission();
-  const podeExportar = can('analytics.export.execute');
+  const podeExportar = can('customers.registry.export');
 
   async function handleExportCustomers() {
     try {

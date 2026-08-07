@@ -138,7 +138,13 @@ describe('Catálogo de permissões (#338)', () => {
     // 326 = 325 + crm.leads.assignable (#1002-C3): marca a CLASSE de quem
     //       pode receber lead. Não é permissão de ação — quem participa do
     //       rodízio agora é decidido por User.crmAvailable.
-    expect(PERMISSIONS_CATALOG.length).toBe(326);
+    // 328 = 326 + products.catalog.export e customers.registry.export
+    //       (#1032): extrair a base virou privilégio próprio, separado de
+    //       ver a lista. POR RECURSO e não a analytics.export.execute
+    //       genérica, que abre as 6 rotas de /reports/export/* de uma vez —
+    //       o vendedor exporta catálogo e carteira sem levar junto
+    //       fornecedores, compras, vendas e estoque.
+    expect(PERMISSIONS_CATALOG.length).toBe(328);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

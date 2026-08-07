@@ -109,6 +109,12 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /products, GET /products/:id'],
     ['create', 'criar', 'POST /products'],
     ['update', 'editar', 'PATCH /products/:id'],
+    // #1032: extrair a base é privilégio próprio, separado de ver a lista.
+    // Por recurso e não a `analytics.export.execute` genérica: aquela abre
+    // as 6 rotas de /reports/export/* de uma vez (fornecedores, compras,
+    // vendas, estoque), e um perfil pode precisar exportar catálogo sem
+    // levar junto custo de fornecedor.
+    ['export', 'exportar', 'GET /products/export (CSV completo, filtros da tela)'],
   ]),
   ...r('products', 'pricing', 'Preços', [
     ['view', 'ver', 'GET /prices, GET /prices/lookup, GET /prices/:id'],
@@ -120,6 +126,10 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver', 'GET /customers, GET /customers/:id, GET /customers/:id/credit'],
     ['create', 'criar', 'POST /customers'],
     ['update', 'editar', 'PATCH /customers/:id'],
+    // #1032: base de cliente é dado pessoal (CPF/CNPJ, e-mail) saindo do
+    // sistema — privilégio próprio, separado de ver a lista, e auditado em
+    // dois tempos (started + completed com rowCount).
+    ['export', 'exportar', 'GET /customers/export (CSV completo, filtros da tela, auditado LGPD)'],
   ]),
   // Endereço de entrega tem regra própria (decisão Rafael, #620): a loja/balcão
   // ADICIONA endereço na venda, mas não edita nem remove — por isso a família
