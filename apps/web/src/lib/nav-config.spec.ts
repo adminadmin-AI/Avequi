@@ -275,3 +275,27 @@ describe('console da operadora (OPS F2)', () => {
     ]);
   });
 });
+
+describe('breadcrumbs sem links mortos', () => {
+  it('agrupador de rota sem página (crm/finance/settings/account) sai da trilha', () => {
+    // /app/crm, /app/finance, /app/settings e /app/account não têm page.tsx —
+    // um crumb clicável para eles cai em 404
+    expect(buildBreadcrumbs('/app/crm/inbox').map((c) => c.label)).toEqual(['Início', 'Conversas']);
+    expect(buildBreadcrumbs('/app/finance/payables').map((c) => c.label)).toEqual(['Início', 'A pagar']);
+    expect(buildBreadcrumbs('/app/settings/users').map((c) => c.label)).toEqual(['Início', 'Usuários']);
+    expect(buildBreadcrumbs('/app/account/password').map((c) => c.label)).toEqual(['Início', 'Senha']);
+  });
+
+  it('itens reais do NAV, ids e o segmento atual continuam na trilha', () => {
+    // /app/stock TEM página (Saldos) — agrupador com página real permanece
+    expect(buildBreadcrumbs('/app/stock/transfers/new').map((c) => c.label)).toEqual([
+      'Início',
+      'Saldos',
+      'Transferências',
+      'Novo',
+    ]);
+    const detail = buildBreadcrumbs('/app/sales/42');
+    expect(detail.map((c) => c.label)).toEqual(['Início', 'Vendas', '#42']);
+    expect(detail.at(-1)?.isId).toBe(true);
+  });
+});
