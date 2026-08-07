@@ -182,6 +182,78 @@ describe('ProductService', () => {
     });
   });
 
+  describe('exportCsv (#1032 — export server-side com cursor)', () => {
+    async function drain(stream: NodeJS.ReadableStream): Promise<string> {
+      const chunks: string[] = [];
+      for await (const chunk of stream) chunks.push(chunk.toString());
+      return chunks.join('');
+    }
+
+    it('usa EXATAMENTE o mesmo where de findAll para os mesmos filtros (search/type/isActive)', async () => {
+      prisma.product.findMany
+        .mockResolvedValueOnce([]) // findAll
+        .mockResolvedValueOnce([]); // exportCsv (1º lote)
+
+      const query = { search: 'Calçado', type: 'FINISHED_GOOD' as any, isActive: 'true' };
+      await service.findAll('company-1', query);
+      const whereFromFindAll = prisma.product.findMany.mock.calls[0][0].where;
+
+      await drain(service.exportCsv('company-1', query));
+      const whereFromExport = prisma.product.findMany.mock.calls[1][0].where;
+
+      expect(whereFromExport).toEqual(whereFromFindAll);
+    });
+
+    it('tenancy: companyId sempre no where, mesmo sem nenhum outro filtro', async () => {
+      prisma.product.findMany.mockResolvedValue([]);
+      await drain(service.exportCsv('company-isolada', {}));
+      expect(prisma.product.findMany.mock.calls[0][0].where).toEqual({ companyId: 'company-isolada' });
+    });
+
+    it('usa cursor + take como chaves literais (nunca findMany aberto — list-query-lint)', async () => {
+      prisma.product.findMany.mockResolvedValue([]);
+      await drain(service.exportCsv('company-1', {}));
+      const args = prisma.product.findMany.mock.calls[0][0];
+      expect(args.take).toBeGreaterThan(0);
+      expect(args.cursor).toBeUndefined(); // 1º lote sem cursor
+      expect(args.orderBy).toEqual({ id: 'asc' });
+    });
+
+    it('percorre múltiplos lotes via cursor e entrega o CONJUNTO COMPLETO (não só uma página)', async () => {
+      // Lote de export é CSV_EXPORT_BATCH_SIZE (500) — só fecha o 1º lote e
+      // pede o próximo quando ele vem CHEIO. Simula exatamente isso: 500 no
+      // 1º lote (força a 2ª chamada) + 1 no 2º (fecha, menor que o teto).
+      const mk = (id: string, name: string) => ({
+        id, sku: id, name, type: 'FINISHED_GOOD', unit: 'UN', ncm: null,
+        costPrice: 0, salePrice: 0, isActive: true, minStock: 0,
+      });
+      const page1 = Array.from({ length: 500 }, (_, i) => mk(`p${i + 1}`, `Produto ${i + 1}`));
+      const page2 = [mk('p501', 'Produto 501')];
+      prisma.product.findMany
+        .mockResolvedValueOnce(page1)
+        .mockResolvedValueOnce(page2);
+
+      const csv = await drain(service.exportCsv('company-1', {}));
+
+      // o último produto (do 2º lote) está no CSV — não só a "página" do 1º lote
+      expect(csv).toContain('Produto 1');
+      expect(csv).toContain('Produto 500');
+      expect(csv).toContain('Produto 501');
+      expect(prisma.product.findMany).toHaveBeenCalledTimes(2);
+
+      // 2º lote pediu cursor = id do último item do 1º lote (nunca busca tudo de uma vez)
+      expect(prisma.product.findMany.mock.calls[1][0].cursor).toEqual({ id: 'p500' });
+    });
+
+    it('nunca chama findMany sem where (proteção anti-vazamento cross-tenant)', async () => {
+      prisma.product.findMany.mockResolvedValue([]);
+      await drain(service.exportCsv('company-1', { search: 'x' }));
+      for (const call of prisma.product.findMany.mock.calls) {
+        expect(call[0].where.companyId).toBe('company-1');
+      }
+    });
+  });
+
   describe('findOptions (#1028 parte 2 — combobox de formulário)', () => {
     it('escopa por companyId, sem envelope de paginação (array puro)', async () => {
       prisma.product.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);

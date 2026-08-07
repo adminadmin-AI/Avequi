@@ -93,6 +93,9 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     create: 'products.catalog.create',
     findAll: 'products.catalog.view',
     findOptions: 'products.catalog.view',
+    // #1032: export CSV usa a MESMA permissão da listagem — quem vê a lista
+    // pode baixar o que está vendo, nada além disso.
+    exportCsv: 'products.catalog.view',
     findOne: 'products.catalog.view',
     update: 'products.catalog.update',
   }],
@@ -106,6 +109,9 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     create: 'customers.registry.create',
     findAll: 'customers.registry.view',
     findOptions: 'customers.registry.view',
+    // #1032: export CSV usa a MESMA permissão da listagem — quem vê a lista
+    // pode baixar o que está vendo, nada além disso.
+    exportCsv: 'customers.registry.view',
     creditStatus: 'customers.registry.view',
     findOne: 'customers.registry.view',
     update: 'customers.registry.update',

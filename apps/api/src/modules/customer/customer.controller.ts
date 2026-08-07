@@ -4,16 +4,20 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  Req,
   Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
@@ -59,6 +63,28 @@ export class CustomerController {
   @ApiOperation({ summary: 'Opções para combobox de formulário — payload mínimo, sem paginação (#1028)' })
   findOptions(@CurrentUser() user: any, @Query() query: CustomerOptionsQueryDto) {
     return this.customerService.findOptions(user.companyId, query);
+  }
+
+  // Rota estática ANTES de :id (mesmo padrão de /options) — #1032, senão
+  // "/customers/export" seria capturado por findOne com id="export".
+  @Get('export')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // mesmo limite dos exports em lote (#349)
+  @RequirePermission('customers.registry.view')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="clientes.csv"')
+  @ApiOperation({ summary: 'Exportar clientes em CSV — mesmos filtros da listagem, conjunto completo via cursor, auditado (LGPD) (#1032)' })
+  exportCsv(
+    @CurrentUser() user: any,
+    @Query() query: CustomerQueryDto,
+    @Req() req: Request,
+  ): StreamableFile {
+    const stream = this.customerService.exportCsv(user.companyId, query, {
+      userId: user.id,
+      sessionId: user.sessionId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') ?? undefined,
+    });
+    return new StreamableFile(stream);
   }
 
   // ─── #476: tags de segmentação (rotas estáticas ANTES de :id) ───────────────

@@ -5,8 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { clampTake, paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
+import { createCsvCursorStream, type CsvColumn } from '../../common/csv-export/csv-cursor-stream';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
@@ -59,6 +61,20 @@ const PRODUCT_OPTIONS_SELECT = {
 
 export type ProductOption = Prisma.ProductGetPayload<{ select: typeof PRODUCT_OPTIONS_SELECT }>;
 
+/** Colunas do CSV de export (#1032) — mesmo conjunto de PRODUCT_LIST_SELECT,
+ *  na ordem que a tela de lista exibe. */
+const PRODUCT_EXPORT_COLUMNS: CsvColumn<ProductListItem>[] = [
+  { header: 'SKU', value: (p) => p.sku },
+  { header: 'Nome', value: (p) => p.name },
+  { header: 'Tipo', value: (p) => p.type },
+  { header: 'Unidade', value: (p) => p.unit },
+  { header: 'NCM', value: (p) => p.ncm },
+  { header: 'Preço de custo', value: (p) => p.costPrice },
+  { header: 'Preço de venda', value: (p) => p.salePrice },
+  { header: 'Estoque mínimo', value: (p) => p.minStock },
+  { header: 'Ativo', value: (p) => (p.isActive ? 'Sim' : 'Não') },
+];
+
 @Injectable()
 export class ProductService {
   constructor(private readonly prisma: PrismaService) {}
@@ -97,10 +113,16 @@ export class ProductService {
     return product;
   }
 
-  async findAll(
+  /**
+   * `where` compartilhado entre `findAll` (paginado) e `exportCsv` (cursor) —
+   * #1032: o export precisa receber EXATAMENTE os mesmos filtros da
+   * listagem, então os dois caminhos passam pela mesma montagem de filtro
+   * em vez de duplicar a lógica (risco de divergir com o tempo).
+   */
+  private buildWhere(
     companyId: string,
-    query: ProductQueryDto,
-  ): Promise<PaginatedResult<ProductListItem>> {
+    query: Pick<ProductQueryDto, 'type' | 'isActive' | 'search'>,
+  ): Prisma.ProductWhereInput {
     const where: Prisma.ProductWhereInput = { companyId };
 
     if (query.type) {
@@ -118,6 +140,15 @@ export class ProductService {
       ];
     }
 
+    return where;
+  }
+
+  async findAll(
+    companyId: string,
+    query: ProductQueryDto,
+  ): Promise<PaginatedResult<ProductListItem>> {
+    const where = this.buildWhere(companyId, query);
+
     return paginate({
       orderBy: { createdAt: 'desc' as const },
       page: query.page,
@@ -126,6 +157,32 @@ export class ProductService {
       findMany: (args) =>
         this.prisma.product.findMany({ where, select: PRODUCT_LIST_SELECT, ...args }),
     });
+  }
+
+  /**
+   * GET /products/export (#1032) — CSV com os MESMOS filtros de `findAll`,
+   * conjunto completo (não só a página). Cursor + streaming em lote: nunca
+   * carrega o conjunto inteiro em memória (ver csv-cursor-stream.ts) — o
+   * `findMany` abaixo usa `cursor`/`take` como chaves de primeiro nível de
+   * propósito (list-query-lint exige isso pra aprovar a chamada).
+   */
+  exportCsv(companyId: string, query: ProductQueryDto): Readable {
+    const where = this.buildWhere(companyId, query);
+
+    return createCsvCursorStream<ProductListItem>(
+      PRODUCT_EXPORT_COLUMNS,
+      async (cursor, batchSize) => {
+        const items = await this.prisma.product.findMany({
+          where,
+          select: PRODUCT_LIST_SELECT,
+          orderBy: { id: 'asc' },
+          take: batchSize,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
+        });
+        return { items, nextCursor: items[items.length - 1]?.id };
+      },
+    );
   }
 
   /**
