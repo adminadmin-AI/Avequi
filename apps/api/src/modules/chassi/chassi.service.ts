@@ -40,6 +40,13 @@ export class ChassiService {
       include: {
         quadro: { select: { codigo: true, nome: true } },
         serie: { select: { codigo: true, nome: true } },
+        // Só as marcações concluídas: a lista mostra "parou onde?" sem
+        // precisar abrir o detalhe. São no máximo 3 por gravação (plaqueta,
+        // esquerdo, direito), então não infla a resposta.
+        eventos: {
+          where: { evento: 'etapa_gravada', etapa: { not: null } },
+          select: { etapa: true },
+        },
       },
       orderBy: { criadoEm: 'desc' },
       take: LIMITE_LISTA,
@@ -58,6 +65,7 @@ export class ChassiService {
       concluidoEm: g.concluidoEm,
       quadro: g.quadro ? { codigo: g.quadro.codigo, nome: g.quadro.nome } : null,
       serie: { codigo: g.serie.codigo, nome: g.serie.nome },
+      etapasGravadas: [...new Set(g.eventos.map((e) => e.etapa as string))],
     }));
   }
 
