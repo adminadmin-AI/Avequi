@@ -9,7 +9,14 @@ import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { SDR_SYSTEM_PROMPT } from './sdr-prompt';
 import { SDR_TOOLS, SdrToolsService } from './sdr-tools';
 import { isWithinSdrWindow, validatePriceGrounding } from './sdr-guardrails';
-import { SDR_ACTOR, estimateCostUsd } from './sdr.types';
+import {
+  SDR_ACTOR,
+  SDR_CACHE_TTL,
+  addUsage,
+  emptyUsage,
+  estimateCostUsd,
+  totalCacheWrite,
+} from './sdr.types';
 
 /** iterações máximas do loop de tools num único turno (proteção de runaway) */
 const MAX_TOOL_ITERATIONS = 6;
@@ -208,7 +215,7 @@ export class SdrAgentService {
     messages: Anthropic.Messages.MessageParam[],
   ): Promise<{ finalText: string; toolPrices: string[]; terminal: boolean }> {
     const client = this.getClient();
-    const usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    const usage = emptyUsage();
     const toolPrices: string[] = [];
     let terminal = false;
 
@@ -218,18 +225,21 @@ export class SdrAgentService {
         model,
         max_tokens: 4096,
         thinking: { type: 'adaptive' },
-        // system CONGELADO + cache_control → prefix cache (tools+system juntos)
+        // system CONGELADO + cache_control → prefix cache (tools+system juntos).
+        // TTL de 1h: este prefixo é o mesmo para TODA conversa de TODO lead, então
+        // uma escrita serve várias conversas seguidas. Ver SDR_CACHE_TTL.
         system: [
-          { type: 'text', text: SDR_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+          {
+            type: 'text',
+            text: SDR_SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral', ttl: SDR_CACHE_TTL },
+          },
         ],
         tools: SDR_TOOLS,
         messages,
       });
 
-      usage.input += response.usage.input_tokens;
-      usage.output += response.usage.output_tokens;
-      usage.cacheRead += response.usage.cache_read_input_tokens ?? 0;
-      usage.cacheCreation += response.usage.cache_creation_input_tokens ?? 0;
+      addUsage(usage, response.usage);
 
       if (response.stop_reason !== 'tool_use') break;
 
@@ -266,7 +276,7 @@ export class SdrAgentService {
           inputTokens: usage.input,
           outputTokens: usage.output,
           cacheReadTokens: usage.cacheRead,
-          cacheCreationTokens: usage.cacheCreation,
+          cacheCreationTokens: totalCacheWrite(usage),
           costUsd: new Prisma.Decimal(estimateCostUsd(model, usage).toFixed(6)),
         },
       })
@@ -301,10 +311,15 @@ export class SdrAgentService {
         content: text,
       });
     }
-    // breakpoint no fim do histórico: a conversa inteira vira prefixo cacheado
+    // breakpoint no fim do histórico: a conversa inteira vira prefixo cacheado.
+    // TTL de 1h porque o cliente some por mais de 5min no meio da conversa.
     const last = messages[messages.length - 1];
     last.content = [
-      { type: 'text', text: last.content as string, cache_control: { type: 'ephemeral' } },
+      {
+        type: 'text',
+        text: last.content as string,
+        cache_control: { type: 'ephemeral', ttl: SDR_CACHE_TTL },
+      },
     ];
     return messages;
   }

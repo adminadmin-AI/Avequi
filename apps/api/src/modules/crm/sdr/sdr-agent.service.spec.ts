@@ -6,7 +6,7 @@ import { CrmSettingsService } from '../crm-settings.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { SdrAgentService } from './sdr-agent.service';
 import { SdrToolsService } from './sdr-tools';
-import { SDR_ACTOR } from './sdr.types';
+import { SDR_ACTOR, SDR_CACHE_TTL } from './sdr.types';
 
 // mock do SDK: sem chamada real; classes de erro tipadas preservadas p/ instanceof
 const mockCreate = jest.fn();
@@ -105,8 +105,14 @@ describe('SdrAgentService (F4 #521/#523)', () => {
       const req = mockCreate.mock.calls[0][0];
       expect(req.model).toBe('claude-opus-4-8');
       expect(req.thinking).toEqual({ type: 'adaptive' });
-      expect(req.system[0].cache_control).toEqual({ type: 'ephemeral' });
+      // TTL de 1h: o prefixo tools+system é compartilhado entre conversas e
+      // com 5min esfriava entre um lead e outro (ver SDR_CACHE_TTL)
+      expect(req.system[0].cache_control).toEqual({ type: 'ephemeral', ttl: SDR_CACHE_TTL });
       expect(req.system[0].text).not.toContain('João'); // nada volátil no system!
+
+      // o histórico também precisa do TTL longo: o cliente some no meio da conversa
+      const ultima = req.messages[req.messages.length - 1];
+      expect(ultima.content[0].cache_control).toEqual({ type: 'ephemeral', ttl: SDR_CACHE_TTL });
       expect(req.tools.length).toBeGreaterThanOrEqual(5);
 
       expect(prisma.lead.update).toHaveBeenCalledWith({

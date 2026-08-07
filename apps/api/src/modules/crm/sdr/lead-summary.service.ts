@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { LeadActivityType, Prisma, WaMessageDirection } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { SDR_ACTOR, estimateCostUsd } from './sdr.types';
+import { addUsage, emptyUsage, estimateCostUsd, totalCacheWrite } from './sdr.types';
 import {
   LEAD_SUMMARY_SYSTEM_PROMPT,
   LEAD_SUMMARY_TOOL,
@@ -88,7 +88,7 @@ export class LeadSummaryService {
     const messages = this.buildMessages(lead.name, lead.source, [...history].reverse());
 
     let result: LeadSummaryResult;
-    const usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    const usage = emptyUsage();
     try {
       const response = await this.getClient().messages.create({
         model: SUMMARY_MODEL,
@@ -99,10 +99,7 @@ export class LeadSummaryService {
         tool_choice: { type: 'tool', name: LEAD_SUMMARY_TOOL.name },
         messages,
       });
-      usage.input = response.usage.input_tokens;
-      usage.output = response.usage.output_tokens;
-      usage.cacheRead = response.usage.cache_read_input_tokens ?? 0;
-      usage.cacheCreation = response.usage.cache_creation_input_tokens ?? 0;
+      addUsage(usage, response.usage);
       result = this.parseResult(response);
     } catch (err) {
       this.logger.error(`Resumo do lead ${leadId} falhou: ${(err as Error).message}`);
@@ -119,7 +116,7 @@ export class LeadSummaryService {
           inputTokens: usage.input,
           outputTokens: usage.output,
           cacheReadTokens: usage.cacheRead,
-          cacheCreationTokens: usage.cacheCreation,
+          cacheCreationTokens: totalCacheWrite(usage),
           costUsd: new Prisma.Decimal(estimateCostUsd(SUMMARY_MODEL, usage).toFixed(6)),
         },
       })
