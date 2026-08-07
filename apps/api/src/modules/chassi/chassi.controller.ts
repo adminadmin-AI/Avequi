@@ -17,8 +17,12 @@ export class ChassiController {
     @Query('tipo') tipo?: string,
     @Query('status') status?: string,
     @Query('quadroCodigo') quadroCodigo?: string,
+    @Query('ano') ano?: string,
   ) {
-    return this.chassiService.listarGravacoes({ vin, tipo, status, quadroCodigo });
+    return this.chassiService.listarGravacoes({
+      vin, tipo, status, quadroCodigo,
+      ano: ano ? Number(ano) : undefined,
+    });
   }
 
   @Get('gravacoes/:id')

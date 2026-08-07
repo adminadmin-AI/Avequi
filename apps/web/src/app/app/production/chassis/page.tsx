@@ -138,6 +138,7 @@ export default function ChassisPage() {
   const [busca, setBusca] = useState('');
   const [tipo, setTipo] = useState('');
   const [status, setStatus] = useState('');
+  const [ano, setAno] = useState('');
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [instalarAberto, setInstalarAberto] = useState(false);
 
@@ -162,12 +163,20 @@ export default function ChassisPage() {
   const filtradas = useMemo(() => {
     const q = busca.trim().toUpperCase();
     return gravacoes.filter((g) => {
+      if (ano && String(g.ano) !== ano) return false;
       if (tipo && g.tipo !== tipo) return false;
       if (status && g.status !== status) return false;
       if (q && !g.vin.includes(q) && !g.operador.toUpperCase().includes(q) && !modeloDe(g).toUpperCase().includes(q)) return false;
       return true;
     });
-  }, [gravacoes, busca, tipo, status]);
+  }, [gravacoes, busca, tipo, status, ano]);
+
+  // Anos presentes nas gravações, do mais novo para o mais antigo. Sai dos
+  // dados e não de uma lista fixa: quando 2027 chegar, aparece sozinho.
+  const anosDisponiveis = useMemo(
+    () => [...new Set(gravacoes.map((g) => g.ano))].sort((a, b) => b - a),
+    [gravacoes],
+  );
 
   const hoje = new Date().toDateString();
   const resumo = {
@@ -181,6 +190,17 @@ export default function ChassisPage() {
     { key: 'vin', header: 'VIN', sortable: true, accessor: (g) => g.vin, cell: (g) => <span className="font-mono text-xs font-medium">{g.vin}</span> },
     { key: 'modelo', header: 'Modelo', cell: (g) => modeloDe(g) },
     { key: 'serie', header: 'Série', cell: (g) => g.serie.nome },
+    {
+      // Ano-modelo do chassi: sai da 10ª posição do VIN (T = 2026), não do
+      // ano em que a peça foi marcada — uma carretinha numerada em 2026 pode
+      // ser gravada em janeiro de 2027 e continua sendo 2026.
+      key: 'ano',
+      header: 'Ano',
+      align: 'center',
+      sortable: true,
+      accessor: (g) => g.ano,
+      cell: (g) => <span className="font-mono text-xs">{g.ano}</span>,
+    },
     { key: 'operador', header: 'Operador', sortable: true, accessor: (g) => g.operador, cell: (g) => g.operador },
     { key: 'inicio', header: 'Início', sortable: true, accessor: (g) => g.criadoEm, cell: (g) => formatDateTime(g.criadoEm) },
     {
@@ -238,11 +258,21 @@ export default function ChassisPage() {
         stats={series.map((s) => ({
           label: `${s.nome} · restantes`,
           value: formatNumber(s.restantes),
-          sub: `${formatNumber(s.usados)} usados · faixa ${s.faixaMin}–${s.faixaMax}${s.alerta ? ' · ⚠ acabando' : ''}`,
+          // "reservados" são números que uma estação separou para si e ainda
+          // não gravou — já saíram do pool, mas nenhuma carretinha os leva
+          // ainda. Sem isso na tela, some número e ninguém entende por quê.
+          sub: [
+            `${formatNumber(s.usados)} usados`,
+            s.reservados > 0 ? `${formatNumber(s.reservados)} reservados na estação` : null,
+            `faixa ${s.faixaMin}–${s.faixaMax}`,
+            s.alerta ? '⚠ acabando' : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
         }))}
       />
 
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <Label>Buscar</Label>
           <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="VIN, operador ou modelo..." className="font-mono" />
@@ -263,6 +293,15 @@ export default function ChassisPage() {
             <option value="em_andamento">Em andamento</option>
             <option value="nao_concluida">Não concluída</option>
             <option value="cancelada">Cancelada</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Ano do chassi</Label>
+          <Select value={ano} onChange={(e) => setAno(e.target.value)}>
+            <option value="">Todos</option>
+            {anosDisponiveis.map((a) => (
+              <option key={a} value={String(a)}>{a}</option>
+            ))}
           </Select>
         </div>
       </div>

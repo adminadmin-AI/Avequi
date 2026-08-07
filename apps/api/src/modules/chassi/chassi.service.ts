@@ -20,6 +20,8 @@ export interface FiltroGravacoes {
   tipo?: string;
   status?: string;
   quadroCodigo?: string;
+  /** Ano-modelo do chassi (vem da 10ª posição do VIN, não do relógio). */
+  ano?: number;
 }
 
 const LIMITE_LISTA = 500;
@@ -34,6 +36,7 @@ export class ChassiService {
     if (filtro.tipo === 'padrao' || filtro.tipo === 'especial') where.tipo = filtro.tipo;
     if (filtro.status) where.status = filtro.status;
     if (filtro.quadroCodigo) where.quadro = { codigo: filtro.quadroCodigo };
+    if (filtro.ano) where.ano = Number(filtro.ano);
 
     const rows = await this.prisma.gdrChassiGravacao.findMany({
       where,
