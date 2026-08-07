@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PanelLeft, PanelLeftClose, X } from 'lucide-react';
 import { OPS_NAV, navItemAllowed, resolveActiveHref } from '@/lib/nav-config';
@@ -59,23 +60,39 @@ function OpsSidebarInner({ mini, onToggleMini, onClose, showClose }: SidebarFram
           mini ? 'justify-center px-2' : 'gap-2 px-4',
         )}
       >
+        {/* A marca é o atalho para o início — substitui o ícone de casinha que
+            ficava nos breadcrumbs (o Header é o mesmo do ERP). Aqui o destino
+            é o painel da OPERADORA, não o ERP do tenant: quem está no console
+            espera voltar para o console. */}
         {mini ? (
-          <Image
-            src="/brand/logo.png"
-            alt="Avecchi Operadora"
-            width={287}
-            height={299}
-            className="h-6 w-auto"
-          />
+          <Link
+            href="/app/ops"
+            onClick={onClose}
+            aria-label="Ir para o painel da operadora"
+            className="rounded-lg transition-opacity hover:opacity-80"
+          >
+            <Image
+              src="/brand/logo.png"
+              alt="Avecchi Operadora"
+              width={287}
+              height={299}
+              className="h-6 w-auto"
+            />
+          </Link>
         ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <Link
+            href="/app/ops"
+            onClick={onClose}
+            aria-label="Ir para o painel da operadora"
+            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-lg transition-opacity hover:opacity-80"
+          >
             <AvecchiWordmark tone="auto" className="shrink-0 text-[17px]" />
             {/* Tag discreta no accent da marca (teal) — o console é da
                 Avecchi, o indigo segue sendo a tinta do produto */}
             <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-700 dark:bg-accent-400/[0.14] dark:text-accent-300">
               Operadora
             </span>
-          </span>
+          </Link>
         )}
         {showClose ? (
           <button
