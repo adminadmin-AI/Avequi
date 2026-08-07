@@ -25,9 +25,13 @@ const RESOURCE = '/chassi';
  * Python embutido: o PC da fábrica não precisa de Python nem de internet
  * durante a instalação. Nova versão da ferramenta = nova tag `openclaw-*`
  * e atualizar estas duas constantes.
+ *
+ * O nome do arquivo é o do asset no GitHub (pedido do Rafael: nome em
+ * português, sem o codinome OpenClaw) — o atributo `download` do <a> não
+ * renomeia download cross-origin, então o renomeio é no próprio asset.
  */
 const INSTALADOR_URL =
-  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.0/OpenClaw_Setup_v1.0.0.exe';
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.0/Marcadora_de_Chassi_v1.0.0.exe';
 const INSTALADOR_VERSAO = '1.0.0';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
@@ -332,7 +336,7 @@ export default function ChassisPage() {
               <div>
                 <p className="mb-1 font-medium">Passo a passo</p>
                 <ol className="list-decimal space-y-1 pl-5 text-content-secondary">
-                  <li>Execute o <span className="font-mono text-xs">OpenClaw_Setup_*.exe</span> baixado acima: ele instala em <span className="font-mono text-xs">C:\OpenClaw</span> e cria o atalho <strong>“Marcadora de Chassi”</strong> na área de trabalho (não precisa de administrador)</li>
+                  <li>Execute o <span className="font-mono text-xs">Marcadora_de_Chassi_*.exe</span> baixado acima: ele instala em <span className="font-mono text-xs">C:\OpenClaw</span> e cria o atalho <strong>“Marcadora de Chassi”</strong> na área de trabalho (não precisa de administrador)</li>
                   <li>Solicite o provisionamento da credencial de banco para a máquina (ver aviso abaixo) e salve-a em <span className="font-mono text-xs">C:\OpenClaw\app\.streamlit\secrets.toml</span> conforme o modelo que acompanha a instalação</li>
                   <li>Abra o atalho <strong>“Marcadora de Chassi”</strong>: a tela abre sozinha no navegador, sem janela de terminal</li>
                   <li>Use o botão <strong>“🩺 Diagnóstico da estação”</strong> na tela inicial: ele confere banco local, nuvem, fila offline, impressora, marcadora no USB e a trava de segurança, sem tocar na máquina</li>
