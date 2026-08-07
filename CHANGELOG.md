@@ -6,6 +6,23 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-08-07
+
+### Added
+- feat(#1028): liga o gate do list-query-lint como catraca sobre baseline (#1042)
+- feat(#1028): contrato de paginação, endpoints de opções e modo servidor no DataTable (#1035)
+- feat(#1028): list-query-lint — gate de CI para findMany sem teto (#1030)
+- feat(nav): a marca vira o atalho para o início; sai o ícone de casinha (#1040)
+- feat(chassis): download real do instalador OpenClaw na tela (#889) (#1034)
+- feat(iam): unifica elegibilidade de vendedores no CRM (#1002) (#1012)
+
+### Fixed
+- fix(chassis): arquivo do instalador em português — Gravadora_de_Chassi (#889) (#1037)
+- fix(sec): onda 2 do hardening — seed, alçada de preço, headers e deps (#1038)
+
+### Changed
+- perf(sdr): TTL de cache de 1h e custo de escrita correto por TTL (#1039)
+
 ## [1.42.0] - 2026-08-06
 
 ### Added
@@ -482,7 +499,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...v1.42.0
 [1.41.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.0...v1.41.1
 [1.41.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.40.0...v1.41.0
