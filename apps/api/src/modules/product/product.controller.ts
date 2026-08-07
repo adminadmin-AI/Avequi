@@ -57,7 +57,10 @@ export class ProductController {
   // "/products/export" seria capturado por findOne com id="export".
   @Get('export')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // mesmo limite dos exports em lote (#349)
-  @RequirePermission('products.catalog.view')
+  // Ver a lista e EXTRAIR a lista são privilégios diferentes: exige as duas
+  // (semântica AND do decorator). Mesma fechadura de /reports/export/products,
+  // o caminho legado que exporta o mesmo dado.
+  @RequirePermission('products.catalog.view', 'analytics.export.execute')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="produtos.csv"')
   @ApiOperation({ summary: 'Exportar produtos em CSV — mesmos filtros da listagem, conjunto completo via cursor (#1032)' })

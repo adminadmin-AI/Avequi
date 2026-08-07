@@ -9,7 +9,11 @@ import { AuditAction, Prisma } from '@prisma/client';
 import type { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { clampTake, paginate, type PaginatedResult } from '../../common/pagination/paginate.util';
-import { createCsvCursorStream, type CsvColumn } from '../../common/csv-export/csv-cursor-stream';
+import {
+  createCsvCursorStream,
+  CSV_EXPORT_BATCH_SIZE,
+  type CsvColumn,
+} from '../../common/csv-export/csv-cursor-stream';
 import { AuditService } from '../iam/audit.service';
 import { CreateCustomerDto, CustomerAddressDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -187,39 +191,50 @@ export class CustomerService {
    * `findMany` abaixo usa `cursor`/`take` como chaves de primeiro nível de
    * propósito (list-query-lint exige isso pra aprovar a chamada).
    *
-   * LGPD: export de base de clientes é dado saindo do sistema — registra a
-   * INTENÇÃO (quem, quando, de onde, com que filtro) via AuditService antes
-   * de abrir o stream. É best-effort e não bloqueia a resposta (mesmo
-   * contrato do AuditService.log — nunca lança); registrar no início, e não
-   * ao fim, é deliberado: o download é um stream HTTP que o cliente pode
-   * interromper a qualquer momento, então "começou a exportar com este
-   * filtro" é o fato estável — contar linhas entregues exigiria acoplar
-   * auditoria ao ciclo de vida do stream por um ganho marginal.
+   * LGPD: export de base de clientes é dado saindo do sistema, então a trilha
+   * tem DOIS registros:
+   *  - `started` antes de abrir o stream — quem, quando, de onde, com que
+   *    filtro. É o fato estável: o download é um stream HTTP que o cliente
+   *    pode interromper a qualquer momento.
+   *  - `completed` quando o stream se esgota, com `rowCount`. Num incidente,
+   *    a diferença entre 3 clientes e 5 mil é a informação toda; sem isso a
+   *    trilha diz que alguém exportou, mas não o tamanho do que saiu.
+   * Um export abortado no meio deixa só o `started`, e isso é informação:
+   * significa que o volume entregue é desconhecido.
    */
   exportCsv(companyId: string, query: CustomerQueryDto, actor: CustomerExportActor): Readable {
     const where = this.buildWhere(companyId, query);
+    const filtros = {
+      search: query.search ?? null,
+      type: query.type ?? null,
+      isActive: query.isActive ?? null,
+      tagId: query.tagId ?? null,
+    };
 
-    // .catch() de defesa: o contrato de AuditService.log() é NUNCA lançar,
-    // mas isto é fire-and-forget (void) — sem handler, uma violação futura
-    // desse contrato viraria unhandled rejection em vez de só um log.
-    void this.auditService
-      .log({
-        companyId,
-        userId: actor.userId ?? null,
-        sessionId: actor.sessionId ?? null,
-        entity: 'Customer',
-        action: AuditAction.EXPORT,
-        module: 'customer',
-        newValue: {
-          search: query.search ?? null,
-          type: query.type ?? null,
-          isActive: query.isActive ?? null,
-          tagId: query.tagId ?? null,
-        },
-        ipAddress: actor.ipAddress ?? null,
-        userAgent: actor.userAgent ?? null,
-      })
-      .catch(() => {});
+    // Best-effort: não bloqueia a resposta (contrato do AuditService.log é
+    // nunca lançar). Mas falha de auditoria LGPD NÃO pode passar em silêncio
+    // — engolir com catch vazio dá sensação de cobertura onde não há. Sem o
+    // handler, uma violação futura do contrato viraria unhandled rejection.
+    const auditar = (payload: Record<string, unknown>) =>
+      void this.auditService
+        .log({
+          companyId,
+          userId: actor.userId ?? null,
+          sessionId: actor.sessionId ?? null,
+          entity: 'Customer',
+          action: AuditAction.EXPORT,
+          module: 'customer',
+          newValue: payload,
+          ipAddress: actor.ipAddress ?? null,
+          userAgent: actor.userAgent ?? null,
+        })
+        .catch((err) =>
+          this.logger.error(
+            `Falha ao auditar export de clientes (companyId=${companyId}, userId=${actor.userId ?? '?'}): ${err?.message ?? err}`,
+          ),
+        );
+
+    auditar({ phase: 'started', ...filtros });
 
     return createCsvCursorStream<CustomerListItem>(
       CUSTOMER_EXPORT_COLUMNS,
@@ -234,6 +249,8 @@ export class CustomerService {
         });
         return { items, nextCursor: items[items.length - 1]?.id };
       },
+      CSV_EXPORT_BATCH_SIZE,
+      (rowCount) => auditar({ phase: 'completed', rowCount, ...filtros }),
     );
   }
 

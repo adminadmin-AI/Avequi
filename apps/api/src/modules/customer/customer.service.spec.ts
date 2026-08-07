@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -233,6 +233,49 @@ describe('CustomerService — tags e anexos (#476)', () => {
       mockPrisma.customer.findMany.mockResolvedValue([]);
 
       await expect(drain(service.exportCsv('co-1', {}, actor))).resolves.toBeDefined();
+    });
+
+    it('falha de auditoria é LOGADA, nunca engolida em silêncio (#1032)', async () => {
+      const erro = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      mockAuditService.log.mockRejectedValue(new Error('fila indisponível'));
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+
+      await drain(service.exportCsv('co-1', {}, actor));
+      // microtask do .catch() do fire-and-forget
+      await Promise.resolve();
+
+      expect(erro).toHaveBeenCalledWith(expect.stringContaining('Falha ao auditar export'));
+      erro.mockRestore();
+    });
+
+    it('audita a CONCLUSÃO com rowCount — trilha registra o tamanho do que saiu (#1032)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([
+        { id: 'c1', name: 'A', tagLinks: [] },
+        { id: 'c2', name: 'B', tagLinks: [] },
+      ]);
+
+      await drain(service.exportCsv('co-1', {}, actor));
+
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.EXPORT,
+          newValue: expect.objectContaining({ phase: 'completed', rowCount: 2 }),
+        }),
+      );
+    });
+
+    it('export abortado no meio deixa só o registro de início, sem rowCount (#1032)', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([{ id: 'c1', name: 'A', tagLinks: [] }]);
+
+      // consome só o cabeçalho e abandona o stream, como um cliente que
+      // cancela o download — o generator nunca chega ao fim.
+      const stream = service.exportCsv('co-1', {}, actor);
+      await stream[Symbol.asyncIterator]().next();
+      stream.destroy();
+
+      const fases = mockAuditService.log.mock.calls.map((c: any[]) => c[0].newValue.phase);
+      expect(fases).toContain('started');
+      expect(fases).not.toContain('completed');
     });
   });
 

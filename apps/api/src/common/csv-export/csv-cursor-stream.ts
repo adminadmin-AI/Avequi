@@ -62,6 +62,17 @@ export function createCsvCursorStream<T>(
   columns: CsvColumn<T>[],
   fetchBatch: CursorBatchFetcher<T>,
   batchSize: number = CSV_EXPORT_BATCH_SIZE,
+  /**
+   * Chamado com o total de linhas emitidas quando o stream se esgota.
+   * Serve para a trilha de auditoria saber o TAMANHO do que saiu (#1032) —
+   * num incidente, a diferença entre 3 clientes e 5 mil é a informação toda.
+   *
+   * NÃO é chamado se o cliente abortar o download no meio: o generator para
+   * de ser consumido e nunca chega ao fim. Isso é deliberado — quem registra
+   * "começou a exportar" é o log de intenção, gravado antes de abrir o
+   * stream; este aqui só confirma conclusão e volume.
+   */
+  onFinish?: (rowCount: number) => void,
 ): Readable {
   async function* generate() {
     // BOM p/ Excel pt-BR reconhecer UTF-8 — mesmo padrão do export
@@ -69,15 +80,18 @@ export function createCsvCursorStream<T>(
     yield '﻿' + toCsvLine(columns.map((c) => c.header));
 
     let cursor: string | undefined;
+    let rowCount = 0;
     for (;;) {
       const { items, nextCursor } = await fetchBatch(cursor, batchSize);
       for (const item of items) {
+        rowCount += 1;
         yield toCsvLine(columns.map((c) => c.value(item)));
       }
       // lote menor que o pedido OU sem próximo cursor = última página
       if (items.length < batchSize || !nextCursor) break;
       cursor = nextCursor;
     }
+    onFinish?.(rowCount);
   }
 
   return Readable.from(generate());

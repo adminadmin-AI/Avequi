@@ -69,7 +69,11 @@ export class CustomerController {
   // "/customers/export" seria capturado por findOne com id="export".
   @Get('export')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // mesmo limite dos exports em lote (#349)
-  @RequirePermission('customers.registry.view')
+  // Ver a lista e EXTRAIR a lista são privilégios diferentes: exige as duas
+  // (semântica AND do decorator). É a mesma fechadura de
+  // /reports/export/customers, o caminho legado que exporta o mesmo dado —
+  // sem isto, uma permissão negada lá seria concedida aqui.
+  @RequirePermission('customers.registry.view', 'analytics.export.execute')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="clientes.csv"')
   @ApiOperation({ summary: 'Exportar clientes em CSV — mesmos filtros da listagem, conjunto completo via cursor, auditado (LGPD) (#1032)' })
