@@ -337,7 +337,11 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
 
   // ── stock ── (stock, transfer, batch, serial, warehouse, wms controllers)
   ...r('stock', 'balances', 'Saldos de estoque', [
-    ['view', 'ver', 'GET /stock/balances, GET /stock/balances/:warehouseId/:productId'],
+    [
+      'view',
+      'ver',
+      'GET /stock/balances, GET /stock/balances/:warehouseId/:productId, GET /stock/replenishment (#1031 — monitor de reposição, mesma permissão da tela de saldos)',
+    ],
   ]),
   ...r('stock', 'movements', 'Movimentações de estoque', [
     ['view', 'ver', 'GET /stock/movements'],

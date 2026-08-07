@@ -9,6 +9,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { StockService } from './stock.service';
 import { CreateMovementDto } from './dto/create-movement.dto';
+import { ReplenishmentQueryDto } from './dto/replenishment-query.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -34,6 +35,16 @@ export class StockController {
     @Query('productId') productId?: string,
   ) {
     return this.stockService.getBalances(user.companyId, warehouseId, productId);
+  }
+
+  // Rota estática ANTES de qualquer rota dinâmica do controller (sentinela
+  // #699 — mesmo padrão do ProductController) — "/stock/replenishment" tem
+  // que ser resolvida como rota própria, nunca capturada por um :id futuro.
+  @Get('replenishment')
+  @RequirePermission('stock.balances.view')
+  @ApiOperation({ summary: 'Monitor de reposição — produtos abaixo/próximos do mínimo, paginado (#1031)' })
+  getReplenishment(@CurrentUser() user: any, @Query() query: ReplenishmentQueryDto) {
+    return this.stockService.getReplenishment(user.companyId, query);
   }
 
   @Get('balances/:warehouseId/:productId')
