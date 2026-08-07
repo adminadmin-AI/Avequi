@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-08-07
+
+### Added
+- sec(#1032): export por recurso — vendedor exporta carteira, não a base de compras (#1053)
+
 ## [1.44.0] - 2026-08-07
 
 ### Added
@@ -514,7 +519,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...HEAD
+[1.45.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.41.1...v1.42.0
