@@ -71,6 +71,14 @@ describe('ChassiService', () => {
       expect(result[0].etapasGravadas).toEqual(['plaqueta', 'esquerdo']);
     });
 
+    it('filtra pelo ano do chassi', async () => {
+      mockPrisma.gdrChassiGravacao.findMany.mockResolvedValue([]);
+      await service.listarGravacoes({ ano: 2026 });
+      expect(mockPrisma.gdrChassiGravacao.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { ano: 2026 } }),
+      );
+    });
+
     it('aplica filtros: vin em maiúsculas, tipo, status e quadroCodigo', async () => {
       mockPrisma.gdrChassiGravacao.findMany.mockResolvedValue([]);
       await service.listarGravacoes({
