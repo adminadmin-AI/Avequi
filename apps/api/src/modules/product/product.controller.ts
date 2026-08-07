@@ -2,11 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -48,6 +51,21 @@ export class ProductController {
   @ApiOperation({ summary: 'Opções para combobox de formulário — payload mínimo, sem paginação (#1028)' })
   findOptions(@CurrentUser() user: any, @Query() query: ProductOptionsQueryDto) {
     return this.productService.findOptions(user.companyId, query);
+  }
+
+  // Rota estática ANTES de :id (mesmo padrão de /options) — #1032, senão
+  // "/products/export" seria capturado por findOne com id="export".
+  @Get('export')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // mesmo limite dos exports em lote (#349)
+  // Ver a lista e EXTRAIR a lista são privilégios diferentes: exige as duas
+  // (semântica AND do decorator). Mesma fechadura de /reports/export/products,
+  // o caminho legado que exporta o mesmo dado.
+  @RequirePermission('products.catalog.view', 'analytics.export.execute')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="produtos.csv"')
+  @ApiOperation({ summary: 'Exportar produtos em CSV — mesmos filtros da listagem, conjunto completo via cursor (#1032)' })
+  exportCsv(@CurrentUser() user: any, @Query() query: ProductQueryDto): StreamableFile {
+    return new StreamableFile(this.productService.exportCsv(user.companyId, query));
   }
 
   @Get(':id')

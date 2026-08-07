@@ -87,12 +87,17 @@ async function canAccess(
   }
 }
 
-/** Matriz rota → permissão aprovada pelo Rafael (issue #620). */
-const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
+/** Matriz rota → permissão aprovada pelo Rafael (issue #620).
+ *  Valor em array = rota exige TODAS as permissões (semântica AND do
+ *  @RequirePermission), caso do export da #1032. */
+const MATRIZ: Array<[Ctor, string, Record<string, string | string[]>]> = [
   [ProductController, 'products', {
     create: 'products.catalog.create',
     findAll: 'products.catalog.view',
     findOptions: 'products.catalog.view',
+    // #1032: ver a lista e EXTRAIR a lista são privilégios diferentes —
+    // export exige as duas, mesma fechadura de /reports/export/products.
+    exportCsv: ['products.catalog.view', 'analytics.export.execute'],
     findOne: 'products.catalog.view',
     update: 'products.catalog.update',
   }],
@@ -106,6 +111,10 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     create: 'customers.registry.create',
     findAll: 'customers.registry.view',
     findOptions: 'customers.registry.view',
+    // #1032: ver a lista e EXTRAIR a lista são privilégios diferentes —
+    // export exige as duas, mesma fechadura de /reports/export/customers.
+    // Base de cliente é dado pessoal (CPF/CNPJ, e-mail) saindo do sistema.
+    exportCsv: ['customers.registry.view', 'analytics.export.execute'],
     creditStatus: 'customers.registry.view',
     findOne: 'customers.registry.view',
     update: 'customers.registry.update',
@@ -158,7 +167,8 @@ describe('#341 parte 2 (PR B) — matriz dos cadastros simples (issue #620)', ()
         // nenhum handler fora da matriz e nenhum sem gate
         expect(eps.map((e) => e.name).sort()).toEqual(Object.keys(esperado).sort());
         for (const ep of eps) {
-          expect(ep.required).toEqual([esperado[ep.name]]);
+          const alvo = esperado[ep.name];
+          expect(ep.required).toEqual(Array.isArray(alvo) ? alvo : [alvo]);
           expect(ep.roles).toBeUndefined();
         }
       });
@@ -304,8 +314,11 @@ describe('#341 parte 2 (PR B) — matriz dos cadastros simples (issue #620)', ()
         it(`${nome} × ${perfil}`, async () => {
           const efetivas = resolveEffectivePermissions(perfil);
           for (const [handler, permissao] of Object.entries(esperado)) {
+            // Rota com várias permissões exige TODAS (AND) — o perfil só
+            // acessa se tiver o conjunto inteiro. #1032.
+            const exigidas = Array.isArray(permissao) ? permissao : [permissao];
             expect(await canAccess(Ctrl, handler, perfil)).toBe(
-              efetivas.includes(permissao),
+              exigidas.every((p) => efetivas.includes(p)),
             );
           }
         });
