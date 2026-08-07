@@ -31,8 +31,8 @@ const RESOURCE = '/chassi';
  * renomeia download cross-origin, então o renomeio é no próprio asset.
  */
 const INSTALADOR_URL =
-  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.4/Marcadora_de_Chassi_v1.0.4.exe';
-const INSTALADOR_VERSAO = '1.0.4';
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.5/Marcadora_de_Chassi_v1.0.5.exe';
+const INSTALADOR_VERSAO = '1.0.5';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
 interface ChassiGravacao {
@@ -48,6 +48,8 @@ interface ChassiGravacao {
   concluidoEm: string | null;
   quadro: { codigo: string; nome: string } | null;
   serie: { codigo: string; nome: string };
+  /** Marcações já feitas no chassi (plaqueta / esquerdo / direito). */
+  etapasGravadas?: string[];
 }
 
 interface ChassiEvento {
@@ -109,6 +111,24 @@ const ETAPA_LABEL: Record<string, string> = {
   direito: 'Lado direito',
 };
 
+/**
+ * As três marcações de uma carretinha, na ordem em que o operador executa.
+ * Espelha `ETAPAS_ORDEM` da ferramenta.
+ */
+const ETAPAS_ORDEM = ['plaqueta', 'esquerdo', 'direito'] as const;
+
+/**
+ * Quais etapas esta gravação concluiu, lido da própria trilha de eventos.
+ * Responde "parou onde?" sem ninguém precisar ler a trilha inteira — o caso
+ * que motivou isto foi uma gravação interrompida aparecendo só como
+ * "Não concluída", sem dizer se o chassi já tinha número em algum lado.
+ */
+function etapasConcluidas(eventos: ChassiEvento[]): Set<string> {
+  return new Set(
+    eventos.filter((e) => e.evento === 'etapa_gravada' && e.etapa).map((e) => e.etapa as string),
+  );
+}
+
 function modeloDe(g: ChassiGravacao): string {
   if (g.tipo === 'especial') return `⭐ Especial · ${g.observacao ?? '—'}`;
   return g.quadro ? g.quadro.nome : '—';
@@ -169,7 +189,21 @@ export default function ChassisPage() {
       align: 'center',
       sortable: true,
       accessor: (g) => STATUS_LABEL[g.status],
-      cell: (g) => <Badge variant={STATUS_VARIANT[g.status]}>{STATUS_LABEL[g.status]}</Badge>,
+      cell: (g) => {
+        const feitas = g.etapasGravadas?.length ?? 0;
+        // "Parou onde?" só interessa quando a gravação não chegou ao fim.
+        const parcial = g.status !== 'concluida' && feitas < ETAPAS_ORDEM.length;
+        return (
+          <div className="flex flex-col items-center gap-0.5">
+            <Badge variant={STATUS_VARIANT[g.status]}>{STATUS_LABEL[g.status]}</Badge>
+            {parcial && (
+              <span className="text-[11px] text-content-muted">
+                {feitas} de {ETAPAS_ORDEM.length} marcações
+              </span>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -280,6 +314,39 @@ export default function ChassisPage() {
                     <p className="text-xs text-content-muted">Conclusão</p>
                     <p>{detalhe.concluidoEm ? formatDateTime(detalhe.concluidoEm) : '—'}</p>
                   </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-content-muted">
+                    Marcações no chassi
+                  </p>
+                  {(() => {
+                    const feitas = etapasConcluidas(detalhe.eventos);
+                    return (
+                      <div className="grid grid-cols-3 gap-2">
+                        {ETAPAS_ORDEM.map((etapa) => {
+                          const ok = feitas.has(etapa);
+                          return (
+                            <div
+                              key={etapa}
+                              className={
+                                'rounded-lg border px-3 py-2 text-center ' +
+                                (ok
+                                  ? 'border-success/40 bg-success/10'
+                                  : 'border-line bg-surface-secondary')
+                              }
+                            >
+                              <p className="text-lg leading-none">{ok ? '✓' : '○'}</p>
+                              <p className="mt-1 text-xs font-medium">{ETAPA_LABEL[etapa]}</p>
+                              <p className="text-[11px] text-content-muted">
+                                {ok ? 'gravada' : 'não gravada'}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>
