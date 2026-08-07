@@ -16,6 +16,7 @@ import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatNCM } from '@/lib/format';
 import { PRODUCT_TYPE_LABELS } from '@/lib/enums';
 import { baixarCsvServidor } from '@/lib/csv-export';
+import { usePermission } from '@/hooks/use-permission';
 import { ProductForm, type ProductFormValues } from './product-form';
 
 const RESOURCE = '/products';
@@ -44,6 +45,13 @@ export default function ProductsPage() {
 
   // #1032 — export server-side: mesmos filtros da listagem (só `search`
   // nesta tela), conjunto completo via cursor no backend.
+  // #1032: extrair a base é privilégio próprio (analytics.export.execute),
+  // separado de ver a lista. Esconder o botão é UX, não segurança — o
+  // PermissionGuard barra de qualquer jeito; sem isto o botão aparecia para
+  // VENDEDOR/ALMOXARIFE e só entregava 403.
+  const { can } = usePermission();
+  const podeExportar = can('analytics.export.execute');
+
   async function handleExportProducts() {
     try {
       await baixarCsvServidor('/products/export', { search: search || undefined }, 'produtos.csv');
@@ -255,8 +263,8 @@ export default function ProductsPage() {
         searchPlaceholder="Buscar por SKU ou nome..."
         selectable
         viewOptions
-        exportCsv="produtos.csv"
-        onServerExport={handleExportProducts}
+        exportCsv={podeExportar ? 'produtos.csv' : undefined}
+        onServerExport={podeExportar ? handleExportProducts : undefined}
         bulkActions={(rows, clear) => (
           <Button variant="danger" size="sm" onClick={() => bulkDeactivate(rows, clear)}>
             <Power size={14} />

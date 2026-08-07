@@ -16,6 +16,7 @@ import { erroDeAcao } from '@/lib/feedback';
 import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CUSTOMER_TYPE_LABELS } from '@/lib/enums';
 import { baixarCsvServidor } from '@/lib/csv-export';
+import { usePermission } from '@/hooks/use-permission';
 import { CustomerForm, type CustomerFormValues } from './customer-form';
 import { CustomerAddresses } from './customer-addresses';
 import { CustomerExtras } from './customer-extras';
@@ -59,6 +60,13 @@ export default function CustomersPage() {
 
   // #1032 — export server-side: mesmos filtros da listagem (search + tag),
   // conjunto completo via cursor no backend, auditado (LGPD).
+  // #1032: extrair a base é privilégio próprio (analytics.export.execute),
+  // separado de ver a lista. Esconder o botão é UX, não segurança — o
+  // PermissionGuard barra de qualquer jeito; sem isto o botão aparecia para
+  // VENDEDOR/ALMOXARIFE e só entregava 403.
+  const { can } = usePermission();
+  const podeExportar = can('analytics.export.execute');
+
   async function handleExportCustomers() {
     try {
       await baixarCsvServidor(
@@ -285,8 +293,8 @@ export default function CustomersPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por nome ou documento..."
-        exportCsv="clientes.csv"
-        onServerExport={handleExportCustomers}
+        exportCsv={podeExportar ? 'clientes.csv' : undefined}
+        onServerExport={podeExportar ? handleExportCustomers : undefined}
         empty={
           <EmptyState
             icon={Users}
