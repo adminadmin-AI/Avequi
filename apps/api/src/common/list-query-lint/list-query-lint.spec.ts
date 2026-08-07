@@ -98,15 +98,72 @@ describe('List Query Lint — schema real', () => {
   });
 });
 
-describe('List Query Lint — GATE: codebase real sem findMany aberto em modelo de alto volume', () => {
-  // ⚠️ DESLIGADO DE PROPÓSITO — outro executor está corrigindo product/customer
-  // em paralelo (#1028); ligar este gate agora quebraria o CI na main antes
-  // dessa correção estar mergeada. Trocar `it.skip` por `it` quando a #1028
-  // fechar (product/customer paginados + demais ofensores tratados — ver
-  // lista completa no corpo do PR que introduziu este arquivo).
-  it.skip('src/modules inteiro → zero offenders', () => {
+/**
+ * GATE DO CI — catraca, não zero absoluto.
+ *
+ * A #1028 corrigiu `product` e `customer`, mas a base tem 174 ofensores em 61
+ * arquivos. Um gate que exigisse zero não poderia ser ligado hoje, e gate
+ * desligado não protege nada — a versão que pega regressão AGORA vale mais que
+ * a versão perfeita que fica em `skip` esperando uma limpeza de semanas.
+ *
+ * Então o baseline registra a dívida conhecida por ARQUIVO e o gate falha
+ * quando ela AUMENTA. Contagem por arquivo, não `arquivo:linha`, de propósito:
+ * a linha muda a cada edição sem relação com o lint e produziria falha
+ * fantasma em PR que só mexeu em outra coisa.
+ *
+ * A catraca aperta nos dois sentidos: corrigir um ofensor também falha, com a
+ * instrução de baixar o número no baseline. É o mesmo princípio da lista
+ * estagnada do route-gate-coverage — sem isso o baseline vira gaveta e daqui a
+ * seis meses ninguém sabe se os 174 ainda existem.
+ *
+ * Zerar a dívida é trabalho próprio (ver #1028 e a lista no PR #1030).
+ */
+describe('List Query Lint — GATE: a dívida de findMany sem teto não pode crescer', () => {
+  const baseline: Record<string, number> = JSON.parse(
+    readFileSync(join(__dirname, 'baseline.json'), 'utf8'),
+  );
+
+  it('nenhum arquivo ganhou findMany sem teto (e nenhum arquivo novo entrou)', () => {
     const { scannedFiles, offenders } = lintModulesDir(join(__dirname, '../../modules'));
     expect(scannedFiles).toBeGreaterThan(400); // sanidade anti-falso-verde
-    expect(offenders.map((o) => `${o.file}:${o.line} ${o.model}.findMany`)).toEqual([]);
+
+    const atual: Record<string, number> = {};
+    for (const o of offenders) atual[o.file] = (atual[o.file] ?? 0) + 1;
+
+    const regressoes: string[] = [];
+    for (const [arquivo, quantos] of Object.entries(atual)) {
+      const permitido = baseline[arquivo] ?? 0;
+      if (quantos > permitido) {
+        const linhas = offenders
+          .filter((o) => o.file === arquivo)
+          .map((o) => `linha ${o.line} (${o.model})`)
+          .join(', ');
+        regressoes.push(
+          `${arquivo}: ${quantos} ofensor(es), baseline permite ${permitido} — ${linhas}`,
+        );
+      }
+    }
+
+    expect(regressoes).toEqual([]);
+  });
+
+  it('baseline não está estagnado: arquivo corrigido tem de sair do baseline', () => {
+    const { offenders } = lintModulesDir(join(__dirname, '../../modules'));
+    const atual: Record<string, number> = {};
+    for (const o of offenders) atual[o.file] = (atual[o.file] ?? 0) + 1;
+
+    const desatualizados: string[] = [];
+    for (const [arquivo, permitido] of Object.entries(baseline)) {
+      const quantos = atual[arquivo] ?? 0;
+      if (quantos < permitido) {
+        desatualizados.push(
+          quantos === 0
+            ? `${arquivo}: resolvido — REMOVA a entrada do baseline.json`
+            : `${arquivo}: caiu de ${permitido} para ${quantos} — ATUALIZE o baseline.json`,
+        );
+      }
+    }
+
+    expect(desatualizados).toEqual([]);
   });
 });
