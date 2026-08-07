@@ -270,6 +270,45 @@ describe('WorkspaceService', () => {
 
   describe('getMyDay', () => {
     const DAY = 86_400_000;
+
+    /**
+     * Relógio congelado (#1036). Estes testes montam fixtures relativas a
+     * `Date.now()` e afirmam o que caiu em "HOJE" — mas `getMyDay` decide o
+     * que é hoje no fuso de NEGÓCIO (`BUSINESS_TZ`, America/Sao_Paulo), e o
+     * runner do CI roda em UTC. Entre 03:00 e 06:00 UTC (meia-noite às 3h em
+     * São Paulo) um evento de `hoursAgo(3)` cai no dia anterior no fuso de
+     * negócio, e a suíte quebrava sem nada a ver com o PR em revisão.
+     *
+     * 17:00Z = 14:00 em São Paulo: horário comercial, com folga dos dois
+     * lados da virada em ambos os fusos. Não é uma data qualquer.
+     *
+     * `doNotFake` mantém os timers reais — só a leitura do relógio é
+     * congelada. Fakear `setTimeout`/`nextTick` junto trava promises que o
+     * serviço resolve durante o teste.
+     */
+    const AGORA = new Date('2026-08-06T17:00:00.000Z');
+
+    beforeAll(() => {
+      jest.useFakeTimers({
+        doNotFake: [
+          'setTimeout',
+          'setInterval',
+          'setImmediate',
+          'clearTimeout',
+          'clearInterval',
+          'clearImmediate',
+          'nextTick',
+          'queueMicrotask',
+          'performance',
+        ],
+      });
+      jest.setSystemTime(AGORA);
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
     const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000);
     const daysAgo = (d: number) => new Date(Date.now() - d * DAY);
 
