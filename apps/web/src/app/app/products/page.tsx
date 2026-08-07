@@ -15,6 +15,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL, formatNCM } from '@/lib/format';
 import { PRODUCT_TYPE_LABELS } from '@/lib/enums';
+import { baixarCsvServidor } from '@/lib/csv-export';
 import { ProductForm, type ProductFormValues } from './product-form';
 
 const RESOURCE = '/products';
@@ -39,6 +40,16 @@ export default function ProductsPage() {
   function handlePageSizeChange(value: number) {
     setPageSize(value);
     setPage(1);
+  }
+
+  // #1032 — export server-side: mesmos filtros da listagem (só `search`
+  // nesta tela), conjunto completo via cursor no backend.
+  async function handleExportProducts() {
+    try {
+      await baixarCsvServidor('/products/export', { search: search || undefined }, 'produtos.csv');
+    } catch (err) {
+      toast.error(erroDeAcao('exportar os produtos', err));
+    }
   }
 
   const create = useCreate<Product, ProductFormValues>(RESOURCE);
@@ -245,6 +256,7 @@ export default function ProductsPage() {
         selectable
         viewOptions
         exportCsv="produtos.csv"
+        onServerExport={handleExportProducts}
         bulkActions={(rows, clear) => (
           <Button variant="danger" size="sm" onClick={() => bulkDeactivate(rows, clear)}>
             <Power size={14} />

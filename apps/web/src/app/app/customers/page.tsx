@@ -15,6 +15,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { erroDeAcao } from '@/lib/feedback';
 import { formatCpfCnpj, unmask } from '@/lib/format';
 import { CUSTOMER_TYPE_LABELS } from '@/lib/enums';
+import { baixarCsvServidor } from '@/lib/csv-export';
 import { CustomerForm, type CustomerFormValues } from './customer-form';
 import { CustomerAddresses } from './customer-addresses';
 import { CustomerExtras } from './customer-extras';
@@ -54,6 +55,20 @@ export default function CustomersPage() {
   function handleTagFilterChange(value: string) {
     setTagFilter(value);
     setPage(1);
+  }
+
+  // #1032 — export server-side: mesmos filtros da listagem (search + tag),
+  // conjunto completo via cursor no backend, auditado (LGPD).
+  async function handleExportCustomers() {
+    try {
+      await baixarCsvServidor(
+        '/customers/export',
+        { search: search || undefined, tagId: tagFilter || undefined },
+        'clientes.csv',
+      );
+    } catch (err) {
+      toast.error(erroDeAcao('exportar os clientes', err));
+    }
   }
 
   // #476: tags com contagem — filtro + contadores de segmentação
@@ -270,6 +285,8 @@ export default function CustomersPage() {
         loading={isLoading}
         onRowClick={openEdit}
         searchPlaceholder="Buscar por nome ou documento..."
+        exportCsv="clientes.csv"
+        onServerExport={handleExportCustomers}
         empty={
           <EmptyState
             icon={Users}

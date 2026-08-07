@@ -60,8 +60,13 @@ import {
  * `onPageSizeChange`, usando `page`/`pageSize`/`total` (controlados) para
  * desenhar o rodapé. viewOptions (densidade/colunas), seleção + bulkActions
  * (sobre a página carregada) e a card view mobile continuam funcionando
- * iguais — só o ESCOPO dos dados muda, não os recursos. CSV em modo
- * servidor exporta só a página atual (ver rótulo do botão).
+ * iguais — só o ESCOPO dos dados muda, não os recursos.
+ *
+ * CSV em modo servidor: com `onServerExport`, o botão chama o export
+ * server-side (conjunto filtrado inteiro, não só a página) e mostra estado
+ * de carregamento honesto enquanto gera (#1032). Sem `onServerExport`
+ * (telas em modo servidor ainda não migradas), mantém o comportamento
+ * anterior — exporta só a página carregada, com aviso no rótulo/tooltip.
  */
 
 export interface Column<T> {
@@ -124,6 +129,10 @@ interface DataTableProps<T> {
   viewOptions?: boolean;
   /** botão de exportar CSV (true = "export.csv" ou passe o nome do arquivo) */
   exportCsv?: boolean | string;
+  /** export server-side (#1032) — chamado no lugar do CSV local quando em
+   *  serverMode; baixa o conjunto filtrado inteiro, não só a página. O botão
+   *  mostra estado de carregamento honesto enquanto a promise não resolve. */
+  onServerExport?: () => Promise<void>;
 
   // ─── Modo servidor (#1028 parte 3) — ver comentário no topo do arquivo ────
   /** liga o modo servidor. Default false: comportamento 100% client-side, igual a antes. */
@@ -158,6 +167,7 @@ export function DataTable<T>({
   rowActions,
   viewOptions,
   exportCsv,
+  onServerExport,
   serverMode,
   page: pageProp,
   total,
@@ -177,6 +187,7 @@ export function DataTable<T>({
   const [density, setDensity] = useState<Density>('comfortable');
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
   const headerCheckRef = useRef<HTMLInputElement>(null);
 
   // ─── modo servidor: valores efetivos (controlados pelo chamador) ──────────
@@ -315,6 +326,22 @@ export function DataTable<T>({
     URL.revokeObjectURL(a.href);
   }
 
+  // Em serverMode COM onServerExport (#1032), o export vai pro servidor
+  // (conjunto filtrado inteiro); sem onServerExport, cai no comportamento
+  // legado (só a página carregada).
+  async function handleExportClick() {
+    if (serverMode && onServerExport) {
+      setExporting(true);
+      try {
+        await onServerExport();
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
+    downloadCsv();
+  }
+
   const colSpan =
     visibleColumns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
   const checkboxClass =
@@ -366,15 +393,20 @@ export function DataTable<T>({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={downloadCsv}
-                leftIcon={<Download size={15} />}
+                onClick={handleExportClick}
+                loading={exporting}
+                leftIcon={exporting ? undefined : <Download size={15} />}
                 title={
-                  serverMode
+                  serverMode && !onServerExport
                     ? 'Exporta só a página atual carregada. Os demais registros não foram baixados.'
                     : undefined
                 }
               >
-                {serverMode ? 'CSV (página atual)' : 'CSV'}
+                {exporting
+                  ? 'Exportando...'
+                  : serverMode && !onServerExport
+                    ? 'CSV (página atual)'
+                    : 'CSV'}
               </Button>
             )}
             {viewOptions && (
