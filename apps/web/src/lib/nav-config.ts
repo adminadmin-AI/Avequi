@@ -525,6 +525,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   alerts: 'Alertas',
   dashboard: 'Dashboard',
   billing: 'Billing',
+  password: 'Senha',
 };
 
 export interface Crumb {
@@ -534,21 +535,31 @@ export interface Crumb {
   isId?: boolean;
 }
 
-/** Gera breadcrumbs a partir do pathname (#305). */
+/**
+ * Gera breadcrumbs a partir do pathname (#305).
+ *
+ * Segmento intermediário que não é um item de navegação (ex.: `crm` em
+ * /app/crm/inbox, `finance`, `settings`) é só um agrupador de rota — não
+ * existe página ali, e um link para ele cai em 404. Esses segmentos ficam
+ * FORA da trilha; sobram o Início, os itens reais do NAV, os ids (não
+ * clicáveis) e a página atual.
+ */
 export function buildBreadcrumbs(pathname: string): Crumb[] {
   const hrefByItem = new Map(ALL_NAV_ITEMS.map((it) => [it.href, it.label]));
   const segments = pathname.split('/').filter(Boolean);
   const crumbs: Crumb[] = [];
   let acc = '';
-  for (const seg of segments) {
+  segments.forEach((seg, i) => {
     acc += '/' + seg;
+    const last = i === segments.length - 1;
     const isId = /^[0-9a-f]{8}-|^\d+$|^c[a-z0-9]{20,}$/i.test(seg);
+    if (!last && !isId && !hrefByItem.has(acc)) return;
     const label =
       hrefByItem.get(acc) ??
       SEGMENT_LABELS[seg] ??
       (isId ? `#${seg.slice(0, 8)}` : capitalize(seg));
     crumbs.push({ label, href: acc, isId });
-  }
+  });
   return crumbs;
 }
 
