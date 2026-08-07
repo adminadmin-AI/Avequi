@@ -409,7 +409,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Compras e fornecedores: operação + aprovações
       ...moduleCodes('purchases', 'suppliers'),
       // Estoque e produção: operação completa
-      ...moduleCodes('stock', 'production'),
+      // CHASSI LOGIN (#939/#940): gravar chassi na marcadora fica FORA do
+      // gerente geral — a matriz aprovada no plano restringe mark/mark-special/
+      // mark-free a operador/supervisor/gerente industrial e admins. O view
+      // (histórico no ERP) permanece. Exclusão explícita porque a varredura
+      // é dinâmica: sem este filtro os codes novos entrariam aqui sozinhos.
+      ...moduleCodes('stock', 'production').filter(
+        (c) => !['production.chassi.mark', 'production.chassi.mark-special', 'production.chassi.mark-free'].includes(c),
+      ),
       // Produtos
       'products.catalog.view',
       'products.catalog.create',
@@ -786,6 +793,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // embaixo seria redundância, não concessão extra. Há teste travando os
       // três perfis (PCP, supervisor e operador).
       'production.dispatch.view',
+      // CHASSI LOGIN (#939/#940): o operador de produção é O usuário da
+      // marcadora — entra na ferramenta (mark) e consulta o histórico (view).
+      // Modelo Especial e gravação livre ficam na gerência (mark-special/
+      // mark-free NÃO entram aqui). SUPERVISOR_PRODUCAO recebe por herança;
+      // GERENTE_INDUSTRIAL e ADMIN_FILIAL, pela varredura moduleCodes
+      // ('production'); ADMIN_GLOBAL/ADMIN_EMPRESA, por tenantPermissionCodes.
+      'production.chassi.view',
+      'production.chassi.mark',
       'production.bom.view',
       'production.routing.view',
       'production.scheduling.view',

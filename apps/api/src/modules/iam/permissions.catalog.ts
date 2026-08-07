@@ -438,6 +438,14 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ]),
   ...r('production', 'chassi', 'Chassis gravados (marcadora)', [
     ['view', 'ver', 'GET /chassi/gravacoes, /chassi/gravacoes/:id, /chassi/series'],
+    // CHASSI LOGIN (#939/#940): estas 3 permissões NÃO gateiam rota de API —
+    // são o modelo de acesso da ferramenta OpenClaw da marcadora, resolvidas
+    // pela função gdr_chassi_autenticar() (SECURITY DEFINER, migration
+    // 20260807190000). `mark` é a permissão DE ENTRADA da ferramenta: sem ela
+    // o login recusa mesmo com a senha certa.
+    ['mark', 'gravar chassi (ferramenta da marcadora)', 'sem rota — gate de entrada do OpenClaw'],
+    ['mark-special', 'gravar Modelo Especial (fora de padrão)', 'sem rota — Modo Gerente do OpenClaw'],
+    ['mark-free', 'gravação livre de emergência', 'sem rota — Modo Gerente do OpenClaw'],
   ]),
   // #817 — permissão PRÓPRIA, deliberadamente separada de production.orders.view:
   // ver o despacho da fábrica (o que cada setor produz e recebe) pode ser
