@@ -578,6 +578,9 @@ model User {
   quickNotes                UserQuickNote[] // Workspace — post-its pessoais
   uiPreference              UserUiPreference? // Sidebar por usuário (#975)
   tenantInvites             TenantInvite[] // OPS WP2 (#909) — convites de primeiro acesso
+  // CHASSI LOGIN #939/#940: gravações de chassi assinadas por FK
+  chassiGravacoes           GdrChassiGravacao[]    @relation("ChassiGravacaoOperador")
+  chassiEventos             GdrChassiEvento[]      @relation("ChassiEventoOperador")
 
   @@map("gdr_users")
 }
@@ -4806,7 +4809,11 @@ model GdrChassiGravacao {
   observacao  String? // Modelo Especial: texto que o gerente digitou
   numero      Int
   ano         Int
-  operador    String // texto por ora; vira FK p/ gdr_users com login
+  operador    String // nome em texto (histórico não se reescreve; anda junto da FK)
+  // CHASSI LOGIN #939/#940: quem gravou, por FK. Nulo permitido — as gravações
+  // anteriores ao login ficam como estão (só o texto `operador`).
+  operadorUserId String?        @map("operador_user_id")
+  operadorUser   User?          @relation("ChassiGravacaoOperador", fields: [operadorUserId], references: [id], onDelete: SetNull)
   status      String            @default("em_andamento") // em_andamento | concluida | cancelada
   criadoEm    DateTime          @default(now()) @map("criado_em")
   concluidoEm DateTime?         @map("concluido_em")
@@ -4814,6 +4821,7 @@ model GdrChassiGravacao {
   numeros     GdrChassiNumero[]
 
   @@index([operador])
+  @@index([operadorUserId])
   @@index([quadroId])
   @@index([criadoEm])
   @@index([tipo])
@@ -4828,6 +4836,9 @@ model GdrChassiEvento {
   evento     String // iniciada|etapa_gravada|etapa_refeita|interrompida|concluida|cancelada
   etapa      String? // plaqueta | esquerdo | direito
   operador   String?
+  // CHASSI LOGIN #939/#940: FK do operador (nulo nos eventos pré-login)
+  operadorUserId String?        @map("operador_user_id")
+  operadorUser   User?          @relation("ChassiEventoOperador", fields: [operadorUserId], references: [id], onDelete: SetNull)
   detalhe    Json?
   criadoEm   DateTime          @default(now()) @map("criado_em")
 

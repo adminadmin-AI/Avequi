@@ -144,7 +144,11 @@ describe('Catálogo de permissões (#338)', () => {
     //       genérica, que abre as 6 rotas de /reports/export/* de uma vez —
     //       o vendedor exporta catálogo e carteira sem levar junto
     //       fornecedores, compras, vendas e estoque.
-    expect(PERMISSIONS_CATALOG.length).toBe(328);
+    // 331 = 328 + production.chassi.{mark,mark-special,mark-free} (#939/#940):
+    //       modelo de acesso da ferramenta OpenClaw da marcadora. Não gateiam
+    //       rota de API — são resolvidas pela função gdr_chassi_autenticar()
+    //       no banco (a ferramenta fala Postgres direto, role chassi_tool).
+    expect(PERMISSIONS_CATALOG.length).toBe(331);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {
