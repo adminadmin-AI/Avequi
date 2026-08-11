@@ -25,6 +25,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Inconsistency, InconsistencyCode } from '../../../common/production/bom-explosion';
 import {
   DispatchCartEcho,
+  DispatchMarket,
+  DispatchMarketInbound,
+  DispatchMarketOutbound,
   DispatchCollectItem,
   DispatchOperation,
   DispatchOsItem,
@@ -92,6 +95,16 @@ export class DispatchCollectItemDto extends DispatchProductRefDto implements Dis
   @ApiProperty({
     type: DispatchWorkCenterRefDto,
     nullable: true,
+    description:
+      '#1058 — o MERCADO de onde o setor compra esta linha (supermercado lean: entre dois ' +
+      'setores sempre existe um mercado). null quando o centro consumidor não tem mercado ' +
+      'configurado; a tela então mostra a origem crua.',
+  })
+  market: DispatchWorkCenterRefDto | null;
+
+  @ApiProperty({
+    type: DispatchWorkCenterRefDto,
+    nullable: true,
     description: 'Centro de trabalho de origem. Só vem preenchido quando sourceType = WORK_CENTER.',
   })
   fromWorkCenter: DispatchWorkCenterRefDto | null;
@@ -127,6 +140,44 @@ export class DispatchOperationDto implements DispatchOperation {
 
 export class DispatchWorkCenterDto extends DispatchWorkCenterRefDto implements DispatchWorkCenter {
   @ApiProperty({ type: [DispatchOperationDto] }) operations: DispatchOperationDto[];
+}
+
+export class DispatchMarketInboundDto extends DispatchProductRefDto implements DispatchMarketInbound {
+  @ApiProperty({ ...QUANTIDADE, example: '96' }) quantity: string;
+
+  @ApiProperty({
+    enum: ['WORK_CENTER', 'EXTERNAL_OR_STOCK', 'UNDEFINED'],
+    description: 'WORK_CENTER = um setor produtor deposita aqui; EXTERNAL_OR_STOCK = chega de compra/estoque.',
+  })
+  sourceType: DispatchSourceType;
+
+  @ApiProperty({
+    type: DispatchWorkCenterRefDto,
+    nullable: true,
+    description: 'Setor que deposita. null quando a chegada é de fora (compra/estoque).',
+  })
+  from: DispatchWorkCenterRefDto | null;
+}
+
+export class DispatchMarketOutboundDto extends DispatchProductRefDto implements DispatchMarketOutbound {
+  @ApiProperty({ ...QUANTIDADE, example: '96' }) quantity: string;
+
+  @ApiProperty({ type: DispatchWorkCenterRefDto, description: 'Setor que vem comprar este item.' })
+  toWorkCenter: DispatchWorkCenterRefDto;
+}
+
+export class DispatchMarketDto extends DispatchWorkCenterRefDto implements DispatchMarket {
+  @ApiProperty({
+    type: [DispatchMarketInboundDto],
+    description: 'Abastecimento: o que vai CHEGAR neste mercado, e de quem.',
+  })
+  inbound: DispatchMarketInboundDto[];
+
+  @ApiProperty({
+    type: [DispatchMarketOutboundDto],
+    description: 'Separação: o que cada setor consumidor vem COMPRAR deste mercado.',
+  })
+  outbound: DispatchMarketOutboundDto[];
 }
 
 export class DispatchPendencyDto extends DispatchProductRefDto implements DispatchPendency {
@@ -177,6 +228,15 @@ export class DispatchResponseDto implements DispatchResult {
       'referenciando estes workCenterId, sem quebrar nenhum consumidor.',
   })
   workCenters: DispatchWorkCenterDto[];
+
+  @ApiProperty({
+    type: [DispatchMarketDto],
+    description:
+      '#1058 — a visão do OPERADOR DE MERCADO: por mercado, o que chega (abastecimento) e o ' +
+      'que separar para cada setor. É o público a quem origem e destino interessam; o setor ' +
+      'produtivo só precisa do "comprar do mercado X" que vai em cada linha de OC.',
+  })
+  markets: DispatchMarketDto[];
 
   @ApiProperty({
     type: [DispatchPendencyDto],

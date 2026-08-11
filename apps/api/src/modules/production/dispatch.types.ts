@@ -108,6 +108,14 @@ export interface DispatchCollectItem extends DispatchProductRef {
   quantity: string;
   sourceType: DispatchSourceType;
   originKind: DispatchOriginKind;
+  /**
+   * #1058 passo 2 — o MERCADO de onde o setor compra esta linha. Invariante da
+   * fábrica (Rafael, 11/08/2026): entre dois setores sempre existe um mercado —
+   * o setor produtivo não recebe "de outro setor", ele compra do mercado.
+   * `null` quando o centro consumidor não tem mercado configurado
+   * (`WorkCenter.supplyMarketId`); a tela então mostra a origem crua.
+   */
+  market: DispatchWorkCenterRef | null;
   /** Centro de trabalho de onde vem, quando `sourceType = WORK_CENTER`. */
   fromWorkCenter: DispatchWorkCenterRef | null;
   /** Operação de origem, quando conhecida. */
@@ -162,9 +170,39 @@ export interface DispatchPendency extends DispatchProductRef {
  * estrutura de produto, a outra é falta de cadastro de roteiro. Misturar as
  * duas esconderia qual cadastro precisa de atenção.
  */
+/**
+ * #1058 passo 2 — o que CHEGA num mercado (abastecimento): quem produz
+ * deposita aqui. `from = null` com `sourceType = EXTERNAL_OR_STOCK` significa
+ * chegada de fora (compra/estoque), não origem desconhecida.
+ */
+export interface DispatchMarketInbound extends DispatchProductRef {
+  quantity: string;
+  sourceType: DispatchSourceType;
+  from: DispatchWorkCenterRef | null;
+}
+
+/** O que o mercado precisa SEPARAR para um setor consumidor. */
+export interface DispatchMarketOutbound extends DispatchProductRef {
+  quantity: string;
+  toWorkCenter: DispatchWorkCenterRef;
+}
+
+/**
+ * A visão do OPERADOR DE MERCADO — o público a quem origem e destino
+ * interessam de verdade (decisão de produto do Rafael, 11/08/2026: o setor
+ * produtivo só precisa saber "comprar do mercado X"; quem precisa saber de
+ * onde vem e para quem vai é quem opera o mercado).
+ */
+export interface DispatchMarket extends DispatchWorkCenterRef {
+  inbound: DispatchMarketInbound[];
+  outbound: DispatchMarketOutbound[];
+}
+
 export interface DispatchResult {
   cart: DispatchCartEcho[];
   workCenters: DispatchWorkCenter[];
+  /** #1058 passo 2 — um bloco por mercado envolvido no despacho. */
+  markets: DispatchMarket[];
   pendencies: DispatchPendency[];
   inconsistencies: Inconsistency[];
 }
