@@ -558,6 +558,17 @@ export interface Warehouse extends BaseEntity {
   wmsEnabled: boolean;
 }
 
+/** Alçada de desconto por perfil (#391 · #1004, GET /sales/discount-policies). */
+export interface DiscountPolicy extends BaseEntity {
+  companyId: string;
+  /** Enum legado (deprecado na #1004) — só rastro da conversão. */
+  role?: string | null;
+  roleId: string | null;
+  roleRef: { id: string; code: string; name: string } | null;
+  maxDiscountPct: string;
+  isActive: boolean;
+}
+
 export type QuotationStatus =
   | 'DRAFT'
   | 'SENT'

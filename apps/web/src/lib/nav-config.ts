@@ -284,6 +284,8 @@ export const NAV: NavSection[] = [
     items: [
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog, permission: 'settings.users.view' },
       { href: '/app/settings/roles', label: 'Perfis e permissões', icon: KeyRound, permission: 'iam.roles.view' },
+      // #1004 (IAM C5): alçada por perfil v2 — a tela nasceu junto com o eixo novo.
+      { href: '/app/settings/discount-policies', label: 'Alçadas de desconto', icon: Percent, permission: 'sales.discount-policies.view' },
       { href: '/app/settings/organization', label: 'Organização', icon: Network, permission: 'iam.org.view' },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, permission: 'settings.companies.view' },
