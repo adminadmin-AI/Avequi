@@ -2,7 +2,17 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ArrowRight, Factory, Package, Plus, Send, Trash2, Truck } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Factory,
+  Package,
+  Plus,
+  Send,
+  Trash2,
+  Truck,
+} from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
@@ -93,6 +103,18 @@ export default function DispatchPage() {
   const [productSearch, setProductSearch] = useState('');
   const [qty, setQty] = useState('1');
   const [result, setResult] = useState<DispatchResponse | null>(null);
+  // Setores começam RECOLHIDOS (decisão do Rafael 11/08: a lista completa era
+  // informação demais); o planejador abre só o que interessa.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleCenter(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const { items: productItems, options: productOptions, isLoading: productsLoading } =
     useProductOptions({ search: productSearch, isActive: true });
@@ -104,7 +126,10 @@ export default function DispatchPage() {
           items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
         })
       ).data,
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      setExpanded(new Set());
+    },
     onError: (e) => toast.error(erroDeAcao('calcular o despacho', e)),
   });
 
@@ -234,18 +259,62 @@ export default function DispatchPage() {
         />
       )}
 
-      {result?.workCenters.map((wcBlock) => (
-        <Card key={wcBlock.workCenterId} className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Factory size={18} className="text-muted-foreground" />
+      {/* Resumo do despacho */}
+      {result && result.workCenters.length > 0 && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+            <span className="font-semibold">Resumo do despacho</span>
+            <span>
+              <span className="font-medium">{result.workCenters.length}</span> setores
+            </span>
+            <span>
+              <span className="font-medium">
+                {result.workCenters.reduce((n, w) => n + w.operations.length, 0)}
+              </span>{' '}
+              operações
+            </span>
+            <span>
+              <span className="font-medium">
+                {result.workCenters.reduce(
+                  (n, w) => n + w.operations.reduce((m, o) => m + o.oc.length, 0),
+                  0,
+                )}
+              </span>{' '}
+              itens a receber
+            </span>
+            {result.pendencies.length === 0 && result.inconsistencies.length === 0 && (
+              <Badge variant="success">sem pendências</Badge>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {result?.workCenters.map((wcBlock) => {
+        const isOpen = expanded.has(wcBlock.workCenterId);
+        const totalOc = wcBlock.operations.reduce((n, o) => n + o.oc.length, 0);
+        return (
+        <Card key={wcBlock.workCenterId} className="p-0">
+          <button
+            type="button"
+            onClick={() => toggleCenter(wcBlock.workCenterId)}
+            aria-expanded={isOpen}
+            className="flex w-full items-center gap-2 p-4 text-left"
+          >
+            {isOpen ? (
+              <ChevronDown size={16} className="shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
+            )}
+            <Factory size={18} className="shrink-0 text-muted-foreground" />
             <h2 className="text-base font-semibold">{wcBlock.name}</h2>
             <Badge variant="neutral">{wcBlock.code}</Badge>
             <span className="ml-auto text-sm text-muted-foreground">
-              {wcBlock.operations.length} operação(ões)
+              {wcBlock.operations.length} operação(ões) · recebe {totalOc} item(ns)
             </span>
-          </div>
+          </button>
 
-          <div className="space-y-3">
+          {isOpen && (
+          <div className="space-y-3 px-4 pb-4">
             {wcBlock.operations.map((op) => (
               <div key={op.routingStepId} className="rounded-md border border-border p-3">
                 <div className="mb-2 flex items-center gap-2 text-sm">
@@ -288,8 +357,10 @@ export default function DispatchPage() {
               </div>
             ))}
           </div>
+          )}
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }
