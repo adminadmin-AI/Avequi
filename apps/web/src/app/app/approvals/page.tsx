@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, Check, Info, ExternalLink } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { usePermission } from '@/hooks/use-permission';
-import { useAuthStore } from '@/stores/auth-store';
 import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';

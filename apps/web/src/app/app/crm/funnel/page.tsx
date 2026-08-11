@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { GripVertical, Loader2, MessageCircle, Rocket } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { usePermission } from '@/hooks/use-permission';
+import { canSeeAllLeads } from '../permissions';
 import { Can } from '@/components/can';
-import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
 import { useToast } from '@/components/ui/toast';
 import { erroDeAcao } from '@/lib/feedback';
@@ -20,15 +20,11 @@ import { Board, BoardColumn, BoardLead, SOURCE_LABEL, formatBRL } from './funnel
  * de motivo. Gerente vê todas as lojas via scope; vendedor vê as suas.
  */
 export default function FunnelPage() {
-  const user = useAuthStore((s) => s.user);
   const toast = useToast();
   const queryClient = useQueryClient();
-  // #1003 — o backend NÃO restringe scope=all (qualquer crm.leads.view pode
-  // pedir; herança pré-#624). O toggle segue gerencial por decisão de UX, via
-  // proxy crm.leads.bulk-stage (mesmos perfis de hoje). Quando nascer uma
-  // permissão própria (crm.leads.view-all), trocar aqui.
+  // #1003 — regra única em crm/permissions.ts (compartilhada com o SLA).
   const { can } = usePermission();
-  const isManager = can('crm.leads.bulk-stage');
+  const isManager = canSeeAllLeads(can);
 
   const [scope, setScope] = useState<'mine' | 'all'>(isManager ? 'all' : 'mine');
   const [dragged, setDragged] = useState<BoardLead | null>(null);

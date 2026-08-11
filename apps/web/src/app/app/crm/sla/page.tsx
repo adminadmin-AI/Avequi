@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { AlertTriangle, Loader2, Snowflake } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { usePermission } from '@/hooks/use-permission';
-import { useAuthStore } from '@/stores/auth-store';
+import { canSeeAllLeads } from '../permissions';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { SOURCE_LABEL } from '../inbox/inbox-types';
@@ -40,13 +40,9 @@ interface SlaPanel {
  * e leads abertos esfriando. Velocidade de resposta = conversão.
  */
 export default function SlaPage() {
-  const user = useAuthStore((s) => s.user);
-  // #1003 — o backend NÃO restringe scope=all (qualquer crm.leads.view pode
-  // pedir; herança pré-#624). O toggle segue gerencial por decisão de UX, via
-  // proxy crm.leads.bulk-stage (mesmos perfis de hoje). Quando nascer uma
-  // permissão própria (crm.leads.view-all), trocar aqui.
+  // #1003 — regra única em crm/permissions.ts (compartilhada com o funil).
   const { can } = usePermission();
-  const isManager = can('crm.leads.bulk-stage');
+  const isManager = canSeeAllLeads(can);
   const [scope, setScope] = useState<'mine' | 'all'>(isManager ? 'all' : 'mine');
 
   const { data, isLoading } = useQuery<SlaPanel>({
