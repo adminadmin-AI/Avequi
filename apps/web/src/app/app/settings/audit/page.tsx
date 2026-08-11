@@ -15,7 +15,8 @@ import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
-import { diffLegivel, TITULO_POR_TIPO } from './diff';
+import { diffLegivel, nomeDaAcao, nomeDaEntidade, TITULO_POR_TIPO, type ResolvedorDeRef } from './diff';
+import { useProductOptions } from '@/hooks/use-product-customer-options';
 import { SupportAccessCard } from './support-access-card';
 
 interface AuditLog {
@@ -60,6 +61,20 @@ export default function AuditLogPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const { data: users = [] } = useList<User>('/users', undefined, { enabled: isSuperAdmin });
+  // Cadastro de produtos p/ traduzir productId -> "SKU · nome" no diff
+  // (#1064 follow-up). Mesma fonte leve dos combobox (/products/options).
+  const { items: productItems } = useProductOptions({ take: 500 });
+  const resolver: ResolvedorDeRef = (campo, id) => {
+    if (campo === 'productId') {
+      const prod = productItems.find((pr) => pr.id === id);
+      return prod ? `${prod.sku} · ${prod.name}` : null;
+    }
+    if (campo === 'userId') {
+      const u = users.find((us) => us.id === id);
+      return u ? u.name : null;
+    }
+    return null;
+  };
 
   const logsQ = useQuery({
     queryKey: ['/iam/audit-logs', entity, userId, action, from, to, page],
@@ -142,7 +157,7 @@ export default function AuditLogPage() {
           <Label>Entidade</Label>
           <Select value={entity} onChange={(e) => { setEntity(e.target.value); setPage(0); }}>
             <option value="">Todas</option>
-            {ENTITIES.map((en) => <option key={en} value={en}>{en}</option>)}
+            {ENTITIES.map((en) => <option key={en} value={en}>{nomeDaEntidade(en)}</option>)}
           </Select>
         </div>
         <div>
@@ -157,7 +172,7 @@ export default function AuditLogPage() {
           <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(0); }}>
             <option value="">Todas</option>
             {AUDIT_ACTIONS.map((a) => (
-              <option key={a} value={a}>{a}</option>
+              <option key={a} value={a}>{nomeDaAcao(a)}</option>
             ))}
           </Select>
         </div>
@@ -211,15 +226,15 @@ export default function AuditLogPage() {
                         </td>
                         <td className="px-4 py-3 tabular-nums text-content-secondary">{formatDateTime(log.createdAt)}</td>
                         <td className="px-4 py-3 text-content-secondary">{log.user?.name ?? '—'}</td>
-                        <td className="px-4 py-3"><span className="font-mono text-xs">{log.entity}</span></td>
-                        <td className="px-4 py-3 text-content-secondary">{log.action}</td>
+                        <td className="px-4 py-3 text-content-secondary">{nomeDaEntidade(log.entity)}</td>
+                        <td className="px-4 py-3 text-content-secondary">{nomeDaAcao(log.action)}</td>
                       </tr>
                       {isOpen && hasPayload && (
                         <tr className="border-b border-line bg-surface-secondary">
                           <td></td>
                           <td colSpan={4} className="px-4 py-3">
                             {(() => {
-                              const diff = diffLegivel(log.oldValue, log.newValue);
+                              const diff = diffLegivel(log.oldValue, log.newValue, resolver);
                               return (
                                 <div className="max-h-72 overflow-auto text-xs">
                                   <p className="mb-2 font-medium text-content-secondary">{TITULO_POR_TIPO[diff.tipo]}</p>

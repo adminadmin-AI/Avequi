@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffLegivel, valorLegivel } from './diff';
+import { diffLegivel, nomeDaAcao, nomeDaEntidade, valorLegivel } from './diff';
 
 describe('valorLegivel', () => {
   it('primitivos viram texto humano', () => {
@@ -16,29 +16,41 @@ describe('valorLegivel', () => {
   });
 
   it('objeto e lista viram resumo compacto, sem cara de JSON', () => {
-    expect(valorLegivel({ quantity: 2, productId: 'abc' })).toBe('quantity: 2, productId: abc');
+    expect(valorLegivel({ quantity: 2, sku: 'ABC-1' })).toBe('quantidade: 2, SKU: ABC-1');
     expect(valorLegivel([{ a: 1 }, { a: 2 }])).toBe('a: 1; a: 2');
     expect(valorLegivel([])).toBe('(lista vazia)');
   });
 });
 
 describe('diffLegivel', () => {
-  it('criação (antes null): lista os campos do depois', () => {
+  it('criação (antes null): campos em português, ids resolvidos', () => {
     // O exemplo REAL que o Rafael viu na tela (despacho auditado).
-    const d = diffLegivel(null, {
-      items: [{ quantity: 2, productId: 'f76e7282' }],
-    });
+    const resolver = (campo: string, id: string) =>
+      campo === 'productId' && id === 'f76e7282' ? 'MOD-CAR-006 · Carga 2,50m' : null;
+    const d = diffLegivel(null, { items: [{ quantity: 2, productId: 'f76e7282' }] }, resolver);
     expect(d.tipo).toBe('criado');
     expect(d.campos).toEqual([
-      { campo: 'items', antes: null, depois: 'quantity: 2, productId: f76e7282' },
+      { campo: 'itens', antes: null, depois: 'quantidade: 2, produto: MOD-CAR-006 · Carga 2,50m' },
     ]);
+  });
+
+  it('sem resolvedor, o id aparece encurtado e o campo traduzido', () => {
+    const d = diffLegivel(null, { productId: 'ccdbb5c5-2646-4403-953e-79797a1a41b6' });
+    expect(d.campos).toEqual([{ campo: 'produto', antes: null, depois: 'ccdbb5c5…' }]);
+  });
+
+  it('dicionários de ação e entidade traduzem e degradam', () => {
+    expect(nomeDaAcao('CREATE')).toBe('Criação');
+    expect(nomeDaAcao('DESCONHECIDA')).toBe('DESCONHECIDA');
+    expect(nomeDaEntidade('Product')).toBe('Produto');
+    expect(nomeDaEntidade('AlgoNovo')).toBe('AlgoNovo');
   });
 
   it('remoção (depois null): lista os campos do antes', () => {
     const d = diffLegivel({ name: 'Peça X', isActive: true }, null);
     expect(d.tipo).toBe('removido');
     expect(d.campos).toHaveLength(2);
-    expect(d.campos[0]).toEqual({ campo: 'name', antes: 'Peça X', depois: null });
+    expect(d.campos[0]).toEqual({ campo: 'nome', antes: 'Peça X', depois: null });
   });
 
   it('alteração: mostra SÓ os campos que mudaram', () => {
@@ -47,7 +59,7 @@ describe('diffLegivel', () => {
       { name: 'Solda 1', isActive: false, code: 'SET-SOL-002' },
     );
     expect(d.tipo).toBe('alterado');
-    expect(d.campos).toEqual([{ campo: 'isActive', antes: 'Sim', depois: 'Não' }]);
+    expect(d.campos).toEqual([{ campo: 'ativo', antes: 'Sim', depois: 'Não' }]);
   });
 
   it('campo que só existe de um lado aparece como mudança', () => {
