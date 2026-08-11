@@ -72,9 +72,11 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       process.env.WEB_URL ?? 'http://localhost:3000',
-      // Previews do Vercel (validação visual de PRs no avequi-web) — escopado
-      // ao projeto e ao team; produção continua vindo só de WEB_URL.
-      /^https:\/\/avequi-web-[a-z0-9-]+-adminnexoprimecombrs-projects\.vercel\.app$/,
+      // Previews do Vercel (validação visual de PRs) — escopado ao TEAM;
+      // produção continua vindo só de WEB_URL. Pós-rebrand as URLs de preview
+      // saem `avequi-<hash>-...` (sem o `-web-`), o que deixava TODO preview
+      // bloqueado por CORS; o prefixo `avequi-` cobre os dois formatos.
+      /^https:\/\/avequi-[a-z0-9-]+-adminnexoprimecombrs-projects\.vercel\.app$/,
       // #962 — LP avecchi.ai chama o conector público de leads
       // (POST /crm/public/site-lead) direto do browser.
       'https://avecchi.ai',
