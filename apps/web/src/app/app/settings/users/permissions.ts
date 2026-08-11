@@ -4,10 +4,14 @@
  * só aparece para quem a possui — isto é UX (evitar oferecer uma ação que
  * o backend vai negar com 403); a autorização real é o PermissionGuard.
  *
- * ⚠️ O gate DA PÁGINA inteira ainda é o enum legado (ALLOWED_ROLES) — a
- * migração integral para RBAC v2 permanece no escopo da #351 parte 2.
+ * Desde a #1003 o gate DA PÁGINA também é RBAC v2: a página abre com
+ * settings.users.view (mesmo gate do menu e do GET /users) e os botões de
+ * gestão exigem settings.users.update.
  */
 export const USERS_UPDATE_PERMISSION = 'settings.users.update';
+
+/** O que o backend exige no GET /users — quem pode VER a lista. */
+export const USERS_VIEW_PERMISSION = 'settings.users.view';
 
 export function canShowStatusToggle(can: (code: string) => boolean): boolean {
   return can(USERS_UPDATE_PERMISSION);

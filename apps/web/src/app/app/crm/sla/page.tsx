@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { AlertTriangle, Loader2, Snowflake } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
+import { usePermission } from '@/hooks/use-permission';
+import { canSeeAllLeads } from '../permissions';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { SOURCE_LABEL } from '../inbox/inbox-types';
@@ -39,8 +40,9 @@ interface SlaPanel {
  * e leads abertos esfriando. Velocidade de resposta = conversão.
  */
 export default function SlaPage() {
-  const user = useAuthStore((s) => s.user);
-  const isManager = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(user?.role ?? '');
+  // #1003 — regra única em crm/permissions.ts (compartilhada com o funil).
+  const { can } = usePermission();
+  const isManager = canSeeAllLeads(can);
   const [scope, setScope] = useState<'mine' | 'all'>(isManager ? 'all' : 'mine');
 
   const { data, isLoading } = useQuery<SlaPanel>({

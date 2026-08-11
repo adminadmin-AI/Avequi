@@ -16,29 +16,32 @@ import { usePermission } from '@/hooks/use-permission';
 import { useUserRoles } from '@/hooks/use-iam';
 import Link from 'next/link';
 import { LEGACY_MIRRORED_ROLE_CODES } from './roles';
-import { canShowStatusToggle, canShowPasswordReset } from './permissions';
+import { canShowStatusToggle, canShowPasswordReset, USERS_UPDATE_PERMISSION, USERS_VIEW_PERMISSION } from './permissions';
 import { erroDeAcao } from '@/lib/feedback';
 import { roleLabel, roleVariant } from './roles';
 import { UserForm, type UserFormValues } from './user-form';
 import { ResetPasswordDialog } from './reset-password-dialog';
 
 const RESOURCE = '/users';
-const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
-  const canManage = !!currentUser && ALLOWED_ROLES.includes(currentUser.role);
+  // #1003 — a PÁGINA abre para quem pode VER (mesmo gate do menu e do
+  // GET /users no backend: settings.users.view — Diretor/Auditor entram);
+  // os botões de gestão exigem update (helpers testados de ./permissions).
+  const { can } = usePermission();
+  const canView = can(USERS_VIEW_PERMISSION);
+  const canManage = can(USERS_UPDATE_PERMISSION);
 
   const toast = useToast();
   const confirm = useConfirm();
   // Toggle Ativo/Inativo espelha a permissão real do backend
   // (settings.users.update) — sem ela o botão nem aparece (fail-closed).
-  const { can } = usePermission();
   const showStatusToggle = canShowStatusToggle(can);
   const showPasswordReset = canShowPasswordReset(can);
 
   const { data: users = [], isLoading } = useList<User>(RESOURCE, undefined, {
-    enabled: canManage,
+    enabled: canView,
   });
   const create = useCreate<User, UserFormValues>(RESOURCE);
   const update = useUpdate<User>(RESOURCE);
@@ -188,7 +191,7 @@ export default function UsersPage() {
     },
   ];
 
-  if (!canManage) {
+  if (!canView) {
     return (
       <div>
         <PageHeader title="Usuários" description="Gestão de acessos e papéis." />
@@ -197,7 +200,7 @@ export default function UsersPage() {
           <div>
             <p className="text-sm font-medium text-content-secondary">Acesso restrito</p>
             <p className="text-xs text-content-muted">
-              Apenas Super Admin e Diretor podem gerenciar usuários.
+              Você não tem a permissão de ver usuários (settings.users.view). Fale com o administrador da sua empresa.
             </p>
           </div>
         </div>
@@ -211,7 +214,7 @@ export default function UsersPage() {
         title="Usuários"
         description="Gestão de acessos e papéis."
         actions={
-          <Button onClick={openCreate}>
+          canManage && <Button onClick={openCreate}>
             <Plus size={16} />
             Novo usuário
           </Button>
@@ -222,7 +225,7 @@ export default function UsersPage() {
         data={users}
         columns={columns}
         loading={isLoading}
-        onRowClick={openEdit}
+        onRowClick={canManage ? openEdit : undefined}
         searchPlaceholder="Buscar por nome ou e-mail..."
         emptyMessage="Nenhum usuário cadastrado."
       />

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, Check, Info, ExternalLink } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
+import { usePermission } from '@/hooks/use-permission';
 import { erroDeAcao } from '@/lib/feedback';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,6 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatBRL, formatDate } from '@/lib/format';
 
-const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
 interface PendingApproval {
   id: string;
@@ -32,8 +31,10 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-  const canApprove = !!user && ALLOWED_ROLES.includes(user.role);
+  // #1003 — gate por permissão v2, não por enum (espelha o backend:
+  // POST /approvals/:id/approve exige approvals.requests.approve).
+  const { can } = usePermission();
+  const canApprove = can('approvals.requests.approve');
 
   const { data: pending = [], isLoading } = useQuery({
     queryKey: ['/approvals/pending'],
