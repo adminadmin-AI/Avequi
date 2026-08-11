@@ -15,6 +15,7 @@ import { DateRangePicker, type DateRange, dateToISO } from '@/components/ui/date
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
+import { diffLegivel, TITULO_POR_TIPO } from './diff';
 import { SupportAccessCard } from './support-access-card';
 
 interface AuditLog {
@@ -217,9 +218,34 @@ export default function AuditLogPage() {
                         <tr className="border-b border-line bg-surface-secondary">
                           <td></td>
                           <td colSpan={4} className="px-4 py-3">
-                            <pre className="max-h-72 overflow-auto rounded-lg bg-neutral-900 p-3 text-[11px] leading-relaxed text-neutral-100">
-                              {JSON.stringify({ antes: log.oldValue ?? null, depois: log.newValue ?? null }, null, 2)}
-                            </pre>
+                            {(() => {
+                              const diff = diffLegivel(log.oldValue, log.newValue);
+                              return (
+                                <div className="max-h-72 overflow-auto text-xs">
+                                  <p className="mb-2 font-medium text-content-secondary">{TITULO_POR_TIPO[diff.tipo]}</p>
+                                  <table className="w-full">
+                                    <tbody>
+                                      {diff.campos.map((c) => (
+                                        <tr key={c.campo} className="border-b border-line/50 last:border-0">
+                                          <td className="py-1.5 pr-3 align-top font-mono text-[11px] text-content-muted">{c.campo}</td>
+                                          <td className="py-1.5">
+                                            {c.antes !== null && c.depois !== null ? (
+                                              <span>
+                                                <span className="text-content-muted line-through">{c.antes}</span>
+                                                <span className="mx-1.5 text-content-muted">para</span>
+                                                <span className="font-medium text-content-secondary">{c.depois}</span>
+                                              </span>
+                                            ) : (
+                                              <span className="text-content-secondary">{c.depois ?? c.antes}</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       )}
