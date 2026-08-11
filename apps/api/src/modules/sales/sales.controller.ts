@@ -43,11 +43,10 @@ export class SalesController {
   @RequirePermission('sales.orders.create')
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    // #947: `user.role` aqui NÃO é autorização — é só a chave de busca do TETO
-    // na tabela `DiscountPolicy`, que segue indexada pelo enum nesta fase
-    // (migrar o eixo para perfil v2 é #948). Quem PODE ultrapassar o teto é
-    // decidido por permissão dentro do DiscountPolicyService.
-    return this.salesService.createOrder(dto, user.companyId, userContext(user.id), user?.role);
+    // #1004 (IAM C5): o enum `user.role` saiu do fluxo de alçada — o teto é
+    // resolvido pelos perfis v2 do usuário DENTRO do DiscountPolicyService,
+    // e quem PODE ultrapassá-lo é decidido por permissão (#947).
+    return this.salesService.createOrder(dto, user.companyId, userContext(user.id));
   }
 
   @Get()

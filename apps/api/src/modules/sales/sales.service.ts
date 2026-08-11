@@ -207,14 +207,15 @@ export class SalesService {
 
   // ─── S07.02: Criar OV em rascunho ────────────────────────────────────────
 
-  async createOrder(dto: CreateSalesOrderDto, companyId: string, ctx: AccessContext, userRole?: string) {
+  async createOrder(dto: CreateSalesOrderDto, companyId: string, ctx: AccessContext) {
     const userId = SalesService.usuarioDe(ctx);
     // #347-B: vendedor de filial só abre venda em depósito da própria filial
     const scope = await this.escopoDe(companyId, ctx);
     this.negarDepositoForaDoEscopo(scope, dto.warehouseId);
 
-    // #391: desconto acima da alçada do papel bloqueia a criação
-    await this.discountPolicy.assertWithinLimit(companyId, userRole, dto.items, userId);
+    // #391: desconto acima da alçada bloqueia a criação. #1004: o teto é dos
+    // PERFIS v2 do usuário — o enum saiu do fluxo (a assinatura perdeu o role).
+    await this.discountPolicy.assertWithinLimit(companyId, dto.items, userId);
 
     // #475: padrões comerciais do cadastro pré-preenchem a OV quando omitidos
     let defaultCarrierId: string | undefined;

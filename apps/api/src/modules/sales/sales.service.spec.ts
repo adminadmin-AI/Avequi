@@ -271,7 +271,7 @@ describe('SalesService', () => {
     it('exige chassi escaneado em item rastreável', async () => {
       mockPrisma.product.findMany.mockResolvedValue([trailer]);
       const dto = { ...dtoBase, items: [{ productId: 'p-1', quantity: 1, unitPrice: 100 }] };
-      await expect(service.createOrder(dto as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/escaneie o chassi/i);
+      await expect(service.createOrder(dto as any, 'co-1', userContext('u1'))).rejects.toThrow(/escaneie o chassi/i);
     });
 
     it('rejeita chassi que não está IN_STOCK', async () => {
@@ -279,7 +279,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.findFirst.mockResolvedValue({
         id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-1', status: 'SOLD', salesOrderId: null,
       });
-      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/não está disponível/);
+      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'))).rejects.toThrow(/não está disponível/);
     });
 
     it('rejeita chassi de outro depósito', async () => {
@@ -287,7 +287,7 @@ describe('SalesService', () => {
       mockPrisma.serialNumber.findFirst.mockResolvedValue({
         id: 'sn-1', serial: 'VIN1', productId: 'p-1', warehouseId: 'wh-OUTRO', status: 'IN_STOCK', salesOrderId: null,
       });
-      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL')).rejects.toThrow(/depósito/);
+      await expect(service.createOrder(dtoBase as any, 'co-1', userContext('u1'))).rejects.toThrow(/depósito/);
     });
 
     it('cria a venda balcão gravando canal e chassi no item', async () => {
@@ -298,7 +298,7 @@ describe('SalesService', () => {
       mockPrisma.salesOrder.create.mockResolvedValue({ id: 'so-b', channel: 'COUNTER', items: [] });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
-      await service.createOrder(dtoBase as any, 'co-1', userContext('u1'), 'COMMERCIAL');
+      await service.createOrder(dtoBase as any, 'co-1', userContext('u1'));
 
       const createArg = mockPrisma.salesOrder.create.mock.calls[0][0];
       expect(createArg.data.channel).toBe('COUNTER');
