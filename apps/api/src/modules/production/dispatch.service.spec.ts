@@ -127,10 +127,19 @@ function bomsBase(): BomFake[] {
   ];
 }
 
+interface CentroFake {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  supplyMarket: { id: string; code: string; name: string } | null;
+}
+
 interface Cenario {
   produtos?: ProdutoFake[];
   passos?: PassoFake[];
   boms?: BomFake[];
+  centros?: CentroFake[];
 }
 
 /** Mock de Prisma SOMENTE LEITURA — só existe `findMany`. */
@@ -138,6 +147,17 @@ function prismaFake(cenario: Cenario = {}) {
   const produtos = cenario.produtos ?? produtosBase();
   const passos = cenario.passos ?? passosBase();
   const boms = cenario.boms ?? bomsBase();
+  // Sem mercado configurado por padrão: os testes pré-#1058 seguem valendo
+  // (market: null em toda OC, markets: []).
+  const centros =
+    cenario.centros ??
+    Object.values(WC).map((wc) => ({
+      id: wc.id,
+      companyId: EMPRESA,
+      code: wc.code,
+      name: wc.name,
+      supplyMarket: null as CentroFake['supplyMarket'],
+    }));
 
   const idsDe = (where: any): string[] | null => where?.id?.in ?? null;
 
@@ -159,6 +179,11 @@ function prismaFake(cenario: Cenario = {}) {
           )
           .sort((a, b) => a.productId.localeCompare(b.productId) || a.stepOrder - b.stepOrder);
       }),
+    },
+    workCenter: {
+      findMany: jest.fn(async ({ where }: any) =>
+        centros.filter((c) => c.companyId === where.companyId),
+      ),
     },
     bomVersion: {
       findMany: jest.fn(async ({ where }: any) =>
@@ -325,7 +350,7 @@ describe('DispatchService (#817) — despacho por setor', () => {
       expect(prisma.routingStep.findMany).toHaveBeenCalled();
       expect(prisma.bomVersion.findMany).toHaveBeenCalled();
       // Nem MrpRun, nem Ordem de Produção, nem AuditLog de escrita.
-      expect(Object.keys(prisma)).toEqual(['product', 'routingStep', 'bomVersion']);
+      expect(Object.keys(prisma)).toEqual(['product', 'routingStep', 'workCenter', 'bomVersion']);
       for (const modelo of Object.values(prisma)) {
         expect(Object.keys(modelo)).toEqual(['findMany']);
       }
@@ -377,7 +402,7 @@ describe('DispatchService (#817) — despacho por setor', () => {
       const { service, prisma } = await montar();
       const res = await service.dispatch(EMPRESA, { items: [] });
 
-      expect(res).toEqual({ cart: [], workCenters: [], pendencies: [], inconsistencies: [] });
+      expect(res).toEqual({ cart: [], workCenters: [], markets: [], pendencies: [], inconsistencies: [] });
       expect(prisma.product.findMany).not.toHaveBeenCalled();
       expect(prisma.bomVersion.findMany).not.toHaveBeenCalled();
     });
@@ -743,5 +768,134 @@ describe('DispatchService (#817) — despacho por setor', () => {
       // ...e as duas linhas de BOM rastreadas.
       expect(paraf[0].bomItemIds.sort()).toEqual(['bi-2', 'bi-extra']);
     });
+  });
+});
+
+describe('mercados (#1058 passo 2)', () => {
+  const MER = {
+    sol: { id: 'wc-mer-sol', code: 'SET-MER-004', name: 'Mercado Solda' },
+    gal: { id: 'wc-mer-gal', code: 'SET-MER-005', name: 'Mercado Galvanização' },
+    monMetal: { id: 'wc-mer-mon', code: 'SET-MER-006', name: 'Mercado Montagem Metal' },
+    marcenaria: { id: 'wc-mer-mar', code: 'SET-MER-007', name: 'Mercado Montagem - Marcenaria' },
+    almox: { id: 'wc-mer-alm', code: 'SET-MER-008', name: 'Almoxarifado' },
+  };
+
+  /** Cadastro com a cadeia de mercados ligada (como ficou após o passo 1). */
+  function centrosComMercado(): CentroFake[] {
+    const mk = (wc: { id: string; code: string; name: string }, supply: { id: string; code: string; name: string } | null): CentroFake => ({
+      id: wc.id,
+      companyId: EMPRESA,
+      code: wc.code,
+      name: wc.name,
+      supplyMarket: supply,
+    });
+    return [
+      mk(WC.sol, MER.sol),
+      mk(WC.gal, MER.gal),
+      mk(WC.mon, MER.monMetal),
+      mk(MER.sol, null),
+      mk(MER.gal, null),
+      mk(MER.monMetal, null),
+      mk(MER.marcenaria, null),
+      mk(MER.almox, null),
+    ];
+  }
+
+  it('linha de OC ganha o mercado do centro CONSUMIDOR (regra geral)', async () => {
+    const { service } = await montar({ centros: centrosComMercado() });
+    const res = await service.dispatch(EMPRESA, CARRINHO);
+
+    // Longarina consumida na Solda → compra do Mercado Solda.
+    const solda = operacao(res, 'SET-SOL-002', 'CON-CHA-003', 1);
+    const long = solda.oc.find((i) => i.sku === 'PC-LONG')!;
+    expect(long.market?.code).toBe('SET-MER-004');
+
+    // O conjunto chegando na Galvanização vindo da Solda → Mercado Galvanização.
+    const galv = operacao(res, 'SET-GAL-001', 'CON-CHA-003', 2);
+    const proprio = galv.oc.find((i) => i.originKind === 'PREVIOUS_OPERATION')!;
+    expect(proprio.market?.code).toBe('SET-MER-005');
+    // A origem crua continua disponível para a visão do mercado.
+    expect(proprio.fromWorkCenter?.code).toBe('SET-SOL-002');
+  });
+
+  it('exceção da Montagem: comprado vem do Almoxarifado, não do Montagem Metal', async () => {
+    const { service } = await montar({ centros: centrosComMercado() });
+    const res = await service.dispatch(EMPRESA, CARRINHO);
+
+    const preMontagem = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 1);
+    const paraf = preMontagem.oc.find((i) => i.sku === 'PC-PARAF')!;
+    expect(paraf.sourceType).toBe('EXTERNAL_OR_STOCK');
+    expect(paraf.market?.code).toBe('SET-MER-008');
+
+    // Já o conjunto FABRICADO (vem da galvanização) usa o padrão da Montagem.
+    const montagemFinal = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 2);
+    const conjunto = montagemFinal.oc.find((i) => i.sku === 'CON-CHA-003')!;
+    expect(conjunto.market?.code).toBe('SET-MER-006');
+  });
+
+  it('exceção da Montagem: peça vinda da marcenaria compra do mercado da marcenaria', async () => {
+    const marWc = { id: 'wc-mar', code: 'SET-MAR-001', name: 'Corte de Madeira' };
+    const { service } = await montar({
+      produtos: [
+        ...produtosBase(),
+        { id: 'p-mad', companyId: EMPRESA, sku: 'MAR-LAT-001', name: 'Madeira Lateral', unit: 'UN', type: 'SEMI_FINISHED' },
+      ],
+      passos: [
+        ...passosBase(),
+        { id: 'rs-mad-1', companyId: EMPRESA, productId: 'p-mad', stepOrder: 1, name: 'Corte', workCenterId: marWc.id, workCenterRef: marWc },
+      ],
+      boms: bomsBase().map((b) =>
+        b.id === 'bv-mod'
+          ? {
+              ...b,
+              items: [
+                ...b.items,
+                { id: 'bi-mad', componentId: 'p-mad', quantity: '2', scrapPct: '0', routingStepId: 'rs-mod-2', unit: 'UN' },
+              ],
+            }
+          : b,
+      ),
+      centros: [
+        ...centrosComMercado(),
+        { id: marWc.id, companyId: EMPRESA, code: marWc.code, name: marWc.name, supplyMarket: MER.marcenaria },
+      ],
+    });
+
+    const res = await service.dispatch(EMPRESA, CARRINHO);
+    const montagemFinal = operacao(res, 'SET-MON-001', 'MOD-CAR-003', 2);
+    const madeira = montagemFinal.oc.find((i) => i.sku === 'MAR-LAT-001')!;
+    expect(madeira.sourceType).toBe('WORK_CENTER');
+    expect(madeira.market?.code).toBe('SET-MER-007');
+  });
+
+  it('monta a visão do operador de mercado: o que chega e o que separar', async () => {
+    const { service } = await montar({ centros: centrosComMercado() });
+    const res = await service.dispatch(EMPRESA, CARRINHO);
+
+    const almox = res.markets.find((m) => m.code === 'SET-MER-008')!;
+    // Chega de compra/estoque (from null) e separa para a Montagem.
+    expect(almox.inbound).toHaveLength(1);
+    expect(almox.inbound[0].sku).toBe('PC-PARAF');
+    expect(almox.inbound[0].from).toBeNull();
+    expect(almox.inbound[0].sourceType).toBe('EXTERNAL_OR_STOCK');
+    expect(almox.outbound[0].toWorkCenter.code).toBe('SET-MON-001');
+    // Quantidade agregada em Decimal: 10 un × 20 × 1,10 de scrap = 220.
+    expect(almox.outbound[0].quantity).toBe('220');
+
+    const merGal = res.markets.find((m) => m.code === 'SET-MER-005')!;
+    expect(merGal.inbound[0].from?.code).toBe('SET-SOL-002');
+    expect(merGal.outbound[0].toWorkCenter.code).toBe('SET-GAL-001');
+
+    // Mercados ordenados por código, resposta estável.
+    expect(res.markets.map((m) => m.code)).toEqual([...res.markets.map((m) => m.code)].sort());
+  });
+
+  it('sem mercado configurado, market é null e markets vem vazio (compatibilidade)', async () => {
+    const { service } = await montar();
+    const res = await service.dispatch(EMPRESA, CARRINHO);
+    expect(res.markets).toEqual([]);
+    for (const wc of res.workCenters)
+      for (const op of wc.operations)
+        for (const item of op.oc) expect(item.market).toBeNull();
   });
 });

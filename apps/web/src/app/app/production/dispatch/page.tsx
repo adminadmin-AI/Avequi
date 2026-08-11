@@ -10,6 +10,7 @@ import {
   Package,
   Plus,
   Send,
+  Store,
   Trash2,
   Truck,
 } from 'lucide-react';
@@ -54,9 +55,33 @@ interface ProductRef {
   quantity: string;
 }
 
+interface WorkCenterRef {
+  workCenterId: string;
+  code: string;
+  name: string;
+}
+
 interface OcItem extends ProductRef {
   sourceType: 'WORK_CENTER' | 'EXTERNAL_OR_STOCK' | 'UNDEFINED';
-  fromWorkCenter: { workCenterId: string; code: string; name: string } | null;
+  /** #1058 — mercado de onde o setor compra; null = sem mercado configurado. */
+  market: WorkCenterRef | null;
+  fromWorkCenter: WorkCenterRef | null;
+}
+
+interface MarketInbound extends ProductRef {
+  quantity: string;
+  sourceType: 'WORK_CENTER' | 'EXTERNAL_OR_STOCK' | 'UNDEFINED';
+  from: WorkCenterRef | null;
+}
+
+interface MarketOutbound extends ProductRef {
+  quantity: string;
+  toWorkCenter: WorkCenterRef;
+}
+
+interface MarketBlock extends WorkCenterRef {
+  inbound: MarketInbound[];
+  outbound: MarketOutbound[];
 }
 
 interface Operation {
@@ -86,6 +111,8 @@ interface Pendency {
 interface DispatchResponse {
   cart: ProductRef[];
   workCenters: WorkCenterBlock[];
+  /** #1058 — visão do operador de mercado (ausente até a API subir: degradar mudo). */
+  markets?: MarketBlock[];
   pendencies: Pendency[];
   inconsistencies: { code: string; detail: string }[];
 }
@@ -334,7 +361,12 @@ export default function DispatchPage() {
                           receber {fmtQty(item.quantity)} {item.unit} de {item.name}
                         </span>
                         <span className="text-muted-foreground">({item.sku})</span>
-                        {item.sourceType === 'WORK_CENTER' && item.fromWorkCenter ? (
+                        {item.market ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Store size={12} />
+                            comprar no {item.market.name}
+                          </span>
+                        ) : item.sourceType === 'WORK_CENTER' && item.fromWorkCenter ? (
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <ArrowRight size={12} />
                             vem de {item.fromWorkCenter.name}
@@ -361,6 +393,54 @@ export default function DispatchPage() {
         </Card>
         );
       })}
+
+      {/* ── Mercados: a visão do operador (#1058) ────────────────────────── */}
+      {(result?.markets ?? []).length > 0 && (
+        <>
+          <h2 className="pt-2 text-base font-semibold">Mercados</h2>
+          {(result?.markets ?? []).map((mk) => (
+            <Card key={mk.workCenterId} className="p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Store size={18} className="text-muted-foreground" />
+                <h3 className="text-base font-semibold">{mk.name}</h3>
+                <Badge variant="neutral">{mk.code}</Badge>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-sm font-medium text-muted-foreground">Vai chegar</p>
+                  <ul className="space-y-1 text-sm">
+                    {mk.inbound.map((e, n) => (
+                      <li key={n} className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {fmtQty(e.quantity)} {e.unit} de {e.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {e.from ? `do setor ${e.from.name}` : 'de compra/estoque'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="mb-1 text-sm font-medium text-muted-foreground">Separar para</p>
+                  <ul className="space-y-1 text-sm">
+                    {mk.outbound.map((s, n) => (
+                      <li key={n} className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {fmtQty(s.quantity)} {s.unit} de {s.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          para {s.toWorkCenter.name}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
     </div>
   );
 }
