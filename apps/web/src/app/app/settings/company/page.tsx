@@ -15,6 +15,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { useToast } from '@/components/ui/toast';
 import { formatCNPJ, formatPhone, formatCEP, formatDate, unmask } from '@/lib/format';
 import { CompanyForm, type CompanyFormValues } from './company-form';
+import { usePermission } from '@/hooks/use-permission';
 
 const RESOURCE = '/companies';
 
@@ -42,7 +43,9 @@ function Row({ label, value }: { label: string; value?: React.ReactNode }) {
 export default function CompanyPage() {
   const user = useAuthStore((s) => s.user);
   const companyId = user?.companyId ?? '';
-  const canEdit = user?.role === 'SUPER_ADMIN';
+  // #1003 — espelha PATCH /companies/:id (settings.companies.update).
+  const { can } = usePermission();
+  const canEdit = can('settings.companies.update');
 
   const toast = useToast();
 

@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ChevronDown, ChevronRight, ShieldX } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { usePermission } from '@/hooks/use-permission';
 import { useAuthStore } from '@/stores/auth-store';
 import { useList } from '@/hooks/use-resource';
 import type { User } from '@/types/api';
@@ -37,7 +38,9 @@ const ENTITIES = [
 
 export default function AuditLogPage() {
   const user = useAuthStore((s) => s.user);
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // #1003 — mesmo gate do menu e do backend (iam.audit-logs.view).
+  const { can } = usePermission();
+  const isSuperAdmin = can('iam.audit-logs.view');
 
   const [entity, setEntity] = useState('');
   const [userId, setUserId] = useState('');
@@ -57,7 +60,9 @@ export default function AuditLogPage() {
     retry: false,
     queryFn: async () =>
       (
-        await apiClient.get<AuditLog[]>('/audit-logs', {
+        // Endpoint real (o antigo GET /audit-logs não existe na API — a tela
+        // estava morta por baixo; resposta v2 é paginada: { data, total, ... }).
+        await apiClient.get<{ data: AuditLog[] }>('/iam/audit-logs', {
           params: {
             entity: entity || undefined,
             userId: userId || undefined,
@@ -66,7 +71,7 @@ export default function AuditLogPage() {
             to: to || undefined,
           },
         })
-      ).data,
+      ).data.data,
   });
 
   const logs = logsQ.data ?? [];

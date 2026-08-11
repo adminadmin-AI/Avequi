@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { GripVertical, Loader2, MessageCircle, Rocket } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { usePermission } from '@/hooks/use-permission';
 import { Can } from '@/components/can';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
@@ -22,7 +23,12 @@ export default function FunnelPage() {
   const user = useAuthStore((s) => s.user);
   const toast = useToast();
   const queryClient = useQueryClient();
-  const isManager = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(user?.role ?? '');
+  // #1003 — o backend NÃO restringe scope=all (qualquer crm.leads.view pode
+  // pedir; herança pré-#624). O toggle segue gerencial por decisão de UX, via
+  // proxy crm.leads.bulk-stage (mesmos perfis de hoje). Quando nascer uma
+  // permissão própria (crm.leads.view-all), trocar aqui.
+  const { can } = usePermission();
+  const isManager = can('crm.leads.bulk-stage');
 
   const [scope, setScope] = useState<'mine' | 'all'>(isManager ? 'all' : 'mine');
   const [dragged, setDragged] = useState<BoardLead | null>(null);

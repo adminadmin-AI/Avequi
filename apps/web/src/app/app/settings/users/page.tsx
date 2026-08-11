@@ -23,17 +23,18 @@ import { UserForm, type UserFormValues } from './user-form';
 import { ResetPasswordDialog } from './reset-password-dialog';
 
 const RESOURCE = '/users';
-const ALLOWED_ROLES = ['SUPER_ADMIN', 'DIRECTOR'];
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
-  const canManage = !!currentUser && ALLOWED_ROLES.includes(currentUser.role);
+  // #1003 — gate por permissão v2 (settings.users.update cobre a gestão;
+  // criação também exige settings.users.create no backend, que barra sozinho).
+  const { can } = usePermission();
+  const canManage = can('settings.users.update');
 
   const toast = useToast();
   const confirm = useConfirm();
   // Toggle Ativo/Inativo espelha a permissão real do backend
   // (settings.users.update) — sem ela o botão nem aparece (fail-closed).
-  const { can } = usePermission();
   const showStatusToggle = canShowStatusToggle(can);
   const showPasswordReset = canShowPasswordReset(can);
 

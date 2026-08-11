@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Plus, Store, Trash2, User, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { usePermission } from '@/hooks/use-permission';
 import { useAuthStore } from '@/stores/auth-store';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,6 @@ import { useToast } from '@/components/ui/toast';
 import { erroDeAcao } from '@/lib/feedback';
 import { QuickReply } from '../inbox/inbox-types';
 
-const MANAGER_ROLES = ['SUPER_ADMIN', 'DIRECTOR', 'MANAGER'];
 
 interface FormState {
   id: string | null; // null = criando
@@ -34,7 +34,9 @@ export default function QuickRepliesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
 
-  const isManager = MANAGER_ROLES.includes(user?.role ?? '');
+  // #1003 — mesmo code que o quick-reply.service checa no backend.
+  const { can } = usePermission();
+  const isManager = can('crm.quick-replies.manage-all');
 
   const { data: replies = [], isLoading } = useQuery<QuickReply[]>({
     queryKey: ['crm-quick-replies'],
