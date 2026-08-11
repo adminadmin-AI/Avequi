@@ -3173,6 +3173,17 @@ model ProductionSchedule {
 
 // ─── Planejamento de Capacidade (S28C) ───────────────────────────────────────
 
+/// #1058 — Classificação dos centros de trabalho pelo papel na fábrica.
+/// A GDR opera com MERCADOS (supermercado lean): estoques internos entre
+/// setores — quem produz abastece o mercado, quem consome compra dele.
+/// Espelha a taxonomia que já existe na fonte (Setores_Operacionais.Tipo:
+/// Producao/Opcional → PRODUCTION, Estoque → MARKET, Apoio → SUPPORT).
+enum WorkCenterKind {
+  PRODUCTION // setor produtivo (corte, solda, montagem, expedição…)
+  MARKET     // mercado: estoque interno de onde um setor compra
+  SUPPORT    // apoio (administrativo, diretoria, refeitório)
+}
+
 model WorkCenter {
   id                  String        @id @default(cuid())
   companyId           String
@@ -3185,6 +3196,18 @@ model WorkCenter {
   operatorsCount      Int           @default(1)
   efficiencyPct       Decimal       @default(85) @db.Decimal(5, 2)
   isActive            Boolean       @default(true)
+  // #1058 — papel do centro na fábrica (produção / mercado / apoio).
+  kind                WorkCenterKind @default(PRODUCTION)
+  /// #1058 — mercado PADRÃO de onde este setor compra (auto-relação para um
+  /// WorkCenter kind=MARKET). É o caso 1:1 da regra "entre dois setores sempre
+  /// existe um mercado" (invariante do Rafael, 11/08/2026). A Montagem, que
+  /// compra de 3 mercados conforme a natureza do item (metal/marcenaria/
+  /// comprados), guarda aqui só o padrão (Metal); a resolução multi-origem é
+  /// lógica do despacho (passo 2). Restrict de propósito: apagar um mercado
+  /// não pode desligar em silêncio os setores que compram dele.
+  supplyMarketId      String?
+  supplyMarket        WorkCenter?   @relation("WorkCenterSupplyMarket", fields: [supplyMarketId], references: [id], onDelete: Restrict)
+  suppliedWorkCenters WorkCenter[]  @relation("WorkCenterSupplyMarket")
   // #815 — back-reference da FK oficial em RoutingStep.
   routingSteps        RoutingStep[] @relation("WorkCenterRoutingSteps")
   createdAt           DateTime      @default(now())
