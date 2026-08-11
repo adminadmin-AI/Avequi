@@ -59,6 +59,7 @@ import {
   Coins,
   PackageCheck,
   Percent,
+  Send,
   Store,
   type LucideIcon,
 } from 'lucide-react';
@@ -206,6 +207,7 @@ export const NAV: NavSection[] = [
       { href: '/app/production', label: 'Ordens de produção', icon: Factory, permission: 'production.orders.view' },
       { href: '/app/production/bom', label: 'Estruturas (BOM)', icon: Network, permission: 'production.bom.view' },
       { href: '/app/production/mrp', label: 'MRP', icon: Calculator, permission: 'production.mrp.view' },
+      { href: '/app/production/dispatch', label: 'Despacho da fábrica', icon: Send, permission: 'production.dispatch.view' },
       { href: '/app/production/routing', label: 'Roteiros', icon: Workflow, permission: 'production.routing.view' },
       { href: '/app/production/work-centers', label: 'Centros de trabalho', icon: Gauge, permission: 'production.work-centers.view' },
       { href: '/app/production/chassis', label: 'Chassis', icon: ScanBarcode, permission: 'production.chassi.view' },
