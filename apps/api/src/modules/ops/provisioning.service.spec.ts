@@ -18,6 +18,7 @@ const mockPrisma = {
   company: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   tenantProvisioning: { findUnique: jest.fn(), update: jest.fn() },
   tenantInvite: { findFirst: jest.fn() },
+  taxRule: { createMany: jest.fn() }, // seed de regras do Simples (#1071)
 };
 const mockAudit = { persist: jest.fn() };
 const mockInvite = { inviteAdmin: jest.fn() };
@@ -84,6 +85,32 @@ describe('ProvisioningService (OPS WP2 #909)', () => {
       expect(mockAudit.persist).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.CREATE, module: 'ops' }),
       );
+    });
+
+    // #1071: tenant do Simples nasce com regras semeadas, mas INATIVAS
+    it('CRT=1 → semeia regras fiscais inativas junto com o tenant', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+      mockPrisma.company.create.mockResolvedValue({ id: 'tenant-sn' });
+      mockPrisma.tenantProvisioning.findUnique.mockResolvedValue(PROVISIONING);
+
+      await service.createTenant({ ...DTO, crt: 1 }, CTX);
+
+      expect(mockPrisma.taxRule.createMany).toHaveBeenCalledTimes(1);
+      const { data } = mockPrisma.taxRule.createMany.mock.calls[0][0];
+      expect(data).toHaveLength(6);
+      expect(data.every((r: any) => r.companyId === 'tenant-sn')).toBe(true);
+      // a trava: ativo por engano = nota com tributação que ninguém revisou
+      expect(data.every((r: any) => r.isActive === false)).toBe(true);
+    });
+
+    it('CRT=3 → não semeia nada (regime normal segue cadastro manual)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+      mockPrisma.company.create.mockResolvedValue({ id: 'tenant-normal' });
+      mockPrisma.tenantProvisioning.findUnique.mockResolvedValue(PROVISIONING);
+
+      await service.createTenant({ ...DTO, crt: 3 }, CTX);
+
+      expect(mockPrisma.taxRule.createMany).not.toHaveBeenCalled();
     });
 
     it('CNPJ com provisionamento ABERTO → retoma (não duplica, não lança)', async () => {
