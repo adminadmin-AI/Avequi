@@ -3595,6 +3595,9 @@ model ApprovalMatrix {
   conditionValue    String?
   level             Int      @default(1)
   requiredApprovals Int      @default(1)
+  /// #1005 (IAM C6): CODES de perfil v2 (Role.code, ex.: GERENTE_GERAL) — não
+  /// mais o enum UserRole legado. Sem migration de dados: a tabela tinha ZERO
+  /// linhas em produção quando a semântica virou (contagem read-only 11/08/2026).
   approverRoles     String[]
 
   createdAt DateTime @default(now())

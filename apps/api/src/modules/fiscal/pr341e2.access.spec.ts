@@ -152,6 +152,13 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [ApprovalController, 'approval', {
     approve: 'approvals.requests.approve',
     getPending: 'approvals.requests.view',
+    // #1005 (IAM C6): CRUD da matriz de alçadas — configurar quem aprova é
+    // governança, separada de aprovar.
+    listMatrix: 'approvals.matrix.view',
+    roleOptions: 'approvals.matrix.view',
+    createMatrix: 'approvals.matrix.configure',
+    updateMatrix: 'approvals.matrix.configure',
+    deleteMatrix: 'approvals.matrix.configure',
   }],
 ];
 
@@ -280,6 +287,18 @@ describe('#341 parte 2 (PR E2/E3) — matriz fiscal + compliance (issue #623)', 
       expect(await canAccess(LgpdController, 'registerConsent', 'GERENTE_GERAL')).toBe(false);
       expect(await canAccess(ApprovalController, 'approve', 'GERENTE_GERAL')).toBe(true);
       expect(await canAccess(InboundNfeController, 'importAsGr', 'GERENTE_GERAL')).toBe(true);
+    });
+
+    it('#1005 matriz de alçadas: G.GERAL configura; DIRETOR e AUDITOR só veem; SOMENTE_LEITURA fora', async () => {
+      // Mesmo padrão da #621 (alçadas de desconto): a gerência configura,
+      // a diretoria e a auditoria enxergam a governança sem poder mudá-la.
+      expect(await canAccess(ApprovalController, 'listMatrix', 'GERENTE_GERAL')).toBe(true);
+      expect(await canAccess(ApprovalController, 'createMatrix', 'GERENTE_GERAL')).toBe(true);
+      expect(await canAccess(ApprovalController, 'listMatrix', 'DIRETOR')).toBe(true);
+      expect(await canAccess(ApprovalController, 'createMatrix', 'DIRETOR')).toBe(false);
+      expect(await canAccess(ApprovalController, 'listMatrix', 'AUDITOR')).toBe(true);
+      expect(await canAccess(ApprovalController, 'updateMatrix', 'AUDITOR')).toBe(false);
+      expect(await canAccess(ApprovalController, 'listMatrix', 'SOMENTE_LEITURA')).toBe(false);
     });
 
     it('FINANCEIRO: leituras fiscais + inbound view/import, sem eventos', async () => {

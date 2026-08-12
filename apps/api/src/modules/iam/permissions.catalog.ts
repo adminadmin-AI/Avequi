@@ -644,6 +644,12 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['view', 'ver fila pendente', 'GET /approvals/pending (leitura restrita 🔒)'],
     ['approve', 'aprovar/rejeitar documento', 'POST /approvals/:documentId/approve'],
   ]),
+  // #1005 (IAM C6): a matriz de alçadas de aprovação ganhou tela e CRUD — quem
+  // define QUEM aprova O QUÊ é configuração de governança, separada de aprovar.
+  ...r('approvals', 'matrix', 'Alçadas de aprovação', [
+    ['view', 'ver a matriz', 'GET /approvals/matrix, GET /approvals/matrix/role-options (leitura restrita 🔒)'],
+    ['configure', 'criar/editar/excluir níveis', 'POST/PATCH/DELETE /approvals/matrix'],
+  ]),
 
   // ── lgpd ── (lgpd.controller.ts) — dados pessoais de titulares 🔒
   ...r('lgpd', 'consents', 'Consentimentos LGPD', [

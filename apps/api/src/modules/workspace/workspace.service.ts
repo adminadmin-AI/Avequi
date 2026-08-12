@@ -614,7 +614,9 @@ export class WorkspaceService {
     // Documentos aguardando a MINHA alçada
     if (can('approvals.requests.view')) {
       jobs.push(
-        this.approvalService.getPending(user.companyId, user.role).then((pending: unknown[]) => {
+        // #1005: a fila é filtrada pelos PERFIS v2 do usuário (resolvidos no
+        // ApprovalService), não mais pelo enum.
+        this.approvalService.getPending(user.companyId, user.id).then((pending: unknown[]) => {
           const n = pending.length;
           if (n > 0) {
             insights.push({
@@ -712,7 +714,8 @@ export class WorkspaceService {
 
     if (can('approvals.requests.view')) {
       jobs.push(
-        this.approvalService.getPending(user.companyId, user.role).then((pending: any[]) => {
+        // #1005: idem — perfis v2 no service, enum fora.
+        this.approvalService.getPending(user.companyId, user.id).then((pending: any[]) => {
           for (const p of pending.slice(0, 8)) {
             tasks.push({
               id: `approval-${p.documentType}-${p.id}`,

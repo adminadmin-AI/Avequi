@@ -60,6 +60,7 @@ import {
   PackageCheck,
   Percent,
   Send,
+  Stamp,
   Store,
   type LucideIcon,
 } from 'lucide-react';
@@ -285,6 +286,7 @@ export const NAV: NavSection[] = [
       { href: '/app/settings/users', label: 'Usuários', icon: UserCog, permission: 'settings.users.view' },
       { href: '/app/settings/roles', label: 'Perfis e permissões', icon: KeyRound, permission: 'iam.roles.view' },
       { href: '/app/settings/organization', label: 'Organização', icon: Network, permission: 'iam.org.view' },
+      { href: '/app/settings/approval-matrix', label: 'Alçadas de aprovação', icon: Stamp, permission: 'approvals.matrix.view' },
       { href: '/app/settings/warehouses', label: 'Depósitos', icon: Warehouse, permission: 'stock.warehouses.view' },
       { href: '/app/settings/company', label: 'Empresa', icon: Building2, permission: 'settings.companies.view' },
       { href: '/app/settings/audit', label: 'Trilha de auditoria', icon: History, permission: 'iam.audit-logs.view' },

@@ -148,7 +148,10 @@ describe('Catálogo de permissões (#338)', () => {
     //       modelo de acesso da ferramenta OpenClaw da marcadora. Não gateiam
     //       rota de API — são resolvidas pela função gdr_chassi_autenticar()
     //       no banco (a ferramenta fala Postgres direto, role chassi_tool).
-    expect(PERMISSIONS_CATALOG.length).toBe(331);
+    // 333 = 331 + approvals.matrix.{view,configure} (#1005, IAM C6 — a matriz
+    //       de alçadas de aprovação ganhou tela e CRUD; configurar quem
+    //       aprova é governança, separada de aprovar).
+    expect(PERMISSIONS_CATALOG.length).toBe(333);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

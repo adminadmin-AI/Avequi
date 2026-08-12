@@ -1895,3 +1895,28 @@ export interface MfaSetup {
 export interface MfaBackupCodes {
   backupCodes: string[];
 }
+
+// ─── Alçadas de aprovação (#1005, IAM C6) ─────────────────────────────────────
+
+/** GET /approvals/matrix — nível da matriz de alçadas (perfis v2 em approverRoles). */
+export interface ApprovalMatrixLevel {
+  id: string;
+  companyId: string;
+  entityType: 'PO' | 'PR';
+  conditionField: string | null;
+  conditionOp: 'gte' | 'gt' | 'lte' | 'lt' | null;
+  conditionValue: string | null;
+  level: number;
+  requiredApprovals: number;
+  /** Codes de perfil v2 (Role.code) que aprovam este nível. */
+  approverRoles: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /approvals/matrix/role-options — perfis ativos oferecíveis como aprovadores. */
+export interface ApproverRoleOption {
+  id: string;
+  code: string;
+  name: string;
+}
