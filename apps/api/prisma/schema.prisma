@@ -434,6 +434,10 @@ model TaxRule {
   icmsCst            String // Ex: 00, 10, 20, 40, 41, 60
   icmsAliquota       Decimal          @default(0) @db.Decimal(5, 2)
   icmsBaseReducao    Decimal          @default(100) @db.Decimal(5, 2) // % da base (100 = sem redução)
+  // ICMS Simples Nacional (#1069) — CRT=1/2 emite grupo ICMSSN com CSOSN, não CST.
+  // Nulos em regra de regime normal; o motor resolve por Company.crt, não pelo schema.
+  icmsCsosn          String?          @db.VarChar(3) // Ex: 101, 102, 103, 201, 202, 300, 400, 500, 900
+  pCredSN            Decimal?         @db.Decimal(5, 2) // % de crédito de ICMS repassado (CSOSN 101/201)
   // IPI
   ipiCst             String           @default("99") // Ex: 00, 49, 50, 99
   ipiAliquota        Decimal          @default(0) @db.Decimal(5, 2)

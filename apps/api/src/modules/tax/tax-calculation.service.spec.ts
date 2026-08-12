@@ -659,3 +659,72 @@ describe('TaxCalculationService', () => {
     });
   });
 });
+
+// ─── #1069 (épico #1068): Simples Nacional — CSOSN e crédito ────────────────
+describe('TaxCalculationService — Simples Nacional (#1069)', () => {
+  let service: TaxCalculationService;
+  let prisma: {
+    taxRule: { findMany: jest.Mock };
+    tributaryClassification: { findUnique: jest.Mock };
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      taxRule: { findMany: jest.fn() },
+      tributaryClassification: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [TaxCalculationService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = module.get(TaxCalculationService);
+  });
+
+  const calc = () =>
+    service.calculateTaxes({
+      companyId: 'comp-1',
+      operationType: TaxOperationType.VENDA_INTERNA,
+      ufOrigem: 'PR',
+      ufDestino: 'PR',
+      itemValue: 1000,
+    });
+
+  it('regra sem CSOSN → resultado não ganha campos de Simples (regime normal intocado)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([makeRule()]);
+    const r = await calc();
+    expect(r.icms.cst).toBe('00');
+    expect(r.icms.csosn).toBeUndefined();
+    expect(r.icms.credSNAliquota).toBeUndefined();
+  });
+
+  it('CSOSN 102 → repassa o código sem crédito (102 não permite)', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({ icmsCsosn: '102', icmsAliquota: dec(0), ipiAliquota: dec(0), pCredSN: dec(2.5) }),
+    ]);
+    const r = await calc();
+    expect(r.icms.csosn).toBe('102');
+    // pCredSN preenchido por engano na regra não vira crédito num CSOSN que não permite
+    expect(r.icms.credSNAliquota).toBeUndefined();
+    expect(r.icms.credSNValor).toBeUndefined();
+  });
+
+  it('CSOSN 101 com pCredSN → calcula vCredICMSSN sobre a base', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({ icmsCsosn: '101', icmsAliquota: dec(0), ipiAliquota: dec(0), pCredSN: dec(2.5) }),
+    ]);
+    const r = await calc();
+    expect(r.icms.csosn).toBe('101');
+    expect(r.icms.credSNAliquota).toBe(2.5);
+    // base = 1000 (sem IPI, sem redução) → crédito = 1000 * 2,5% = 25
+    expect(r.icms.baseCalculo).toBe(1000);
+    expect(r.icms.credSNValor).toBe(25);
+  });
+
+  it('CSOSN 101 sem pCredSN cadastrado → não inventa crédito', async () => {
+    prisma.taxRule.findMany.mockResolvedValue([
+      makeRule({ icmsCsosn: '101', icmsAliquota: dec(0), ipiAliquota: dec(0) }),
+    ]);
+    const r = await calc();
+    expect(r.icms.csosn).toBe('101');
+    expect(r.icms.credSNValor).toBeUndefined();
+  });
+});

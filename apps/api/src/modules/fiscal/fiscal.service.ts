@@ -170,6 +170,12 @@ export class FiscalService {
           icmsBase: taxResult.icms.baseCalculo,
           icmsAliquota: taxResult.icms.aliquota,
           icmsValor: taxResult.icms.valor,
+          // Simples Nacional (#1069) — só vem preenchido se a regra tiver CSOSN
+          ...(taxResult.icms.csosn && {
+            icmsCsosn: taxResult.icms.csosn,
+            icmsCredSNAliquota: taxResult.icms.credSNAliquota,
+            icmsCredSNValor: taxResult.icms.credSNValor,
+          }),
           ipiCst: taxResult.ipi.cst,
           ipiBase: taxResult.ipi.baseCalculo,
           ipiAliquota: taxResult.ipi.aliquota,
@@ -525,6 +531,11 @@ export class FiscalService {
         cest: it.cest ?? undefined,
         tax: {
           cfop: returnCfop,
+          // ⚠️ LIMITE CONHECIDO (#1069): esta é a devolução, que reemite a partir
+          // do ItemTax PERSISTIDO — e ItemTax não tem coluna de CSOSN. Para
+          // emitente do Simples (CRT=1/2) a devolução ainda sai com CST e será
+          // rejeitada. Persistir o CSOSN no ItemTax é trabalho à parte; não há
+          // nota de Simples emitida ainda, então isso não bloqueia o go-live.
           icmsCst: t.cstIcms ?? '00',
           icmsBase: num(t.baseIcms) ?? 0,
           icmsAliquota: num(t.aliquotaIcms) ?? 0,
@@ -1165,6 +1176,12 @@ export class FiscalService {
         tax: {
           cfop: taxResult.cfop,
           icmsCst: taxResult.icms.cst, icmsBase: taxResult.icms.baseCalculo, icmsAliquota: taxResult.icms.aliquota, icmsValor: taxResult.icms.valor,
+          // Simples Nacional (#1069)
+          ...(taxResult.icms.csosn && {
+            icmsCsosn: taxResult.icms.csosn,
+            icmsCredSNAliquota: taxResult.icms.credSNAliquota,
+            icmsCredSNValor: taxResult.icms.credSNValor,
+          }),
           ipiCst: taxResult.ipi.cst, ipiBase: taxResult.ipi.baseCalculo, ipiAliquota: taxResult.ipi.aliquota, ipiValor: taxResult.ipi.valor,
           pisCst: taxResult.pis.cst, pisBase: taxResult.pis.baseCalculo, pisAliquota: taxResult.pis.aliquota, pisValor: taxResult.pis.valor,
           cofinsCst: taxResult.cofins.cst, cofinsBase: taxResult.cofins.baseCalculo, cofinsAliquota: taxResult.cofins.aliquota, cofinsValor: taxResult.cofins.valor,
