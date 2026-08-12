@@ -47,6 +47,10 @@ function buildMockPrisma() {
     permissionChangeLog: {
       create: jest.fn().mockResolvedValue({}),
     },
+    // #1005: desativação checa se o perfil é aprovador na matriz de alçadas
+    approvalMatrix: {
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
   // O callback transacional recebe o próprio mock (mesmas tabelas)
   prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
@@ -195,6 +199,18 @@ describe('RolesAdminService', () => {
       await expect(
         service.updateRole(ACTOR, 'role-x', { name: 'Novo Nome' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('#1005: NÃO desativa perfil que é aprovador na matriz de alçadas', async () => {
+      // Sem esta trava o code ficaria pendurado em approverRoles (String[],
+      // sem FK) e todo documento da faixa tomaria 403 sem explicação.
+      prisma.role.findFirst.mockResolvedValue({ ...CUSTOM_ROLE });
+      prisma.approvalMatrix.count.mockResolvedValue(2);
+
+      await expect(
+        service.updateRole(ACTOR, 'role-custom', { isActive: false }),
+      ).rejects.toThrow(/aprovador em 2 nível\(is\) da matriz/);
+      expect(prisma.role.update).not.toHaveBeenCalled();
     });
 
     it('atualiza custom com changelog ROLE_UPDATED e invalida cache ao inativar', async () => {

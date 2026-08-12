@@ -172,6 +172,28 @@ describe('ApprovalService', () => {
       );
     });
 
+    it('deriva de estado (matriz editada após aprovações): FINALIZA em vez de travar', async () => {
+      // A trilha diz que todos os níveis exigidos já foram aprovados, mas o
+      // documento segue DRAFT (a matriz foi renumerada no meio do fluxo).
+      // Antes: 400 "todas já concedidas" e o documento ficava preso.
+      perfisDoUsuario('DIRETOR');
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({
+        id: 'po-drift', companyId: 'co-1', status: 'DRAFT',
+        items: [{ quantity: 1, unitCost: 100 }],
+      });
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { level: 1, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['GERENTE_GERAL'] },
+      ]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        { userId: 'outro', payload: { documentId: 'po-drift', level: 1 } },
+      ]);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      const result = await service.approve('po-drift', 'PO', 'co-1', 'user-1');
+      expect(result.status).toBe('APPROVED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalled();
+    });
+
     // ── #948-C1: o portão global por enum saiu; a matriz continua mandando ──
 
     it('#948-C1: sem matriz, quem tem a permissão aprova — e nem resolve perfis', async () => {
@@ -312,6 +334,111 @@ describe('ApprovalService', () => {
       mockPrisma.approvalMatrix.findFirst.mockResolvedValue(null);
       await expect(service.deleteMatrix('am-x', 'co-1')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.approvalMatrix.delete).not.toHaveBeenCalled();
+    });
+
+    it('nível duplicado (mesmo documento e mesmo número) é recusado', async () => {
+      // O motor identifica o estado pelo NÚMERO do nível: a 2ª linha ficaria
+      // muda no approve() e ainda apareceria como configurada na tela.
+      mockPrisma.approvalMatrix.findFirst.mockResolvedValue({ id: 'am-existente' });
+      await expect(
+        service.createMatrix('co-1', { entityType: 'PO', level: 1, approverRoles: ['DIRETOR'] }),
+      ).rejects.toThrow(/Já existe um nível 1/);
+      expect(mockPrisma.approvalMatrix.create).not.toHaveBeenCalled();
+    });
+
+    it('PATCH parcial da condição (op sem valor) é malformado, não completa com o gravado', async () => {
+      mockPrisma.approvalMatrix.findFirst.mockResolvedValue({
+        id: 'am-4', companyId: 'co-1', level: 1, entityType: 'PO',
+        conditionField: 'amount', conditionOp: 'gte', conditionValue: '5000',
+      });
+      await expect(
+        service.updateMatrix('am-4', 'co-1', { conditionOp: 'lte' }),
+      ).rejects.toThrow(/operador e o valor juntos/);
+      expect(mockPrisma.approvalMatrix.update).not.toHaveBeenCalled();
+    });
+
+    it('limpar a condição enviando valor junto é recusado (par atômico)', async () => {
+      mockPrisma.approvalMatrix.findFirst.mockResolvedValue({
+        id: 'am-5', companyId: 'co-1', level: 1, entityType: 'PO',
+        conditionField: null, conditionOp: null, conditionValue: null,
+      });
+      await expect(
+        service.updateMatrix('am-5', 'co-1', { conditionOp: null as any, conditionValue: 9999 }),
+      ).rejects.toThrow(/sem valor junto/);
+      expect(mockPrisma.approvalMatrix.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // getPending — a fila tem que CONCORDAR com o approve() (#1005 pós-review)
+  // ────────────────────────────────────────────────────────────────────────
+  describe('getPending (fila concorda com o motor de aprovação)', () => {
+    const PO = (id: string, amount: number) => ({
+      id,
+      createdAt: new Date('2026-08-01'),
+      items: [{ quantity: 1, unitCost: amount }],
+      supplier: { id: 's1', name: 'F' },
+      createdBy: { id: 'u0', name: 'C' },
+    });
+
+    beforeEach(() => {
+      mockPrisma.purchaseRequest.findMany.mockResolvedValue([]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+    });
+
+    it('nível cujo VALOR não casa: o documento aparece (portão global), não some da fila', async () => {
+      // approve() trata requiredLevels vazio como nível único aprovável por
+      // quem tem a permissão — a fila esconder o mesmo documento deixava a
+      // PO apodrecendo em DRAFT sem aparecer para NINGUÉM.
+      perfisDoUsuario('ALMOXARIFE');
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([PO('po-a', 1000)]);
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { entityType: 'PO', level: 1, conditionField: 'amount', conditionOp: 'gte', conditionValue: '5000', approverRoles: ['DIRETOR'] },
+      ]);
+      const pending = await service.getPending('co-1', 'u1');
+      expect(pending.map((p: any) => p.id)).toEqual(['po-a']);
+    });
+
+    it("operadores 'gt'/'lt' valem na fila igual ao approve (avaliador único)", async () => {
+      // Matriz: lt 5000 → G.GERAL; gte 5000 → DIRETOR. PO de 100k: o nível
+      // 'lt' NÃO se aplica — o gerente não pode aprovar e não deve ver.
+      perfisDoUsuario('GERENTE_GERAL');
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([PO('po-b', 100000)]);
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { entityType: 'PO', level: 1, conditionField: 'amount', conditionOp: 'lt', conditionValue: '5000', approverRoles: ['GERENTE_GERAL'] },
+        { entityType: 'PO', level: 2, conditionField: 'amount', conditionOp: 'gte', conditionValue: '5000', approverRoles: ['DIRETOR'] },
+      ]);
+      expect(await service.getPending('co-1', 'u1')).toEqual([]);
+    });
+
+    it('nível 1 já aprovado: sai da fila de quem só aprova o nível 1', async () => {
+      // A fila olha o PRÓXIMO nível pendente (como o approve), não "qualquer
+      // nível aplicável" — senão o item ficava preso no badge do gerente
+      // com 403 garantido no clique.
+      perfisDoUsuario('GERENTE_GERAL');
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([PO('po-c', 1000)]);
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { entityType: 'PO', level: 1, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['GERENTE_GERAL', 'DIRETOR'] },
+        { entityType: 'PO', level: 2, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['DIRETOR'] },
+      ]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        { payload: { documentId: 'po-c', level: 1 } },
+      ]);
+      expect(await service.getPending('co-1', 'u1')).toEqual([]);
+    });
+
+    it('quem casa com o próximo nível pendente VÊ o documento', async () => {
+      perfisDoUsuario('DIRETOR');
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([PO('po-d', 1000)]);
+      mockPrisma.approvalMatrix.findMany.mockResolvedValue([
+        { entityType: 'PO', level: 1, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['GERENTE_GERAL', 'DIRETOR'] },
+        { entityType: 'PO', level: 2, conditionField: null, conditionOp: null, conditionValue: null, approverRoles: ['DIRETOR'] },
+      ]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        { payload: { documentId: 'po-d', level: 1 } },
+      ]);
+      const pending = await service.getPending('co-1', 'u1');
+      expect(pending.map((p: any) => p.id)).toEqual(['po-d']);
     });
   });
 

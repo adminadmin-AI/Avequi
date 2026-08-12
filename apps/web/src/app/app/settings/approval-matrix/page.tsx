@@ -135,9 +135,14 @@ export default function ApprovalMatrixPage() {
       setErro('Informe o nível (1 é o primeiro a aprovar).');
       return;
     }
-    if (form.conditionOp && !(Number(form.conditionValue) > 0)) {
-      setErro('Informe o valor de corte da condição.');
-      return;
+    // Zero é corte legítimo ("acima de zero" isenta documento de valor zero)
+    // — o que se recusa é vazio, não numérico ou negativo.
+    if (form.conditionOp) {
+      const corte = Number(form.conditionValue);
+      if (form.conditionValue.trim() === '' || Number.isNaN(corte) || corte < 0) {
+        setErro('Informe o valor de corte da condição.');
+        return;
+      }
     }
     if (form.approverRoles.length === 0) {
       setErro('Selecione pelo menos um perfil aprovador.');
