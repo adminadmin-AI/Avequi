@@ -121,6 +121,9 @@ const VIEWS_NAO_SENSIVEIS = actionCodes('view').filter(
     code !== 'sales.discount-policies.view' &&
     code !== 'settings.users.view' &&
     code !== 'approvals.requests.view' &&
+    // #1005: a matriz de alçadas expõe a governança de aprovações — leitura
+    // restrita, fora do perfil somente-leitura (mesma régua da fila acima).
+    code !== 'approvals.matrix.view' &&
     // #623 (E2, decisão Rafael): regras tributárias são leitura restrita 🔒 —
     // fora do perfil somente-leitura.
     code !== 'fiscal.tax-rules.view' &&
@@ -445,6 +448,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       // Aprovações operacionais
       'approvals.requests.view',
       'approvals.requests.approve',
+      // #1005: configurar a matriz de alçadas segue o padrão da #621
+      // (alçadas de desconto): a GERÊNCIA GERAL configura; DIRETOR e AUDITOR
+      // VEEM (via actionCodes('view') dos seus perfis) mas não configuram.
+      'approvals.matrix.view',
+      'approvals.matrix.configure',
       // Analytics
       ...moduleCodes('analytics'),
       // Bloco F (#624, D5): CRM completo 29/29 — o MANAGER legado tinha todas

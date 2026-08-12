@@ -236,6 +236,22 @@ export class RolesAdminService {
     const role = await this.findVisibleRole(actor.companyId, roleId);
     this.assertNotSystem(role, 'editar');
 
+    // #1005: desativar um perfil que é APROVADOR na matriz de alçadas
+    // deixaria o code pendurado lá (approverRoles é String[], sem FK) — e
+    // todo documento daquela faixa passaria a tomar 403 sem explicação, até
+    // alguém ligar os pontos. Melhor recusar apontando onde ele é usado.
+    if (dto.isActive === false && role.isActive) {
+      const usos = await this.prisma.approvalMatrix.count({
+        where: { companyId: actor.companyId, approverRoles: { has: role.code } },
+      });
+      if (usos > 0) {
+        throw new BadRequestException(
+          `O perfil "${role.name}" é aprovador em ${usos} nível(is) da matriz de alçadas de aprovação. ` +
+            'Remova o perfil desses níveis (Configurações, Alçadas de aprovação) antes de desativá-lo.',
+        );
+      }
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.role.update({
         where: { id: role.id },
