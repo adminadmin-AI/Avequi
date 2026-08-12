@@ -35,6 +35,21 @@ WHERE dp."roleId" IS NULL
     WHEN 'READER'      THEN 'SOMENTE_LEITURA'
   END;
 
+-- Guarda anti no-op silencioso: se alguma linha ATIVA ficou sem roleId, o
+-- ambiente não tem o catálogo IAM v2 semeado (ou tem um enum fora do mapa).
+-- Prosseguir deixaria a alçada dessa linha MUDA no runtime novo (o service só
+-- considera políticas com roleId) — melhor abortar e semear o IAM antes.
+DO $$
+DECLARE org INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO org
+  FROM "gdr_discount_policies"
+  WHERE "roleId" IS NULL AND "isActive" = true AND "max_discount_pct" < 100;
+  IF org > 0 THEN
+    RAISE EXCEPTION '#1004: % política(s) ativa(s) sem conversão para perfil v2 — rode o seed do IAM v2 e reaplique.', org;
+  END IF;
+END $$;
+
 -- Resíduo do seed do #391: 100% não é alçada, é ausência de teto escrita como
 -- dado (DIRECTOR/SUPER_ADMIN). O #947 já as ignora no runtime; aqui elas são
 -- DESATIVADAS (não apagadas) para a tela nova não exibi-las como vivas.

@@ -11,6 +11,7 @@ import { useList, useUpdate } from '@/hooks/use-resource';
 import { usePermission } from '@/hooks/use-permission';
 import { erroDeAcao } from '@/lib/feedback';
 import { formatPercent } from '@/lib/format';
+import { USER_ROLE_LABELS } from '@/lib/enums';
 import type { DiscountPolicy } from '@/types/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -32,8 +33,10 @@ import { useToast } from '@/components/ui/toast';
 
 const RESOURCE = '/sales/discount-policies';
 
+// z.number (com valueAsNumber no register), NUNCA z.coerce: coerce transforma
+// campo vazio em 0 e salvaria teto 0% sem o usuário digitar nada.
 const schema = z.object({
-  maxDiscountPct: z.coerce
+  maxDiscountPct: z
     .number({ invalid_type_error: 'Informe o teto em porcentagem' })
     .min(0, 'O teto não pode ser negativo')
     .max(99.99, 'Teto de 100% não é uma alçada. Para desconto sem limite, conceda a permissão de ultrapassar a alçada ao perfil, em Perfis e permissões.'),
@@ -68,11 +71,23 @@ export default function DiscountPoliciesPage() {
 
   function handleSubmit(values: FormValues) {
     if (!editing) return;
+    // Linha inativa: salvar REATIVA junto com o novo teto. Sem isso, uma
+    // alçada desativada (ex.: as de 100% que a migration da #1004 desligou)
+    // ficaria num beco: a API recusa reativar mantendo 100%, e a tela não
+    // oferecia como reativar corrigindo o teto.
+    const reativando = !editing.isActive;
     update.mutate(
-      { id: editing.id, data: { maxDiscountPct: values.maxDiscountPct } },
+      {
+        id: editing.id,
+        data: { maxDiscountPct: values.maxDiscountPct, ...(reativando ? { isActive: true } : {}) },
+      },
       {
         onSuccess: () => {
-          toast.success(`Teto de ${nomeDoPerfil(editing)} atualizado`);
+          toast.success(
+            reativando
+              ? `Alçada de ${nomeDoPerfil(editing)} reativada com teto de ${values.maxDiscountPct}%`
+              : `Teto de ${nomeDoPerfil(editing)} atualizado`,
+          );
           setEditing(null);
         },
         onError: (e) => toast.error(erroDeAcao('atualizar a alçada', e)),
@@ -123,19 +138,18 @@ export default function DiscountPoliciesPage() {
             key: 'actions',
             header: '',
             align: 'right',
-            cell: (p) =>
-              p.isActive ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(p);
-                  }}
-                  title="Editar teto"
-                  className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
-                >
-                  <Pencil size={15} />
-                </button>
-              ) : null,
+            cell: (p) => (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing(p);
+                }}
+                title={p.isActive ? 'Editar teto' : 'Reativar com novo teto'}
+                className="rounded-md p-1.5 text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-brand-600 dark:hover:text-brand-400"
+              >
+                <Pencil size={15} />
+              </button>
+            ),
           } satisfies Column<DiscountPolicy>,
         ]
       : []),
@@ -190,7 +204,7 @@ export default function DiscountPoliciesPage() {
         data={policies}
         columns={columns}
         loading={isLoading}
-        onRowClick={canConfigure ? (p) => (p.isActive ? setEditing(p) : undefined) : undefined}
+        onRowClick={canConfigure ? (p) => setEditing(p) : undefined}
         searchPlaceholder="Buscar por perfil..."
         emptyMessage="Nenhuma alçada cadastrada. Crie as alçadas padrão para começar."
       />
@@ -198,8 +212,14 @@ export default function DiscountPoliciesPage() {
       <FormDialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
-        title="Editar alçada"
-        description={editing ? `Teto de desconto do perfil ${nomeDoPerfil(editing)}.` : ''}
+        title={editing && !editing.isActive ? 'Reativar alçada' : 'Editar alçada'}
+        description={
+          editing
+            ? editing.isActive
+              ? `Teto de desconto do perfil ${nomeDoPerfil(editing)}.`
+              : `Esta alçada está inativa. Ao salvar, ela volta a valer para o perfil ${nomeDoPerfil(editing)} com o teto informado.`
+            : ''
+        }
         formId="discount-policy-form"
         loading={update.isPending}
       >
@@ -218,8 +238,11 @@ export default function DiscountPoliciesPage() {
 
 function nomeDoPerfil(p: DiscountPolicy): string {
   // roleRef null só em linha legada não convertida (não deve existir após a
-  // migration da #1004) — o enum cru é melhor que célula vazia.
-  return p.roleRef?.name ?? p.role ?? 'Perfil desconhecido';
+  // migration da #1004). Fallback pelo rótulo humano do enum, nunca o enum
+  // cru ("COMMERCIAL") na tela.
+  if (p.roleRef?.name) return p.roleRef.name;
+  if (p.role) return USER_ROLE_LABELS[p.role as keyof typeof USER_ROLE_LABELS] ?? p.role;
+  return 'Perfil desconhecido';
 }
 
 function PolicyForm({
@@ -244,7 +267,7 @@ function PolicyForm({
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
       <Field label="Teto de desconto (%)" required error={errors.maxDiscountPct?.message}>
         <Input
-          {...register('maxDiscountPct')}
+          {...register('maxDiscountPct', { valueAsNumber: true })}
           error={!!errors.maxDiscountPct}
           type="number"
           step="0.01"

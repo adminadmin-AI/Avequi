@@ -125,10 +125,10 @@ export class DiscountPolicyService {
     }
     // #1004: reativar uma linha de 100% herdada do seed ressuscitaria o "sem
     // teto por dado" que a migration desativou — mesmo buraco, outra porta.
-    if (
-      dto.isActive === true &&
-      Number(policy.maxDiscountPct) >= TETO_EQUIVALENTE_A_SEM_TETO
-    ) {
+    // Vale o teto EFETIVO pós-update: reativar corrigindo o teto no mesmo
+    // pedido (isActive:true + maxDiscountPct:15) é legítimo e passa.
+    const tetoEfetivo = dto.maxDiscountPct ?? Number(policy.maxDiscountPct);
+    if (dto.isActive === true && tetoEfetivo >= TETO_EQUIVALENTE_A_SEM_TETO) {
       throw new BadRequestException(
         `Esta linha tem teto de ${TETO_EQUIVALENTE_A_SEM_TETO}% (herança do seed antigo) e não pode ser reativada. ` +
           `Para desconto sem limite, conceda a permissão "${DISCOUNT_OVERRIDE_PERMISSION}" ao perfil.`,
@@ -200,26 +200,19 @@ export class DiscountPolicyService {
     }
     if (!worst || maxDiscount <= 0) return; // sem desconto — nada a validar
 
-    const policies = await this.prisma.discountPolicy.findMany({
-      where: { companyId, isActive: true },
-      include: { roleRef: { select: { code: true, name: true } } },
-    });
-
-    // #1004: perfis v2 VIGENTES de quem opera (não expirados, perfil ativo).
-    // Direto, sem herança: "Supervisor herda permissões de Operador" não
-    // significa "Supervisor tem a alçada de Operador" — alçada é atribuída,
-    // não deduzida. Contexto SYSTEM (sem userId) não tem perfil: lista vazia.
-    const meusPerfis = userId
-      ? await this.prisma.userRoleAssignment.findMany({
-          where: {
-            userId,
-            companyId,
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            role: { isActive: true },
-          },
-          select: { roleId: true, role: { select: { code: true } } },
-        })
-      : [];
+    // #1004: perfis v2 VIGENTES de quem opera — a definição de "vigente" mora
+    // no PermissionService (mesma regra do resolvedor de permissões). Direto,
+    // sem herança: "Supervisor herda permissões de Operador" não significa
+    // "Supervisor tem a alçada de Operador" — alçada é atribuída, não
+    // deduzida. Contexto SYSTEM (sem userId) não tem perfil: lista vazia.
+    const [policies, meusPerfis] = await Promise.all([
+      this.prisma.discountPolicy.findMany({
+        where: { companyId, isActive: true },
+      }),
+      userId
+        ? this.permissions.getVigentAssignments(userId, companyId)
+        : Promise.resolve([]),
+    ]);
     const meusRoleIds = new Set(meusPerfis.map((a) => a.roleId));
 
     const minhasPoliticas = policies.filter((p) => p.roleId && meusRoleIds.has(p.roleId));
@@ -243,17 +236,31 @@ export class DiscountPolicyService {
     if (userId && (await this.podeUltrapassar(userId, companyId))) return;
 
     // quem tem alçada suficiente (para orientar o vendedor) — pelo NOME do
-    // perfil (#1004). Política "sem teto" (100%) não conta como aprovador:
-    // quem aprova desconto excepcional é quem tem a PERMISSÃO (#947).
-    const aprovadores = policies
+    // perfil (#1004). Só se resolve AQUI, no ramo do bloqueio: a venda dentro
+    // da alçada (o caminho quente) não paga esse lookup. Política "sem teto"
+    // (100%) não conta como aprovador: quem aprova desconto excepcional é
+    // quem tem a PERMISSÃO (#947). Linha legada sem roleId fica de fora — o
+    // enum cru não é nome apresentável.
+    const aprovadorRoleIds = policies
       .filter(
         (p) =>
+          p.roleId &&
           Number(p.maxDiscountPct) >= maxDiscount &&
           Number(p.maxDiscountPct) < TETO_EQUIVALENTE_A_SEM_TETO,
       )
-      .map((p) => p.roleRef?.name ?? p.role)
-      .filter(Boolean)
-      .join(', ');
+      .map((p) => p.roleId as string);
+    // tenant-lint: ok (ids vêm de políticas já filtradas pela empresa; perfis
+    // system são globais, companyId null)
+    const aprovadores = aprovadorRoleIds.length
+      ? (
+          await this.prisma.role.findMany({
+            where: { id: { in: aprovadorRoleIds } },
+            select: { name: true },
+          })
+        )
+          .map((r) => r.name)
+          .join(', ')
+      : '';
 
     await this.prisma.auditLog.create({
       data: {
@@ -302,6 +309,11 @@ export class DiscountPolicyService {
   }
 }
 
+/**
+ * Arredonda o desconto exibido para CIMA (1 casa): 15.04% mostrado como
+ * "15.1%" nunca contradiz o teto de 15% que causou o bloqueio — arredondar
+ * para baixo mostraria "15%" numa venda recusada por exceder 15%.
+ */
 function round1(v: number): number {
-  return Math.round(v * 10) / 10;
+  return Math.ceil(v * 10) / 10;
 }

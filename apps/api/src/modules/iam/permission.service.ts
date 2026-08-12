@@ -463,6 +463,30 @@ export class PermissionService {
     await this.cache.delCompany(companyId);
   }
 
+  /**
+   * Perfis v2 VIGENTES do usuário (não expirados, perfil ativo), DIRETOS —
+   * sem expandir herança.
+   *
+   * É a MESMA regra de vigência do `resolveFromDatabase`; existe como método
+   * público para quem precisa dos perfis em si (e não das permissões
+   * efetivas), como a alçada de desconto (#1004) — assim a definição de
+   * "vigente" mora num lugar só.
+   */
+  getVigentAssignments(
+    userId: string,
+    companyId: string,
+  ): Promise<Array<{ roleId: string; role: { code: string } }>> {
+    return this.prisma.userRoleAssignment.findMany({
+      where: {
+        userId,
+        companyId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        role: { isActive: true },
+      },
+      select: { roleId: true, role: { select: { code: true } } },
+    });
+  }
+
   // ─── Internos ──────────────────────────────────────────────────────────────
 
   /**
@@ -477,15 +501,7 @@ export class PermissionService {
     const now = new Date();
     const notExpired = { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
 
-    const assignments = await this.prisma.userRoleAssignment.findMany({
-      where: {
-        userId,
-        companyId,
-        ...notExpired,
-        role: { isActive: true },
-      },
-      select: { roleId: true, role: { select: { code: true } } },
-    });
+    const assignments = await this.getVigentAssignments(userId, companyId);
 
     const directRoleCodes = [...new Set(assignments.map((a) => a.role.code))];
     const chainRoles = await this.collectRoleChain(assignments.map((a) => a.roleId));

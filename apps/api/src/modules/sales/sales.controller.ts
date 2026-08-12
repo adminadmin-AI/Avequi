@@ -68,14 +68,14 @@ export class SalesController {
 
   @Get('discount-policies')
   @RequirePermission('sales.discount-policies.view')
-  @ApiOperation({ summary: 'Alçadas de desconto por papel (#391)' })
+  @ApiOperation({ summary: 'Alçadas de desconto por perfil v2 (#391, #1004)' })
   listDiscountPolicies(@CurrentUser() user: any) {
     return this.discountPolicyService.findAll(user.companyId);
   }
 
   @Post('discount-policies/seed-defaults')
   @RequirePermission('sales.discount-policies.configure')
-  @ApiOperation({ summary: 'Criar alçadas padrão (10/20/100%) — idempotente (#391)' })
+  @ApiOperation({ summary: 'Criar alçadas padrão por perfil v2 (10/10/20%) — idempotente (#391, #1004)' })
   seedDiscountPolicies(@CurrentUser() user: any) {
     return this.discountPolicyService.seedDefaults(user.companyId);
   }

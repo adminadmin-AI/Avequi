@@ -10,8 +10,7 @@ import { PermissionService } from '../iam/permission.service';
 
 const mockPrisma = {
   discountPolicy: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
-  userRoleAssignment: { findMany: jest.fn() },
-  role: { findFirst: jest.fn() },
+  role: { findFirst: jest.fn(), findMany: jest.fn() },
   product: { findMany: jest.fn() },
   auditLog: { create: jest.fn() },
 };
@@ -42,14 +41,17 @@ const POLICIES = [
   politica('GERENTE_GERAL', 20),
 ];
 
-/** O usuário do teste tem estes perfis v2 vigentes. */
+const mockPermissions = { hasAnyPermission: jest.fn(), getVigentAssignments: jest.fn() };
+
+/**
+ * O usuário do teste tem estes perfis v2 vigentes — resolvidos pelo
+ * PermissionService (#1004 pós-review: a definição de "vigente" mora lá).
+ */
 function perfisDoUsuario(...roles: RoleKey[]) {
-  mockPrisma.userRoleAssignment.findMany.mockResolvedValue(
+  mockPermissions.getVigentAssignments.mockResolvedValue(
     roles.map((r) => ({ roleId: ROLE[r].id, role: { code: ROLE[r].code } })),
   );
 }
-
-const mockPermissions = { hasAnyPermission: jest.fn() };
 
 describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
   let service: DiscountPolicyService;
@@ -69,6 +71,14 @@ describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
     mockPrisma.discountPolicy.findMany.mockResolvedValue(POLICIES);
     mockPrisma.auditLog.create.mockResolvedValue({});
     perfisDoUsuario(); // padrão: sem perfil com política → fallback
+    // nomes de aprovador (ramo do bloqueio) resolvidos por roleId
+    mockPrisma.role.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        Object.values(ROLE)
+          .filter((r) => where.id.in.includes(r.id))
+          .map((r) => ({ name: r.name })),
+      ),
+    );
     // salePrice 1000
     mockPrisma.product.findMany.mockResolvedValue([{ id: 'p1', sku: 'MOD-CAR-001', salePrice: 1000 }]);
   });
@@ -108,7 +118,7 @@ describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
     await expect(
       service.assertWithinLimit('co-1', [{ productId: 'p1', unitPrice: 1200 }], 'u1'),
     ).resolves.toBeUndefined();
-    expect(mockPrisma.userRoleAssignment.findMany).not.toHaveBeenCalled();
+    expect(mockPermissions.getVigentAssignments).not.toHaveBeenCalled();
   });
 
   // Produto sem preço de tabela passa SEM validação de alçada. É um buraco
@@ -196,7 +206,7 @@ describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
         service.assertWithinLimit('co-1', ITEM_50_PCT),
       ).rejects.toThrow(BadRequestException);
       expect(mockPermissions.hasAnyPermission).not.toHaveBeenCalled();
-      expect(mockPrisma.userRoleAssignment.findMany).not.toHaveBeenCalled();
+      expect(mockPermissions.getVigentAssignments).not.toHaveBeenCalled();
     });
 
     it('venda DENTRO do teto nem consulta permissão (custo zero no caminho comum)', async () => {
@@ -205,6 +215,8 @@ describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
         service.assertWithinLimit('co-1', [{ productId: 'p1', unitPrice: 950 }], 'u1'),
       ).resolves.toBeUndefined();
       expect(mockPermissions.hasAnyPermission).not.toHaveBeenCalled();
+      // nomes de aprovador também só são resolvidos no ramo do bloqueio
+      expect(mockPrisma.role.findMany).not.toHaveBeenCalled();
     });
 
     it('a trilha registra QUAL permissão faltou e os PERFIS de quem operou', async () => {
@@ -326,6 +338,25 @@ describe('DiscountPolicyService (#391 + #947 + #1004)', () => {
         /não pode ser reativada.*sales\.discount\.override/s,
       );
       expect(mockPrisma.discountPolicy.update).not.toHaveBeenCalled();
+    });
+
+    it('reativar CORRIGINDO o teto no mesmo pedido é aceito (pós-review #1066)', async () => {
+      // Sem isso, a linha de 100% desativada pela migration ficava num beco:
+      // não podia reativar (guarda) nem havia outro caminho de volta.
+      mockPrisma.discountPolicy.findFirst.mockResolvedValue({
+        id: 'dp-100',
+        roleId: ROLE.DIRETOR.id,
+        maxDiscountPct: 100,
+        isActive: false,
+      });
+      mockPrisma.discountPolicy.update.mockResolvedValue({ id: 'dp-100' });
+      await expect(
+        service.update('dp-100', 'co-1', { isActive: true, maxDiscountPct: 25 }),
+      ).resolves.toBeDefined();
+      expect(mockPrisma.discountPolicy.update).toHaveBeenCalledWith({
+        where: { id: 'dp-100' },
+        data: { isActive: true, maxDiscountPct: 25 },
+      });
     });
 
     it('alçada normal continua editável', async () => {
