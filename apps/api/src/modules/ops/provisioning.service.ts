@@ -13,6 +13,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { InviteAdminDto } from './dto/invite-admin.dto';
 import { OpsActionContext } from './ops.service';
 import { TenantInviteService } from './tenant-invite.service';
+import { buildInitialTaxRules } from '../tax/tax-rule-seed';
 
 /**
  * ProvisioningService — OPS WP2 (#909): onboarding de tenant como máquina de
@@ -95,6 +96,22 @@ export class ProvisioningService {
       },
       select: { id: true, name: true, cnpj: true, tenantStatus: true },
     });
+
+    // Regras fiscais iniciais do Simples (#1071) — INATIVAS: o contador revisa e
+    // ativa. Sem isso o tenant nasce sem nenhuma regra e só descobre na primeira
+    // emissão; com elas ATIVAS, emitiria com tributação que ninguém revisou.
+    const initialRules = buildInitialTaxRules(company.id, dto.crt);
+    if (initialRules.length > 0) {
+      await this.prisma.taxRule.createMany({ data: initialRules });
+      this.logger.log(
+        JSON.stringify({
+          event: 'ops_tenant_tax_rules_seeded',
+          tenantId: company.id,
+          count: initialRules.length,
+          active: false,
+        }),
+      );
+    }
 
     await this.auditService.persist({
       companyId: company.id,
