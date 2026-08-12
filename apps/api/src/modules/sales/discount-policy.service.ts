@@ -5,52 +5,56 @@ import { PermissionService } from '../iam/permission.service';
 /**
  * Alçadas de desconto (#391, Wellington 5.4 Pricing).
  *
- * Desconto implícito do item = (salePrice − unitPrice) / salePrice. Cada papel
- * tem um teto (DiscountPolicy); vender acima do teto bloqueia a criação da OV
- * com mensagem orientada (quem pode aprovar).
+ * Desconto implícito do item = (salePrice − unitPrice) / salePrice. Cada
+ * PERFIL tem um teto (DiscountPolicy); vender acima do teto bloqueia a
+ * criação da OV com mensagem orientada (quem pode aprovar).
  *
  * ── #947: quem ultrapassa o teto ──────────────────────────────────────────
  * ANTES, o "sem teto" era hardcoded no enum: `userRole === 'SUPER_ADMIN'`
  * virava 100% mesmo sem política cadastrada. Agora quem ultrapassa é quem tem
  * a PERMISSÃO `sales.discount.override` — o enum não concede mais nada aqui.
  *
- * A TABELA de tetos continua indexada pelo enum nesta fase (decisão Rafael:
- * sem migration de `DiscountPolicy.role` agora). Ela é CONFIGURAÇÃO da
- * empresa, editável na tela de alçadas — não é poder embutido em código. O
- * que saiu foi a exceção hardcoded; migrar o eixo da tabela para perfil v2
- * é trabalho da #948.
+ * ── #1004 (IAM C5): o EIXO da tabela saiu do enum ─────────────────────────
+ * A tabela de tetos deixou de ser indexada pelo enum `UserRole` congelado e
+ * passou a apontar para o PERFIL v2 (`DiscountPolicy.roleId` → `Role`). O
+ * teto de quem opera é resolvido pelos perfis VIGENTES dele
+ * (`UserRoleAssignment`, direto — herança de perfil não transfere alçada):
+ * com mais de um perfil com política, vale a MAIOR alçada; sem nenhum perfil
+ * com política, vale o FALLBACK. O enum não participa de mais nada — nem
+ * poder (#947) nem teto (#1004).
  *
- * ⚠️ A checagem NÃO honra o fallback legado do #946 de propósito: o espelho
- * do enum SUPER_ADMIN é o ADMIN_GLOBAL, que TEM esta permissão — honrá-lo
- * devolveria pelo enum o poder que este PR está tirando dele.
+ * ⚠️ A checagem NÃO honra o fallback legado do #946 de propósito: usuário sem
+ * RBAC v2 cai no teto default, nunca no espelho do enum — honrá-lo devolveria
+ * pelo enum o que o #947/#1004 tiraram dele.
  */
 
 /**
- * Alçadas semeadas por padrão — a escada aprovada na issue #391:
- * "0-10% livre, 10-20% gerente, >20% diretor".
+ * Alçadas semeadas por padrão — a escada aprovada na issue #391
+ * ("0-10% livre, 10-20% gerente, >20% diretor"), agora por perfil v2 (#1004):
+ * os codes são os espelhos system dos enums que o seed antigo usava
+ * (COMMERCIAL→VENDEDOR, STORE→LOJA_OPERACIONAL, MANAGER→GERENTE_GERAL).
  *
  * #947: as linhas `DIRECTOR: 100` e `SUPER_ADMIN: 100` SAÍRAM daqui. Elas
  * nunca foram alçada aprovada: eram o jeito que o código de #391 encontrou de
- * escrever ">20% é do diretor", ou seja "o diretor não tem teto". Sob o #947,
- * "não ter teto" deixou de ser um valor de tabela e passou a ser a permissão
- * `sales.discount.override` — quem a tem ultrapassa qualquer alçada.
+ * escrever "o diretor não tem teto". Sob o #947, "não ter teto" deixou de ser
+ * um valor de tabela e passou a ser a permissão `sales.discount.override`.
  */
 export const DEFAULT_DISCOUNT_POLICIES = [
-  { role: 'COMMERCIAL', maxDiscountPct: 10 },
-  { role: 'STORE', maxDiscountPct: 10 },
-  { role: 'MANAGER', maxDiscountPct: 20 },
+  { roleCode: 'VENDEDOR', maxDiscountPct: 10 },
+  { roleCode: 'LOJA_OPERACIONAL', maxDiscountPct: 10 },
+  { roleCode: 'GERENTE_GERAL', maxDiscountPct: 20 },
 ];
 
-const FALLBACK_LIMIT = 10; // papel sem política cadastrada (faixa "livre" do #391)
+const FALLBACK_LIMIT = 10; // perfil sem política cadastrada (faixa "livre" do #391)
 
 /**
  * 100% = preço zero = dar o produto. Isso não é uma ALÇADA, é a AUSÊNCIA de
  * alçada — o topo matemático da escala, não um patamar de negócio.
  *
  * Não é percentual inventado: é o valor que a tabela usava para dizer "sem
- * teto", e é exatamente o que está semeado em produção para DIRECTOR e
- * SUPER_ADMIN (verificado em consulta read-only, sem nenhum registro de
- * auditoria — ninguém jamais editou essas linhas; são herança do seed).
+ * teto" (herança do seed para DIRECTOR/SUPER_ADMIN). A migration da #1004
+ * DESATIVA essas duas linhas em produção; o guarda continua aqui porque um
+ * toggle de isActive poderia ressuscitá-las.
  */
 const TETO_EQUIVALENTE_A_SEM_TETO = 100;
 
@@ -65,8 +69,11 @@ export class DiscountPolicyService {
   ) {}
 
   findAll(companyId: string) {
+    // #1004: a tela mostra o NOME do perfil, não o enum — o code vai junto
+    // para chave/ordenação estável no front.
     return this.prisma.discountPolicy.findMany({
       where: { companyId },
+      include: { roleRef: { select: { id: true, code: true, name: true } } },
       orderBy: { maxDiscountPct: 'asc' },
     });
   }
@@ -74,12 +81,27 @@ export class DiscountPolicyService {
   async seedDefaults(companyId: string) {
     let created = 0;
     for (const p of DEFAULT_DISCOUNT_POLICIES) {
+      // Perfis system são globais (companyId null) — catálogo semeado pelo IAM v2.
+      // tenant-lint: ok (perfil global do sistema; a política criada é da empresa)
+      const role = await this.prisma.role.findFirst({
+        where: { code: p.roleCode, companyId: null, isSystem: true, isActive: true },
+        select: { id: true },
+      });
+      if (!role) {
+        // Catálogo IAM ausente = ambiente sem seed v2. Semear alçada sem
+        // perfil recriaria o eixo cego que a #1004 aposentou — melhor falhar.
+        throw new BadRequestException(
+          `Perfil do sistema "${p.roleCode}" não encontrado. Rode o seed do IAM v2 antes de criar as alçadas padrão.`,
+        );
+      }
       const exists = await this.prisma.discountPolicy.findFirst({
-        where: { companyId, role: p.role },
+        where: { companyId, roleId: role.id },
         select: { id: true },
       });
       if (exists) continue;
-      await this.prisma.discountPolicy.create({ data: { companyId, ...p } });
+      await this.prisma.discountPolicy.create({
+        data: { companyId, roleId: role.id, maxDiscountPct: p.maxDiscountPct },
+      });
       created++;
     }
     return { created, total: DEFAULT_DISCOUNT_POLICIES.length };
@@ -101,6 +123,17 @@ export class DiscountPolicyService {
           'ao perfil, em Perfis e permissões.',
       );
     }
+    // #1004: reativar uma linha de 100% herdada do seed ressuscitaria o "sem
+    // teto por dado" que a migration desativou — mesmo buraco, outra porta.
+    // Vale o teto EFETIVO pós-update: reativar corrigindo o teto no mesmo
+    // pedido (isActive:true + maxDiscountPct:15) é legítimo e passa.
+    const tetoEfetivo = dto.maxDiscountPct ?? Number(policy.maxDiscountPct);
+    if (dto.isActive === true && tetoEfetivo >= TETO_EQUIVALENTE_A_SEM_TETO) {
+      throw new BadRequestException(
+        `Esta linha tem teto de ${TETO_EQUIVALENTE_A_SEM_TETO}% (herança do seed antigo) e não pode ser reativada. ` +
+          `Para desconto sem limite, conceda a permissão "${DISCOUNT_OVERRIDE_PERMISSION}" ao perfil.`,
+      );
+    }
     return this.prisma.discountPolicy.update({ where: { id }, data: dto });
   }
 
@@ -109,14 +142,17 @@ export class DiscountPolicyService {
    * (item, desconto, teto, quem aprova) quando excede — a menos que quem
    * opera tenha `sales.discount.override` (#947).
    *
+   * #1004: o teto vem dos PERFIS v2 vigentes do usuário. Mais de um perfil
+   * com política = a maior alçada vale (perfis somam capacidades, nunca se
+   * subtraem). Nenhum perfil com política = FALLBACK_LIMIT.
+   *
    * `userId` ausente = operação de SISTEMA (listener/scheduler, contexto
-   * SYSTEM do #347-B). Aí não há a quem perguntar permissão: a alçada é
-   * aplicada sem override, que é o lado seguro — sistema não vende com
-   * desconto excepcional em nome de ninguém.
+   * SYSTEM do #347-B). Aí não há perfis a resolver nem a quem perguntar
+   * permissão: vale o teto default sem override, que é o lado seguro —
+   * sistema não vende com desconto excepcional em nome de ninguém.
    */
   async assertWithinLimit(
     companyId: string,
-    userRole: string | undefined,
     items: Array<{ productId: string; unitPrice: number }>,
     userId?: string,
   ) {
@@ -164,21 +200,34 @@ export class DiscountPolicyService {
     }
     if (!worst || maxDiscount <= 0) return; // sem desconto — nada a validar
 
-    const policies = await this.prisma.discountPolicy.findMany({
-      where: { companyId, isActive: true },
-    });
-    const own = policies.find((p) => p.role === userRole);
-    // #947: sem exceção por enum. Papel sem política = teto default, seja ele
-    // SUPER_ADMIN ou VENDEDOR — quem passa do teto é quem tem a permissão.
-    //
-    // E o buraco que faltava fechar: uma política de 100% (herança do seed
-    // legado para DIRECTOR/SUPER_ADMIN) NÃO é alçada — é ausência de alçada
-    // escrita como dado. Sem esta linha, um usuário com enum congelado em
-    // DIRECTOR nunca chegaria na checagem de permissão, porque desconto
-    // nenhum "ultrapassa" 100% — e o poder que o #947 tira pelo código
-    // voltaria inteiro pela tabela.
-    const politicaSemTeto = !!own && Number(own.maxDiscountPct) >= TETO_EQUIVALENTE_A_SEM_TETO;
-    const limit = own && !politicaSemTeto ? Number(own.maxDiscountPct) : FALLBACK_LIMIT;
+    // #1004: perfis v2 VIGENTES de quem opera — a definição de "vigente" mora
+    // no PermissionService (mesma regra do resolvedor de permissões). Direto,
+    // sem herança: "Supervisor herda permissões de Operador" não significa
+    // "Supervisor tem a alçada de Operador" — alçada é atribuída, não
+    // deduzida. Contexto SYSTEM (sem userId) não tem perfil: lista vazia.
+    const [policies, meusPerfis] = await Promise.all([
+      this.prisma.discountPolicy.findMany({
+        where: { companyId, isActive: true },
+      }),
+      userId
+        ? this.permissions.getVigentAssignments(userId, companyId)
+        : Promise.resolve([]),
+    ]);
+    const meusRoleIds = new Set(meusPerfis.map((a) => a.roleId));
+
+    const minhasPoliticas = policies.filter((p) => p.roleId && meusRoleIds.has(p.roleId));
+    // #947: política de 100% NÃO é alçada — é ausência de alçada escrita como
+    // dado (herança do seed para DIRECTOR/SUPER_ADMIN). A migration da #1004
+    // as desativa, mas o filtro fica: reativada, ela devolveria por DADO o
+    // poder que virou a permissão de override.
+    const comTeto = minhasPoliticas.filter(
+      (p) => Number(p.maxDiscountPct) < TETO_EQUIVALENTE_A_SEM_TETO,
+    );
+    const politicaSemTeto = minhasPoliticas.length > comTeto.length;
+    // Mais de um perfil com política: vale a MAIOR alçada (capacidades somam).
+    const limit = comTeto.length
+      ? Math.max(...comTeto.map((p) => Number(p.maxDiscountPct)))
+      : FALLBACK_LIMIT;
 
     if (maxDiscount <= limit) return;
 
@@ -186,18 +235,32 @@ export class DiscountPolicyService {
     // não gastar uma resolução de permissão em toda venda dentro da alçada.
     if (userId && (await this.podeUltrapassar(userId, companyId))) return;
 
-    // quem tem alçada suficiente (para orientar o vendedor)
-    // #947: política "sem teto" (100%) não conta como aprovador — quem
-    // aprova desconto excepcional é quem tem a PERMISSÃO, não quem herdou uma
-    // linha de 100% do seed antigo.
-    const aprovadores = policies
+    // quem tem alçada suficiente (para orientar o vendedor) — pelo NOME do
+    // perfil (#1004). Só se resolve AQUI, no ramo do bloqueio: a venda dentro
+    // da alçada (o caminho quente) não paga esse lookup. Política "sem teto"
+    // (100%) não conta como aprovador: quem aprova desconto excepcional é
+    // quem tem a PERMISSÃO (#947). Linha legada sem roleId fica de fora — o
+    // enum cru não é nome apresentável.
+    const aprovadorRoleIds = policies
       .filter(
         (p) =>
+          p.roleId &&
           Number(p.maxDiscountPct) >= maxDiscount &&
           Number(p.maxDiscountPct) < TETO_EQUIVALENTE_A_SEM_TETO,
       )
-      .map((p) => p.role)
-      .join(', ');
+      .map((p) => p.roleId as string);
+    // tenant-lint: ok (ids vêm de políticas já filtradas pela empresa; perfis
+    // system são globais, companyId null)
+    const aprovadores = aprovadorRoleIds.length
+      ? (
+          await this.prisma.role.findMany({
+            where: { id: { in: aprovadorRoleIds } },
+            select: { name: true },
+          })
+        )
+          .map((r) => r.name)
+          .join(', ')
+      : '';
 
     await this.prisma.auditLog.create({
       data: {
@@ -208,24 +271,26 @@ export class DiscountPolicyService {
         payload: {
           sku: worst.sku,
           discountPct: worst.discount,
-          role: userRole ?? null,
+          // #1004: a trilha registra os PERFIS v2 de quem operou (o eixo real
+          // do teto), não mais o enum congelado.
+          roleCodes: meusPerfis.map((a) => a.role.code),
           limit,
           // #947: deixa explícito na trilha que o bloqueio foi por AUSÊNCIA da
           // permissão, não por um enum "fraco" — quem investigar o caso vê o
           // que precisa conceder.
           missingPermission: DISCOUNT_OVERRIDE_PERMISSION,
-          // #947: deixa rastro quando o teto veio do default por a política do
-          // papel ser "sem teto" (100%) — o caso do enum legado congelado.
+          // #947: deixa rastro quando alguma política do usuário foi
+          // desconsiderada por ser "sem teto" (100%) — o caso do seed legado.
           ...(politicaSemTeto ? { ignoredUncappedPolicy: true } : {}),
         },
       },
     });
 
     throw new BadRequestException(
-      `Desconto de ${worst.discount}% no item ${worst.sku} excede sua alçada (teto ${limit}% para ${userRole ?? 'seu papel'}). ` +
+      `Desconto de ${worst.discount}% no item ${worst.sku} excede sua alçada (teto ${limit}%). ` +
         (aprovadores
           ? `Peça a criação da venda a: ${aprovadores}.`
-          : 'Nenhum papel tem alçada para este desconto — ajuste o preço ou ' +
+          : 'Nenhum perfil tem alçada para este desconto — ajuste o preço ou ' +
             `peça a quem tenha a permissão "${DISCOUNT_OVERRIDE_PERMISSION}".`),
     );
   }
@@ -244,6 +309,11 @@ export class DiscountPolicyService {
   }
 }
 
+/**
+ * Arredonda o desconto exibido para CIMA (1 casa): 15.04% mostrado como
+ * "15.1%" nunca contradiz o teto de 15% que causou o bloqueio — arredondar
+ * para baixo mostraria "15%" numa venda recusada por exceder 15%.
+ */
 function round1(v: number): number {
-  return Math.round(v * 10) / 10;
+  return Math.ceil(v * 10) / 10;
 }

@@ -43,11 +43,10 @@ export class SalesController {
   @RequirePermission('sales.orders.create')
   @ApiOperation({ summary: 'Criar venda em rascunho' })
   create(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: any) {
-    // #947: `user.role` aqui NÃO é autorização — é só a chave de busca do TETO
-    // na tabela `DiscountPolicy`, que segue indexada pelo enum nesta fase
-    // (migrar o eixo para perfil v2 é #948). Quem PODE ultrapassar o teto é
-    // decidido por permissão dentro do DiscountPolicyService.
-    return this.salesService.createOrder(dto, user.companyId, userContext(user.id), user?.role);
+    // #1004 (IAM C5): o enum `user.role` saiu do fluxo de alçada — o teto é
+    // resolvido pelos perfis v2 do usuário DENTRO do DiscountPolicyService,
+    // e quem PODE ultrapassá-lo é decidido por permissão (#947).
+    return this.salesService.createOrder(dto, user.companyId, userContext(user.id));
   }
 
   @Get()
@@ -69,14 +68,14 @@ export class SalesController {
 
   @Get('discount-policies')
   @RequirePermission('sales.discount-policies.view')
-  @ApiOperation({ summary: 'Alçadas de desconto por papel (#391)' })
+  @ApiOperation({ summary: 'Alçadas de desconto por perfil v2 (#391, #1004)' })
   listDiscountPolicies(@CurrentUser() user: any) {
     return this.discountPolicyService.findAll(user.companyId);
   }
 
   @Post('discount-policies/seed-defaults')
   @RequirePermission('sales.discount-policies.configure')
-  @ApiOperation({ summary: 'Criar alçadas padrão (10/20/100%) — idempotente (#391)' })
+  @ApiOperation({ summary: 'Criar alçadas padrão por perfil v2 (10/10/20%) — idempotente (#391, #1004)' })
   seedDiscountPolicies(@CurrentUser() user: any) {
     return this.discountPolicyService.seedDefaults(user.companyId);
   }

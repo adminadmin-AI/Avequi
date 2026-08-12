@@ -1899,13 +1899,22 @@ model DiscountPolicy {
   id             String   @id @default(cuid())
   companyId      String
   company        Company  @relation(fields: [companyId], references: [id])
-  role           String // papel do usuário (UserRole)
+  /// DEPRECADO (#1004, IAM C5): enum UserRole legado. O eixo vivo é roleId;
+  /// a coluna fica pela regra de migração aditiva (nunca DROP) e como rastro
+  /// da conversão. Nenhum código deve voltar a ler/escrever aqui.
+  role           String?
+  /// #1004 (IAM C5): o teto passa a ser POR PERFIL v2 (Role), não por enum.
+  /// Restrict: apagar um perfil com alçada cadastrada exige tratar a alçada.
+  roleId         String?
+  roleRef        Role?    @relation(fields: [roleId], references: [id])
   maxDiscountPct Decimal  @map("max_discount_pct") @db.Decimal(5, 2) // teto %
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@unique([companyId, role])
+  @@unique([companyId, roleId])
+  @@index([roleId])
   @@map("gdr_discount_policies")
 }
 
@@ -3838,6 +3847,7 @@ model Role {
   rolePermissions      RolePermission[]
   userAssignments      UserRoleAssignment[]
   permissionChangeLogs PermissionChangeLog[]
+  discountPolicies     DiscountPolicy[]
 
   // Unicidade de `code` POR empresa/grupo: empresas diferentes podem ter perfis
   // com o mesmo code (ex.: "GERENTE_LOJA") sem colidir. Segue o padrao
