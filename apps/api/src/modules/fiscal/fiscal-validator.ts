@@ -21,6 +21,16 @@ export interface ValidationIssue {
 
 type Payload = Record<string, any>;
 
+/** CSOSNs válidos do Simples Nacional (#1069) — grupo ICMSSN, emitente CRT=1/2 */
+const CSOSN_VALIDOS = ['101', '102', '103', '201', '202', '203', '300', '400', '500', '900'];
+
+/**
+ * CSOSNs que envolvem substituição tributária. O motor não tem campos de ST na
+ * TaxRule, então emitir com eles produziria nota sem os valores de ST — melhor
+ * barrar em casa do que descobrir na SEFAZ.
+ */
+const CSOSN_COM_ST = ['201', '202', '203', '500'];
+
 /**
  * Limite p/ NFC-e SEM identificação do consumidor (regra W16-40, NT 2026.002
  * fase 1 — EM PRODUÇÃO na SEFAZ desde 15/06/2026). Default nacional R$ 10.000;
@@ -307,6 +317,38 @@ export function validateNfePayload(
         rejection: '511',
         field: `items[${n}].cfop`,
         message: `CFOP "${cfop}" inválido — 4 dígitos iniciando em 1-7 (rej. 511).`,
+      });
+    }
+
+    // Simples Nacional (#1069): CRT=1/2 emite grupo ICMSSN (CSOSN), CRT=3 emite
+    // grupo ICMS (CST). Trocar os dois é rejeição certa, e o erro só apareceria
+    // na SEFAZ — aqui ele aparece antes de transmitir.
+    const crtEmitente = Number(payload.regime_tributario_emitente ?? 0);
+    const sitTrib = String(item.icms_situacao_tributaria ?? '');
+    if (crtEmitente === 1 || crtEmitente === 2) {
+      if (!CSOSN_VALIDOS.includes(sitTrib)) {
+        issues.push({
+          rejection: '895',
+          field: `items[${n}].icms_situacao_tributaria`,
+          message:
+            `Emitente do Simples (CRT=${crtEmitente}) exige CSOSN, mas o item ${n} veio com "${sitTrib}" (CST). ` +
+            'Cadastre o CSOSN na regra fiscal (campo icmsCsosn) antes de emitir.',
+        });
+      } else if (CSOSN_COM_ST.includes(sitTrib)) {
+        issues.push({
+          rejection: 'MOTOR-ST',
+          field: `items[${n}].icms_situacao_tributaria`,
+          message:
+            `CSOSN ${sitTrib} envolve substituição tributária, que o motor ainda não calcula ` +
+            '(não há campos de ST na TaxRule). Emitir assim geraria nota sem os valores de ST.',
+        });
+      }
+    } else if (crtEmitente === 3 && CSOSN_VALIDOS.includes(sitTrib) && sitTrib.length === 3) {
+      issues.push({
+        rejection: '895',
+        field: `items[${n}].icms_situacao_tributaria`,
+        message:
+          `Emitente de regime normal (CRT=3) exige CST de 2 dígitos, mas o item ${n} veio com CSOSN "${sitTrib}".`,
       });
     }
 

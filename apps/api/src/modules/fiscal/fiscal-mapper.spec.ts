@@ -695,3 +695,70 @@ describe('buildAdjustmentNFePayload (#756)', () => {
     ).toBe('2202');
   });
 });
+
+// ─── #1069 (épico #1068): Simples Nacional — grupo ICMSSN/CSOSN ──────────────
+describe('Simples Nacional — CSOSN (#1069)', () => {
+  const cstTax = {
+    cfop: '5101',
+    icmsCst: '00', icmsBase: 200, icmsAliquota: 18, icmsValor: 36,
+    ipiCst: '99', ipiBase: 200, ipiAliquota: 0, ipiValor: 0,
+    pisCst: '01', pisBase: 200, pisAliquota: 1.65, pisValor: 3.3,
+    cofinsCst: '01', cofinsBase: 200, cofinsAliquota: 7.6, cofinsValor: 15.2,
+  };
+
+  const buildItem = (tax: any, crt?: number) =>
+    (buildNFePayload({
+      ...baseInput,
+      emitter: { ...baseInput.emitter, ...(crt && { crt }) },
+      items: [{ ...baseInput.items[0], tax }],
+    }) as any).items[0];
+
+  // A trava que importa: a GDR emite por este caminho todo dia.
+  it('CRT=3 sem CSOSN → payload byte-idêntico ao de antes da mudança', () => {
+    const item = buildItem(cstTax, 3);
+    expect(item.icms_situacao_tributaria).toBe('00');
+    expect(item.icms_modalidade_base_calculo).toBe('3');
+    expect(item.icms_base_calculo).toBe(200);
+    expect(item.icms_aliquota).toBe(18);
+    expect(item.icms_valor).toBe(36);
+    // nenhum campo de Simples vaza para o regime normal
+    expect(item.icms_aliquota_credito_simples_nacional).toBeUndefined();
+    expect(item.icms_valor_credito_simples_nacional).toBeUndefined();
+  });
+
+  it('emitente sem CRT declarado também não muda (retrocompat)', () => {
+    expect(buildItem(cstTax).icms_situacao_tributaria).toBe('00');
+    expect(buildItem(cstTax).icms_base_calculo).toBe(200);
+  });
+
+  it('CSOSN 102 → CSOSN no lugar do CST e SEM base/alíquota/valor de ICMS', () => {
+    const item = buildItem({ ...cstTax, icmsCsosn: '102', icmsAliquota: 0, icmsValor: 0 }, 1);
+    expect(item.icms_situacao_tributaria).toBe('102');
+    // ICMSSN102 aceita só orig + CSOSN — qualquer valor de ICMS é rejeição
+    expect(item.icms_modalidade_base_calculo).toBeUndefined();
+    expect(item.icms_base_calculo).toBeUndefined();
+    expect(item.icms_aliquota).toBeUndefined();
+    expect(item.icms_valor).toBeUndefined();
+    // os demais tributos seguem normais
+    expect(item.pis_situacao_tributaria).toBe('01');
+  });
+
+  it('CSOSN 101 com crédito → pCredSN/vCredICMSSN presentes', () => {
+    const item = buildItem(
+      { ...cstTax, icmsCsosn: '101', icmsCredSNAliquota: 2.5, icmsCredSNValor: 5 },
+      1,
+    );
+    expect(item.icms_situacao_tributaria).toBe('101');
+    expect(item.icms_aliquota_credito_simples_nacional).toBe(2.5);
+    expect(item.icms_valor_credito_simples_nacional).toBe(5);
+    // 101 é tributado: mantém base de cálculo (≠ 102)
+    expect(item.icms_modalidade_base_calculo).toBe('3');
+    expect(item.icms_base_calculo).toBe(200);
+  });
+
+  it('CSOSN 900 sem crédito cadastrado → não inventa pCredSN', () => {
+    const item = buildItem({ ...cstTax, icmsCsosn: '900' }, 1);
+    expect(item.icms_situacao_tributaria).toBe('900');
+    expect(item.icms_aliquota_credito_simples_nacional).toBeUndefined();
+  });
+});

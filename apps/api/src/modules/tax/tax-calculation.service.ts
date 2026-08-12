@@ -40,9 +40,32 @@ export interface IbsCbsTax {
   pAliqEfet?: number;
 }
 
+/**
+ * CSOSNs do Simples Nacional que permitem repasse de crédito de ICMS ao
+ * destinatário (#1069): exigem pCredSN + vCredICMSSN no XML, senão o cliente
+ * industrial não credita nada na compra.
+ */
+export const CSOSN_WITH_CREDIT = ['101', '201', '900'];
+
+/**
+ * CSOSNs sem ICMS tributado — o grupo ICMSSN correspondente NÃO aceita
+ * base/alíquota/valor de ICMS (mesma lógica do IPINT já tratada no mapper).
+ */
+export const CSOSN_WITHOUT_ICMS = ['102', '103', '300', '400'];
+
 export interface TaxResult {
   cfop: string;
-  icms: { cst: string; baseCalculo: number; aliquota: number; valor: number };
+  icms: {
+    cst: string;
+    baseCalculo: number;
+    aliquota: number;
+    valor: number;
+    // Simples Nacional (#1069) — presentes quando a TaxRule tem icmsCsosn.
+    // CRT=1/2 emite grupo ICMSSN com CSOSN no lugar do CST.
+    csosn?: string;
+    credSNAliquota?: number;
+    credSNValor?: number;
+  };
   ipi: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   pis: { cst: string; baseCalculo: number; aliquota: number; valor: number };
   cofins: { cst: string; baseCalculo: number; aliquota: number; valor: number };
@@ -208,7 +231,23 @@ export class TaxCalculationService {
 
     return {
       cfop: r.cfop,
-      icms: { cst: r.icmsCst, baseCalculo: icmsBase, aliquota: icmsAliquota, valor: icmsValor },
+      icms: {
+        cst: r.icmsCst,
+        baseCalculo: icmsBase,
+        aliquota: icmsAliquota,
+        valor: icmsValor,
+        // Simples Nacional (#1069): a regra do contador é quem define o CSOSN.
+        // O crédito (pCredSN/vCredICMSSN) só existe nos CSOSNs que o permitem —
+        // preencher fora deles é rejeição na SEFAZ.
+        ...(r.icmsCsosn && {
+          csosn: r.icmsCsosn,
+          ...(CSOSN_WITH_CREDIT.includes(r.icmsCsosn) &&
+            r.pCredSN != null && {
+              credSNAliquota: Number(r.pCredSN),
+              credSNValor: round2((icmsBase * Number(r.pCredSN)) / 100),
+            }),
+        }),
+      },
       ipi: { cst: r.ipiCst, baseCalculo: ipiBase, aliquota: ipiAliquota, valor: ipiValor },
       pis: { cst: r.pisCst, baseCalculo: pisBase, aliquota: pisAliquota, valor: pisValor },
       cofins: { cst: r.cofinsCst, baseCalculo: cofinsBase, aliquota: cofinsAliquota, valor: cofinsValor },

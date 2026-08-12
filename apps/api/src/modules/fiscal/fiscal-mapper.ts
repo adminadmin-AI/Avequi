@@ -24,6 +24,15 @@ export interface FiscalDifal {
 const IPI_TRIBUTED_CSTS = ['00', '49', '50', '99'];
 
 /**
+ * CSOSNs sem ICMS tributado (#1069) — os grupos ICMSSN102/103/300/400 só
+ * aceitam orig + CSOSN. Mandar modBC/base/alíquota/valor neles é rejeição,
+ * mesma armadilha do IPINT logo acima.
+ * Espelho de CSOSN_WITHOUT_ICMS em tax-calculation.service.ts — mantido local
+ * para o mapper seguir puro (sem arrastar Nest/Prisma para os testes).
+ */
+const CSOSN_WITHOUT_ICMS = ['102', '103', '300', '400'];
+
+/**
  * Data de emissão no fuso de Brasília (-03:00, sem DST desde 2019).
  * UTC puro faz a nota "pular" para o dia seguinte após as 21h locais —
  * SEFAZ então rejeita cancelamento/CC-e do mesmo dia com cód 577
@@ -39,6 +48,11 @@ export interface FiscalItemTax {
   icmsBase: number;
   icmsAliquota: number;
   icmsValor: number;
+  // Simples Nacional (#1069) — presentes quando o emitente é CRT=1/2.
+  // Quando icmsCsosn vem preenchido, ele substitui o CST no XML (grupo ICMSSN).
+  icmsCsosn?: string;
+  icmsCredSNAliquota?: number; // pCredSN — só nos CSOSNs 101/201/900
+  icmsCredSNValor?: number; // vCredICMSSN
   ipiCst: string;
   ipiBase: number;
   ipiAliquota: number;
@@ -370,12 +384,25 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, fr
       quantidade_tributavel: Number((item.quantity * (item.fatorConversaoTributavel ?? 1)).toFixed(4)),
       valor_unitario_tributavel: Number((item.unitPrice / (item.fatorConversaoTributavel ?? 1)).toFixed(10)),
     }),
-    icms_situacao_tributaria: t?.icmsCst ?? '00',
-    icms_modalidade_base_calculo: '3', // 3=Valor da operação
+    // Simples Nacional (#1069): a Focus usa o MESMO campo para CST e CSOSN —
+    // quem desambigua no XML é regime_tributario_emitente (CRT), já enviado.
+    // Sem icmsCsosn nada muda: emitente CRT=3 segue exatamente o caminho de antes.
+    icms_situacao_tributaria: t?.icmsCsosn ?? t?.icmsCst ?? '00',
+    ...(!(t?.icmsCsosn && CSOSN_WITHOUT_ICMS.includes(t.icmsCsosn)) && {
+      icms_modalidade_base_calculo: '3', // 3=Valor da operação
+    }),
     ...(t && {
-      icms_base_calculo: t.icmsBase,
-      icms_aliquota: t.icmsAliquota,
-      icms_valor: t.icmsValor,
+      ...(!(t.icmsCsosn && CSOSN_WITHOUT_ICMS.includes(t.icmsCsosn)) && {
+        icms_base_calculo: t.icmsBase,
+        icms_aliquota: t.icmsAliquota,
+        icms_valor: t.icmsValor,
+      }),
+      // Crédito repassado ao destinatário (CSOSN 101/201/900). Sem isso o
+      // cliente industrial não credita nada na compra — perda comercial direta.
+      ...(t.icmsCredSNAliquota != null && {
+        icms_aliquota_credito_simples_nacional: t.icmsCredSNAliquota,
+        icms_valor_credito_simples_nacional: t.icmsCredSNValor,
+      }),
       ipi_situacao_tributaria: t.ipiCst,
       ipi_codigo_enquadramento_legal: '999', // cEnq obrigatório no grupo IPI
       // CSTs 01-05/51-55 geram grupo IPINT (não tributado), que rejeita base/alíquota/valor

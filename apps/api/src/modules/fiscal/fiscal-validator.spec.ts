@@ -356,3 +356,54 @@ describe('validateNfePayload — notas 5/6 da Reforma (#756)', () => {
     ]);
   });
 });
+
+// ─── #1069 (épico #1068): coerência CRT × situação tributária ────────────────
+describe('Simples Nacional — CRT × CSOSN (#1069)', () => {
+  it('CRT=1 com CST → barra antes de transmitir (rej. 895)', () => {
+    const issues = validateNfePayload(
+      validPayload({ regime_tributario_emitente: 1 }, { icms_situacao_tributaria: '00' }),
+    );
+    expect(issues).toEqual([
+      expect.objectContaining({ rejection: '895', field: 'items[1].icms_situacao_tributaria' }),
+    ]);
+    expect(issues[0].message).toContain('exige CSOSN');
+  });
+
+  it('CRT=1 com CSOSN 102 → sem issue', () => {
+    expect(
+      validateNfePayload(
+        validPayload({ regime_tributario_emitente: 1 }, { icms_situacao_tributaria: '102' }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('CRT=2 (excesso de sublimite) segue a mesma regra do CRT=1', () => {
+    expect(
+      validateNfePayload(
+        validPayload({ regime_tributario_emitente: 2 }, { icms_situacao_tributaria: '101' }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('CSOSN com ST → barra: o motor não calcula ST e a nota sairia sem os valores', () => {
+    const issues = validateNfePayload(
+      validPayload({ regime_tributario_emitente: 1 }, { icms_situacao_tributaria: '201' }),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: 'MOTOR-ST' })]);
+  });
+
+  it('CRT=3 com CSOSN → barra (troca invertida dos grupos)', () => {
+    const issues = validateNfePayload(
+      validPayload({ regime_tributario_emitente: 3 }, { icms_situacao_tributaria: '102' }),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: '895' })]);
+  });
+
+  it('CRT=3 com CST normal → sem issue (caminho da GDR intocado)', () => {
+    expect(
+      validateNfePayload(
+        validPayload({ regime_tributario_emitente: 3 }, { icms_situacao_tributaria: '00' }),
+      ),
+    ).toEqual([]);
+  });
+});
