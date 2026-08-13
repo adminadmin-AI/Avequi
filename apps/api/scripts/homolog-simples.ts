@@ -39,20 +39,35 @@ const emitter = {
   phone: '4199623775',
 };
 
-const recipientPF = (uf: string, city: string, cep: string) => ({
-  name: 'CLIENTE PF TESTE',
-  document: '030.550.549-11',
-  address: 'RUA DOS TESTES',
-  number: '100',
-  neighborhood: 'CENTRO',
-  city,
-  state: uf,
-  zipCode: cep,
-});
+/**
+ * Destinatário real da operação: a CRD compra a peça usinada para o processo
+ * produtivo dela. Dados puxados do cadastro do ERP (onboarding de 13/07).
+ *
+ * É PJ CONTRIBUINTE (CRT=3, IE ativa) — o que torna o CSOSN 101 (com crédito)
+ * válido aqui. Com PF consumidor final a SEFAZ devolve rejeição 600.
+ */
+const CRD = {
+  name: 'CRD INDUSTRIA E COMERCIO DE REBOQUES LTDA',
+  document: '30.284.708/0001-82',
+  ie: '9078144677',
+  address: 'RUA ANTONIO SINGER',
+  number: '4075',
+  neighborhood: 'CAMPO LARGO DA ROSEIRA',
+  city: 'SAO JOSE DOS PINHAIS',
+  state: 'PR',
+  zipCode: '83091-002',
+};
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-/** Item de usinagem — CNAE principal dela é serviço de usinagem/tornearia/solda. */
+/**
+ * Ponta de eixo — 1º produto da cliente.
+ *
+ * Ela COMPRA o material e entrega a peça pronta, então é venda de produção
+ * própria (CFOP 5101), não industrialização por encomenda (que seria 5124/5902
+ * e exigiria a CRD remeter o insumo). Por isso sai NF-e de mercadoria com ICMS,
+ * e não NFS-e — a decisão ISS × ICMS é por operação, e esta caiu no ICMS.
+ */
 function pecaUsinada(opts: {
   value: number;
   qty?: number;
@@ -63,13 +78,13 @@ function pecaUsinada(opts: {
   const qty = opts.qty ?? 2;
   const total = r2(qty * opts.value);
   return {
-    sku: `USI-${RUN % 10000}`,
-    name: 'PECA USINADA SOB ENCOMENDA - ACO 1045',
-    ncm: '73269090', // outras obras de ferro ou aço
+    sku: `PONTA-EIXO-${RUN % 10000}`,
+    name: 'PONTA DE EIXO',
+    ncm: '87169090', // 8716.90.90 — outras partes de reboques e semirreboques
     quantity: qty,
     unitPrice: opts.value,
-    unit: 'PC',
-    origem: '0',
+    unit: 'UN',
+    origem: '0', // mercadoria nacional
     tax: {
       cfop: opts.cfop,
       icmsCst: '90', // placeholder — o mapper dá precedência ao CSOSN
@@ -147,15 +162,26 @@ async function runScenario(
     const xml = await fetchXml(data.caminho_xml_nota_fiscal);
     checks.push({ name: 'CRT=1 no XML', ok: tag(xml, 'CRT') === '1', detail: `CRT=${tag(xml, 'CRT')}` });
     checks.push({ name: `CSOSN ${expect.csosn}`, ok: tag(xml, 'CSOSN') === expect.csosn, detail: `CSOSN=${tag(xml, 'CSOSN')}` });
-    // O grupo ICMSSN não pode carregar CST — se vier, o branch de regime vazou
-    checks.push({ name: 'sem CST no grupo ICMS', ok: !has(xml, 'CST'), detail: has(xml, 'CST') ? `CST=${tag(xml, 'CST')}` : 'ausente' });
+
+    // Escopa no grupo <ICMS> do item: CST existe em PIS/COFINS e vICMS existe
+    // no ICMSTot, então checar o XML inteiro daria falso negativo sempre.
+    const grupoIcms = xml.match(/<ICMS>[\s\S]*?<\/ICMS>/)?.[0] ?? '';
+    checks.push({
+      name: 'grupo ICMS do item é ICMSSN (sem CST)',
+      ok: grupoIcms.includes('ICMSSN') && !grupoIcms.includes('<CST>'),
+      detail: grupoIcms.match(/<(ICMSSN\d+|ICMS\d+)>/)?.[1] ?? 'grupo não encontrado',
+    });
 
     if (expect.credito) {
       checks.push({ name: 'pCredSN', ok: tag(xml, 'pCredSN') === expect.credito.pCredSN, detail: `pCredSN=${tag(xml, 'pCredSN')}` });
       checks.push({ name: 'vCredICMSSN', ok: tag(xml, 'vCredICMSSN') === expect.credito.vCredICMSSN, detail: `vCredICMSSN=${tag(xml, 'vCredICMSSN')}` });
     } else {
       checks.push({ name: 'sem crédito (CSOSN não permite)', ok: !has(xml, 'vCredICMSSN'), detail: has(xml, 'vCredICMSSN') ? 'PRESENTE — não deveria' : 'ausente' });
-      checks.push({ name: 'sem vICMS no ICMSSN', ok: !has(xml, 'vICMS'), detail: has(xml, 'vICMS') ? `vICMS=${tag(xml, 'vICMS')}` : 'ausente' });
+      checks.push({
+        name: 'sem vICMS dentro do grupo do item',
+        ok: !grupoIcms.includes('<vICMS>'),
+        detail: grupoIcms.includes('<vICMS>') ? 'PRESENTE — ICMSSN 102 não aceita' : 'ausente',
+      });
     }
   }
 
@@ -176,31 +202,42 @@ async function runScenario(
   console.log(`╔══ HOMOLOGAÇÃO SIMPLES NACIONAL — ${emitter.name} (CRT=1) — run ${RUN} ══╗`);
   console.log(`   ambiente: ${BASE}`);
 
-  const venda = (uf: string, city: string, cep: string, cfop: string, csosn: string, credAliq?: number): FiscalPayloadInput => {
-    const item = pecaUsinada({ value: 500, cfop, csosn, credAliq });
+  const VALOR_UNITARIO = 17; // R$ 17,00 por unidade
+  const QTD = 100;
+
+  const venda = (cfop: string, csosn: string, credAliq?: number): FiscalPayloadInput => {
+    const item = pecaUsinada({ value: VALOR_UNITARIO, qty: QTD, cfop, csosn, credAliq });
+    const total = r2(item.quantity * item.unitPrice);
     return {
       ref: '',
       emitter,
-      recipient: recipientPF(uf, city, cep),
+      recipient: CRD,
       items: [item],
-      totalValue: r2(item.quantity * item.unitPrice),
-      consumidorFinal: true,
+      totalValue: total,
+      // Venda a prazo, 4x de 7 em 7 dias. tPag 15 = boleto (padrão B2B).
+      // ⚠️ O detPag carrega a FORMA, não os VENCIMENTOS: o grupo de cobrança
+      // (cobr/dup) não existe no mapper hoje, então as datas das 4 parcelas
+      // não vão no XML. A SEFAZ aceita (cobr é opcional), mas o contas a pagar
+      // da CRD não recebe o cronograma pela nota. Registrado como gap.
+      payments: [{ tPag: '15', amount: total }],
+      // A CRD compra para INDUSTRIALIZAR, não para consumo: não é consumidor
+      // final, e é contribuinte de ICMS — sem isso o CSOSN 101 cai na rej. 600.
+      consumidorFinal: false,
+      contribuinte: true,
       infCpl: 'Homologacao Simples Nacional - epico 1068. SEM VALOR FISCAL.',
-    };
+    } as FiscalPayloadInput;
   };
 
-  // S1 — o caso base: CSOSN 102, sem crédito
-  await runScenario('S1', 'Venda interna PR→PR — CSOSN 102 (sem crédito)',
-    venda('PR', 'CURITIBA', '80010-000', '5101', '102'), { csosn: '102' });
+  // S1 — o caso base: CSOSN 102, sem repasse de crédito
+  await runScenario('S1', 'Venda PR→PR para a CRD — CSOSN 102 (sem crédito)',
+    venda('5101', '102'), { csosn: '102' });
 
-  // S2 — o que vale dinheiro pra ela: crédito repassado ao cliente industrial
-  await runScenario('S2', 'Venda interna PR→PR — CSOSN 101 com crédito 2,5%',
-    venda('PR', 'CURITIBA', '80010-000', '5101', '101', 2.5),
-    { csosn: '101', credito: { pCredSN: '2.5000', vCredICMSSN: '25.00' } });
-
-  // S3 — interestadual
-  await runScenario('S3', 'Venda interestadual PR→SP — CSOSN 102',
-    venda('SP', 'SAO PAULO', '01001-000', '6101', '102'), { csosn: '102' });
+  // S2 — o que vale dinheiro: crédito repassado à CRD, que é indústria.
+  // O pCredSN real vem do anexo do Simples da cliente (contador) — 2,5% é
+  // um valor plausível só para provar a estrutura do grupo.
+  await runScenario('S2', 'Venda PR→PR para a CRD — CSOSN 101 com crédito 2,5%',
+    venda('5101', '101', 2.5),
+    { csosn: '101', credito: { pCredSN: '2.5000', vCredICMSSN: '42.50' } });
 
   // ── Relatório ──
   const ok = results.filter((r) => r.checks.every((c) => c.ok)).length;
