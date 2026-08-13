@@ -32,6 +32,13 @@ const CSOSN_VALIDOS = ['101', '102', '103', '201', '202', '203', '300', '400', '
 const CSOSN_COM_ST = ['201', '202', '203', '500'];
 
 /**
+ * CSOSNs que repassam crédito de ICMS ao destinatário. Exigem que ele seja
+ * CONTRIBUINTE — rejeição 600 da SEFAZ-PR quando indIEDest=9 (não contribuinte),
+ * colhida na homologação da 1ª cliente do Simples em 13/08/2026.
+ */
+const CSOSN_COM_CREDITO = ['101', '201', '900'];
+
+/**
  * Limite p/ NFC-e SEM identificação do consumidor (regra W16-40, NT 2026.002
  * fase 1 — EM PRODUÇÃO na SEFAZ desde 15/06/2026). Default nacional R$ 10.000;
  * cada UF pode definir o seu → ajustável por env NFCE_UNIDENTIFIED_LIMIT.
@@ -341,6 +348,21 @@ export function validateNfePayload(
           message:
             `CSOSN ${sitTrib} envolve substituição tributária, que o motor ainda não calcula ` +
             '(não há campos de ST na TaxRule). Emitir assim geraria nota sem os valores de ST.',
+        });
+      } else if (
+        CSOSN_COM_CREDITO.includes(sitTrib) &&
+        String(payload.indicador_inscricao_estadual_destinatario ?? '') === '9'
+      ) {
+        // Rejeição 600, colhida na homologação da 1ª cliente do Simples (13/08).
+        // Faz sentido: crédito de ICMS só serve a quem pode creditar, e não
+        // contribuinte não aproveita. Checado DEPOIS do ST — 201 é as duas coisas,
+        // e "o motor não calcula ST" é o problema mais fundamental dos dois.
+        issues.push({
+          rejection: '600',
+          field: `items[${n}].icms_situacao_tributaria`,
+          message:
+            `CSOSN ${sitTrib} repassa crédito de ICMS, mas o destinatário é NÃO CONTRIBUINTE (indIEDest=9). ` +
+            'Use CSOSN 102 (sem crédito) para não contribuinte, ou corrija o indicador de IE do destinatário.',
         });
       }
     } else if (crtEmitente === 3 && CSOSN_VALIDOS.includes(sitTrib) && sitTrib.length === 3) {

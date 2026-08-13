@@ -377,10 +377,18 @@ describe('Simples Nacional — CRT × CSOSN (#1069)', () => {
     ).toEqual([]);
   });
 
+  // CSOSN 101 repassa crédito → exige destinatário contribuinte com IE (rej. 600/234)
   it('CRT=2 (excesso de sublimite) segue a mesma regra do CRT=1', () => {
     expect(
       validateNfePayload(
-        validPayload({ regime_tributario_emitente: 2 }, { icms_situacao_tributaria: '101' }),
+        validPayload(
+          {
+            regime_tributario_emitente: 2,
+            indicador_inscricao_estadual_destinatario: '1',
+            inscricao_estadual_destinatario: '9124135785',
+          },
+          { icms_situacao_tributaria: '101' },
+        ),
       ),
     ).toEqual([]);
   });
@@ -403,6 +411,46 @@ describe('Simples Nacional — CRT × CSOSN (#1069)', () => {
     expect(
       validateNfePayload(
         validPayload({ regime_tributario_emitente: 3 }, { icms_situacao_tributaria: '00' }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+// Rejeição 600 colhida na homologação da 1ª cliente do Simples (13/08/2026)
+describe('CSOSN com crédito × destinatário não contribuinte (rej. 600)', () => {
+  it('CSOSN 101 para não contribuinte (indIEDest=9) → barra', () => {
+    const issues = validateNfePayload(
+      validPayload(
+        { regime_tributario_emitente: 1, indicador_inscricao_estadual_destinatario: '9' },
+        { icms_situacao_tributaria: '101' },
+      ),
+    );
+    expect(issues).toEqual([expect.objectContaining({ rejection: '600' })]);
+    expect(issues[0].message).toContain('NÃO CONTRIBUINTE');
+  });
+
+  it('CSOSN 101 para contribuinte (indIEDest=1, com IE) → sem issue', () => {
+    expect(
+      validateNfePayload(
+        validPayload(
+          {
+            regime_tributario_emitente: 1,
+            indicador_inscricao_estadual_destinatario: '1',
+            inscricao_estadual_destinatario: '9124135785',
+          },
+          { icms_situacao_tributaria: '101' },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('CSOSN 102 para não contribuinte → sem issue (102 não repassa crédito)', () => {
+    expect(
+      validateNfePayload(
+        validPayload(
+          { regime_tributario_emitente: 1, indicador_inscricao_estadual_destinatario: '9' },
+          { icms_situacao_tributaria: '102' },
+        ),
       ),
     ).toEqual([]);
   });
