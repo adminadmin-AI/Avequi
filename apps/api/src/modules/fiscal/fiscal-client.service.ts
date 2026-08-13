@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmissionResponse, EmissorPort } from './emissor.port';
+import { EmissionResponse, EmissorPort, NfseEmissionResponse } from './emissor.port';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -162,6 +162,75 @@ export class FiscalClientService implements EmissorPort {
     } catch (err) {
       return this.handleError(err);
     }
+  }
+
+  // ── NFS-e Nacional (#1077) ───────────────────────────────────────────────
+  // São José dos Pinhais aderiu ao ambiente nacional (obrigatório desde
+  // 01/01/2026), então é `/v2/nfsen` — layout único, não o padrão municipal
+  // antigo do ISSonline. Mesma conta e mesmo tokenFor(companyId) da NF-e.
+
+  /** Emitir NFS-e Nacional — envia a DPS, recebe a NFS-e */
+  async emitNFSe(ref: string, payload: Record<string, unknown>, companyId?: string): Promise<NfseEmissionResponse> {
+    const data = await this.post(`/v2/nfsen?ref=${ref}`, payload, companyId);
+    return this.normalizeNfse(data);
+  }
+
+  /**
+   * Cancelar NFS-e Nacional.
+   *
+   * ⚠️ Diferente da NF-e: o município processa de forma ASSÍNCRONA e não
+   * aprova na hora. Resposta "não processado" significa pendente no município,
+   * não falha — reenviar o cancelamento faz a Focus reconsultar. Quem chamar
+   * isto precisa tratar o estado intermediário em vez de dar erro ao usuário.
+   */
+  async cancelNFSe(ref: string, justificativa: string, companyId?: string): Promise<NfseEmissionResponse> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.delete<NfseEmissionResponse>(`${this.baseUrl}/v2/nfsen/${ref}`, {
+          auth: { username: this.tokenFor(companyId), password: '' },
+          data: { justificativa },
+        }),
+      );
+      this.logger.log(`Focus NFS-e cancel: status=${data.status} ref=${ref}`);
+      return this.normalizeNfse(data);
+    } catch (err) {
+      return this.handleError(err);
+    }
+  }
+
+  /** Consultar status de NFS-e já enviada */
+  async getNfseStatus(ref: string, companyId?: string): Promise<NfseEmissionResponse> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<NfseEmissionResponse>(`${this.baseUrl}/v2/nfsen/${ref}`, {
+          auth: { username: this.tokenFor(companyId), password: '' },
+        }),
+      );
+      return this.normalizeNfse(data);
+    } catch (err) {
+      return this.handleError(err);
+    }
+  }
+
+  /**
+   * Normaliza a resposta de NFS-e.
+   *
+   * A doc aberta da Focus publica os campos da REQUISIÇÃO, mas não os da
+   * RESPOSTA do `/v2/nfsen`. Em vez de fixar um nome só e quebrar se vier
+   * outro, aceitamos os apelidos plausíveis da convenção da casa e expomos um
+   * shape estável para o domínio. A 1ª emissão em homologação confirma quais
+   * chegam de verdade — aí dá para enxugar isto com evidência em vez de
+   * palpite.
+   */
+  private normalizeNfse(data: any): NfseEmissionResponse {
+    if (!data || typeof data !== 'object') return data;
+    return {
+      ...data,
+      numero_nfse: data.numero_nfse ?? data.numero ?? undefined,
+      chave_acesso: data.chave_acesso ?? data.chave ?? data.chave_nfse ?? data.chave_nfe ?? undefined,
+      caminho_danfse: data.caminho_danfse ?? data.caminho_danfe ?? data.caminho_pdf ?? undefined,
+      caminho_xml_nota_fiscal: data.caminho_xml_nota_fiscal ?? data.caminho_xml ?? undefined,
+    };
   }
 
   private async post(path: string, payload: Record<string, unknown>, companyId?: string): Promise<FocusEmissionResponse> {
