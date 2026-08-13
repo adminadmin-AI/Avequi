@@ -42,6 +42,17 @@ import {
  * Formatos aceitos: `*`, `modulo.*`, `modulo.recurso.*` (sufixo apenas).
  */
 
+/**
+ * De onde partiu uma resolução com fallback legado — SÓ telemetria (#1006 D1).
+ *
+ * São exatamente os dois pontos de entrada permitidos do fallback: o guard de
+ * rota (enforcement real) e o GET /auth/me/permissions (menu do frontend).
+ * `desconhecida` é o padrão defensivo: se algum caminho novo aparecer sem
+ * declarar origem, o evento sai mesmo assim — telemetria cega é pior que
+ * telemetria imprecisa. Não influencia decisão de acesso nenhuma.
+ */
+export type OrigemDaResolucao = 'route_guard' | 'auth_me_permissions' | 'desconhecida';
+
 /** Conjunto efetivo resolvido para um par (usuário, empresa). */
 export interface PermissionSet {
   /** Codes dos perfis DIRETAMENTE atribuídos (sem os herdados via parent). */
@@ -371,11 +382,13 @@ export class PermissionService {
     userId: string,
     companyId: string,
     legacyEnumRole?: string,
+    origem: OrigemDaResolucao = 'auth_me_permissions',
   ): Promise<MyEffectivePermissions> {
     const { resolved, legacyFallback } = await this.resolveWithLegacyFallback(
       userId,
       companyId,
       legacyEnumRole,
+      origem,
     );
     return { ...resolved, legacyFallback, resolvedAt: new Date().toISOString() };
   }
@@ -401,6 +414,7 @@ export class PermissionService {
     userId: string,
     companyId: string,
     legacyEnumRole?: string,
+    origem: OrigemDaResolucao = 'desconhecida',
   ): Promise<{ resolved: PermissionSet; legacyFallback: boolean }> {
     const resolved = await this.getUserPermissions(userId, companyId);
 
@@ -408,6 +422,7 @@ export class PermissionService {
     if (isEmptyInV2 && legacyEnumRole) {
       const mirrorCode = ENUM_ROLE_TO_SYSTEM_ROLE[legacyEnumRole];
       if (mirrorCode && findSystemRole(mirrorCode)) {
+        this.registrarUsoDoFallback(userId, companyId, legacyEnumRole, mirrorCode, origem);
         return {
           resolved: {
             roles: [mirrorCode],
@@ -423,6 +438,45 @@ export class PermissionService {
     }
 
     return { resolved, legacyFallback: false };
+  }
+
+  /**
+   * Telemetria do fallback legado — Fase D, etapa D1 (#1006).
+   *
+   * Emitido SOMENTE quando o fallback realmente concede o perfil-espelho, que
+   * é o evento que precisamos medir antes de removê-lo. O inventário
+   * (determinístico, no banco) diz quem PODERIA cair aqui; este evento diz
+   * quem CAIU de verdade. Os dois juntos são o portão do D2: uma semana
+   * operacional com zero eventos + inventário zerado.
+   *
+   * Best-effort por decisão explícita: telemetria NUNCA pode derrubar nem
+   * alterar uma resolução de acesso. Falha de log é engolida — a requisição
+   * segue com exatamente o mesmo resultado que teria sem este método.
+   *
+   * Sem dado pessoal além dos identificadores já presentes em outros eventos
+   * IAM do projeto (mesmo formato do `iam_permission_guard_error`).
+   */
+  private registrarUsoDoFallback(
+    userId: string,
+    companyId: string,
+    legacyRole: string,
+    mirrorCode: string,
+    origem: OrigemDaResolucao,
+  ): void {
+    try {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'iam_legacy_fallback_used',
+          userId,
+          companyId,
+          legacyRole,
+          mirrorCode,
+          origem,
+        }),
+      );
+    } catch {
+      /* best-effort: telemetria nunca interfere na autorização (#1006 D1) */
+    }
   }
 
   // ─── Invalidação ativa (Decisão 2) ────────────────────────────────────────

@@ -138,6 +138,9 @@ export class AuthController {
       user.id,
       user.companyId,
       user.role,
+      // Só telemetria (#1006 D1): marca a origem do uso do fallback legado.
+      // Não participa da decisão de acesso — isto aqui é UX (menu).
+      'auth_me_permissions',
     );
   }
 

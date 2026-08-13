@@ -85,6 +85,9 @@ export class PermissionGuard implements CanActivate {
         user.id,
         user.companyId,
         user.role,
+        // Só telemetria (#1006 D1): identifica de qual dos dois pontos de
+        // entrada partiu a resolução. Não participa da decisão de acesso.
+        'route_guard',
       );
       effective = new Set(resolved.permissions);
     } catch (error) {
