@@ -85,6 +85,11 @@ function pecaUsinada(opts: {
     unitPrice: opts.value,
     unit: 'UN',
     origem: '0', // mercadoria nacional
+    // CEST 01.127.00 — segmento 01 (autopeças). O cEST é obrigatório quando o
+    // produto CONSTA na lista de ST, mesmo que a ST não se aplique nesta
+    // operação: ele identifica a mercadoria, o CSOSN é que diz como foi
+    // tributada aqui. Ver nota sobre ST no rodapé deste arquivo.
+    cest: '0112700',
     tax: {
       cfop: opts.cfop,
       icmsCst: '90', // placeholder — o mapper dá precedência ao CSOSN
@@ -228,16 +233,24 @@ async function runScenario(
     } as FiscalPayloadInput;
   };
 
-  // S1 — o caso base: CSOSN 102, sem repasse de crédito
-  await runScenario('S1', 'Venda PR→PR para a CRD — CSOSN 102 (sem crédito)',
-    venda('5101', '102'), { csosn: '102' });
+  // S1 — O CENÁRIO REAL: ela repassa crédito de ICMS para a CRD (CSOSN 101).
+  //
+  // ⚠️ pCredSN AINDA NÃO CONFIRMADO. O percentual é a parcela de ICMS embutida
+  // na alíquota do DAS dela, e depende do anexo + faixa de receita bruta.
+  // 1,44% é a hipótese para Anexo II (indústria), 1ª faixa — coerente com
+  // empresa aberta em 08/2025 e com atividade iniciada em 06/2026. O contador
+  // dela confirma; o valor errado aqui gera crédito indevido para a CRD.
+  const P_CRED_SN = 1.44;
+  const credEsperado = r2((VALOR_UNITARIO * QTD * P_CRED_SN) / 100).toFixed(2);
 
-  // S2 — o que vale dinheiro: crédito repassado à CRD, que é indústria.
-  // O pCredSN real vem do anexo do Simples da cliente (contador) — 2,5% é
-  // um valor plausível só para provar a estrutura do grupo.
-  await runScenario('S2', 'Venda PR→PR para a CRD — CSOSN 101 com crédito 2,5%',
-    venda('5101', '101', 2.5),
-    { csosn: '101', credito: { pCredSN: '2.5000', vCredICMSSN: '42.50' } });
+  await runScenario('S1', 'Venda PR→PR para a CRD — CSOSN 101 com repasse de crédito',
+    venda('5101', '101', P_CRED_SN),
+    { csosn: '101', credito: { pCredSN: '1.4400', vCredICMSSN: credEsperado } });
+
+  // S2 — controle: sem repasse. Serve para outros clientes dela que não sejam
+  // contribuintes, onde o 101 é recusado (rej. 600).
+  await runScenario('S2', 'Venda PR→PR para a CRD — CSOSN 102 (controle, sem crédito)',
+    venda('5101', '102'), { csosn: '102' });
 
   // ── Relatório ──
   const ok = results.filter((r) => r.checks.every((c) => c.ok)).length;
