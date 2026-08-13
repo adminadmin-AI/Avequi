@@ -6,6 +6,29 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-08-13
+
+### Fiscal — Simples Nacional (épico #1068)
+- Grupo ICMSSN/CSOSN para emitente CRT=1/2, com repasse de crédito (`pCredSN`/`vCredICMSSN`). O caminho CRT=3 sai inalterado, com teste provando payload idêntico (#1069, #1070)
+- Validador barra em casa a incoerência CRT × situação tributária, os CSOSN com ST e o crédito para destinatário não contribuinte (rej. 600, colhida em homologação)
+- Tenant do Simples nasce com regras fiscais semeadas e **inativas** — resolve o onboarding sem reabrir a porta do `FALLBACK_RULE` (#1071)
+
+### Fiscal — NFS-e Nacional (épico #1077)
+- Modelo `ServiceInvoice` e extensão do `EmissorPort`/cliente Focus para `/v2/nfsen`. Fundação: ainda não emite
+
+### IAM v2
+- Alçada de desconto por perfil v2, não por enum (#1004, C5)
+- `ApprovalMatrix` por perfil v2 + tela de alçadas de aprovação (#1005, C6) — **+2 permissões**
+- Gates de UI por permissão v2 (#1003, C4)
+- Trilha de auditoria em português, com IDs resolvidos para nomes (#1064)
+
+### Fábrica
+- `WorkCenter` ganha `kind` e `supplyMarket`; tela de Despacho da Fábrica e visão do operador de mercado (#1058, #1059, #1060)
+- Login da marcadora: funções de autenticação no banco + 3 permissões (#940)
+
+### Correções
+- CORS aceita os previews do Vercel pós-rebrand (#1062)
+
 ## [1.45.0] - 2026-08-07
 
 ### Added
@@ -519,7 +542,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.42.0...v1.43.0
