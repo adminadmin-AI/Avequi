@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { FormSection } from '@/components/ui/form-section';
+import { ChassiSelect } from '@/components/sales/chassi-select';
 import { useToast } from '@/components/ui/toast';
 import { erroDeAcao } from '@/lib/feedback';
 import { formatBRL } from '@/lib/format';
@@ -46,13 +47,6 @@ interface DraftItem {
   quantity: number;
   unitPrice: number;
   serialNumberId?: string;
-}
-
-interface CounterSerial {
-  id: string;
-  serial: string;
-  chassi?: string | null;
-  descricaoCor?: string | null;
 }
 
 type Phase = 'building' | 'closed' | 'authorized';
@@ -499,47 +493,3 @@ export default function CounterSalePage() {
   );
 }
 
-/** Select de chassi disponível (IN_STOCK, livre) no depósito da venda (#595) */
-function ChassiSelect({
-  productId,
-  warehouseId,
-  value,
-  onChange,
-  excluded,
-  disabled,
-}: {
-  productId: string;
-  warehouseId: string;
-  value: string;
-  onChange: (v: string) => void;
-  excluded: string[];
-  disabled?: boolean;
-}) {
-  const { data: serials = [], isLoading } = useList<CounterSerial>(
-    '/sales/counter-serials',
-    { productId, warehouseId },
-    { enabled: Boolean(productId && warehouseId) },
-  );
-
-  if (!warehouseId) {
-    return <span className="text-xs text-content-muted">Selecione o depósito</span>;
-  }
-  const options = serials.filter((s) => s.id === value || !excluded.includes(s.id));
-  return (
-    <Select
-      aria-label="Chassi"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled || isLoading}
-      className="min-w-[220px]"
-    >
-      <option value="">{isLoading ? 'Carregando…' : options.length === 0 ? 'Sem chassi disponível' : 'Escanear/selecionar'}</option>
-      {options.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.chassi ?? s.serial}
-          {s.descricaoCor ? ` · ${s.descricaoCor}` : ''}
-        </option>
-      ))}
-    </Select>
-  );
-}

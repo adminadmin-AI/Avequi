@@ -23,6 +23,11 @@ import {
   scopeWhere,
   SystemContext,
 } from '../iam/scope';
+import {
+  ChassiEscolhido,
+  assertChassiUtilizavel,
+  reservarChassi,
+} from './serial-reservation';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { SalesPaymentInputDto } from './dto/sales-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
@@ -360,28 +365,15 @@ export class SalesService {
       }
       seen.add(item.serialNumberId);
 
-      const serial = await this.prisma.serialNumber.findFirst({
-        where: { id: item.serialNumberId, companyId },
-        select: {
-          id: true, serial: true, productId: true,
-          warehouseId: true, status: true, salesOrderId: true,
-        },
+      // #729: as regras do chassi passaram a morar em serial-reservation.ts,
+      // compartilhadas com a conferência da carga. Mesma pergunta física, uma
+      // implementação só — mensagens e ordem de checagem inalteradas.
+      await assertChassiUtilizavel(this.prisma, companyId, {
+        serialNumberId: item.serialNumberId,
+        productId: item.productId,
+        productName: product.name,
+        warehouseId,
       });
-      if (!serial) {
-        throw new BadRequestException(`Chassi ${item.serialNumberId} não encontrado.`);
-      }
-      if (serial.productId !== item.productId) {
-        throw new BadRequestException(`Chassi ${serial.serial} não pertence ao produto "${product.name}".`);
-      }
-      if (serial.warehouseId !== warehouseId) {
-        throw new BadRequestException(`Chassi ${serial.serial} não está no depósito da venda.`);
-      }
-      if (serial.status !== 'IN_STOCK') {
-        throw new BadRequestException(`Chassi ${serial.serial} não está disponível (status ${serial.status}).`);
-      }
-      if (serial.salesOrderId) {
-        throw new BadRequestException(`Chassi ${serial.serial} já está vinculado a outra venda.`);
-      }
     }
   }
 
@@ -471,15 +463,10 @@ export class SalesService {
         // Amarra o chassi com guarda de concorrência: só flipa se ainda IN_STOCK
         // e livre — fecha a corrida de dois vendedores no mesmo reboque.
         if (item.product?.tracksSerial && item.serialNumberId) {
-          const moved = await tx.serialNumber.updateMany({
-            where: { id: item.serialNumberId, companyId, status: 'IN_STOCK' as any, salesOrderId: null },
-            data: { status: 'RESERVED_FOR_SALE' as any, salesOrderId: id },
+          await reservarChassi(tx, companyId, id, {
+            serialNumberId: item.serialNumberId,
+            productName: item.product?.name,
           });
-          if (moved.count !== 1) {
-            throw new BadRequestException(
-              `Chassi de "${item.product?.name}" não está mais disponível — outra venda o reservou. Escaneie outro.`,
-            );
-          }
         }
       }
 
@@ -801,6 +788,12 @@ export class SalesService {
     }
 
     const divergencias: string[] = [];
+    // #729: itens rastreáveis que chegam SEM chassi amarrado — depósito sem WMS,
+    // onde não existe separação para escolher a unidade. A conferência assume o
+    // papel: quem carrega informa o chassi que está fisicamente saindo.
+    const aVincular: Array<{ saleItemId: string; escolha: ChassiEscolhido }> = [];
+    const chassisNestaConferencia = new Set<string>();
+
     for (const item of order.items as any[]) {
       const conf = dto.items.find((c) => c.saleItemId === item.id);
       if (!conf) {
@@ -812,29 +805,74 @@ export class SalesService {
           `${item.product?.name}: conferido ${conf.quantity}, esperado ${Number(item.quantity)}`,
         );
       }
-      // re-scan do chassi deve bater com o serial amarrado na separação
-      if (item.product?.tracksSerial) {
-        if (!item.serialNumberId) {
-          divergencias.push(`${item.product.name}: sem chassi vinculado na separação`);
-        } else if (conf.serialNumberId !== item.serialNumberId) {
+      if (!item.product?.tracksSerial) continue;
+
+      if (item.serialNumberId) {
+        // COM WMS: a separação já escolheu — a conferência só confere (#491).
+        if (conf.serialNumberId !== item.serialNumberId) {
           divergencias.push(
             `${item.product.name}: chassi conferido não confere com o separado (${item.serialNumber?.chassi ?? item.serialNumberId})`,
           );
         }
+        continue;
       }
+
+      // SEM WMS: ninguém amarrou antes — a escolha acontece aqui (#729).
+      if (!conf.serialNumberId) {
+        divergencias.push(`${item.product.name}: informe o chassi que está saindo`);
+        continue;
+      }
+      if (Number(item.quantity) !== 1) {
+        // Um chassi por linha, mesmo modelo do balcão e da separação.
+        divergencias.push(
+          `${item.product.name}: item rastreável por chassi deve ter 1 unidade por linha`,
+        );
+        continue;
+      }
+      if (chassisNestaConferencia.has(conf.serialNumberId)) {
+        divergencias.push(`${item.product.name}: chassi repetido na mesma conferência`);
+        continue;
+      }
+      chassisNestaConferencia.add(conf.serialNumberId);
+      aVincular.push({
+        saleItemId: item.id,
+        escolha: {
+          serialNumberId: conf.serialNumberId,
+          productId: item.productId,
+          productName: item.product.name,
+          warehouseId: order.warehouseId,
+        },
+      });
     }
     if (divergencias.length > 0) {
       throw new BadRequestException(`Divergência na conferência: ${divergencias.join('; ')}`);
     }
 
-    const conferred = await this.prisma.salesOrder.update({
-      where: { id },
-      data: {
-        status: SalesOrderStatus.READY_TO_INVOICE,
-        conferredAt: new Date(),
-        conferredById: userId ?? null,
-      },
-      include: { items: { include: { product: true } }, customer: true, warehouse: true },
+    // Validação de leitura primeiro: erro de cadastro (chassi de outro produto,
+    // de outro depósito, já vendido) vira mensagem clara antes de abrir a
+    // transação. A garantia contra corrida é a reserva, lá dentro.
+    for (const { escolha } of aVincular) {
+      await assertChassiUtilizavel(this.prisma, companyId, escolha);
+    }
+
+    const conferred = await this.prisma.$transaction(async (tx) => {
+      for (const { saleItemId, escolha } of aVincular) {
+        await reservarChassi(tx, companyId, id, escolha);
+        await tx.saleItem.update({
+          where: { id: saleItemId },
+          data: { serialNumberId: escolha.serialNumberId },
+        });
+      }
+
+      return tx.salesOrder.update({
+        where: { id },
+        data: {
+          status: SalesOrderStatus.READY_TO_INVOICE,
+          conferredAt: new Date(),
+          conferredById: userId ?? null,
+        },
+        include: { items: { include: { product: true } }, customer: true, warehouse: true },
+      });
     });
 
     await this.prisma.auditLog.create({

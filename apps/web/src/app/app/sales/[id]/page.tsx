@@ -35,6 +35,7 @@ import {
   validatePlan,
   type DraftPayment,
 } from '../payment-plan-editor';
+import { ChassiSelect } from '@/components/sales/chassi-select';
 import { VehicleDocsCard } from './vehicle-docs-card';
 
 const RESOURCE = '/sales';
@@ -96,6 +97,8 @@ export default function SalesDetailPage() {
   const [returnJustif, setReturnJustif] = useState('');
 
   // #584 — edição do plano de pagamento antes do faturamento
+  // #729: chassi escolhido na conferência, por item, quando não houve separação
+  const [chassiPorItem, setChassiPorItem] = useState<Record<string, string>>({});
   const [payOpen, setPayOpen] = useState(false);
   const [draftPayments, setDraftPayments] = useState<DraftPayment[]>([]);
 
@@ -182,15 +185,20 @@ export default function SalesDetailPage() {
     }
   }
 
-  // #491: conferência da carga — dupla checagem antes de liberar a NF-e
+  // #491: conferência da carga — dupla checagem antes de liberar a NF-e.
+  // #729: quando não houve separação (depósito sem WMS), é aqui que o chassi é
+  // escolhido — o que o operador seleciona vai no lugar do re-scan.
   const confer = useMutation({
     mutationFn: () =>
       apiClient.post(`${RESOURCE}/${id}/conference`, {
-        items: (order?.items ?? []).map((it) => ({
-          saleItemId: it.id,
-          quantity: Number(it.quantity),
-          ...(it.serialNumberId && { serialNumberId: it.serialNumberId }),
-        })),
+        items: (order?.items ?? []).map((it) => {
+          const chassi = it.serialNumberId ?? chassiPorItem[it.id];
+          return {
+            saleItemId: it.id,
+            quantity: Number(it.quantity),
+            ...(chassi && { serialNumberId: chassi }),
+          };
+        }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [RESOURCE] });
@@ -198,6 +206,12 @@ export default function SalesDetailPage() {
     },
     onError: (err: any) => toast.error(erroDeAcao('conferir a carga', err)),
   });
+
+  // #729: item rastreável sem chassi (nem da separação, nem escolhido aqui)
+  // não pode ser conferido — a nota precisa do chassi que fisicamente saiu.
+  const faltaChassi = (order?.items ?? []).some(
+    (it) => it.product?.tracksSerial && !it.serialNumberId && !chassiPorItem[it.id],
+  );
 
   function submitReturn() {
     if (returnReason.trim().length < 3) {
@@ -307,7 +321,7 @@ export default function SalesDetailPage() {
             </p>
             <ul className="space-y-1.5">
               {(order.items ?? []).map((it) => (
-                <li key={it.id} className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-sm">
+                <li key={it.id} className="flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
                   <span>
                     {Number(it.quantity)}× {it.product?.name ?? it.productId}
                   </span>
@@ -316,13 +330,34 @@ export default function SalesDetailPage() {
                       chassi {it.serialNumber.chassi ?? it.serialNumber.serial}
                     </span>
                   ) : it.product?.tracksSerial ? (
-                    <Badge variant="danger">sem chassi</Badge>
+                    // #729: depósito sem separação (WMS desligado) — o chassi que
+                    // está saindo é escolhido aqui, no carregamento.
+                    <ChassiSelect
+                      productId={it.productId}
+                      warehouseId={order.warehouseId}
+                      value={chassiPorItem[it.id] ?? ''}
+                      onChange={(v) => setChassiPorItem((atual) => ({ ...atual, [it.id]: v }))}
+                      excluded={Object.entries(chassiPorItem)
+                        .filter(([itemId]) => itemId !== it.id)
+                        .map(([, serialId]) => serialId)
+                        .filter(Boolean)}
+                    />
                   ) : null}
                 </li>
               ))}
             </ul>
+            {faltaChassi && (
+              <p className="text-xs text-danger">
+                Informe o chassi de cada reboque antes de confirmar. Ele vai na nota e define o
+                emplacamento.
+              </p>
+            )}
             <div className="flex justify-end">
-              <Button onClick={() => confer.mutate()} loading={confer.isPending}>
+              <Button
+                onClick={() => confer.mutate()}
+                loading={confer.isPending}
+                disabled={faltaChassi}
+              >
                 Confirmar carga conferida
               </Button>
             </div>
