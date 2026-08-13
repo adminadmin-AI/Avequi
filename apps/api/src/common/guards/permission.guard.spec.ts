@@ -85,6 +85,7 @@ describe('PermissionGuard (#341)', () => {
       'user-1',
       'company-1',
       'MANAGER', // #946: o enum entra na resolução (fallback legado)
+      'route_guard', // #1006 D1: só telemetria, não participa da decisão
     );
   });
 
@@ -178,6 +179,7 @@ describe('PermissionGuard (#341)', () => {
       userOk.id,
       userOk.companyId,
       userOk.role,
+      'route_guard', // #1006 D1: só telemetria, não participa da decisão
     );
   });
 
