@@ -72,6 +72,7 @@ model Company {
   goodsReceipts         GoodsReceipt[]
   salesOrders           SalesOrder[]
   fiscalDocuments       FiscalDocument[]
+  serviceInvoices       ServiceInvoice[]
   supportIncidents      SupportIncident[]
   financialEntries      FinancialEntry[]
   bankAccounts          BankAccount[]
@@ -1382,6 +1383,7 @@ model SalesOrder {
   items             SaleItem[]
   payments          SalesPayment[] // plano de pagamento 1+ formas (#584)
   fiscalDocument    FiscalDocument?
+  serviceInvoices   ServiceInvoice[] // NFS-e da mesma operação (#1077) — sem @unique: serviço pode ser faturado em parcelas
   financialEntries  FinancialEntry[] // 1:N desde #586 (parcelas/formas)
   pickingOrder      PickingOrder?
   serialNumbers     SerialNumber[]
@@ -1493,6 +1495,75 @@ model FiscalDocument {
   @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
   @@index([referencedDocumentId])
   @@map("gdr_fiscal_documents")
+}
+
+/// NFS-e Nacional (épico #1077) — nota de SERVIÇO, ISS municipal.
+///
+/// Modelo separado do FiscalDocument de propósito: aquele é NF-e por dentro
+/// (chave de 44, CFOP/NCM/ICMS, DANFE, RENAVE, IBS/CBS). NFS-e tem outro
+/// documento (DPS → NFS-e), outra chave (50 caracteres), outro tributo (ISS
+/// municipal) e outra classificação (item da LC 116 + NBS). Espremer os dois
+/// no mesmo modelo deixaria metade das colunas nulas dos dois lados.
+///
+/// O que compartilham é a máquina de estados (FiscalStatus) e o padrão de
+/// webhook do emissor.
+model ServiceInvoice {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  salesOrderId String?
+  salesOrder   SalesOrder?  @relation(fields: [salesOrderId], references: [id])
+  status       FiscalStatus @default(PENDING)
+  focusRef     String?
+
+  // DPS enviada → NFS-e devolvida. A numeração da DPS é do emitente; o número
+  // da NFS-e e a chave vêm do ambiente nacional depois de autorizada.
+  serieDps     String?   @db.VarChar(5)
+  numeroDps    Int?
+  numeroNfse   String?   @db.VarChar(20)
+  chaveAcesso  String?   @db.VarChar(50) // NFS-e nacional: 50 caracteres (a NF-e tem 44)
+  competencia  DateTime? @db.Date // mês de competência do serviço
+  authorizedAt DateTime?
+
+  // Classificação do serviço
+  itemListaServico          String? @db.VarChar(6) // LC 116 — ex. "14.05" (beneficiamento/usinagem)
+  codigoTributacaoMunicipio String? @db.VarChar(20)
+  codigoNbs                 String? @db.VarChar(9)
+  municipioPrestacaoIbge    String? @db.VarChar(7) // onde o serviço foi prestado (define o ISS devido)
+  discriminacao             String // descrição do serviço — obrigatória na NFS-e
+
+  // ISS
+  valorServico   Decimal  @db.Decimal(14, 2)
+  valorDeducoes  Decimal  @default(0) @db.Decimal(14, 2)
+  baseCalculo    Decimal? @db.Decimal(14, 2)
+  aliquotaIss    Decimal? @db.Decimal(5, 2)
+  valorIss       Decimal? @db.Decimal(14, 2)
+  issRetido      Boolean  @default(false) // retenção pelo tomador — muda quem recolhe
+  valorIssRetido Decimal? @db.Decimal(14, 2)
+
+  // Tomador — snapshot, igual aos itens do FiscalDocument: o cadastro pode
+  // mudar depois e a nota autorizada não pode mudar junto.
+  tomadorNome      String?
+  tomadorDocumento String? @db.VarChar(14) // CNPJ ou CPF, só dígitos
+  tomadorIm        String? @db.VarChar(20)
+  tomadorEmail     String?
+
+  xml                String?
+  xmlUrl             String? @map("xml_url")
+  danfseUrl          String? @map("danfse_url") // PDF da NFS-e
+  rejectionCode      String?
+  rejectionReason    String?
+  lastError          String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, serieDps, numeroDps]) // numeração da DPS por emitente
+  @@index([companyId, status])
+  @@index([salesOrderId])
+  @@map("gdr_service_invoices")
 }
 
 model FiscalCorrection {
