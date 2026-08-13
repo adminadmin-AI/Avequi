@@ -30,9 +30,13 @@ const RESOURCE = '/chassi';
  * português, sem o codinome OpenClaw) — o atributo `download` do <a> não
  * renomeia download cross-origin, então o renomeio é no próprio asset.
  */
+// Tag ROLANTE `openclaw-estavel`: o asset é sempre a última versão estável.
+// Nova versão da ferramenta = trocar o asset da release (gh release upload
+// --clobber) e atualizar só o rótulo INSTALADOR_VERSAO abaixo — o link nunca
+// quebra nem fica servindo versão velha (aconteceu com a v1.0.5→v1.1.3).
 const INSTALADOR_URL =
-  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.1.3/Marcadora_de_Chassi_v1.1.3.exe';
-const INSTALADOR_VERSAO = '1.1.3';
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-estavel/Marcadora_de_Chassi.exe';
+const INSTALADOR_VERSAO = '1.1.4';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
 interface ChassiGravacao {
@@ -478,8 +482,9 @@ export default function ChassisPage() {
               <p className="text-xs text-content-muted">
                 O instalador é autocontido (Python embutido) e é gerado por{' '}
                 <span className="font-mono">scripts/openclaw/instalador/construir_setup.py</span> do
-                projeto producao_v2, publicado na tag <span className="font-mono">openclaw-v{INSTALADOR_VERSAO}</span> deste
-                repositório (fora do trem de releases do ERP).
+                projeto producao_v2, publicado na tag rolante{' '}
+                <span className="font-mono">openclaw-estavel</span> deste repositório (sempre a
+                última versão estável; notas por versão nas tags <span className="font-mono">openclaw-vX.Y.Z</span>).
               </p>
             </div>
           </SheetBody>
