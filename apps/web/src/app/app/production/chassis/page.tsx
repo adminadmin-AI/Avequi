@@ -20,8 +20,8 @@ import { formatDateTime, formatNumber } from '@/lib/format';
 const RESOURCE = '/chassi';
 
 /**
- * Instalador autocontido da ferramenta OpenClaw (asset público da tag
- * `openclaw-v1.0.0` — fora do trem de releases `vX.Y.Z` do ERP). Leva o
+ * Instalador autocontido da ferramenta OpenClaw (asset público de uma tag
+ * `openclaw-*` — fora do trem de releases `vX.Y.Z` do ERP). Leva o
  * Python embutido: o PC da fábrica não precisa de Python nem de internet
  * durante a instalação. Nova versão da ferramenta = nova tag `openclaw-*`
  * e atualizar estas duas constantes.
@@ -31,8 +31,8 @@ const RESOURCE = '/chassi';
  * renomeia download cross-origin, então o renomeio é no próprio asset.
  */
 const INSTALADOR_URL =
-  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.0.5/Marcadora_de_Chassi_v1.0.5.exe';
-const INSTALADOR_VERSAO = '1.0.5';
+  'https://github.com/adminadmin-AI/Avequi/releases/download/openclaw-v1.1.3/Marcadora_de_Chassi_v1.1.3.exe';
+const INSTALADOR_VERSAO = '1.1.3';
 
 /** Gravação vinda de GET /chassi/gravacoes (tabelas gdr_chassi_* do OpenClaw). */
 interface ChassiGravacao {
