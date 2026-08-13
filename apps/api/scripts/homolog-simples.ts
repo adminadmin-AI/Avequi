@@ -240,12 +240,17 @@ async function runScenario(
   // 1,44% é a hipótese para Anexo II (indústria), 1ª faixa — coerente com
   // empresa aberta em 08/2025 e com atividade iniciada em 06/2026. O contador
   // dela confirma; o valor errado aqui gera crédito indevido para a CRD.
-  const P_CRED_SN = 1.44;
+  // Sobrescrevível sem editar código: P_CRED_SN=2.33 npx tsx ...
+  const P_CRED_SN = Number(process.env.P_CRED_SN ?? 1.44);
   const credEsperado = r2((VALOR_UNITARIO * QTD * P_CRED_SN) / 100).toFixed(2);
+  console.log(
+    `   pCredSN: ${P_CRED_SN}%` +
+      (process.env.P_CRED_SN ? ' (informado)' : ' ⚠️ HIPÓTESE — confirmar com o contador'),
+  );
 
   await runScenario('S1', 'Venda PR→PR para a CRD — CSOSN 101 com repasse de crédito',
     venda('5101', '101', P_CRED_SN),
-    { csosn: '101', credito: { pCredSN: '1.4400', vCredICMSSN: credEsperado } });
+    { csosn: '101', credito: { pCredSN: P_CRED_SN.toFixed(4), vCredICMSSN: credEsperado } });
 
   // S2 — controle: sem repasse. Serve para outros clientes dela que não sejam
   // contribuintes, onde o 101 é recusado (rej. 600).
