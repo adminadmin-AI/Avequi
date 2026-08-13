@@ -483,12 +483,12 @@ describe('SalesService', () => {
     });
   });
 
-  // ─── markReadyToInvoice (S07.04a2) ───────────────────────────────────────
+  // ─── marcarSeparacaoConcluida (ex-markReadyToInvoice, renomeado no #729) ──
 
-  describe('markReadyToInvoice', () => {
+  describe('marcarSeparacaoConcluida', () => {
     it('deve lançar NotFoundException quando OV não existe', async () => {
       mockPrisma.salesOrder.findFirst.mockResolvedValue(null);
-      await expect(service.markReadyToInvoice('so-x', SYSTEM_CONTEXT)).rejects.toThrow(NotFoundException);
+      await expect(service.marcarSeparacaoConcluida('so-x', SYSTEM_CONTEXT)).rejects.toThrow(NotFoundException);
     });
 
     it('deve lançar BadRequestException quando OV não está AWAITING_PICKING', async () => {
@@ -496,7 +496,7 @@ describe('SalesService', () => {
         ...baseOrder,
         status: SalesOrderStatus.CONFIRMED,
       });
-      await expect(service.markReadyToInvoice('so-1', SYSTEM_CONTEXT)).rejects.toThrow(BadRequestException);
+      await expect(service.marcarSeparacaoConcluida('so-1', SYSTEM_CONTEXT)).rejects.toThrow(BadRequestException);
     });
 
     it('picking concluído leva a AWAITING_CONFERENCE com pickedAt (#491)', async () => {
@@ -514,7 +514,7 @@ describe('SalesService', () => {
       };
       mockPrisma.salesOrder.update.mockResolvedValue(readyOrder);
 
-      const result = await service.markReadyToInvoice('so-1', SYSTEM_CONTEXT);
+      const result = await service.marcarSeparacaoConcluida('so-1', SYSTEM_CONTEXT);
 
       expect(result.status).toBe(SalesOrderStatus.AWAITING_CONFERENCE);
       expect(mockPrisma.salesOrder.update).toHaveBeenCalledWith(

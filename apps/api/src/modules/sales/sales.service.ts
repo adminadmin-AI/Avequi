@@ -703,13 +703,22 @@ export class SalesService {
     return { ...confirmed, ...(creditAlert && { creditAlert }) };
   }
 
-  // ─── S07.04a2: Marcar como pronto para faturar (AWAITING_PICKING → READY_TO_INVOICE)
-  //   Chamado pelo listener quando PickingOrder.status = DONE.
-
-  // Transição interna disparada pelo listener do WMS quando o picking conclui.
-  // Aceita SOMENTE SystemContext (#347-B): nenhum controller a chama em nome
-  // de usuário (não há recorte aqui — o sistema opera a venda que o evento traz).
-  async markReadyToInvoice(salesOrderId: string, _ctx: SystemContext) {
+  // ─── Separação concluída (AWAITING_PICKING → AWAITING_CONFERENCE) ─────────
+  //
+  // ⚠️ O nome antigo era `markReadyToInvoice`, e mentia desde o #491: a etapa
+  // de conferência da carga entrou ENTRE a separação e o faturamento, então
+  // este método passou a gravar AWAITING_CONFERENCE — nunca READY_TO_INVOICE.
+  // O nome obsoleto (e o log que o repetia) levou a um diagnóstico errado em
+  // julho: leu-se "marcada como READY_TO_INVOICE" no log, viu-se a venda em
+  // outro estado e concluiu-se que o fluxo sem WMS estava travado (#729).
+  // Quem leva a venda a READY_TO_INVOICE é `conferOrder`, com conferência
+  // humana. Este método só declara a separação concluída.
+  //
+  // Dois disparadores, ambos internos: o picking do WMS concluído e o desvio
+  // de depósito sem WMS (#220). Aceita SOMENTE SystemContext (#347-B):
+  // nenhum controller o chama em nome de usuário (não há recorte aqui — o
+  // sistema opera a venda que o evento traz).
+  async marcarSeparacaoConcluida(salesOrderId: string, _ctx: SystemContext) {
     // tenant-lint: ok (fluxo exclusivamente interno, restrito por SystemContext tipado; o id vem do evento interno picking DONE, não de input do usuário — exceção ao padrão tenant-aware intencional)
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: salesOrderId },
@@ -718,7 +727,7 @@ export class SalesService {
     if (!order) throw new NotFoundException(`Venda ${salesOrderId} não encontrada`);
     if (order.status !== SalesOrderStatus.AWAITING_PICKING) {
       throw new BadRequestException(
-        `Venda não pode ser marcada como pronta. Status atual: ${order.status}`,
+        `Venda não pode ter a separação concluída. Status atual: ${order.status}`,
       );
     }
 
