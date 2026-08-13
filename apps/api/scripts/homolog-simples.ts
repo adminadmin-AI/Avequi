@@ -27,7 +27,7 @@ const RUN = Date.now();
 const emitter = {
   cnpj: '62.484.006/0001-39',
   name: 'USINAGEM J A LTDA',
-  ie: '912413578', // 91241357-85 sem o separador; SINTEGRA exibe com dígito
+  ie: '9124135785', // 91241357-85 sem separador — IE do PR tem 10 dígitos (8 + 2 verificadores)
   crt: 1, // Simples Nacional — o ponto inteiro deste teste
   address: 'RUA NESTOR NEGOSEKE',
   number: '110',
