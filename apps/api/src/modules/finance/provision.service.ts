@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  dataOperacionalHoje,
+  diferencaEmDias,
+  formatarDataPura,
+  limiteDeDataPura,
+} from '../../common/date/dia-operacional';
 
 /**
  * PDD — Provisão para Devedores Duvidosos + write-off (#389, Wellington 5.2).
@@ -72,15 +78,17 @@ export class ProvisionService {
       return { totalProvisao: 0, totalVencido: 0, faixas: [], detalhes: [], semRegras: true };
     }
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // #1094: dia da operação — um dia artificial trocaria a FAIXA e, com ela,
+    // o percentual de provisão aplicado ao título.
+    const hoje = dataOperacionalHoje();
+    const limiteDeHoje = limiteDeDataPura(hoje);
 
     const vencidos = await this.prisma.financialEntry.findMany({
       where: {
         companyId,
         type: FinancialEntryType.RECEIVABLE,
         status: { in: OPEN_STATUSES },
-        dueDate: { lt: hoje },
+        dueDate: { lt: limiteDeHoje },
         // #586: PDD é risco de CLIENTE — atraso de adquirente é conciliação (#588)
         debtorType: DebtorType.CUSTOMER,
       },
@@ -105,7 +113,7 @@ export class ProvisionService {
     const detalhes: any[] = [];
 
     for (const e of vencidos) {
-      const dias = Math.floor((hoje.getTime() - new Date(e.dueDate).setHours(0, 0, 0, 0)) / 86_400_000);
+      const dias = diferencaEmDias(formatarDataPura(e.dueDate), hoje);
       const faixa = faixas.find((f) => dias >= f.daysFrom && dias <= f.daysTo);
       if (!faixa) continue;
       const saldo = Number(e.amount) - Number(e.paidAmount ?? 0);
@@ -125,7 +133,7 @@ export class ProvisionService {
     }
 
     return {
-      referencia: hoje.toISOString().slice(0, 10),
+      referencia: hoje,
       totalVencido: round2(faixas.reduce((s, f) => s + f.valorVencido, 0)),
       totalProvisao: round2(faixas.reduce((s, f) => s + f.provisao, 0)),
       faixas,

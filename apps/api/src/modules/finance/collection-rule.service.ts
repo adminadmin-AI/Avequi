@@ -2,6 +2,13 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DebtorType, FinancialEntryStatus, FinancialEntryType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  dataOperacionalHoje,
+  diferencaEmDias,
+  formatarDataPura,
+  limiteDeDataPura,
+  somarDias,
+} from '../../common/date/dia-operacional';
 
 /**
  * Régua de cobrança automática (#384, Wellington 5.2).
@@ -106,11 +113,15 @@ export class CollectionRuleService {
     });
     if (rules.length === 0) return { attempts: 0, blocked: 0, evaluated: 0 };
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // #1094: o dia vem da OPERAÇÃO (São Paulo), não do relógio do processo.
+    // Este método é o mesmo do robô das 4h e do botão "executar agora" — e o
+    // botão pode ser apertado às 22h, quando o servidor (UTC) já virou o dia.
+    // Um dia a mais aqui avança o estágio da régua e pode BLOQUEAR o
+    // faturamento de um cliente que ainda está no prazo.
+    const hoje = dataOperacionalHoje();
     const minFrom = Math.min(...rules.map((r) => r.daysFrom));
     // só interessa quem está dentro do alcance da régua (inclui pré-vencimento)
-    const maxDue = new Date(hoje.getTime() - minFrom * 86_400_000);
+    const maxDue = limiteDeDataPura(somarDias(hoje, -minFrom));
 
     const entries = await this.prisma.financialEntry.findMany({
       where: {
@@ -135,7 +146,7 @@ export class CollectionRuleService {
     let blocked = 0;
 
     for (const e of entries) {
-      const diasAtraso = Math.floor((hoje.getTime() - new Date(e.dueDate).setHours(0, 0, 0, 0)) / 86_400_000);
+      const diasAtraso = diferencaEmDias(formatarDataPura(e.dueDate), hoje);
       const rule = rules.find((r) => diasAtraso >= r.daysFrom && diasAtraso <= r.daysTo);
       if (!rule) continue;
 

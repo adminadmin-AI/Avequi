@@ -7,6 +7,12 @@ import { FinanceService } from './finance.service';
 import { FinanceKpiService } from './finance-kpi.service';
 import { ProvisionService } from './provision.service';
 import { DebtService } from './debt.service';
+import {
+  dataOperacionalHoje,
+  diferencaEmDias,
+  formatarDataPura,
+  limiteDeDataPura,
+} from '../../common/date/dia-operacional';
 
 /**
  * Book Gerencial Mensal (#394, Wellington 5.5 FP&A).
@@ -164,22 +170,23 @@ export class ManagementBookService {
 
   /** Aging AR/AP em aberto por faixa de atraso */
   private async aging(companyId: string) {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // #1094: dia da operação — um dia artificial move o título de faixa.
+    const hoje = dataOperacionalHoje();
+    const limiteDeHoje = limiteDeDataPura(hoje);
     const abertos = await this.prisma.financialEntry.findMany({
       // #586: aging de inadimplência considera dívida do CLIENTE; título de
       // adquirente "vencido" é liquidação de cartão a conciliar (#588), não atraso.
       where: {
         companyId,
         status: { in: OPEN_STATUSES },
-        dueDate: { lt: hoje },
+        dueDate: { lt: limiteDeHoje },
         debtorType: DebtorType.CUSTOMER,
       },
       select: { type: true, amount: true, paidAmount: true, dueDate: true },
     });
     const buckets = AGING_BUCKETS.map((b) => ({ faixa: b.label, receber: 0, pagar: 0 }));
     for (const e of abertos) {
-      const dias = Math.floor((hoje.getTime() - new Date(e.dueDate).setHours(0, 0, 0, 0)) / 86_400_000);
+      const dias = diferencaEmDias(formatarDataPura(e.dueDate), hoje);
       const idx = AGING_BUCKETS.findIndex((b) => dias >= b.from && dias <= b.to);
       if (idx < 0) continue;
       const saldo = Number(e.amount) - Number(e.paidAmount ?? 0);
