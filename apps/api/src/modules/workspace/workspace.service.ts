@@ -13,6 +13,15 @@ import { PermissionService, permissionMatches } from '../iam/permission.service'
 import { ApprovalService } from '../approval/approval.service';
 import { VehicleDocumentService } from '../vehicle-document/vehicle-document.service';
 import { FunnelService } from '../crm/funnel.service';
+import {
+  dataOperacionalHoje,
+  formatarDataPura,
+  formatarInstante,
+  instanteFimDoDia,
+  instanteInicioDoDia,
+  limiteDeDataPura,
+  somarDias,
+} from '../../common/date/dia-operacional';
 
 /**
  * Workspace — BFF da Home por papel (F1 do épico Workspace Inteligente).
@@ -228,10 +237,8 @@ const AGENDA_WINDOW_DAYS = 7;
 const MAX_AGENDA_WINDOW_DAYS = 42;
 const MAX_AGENDA_ITEMS_WIDE = 160;
 const PAYABLE_WINDOW_DAYS = 7;
-// Fuso da OPERAÇÃO (a GDR é de Ribeirão Preto). O container do Railway roda
-// em UTC: sem isto, "hoje" começaria às 21h do dia anterior no relógio da
-// fábrica — o Meu Dia zeraria no meio do expediente da noite.
-const BUSINESS_TZ = 'America/Sao_Paulo';
+// O fuso da operação e as regras de dia operacional moram em
+// common/date/dia-operacional (#901) — este módulo só consome.
 const MY_DAY_DEFAULT_DAYS = 30;
 const MY_DAY_MAX_DAYS = 90;
 // Fontes secundárias da Minha Mesa (expedição, SLA): poucos itens cada, para
@@ -268,50 +275,18 @@ export class WorkspaceService {
     }).format(Number(value ?? 0));
   }
 
-  private startOfToday(): Date {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-
-  private endOfDayIn(days: number): Date {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }
-
-  private isoDay(d: Date): string {
-    return d.toISOString().slice(0, 10);
-  }
-
   /**
-   * Meia-noite do dia corrente NO FUSO DA OPERAÇÃO, expressa em UTC — não
-   * depende do TZ do processo (Railway roda UTC). Subtrai do instante atual
-   * as horas/minutos/segundos que o relógio de São Paulo marca agora.
+   * Limite para comparar contra VENCIMENTO (coluna de data pura): a
+   * representação canônica do dia operacional de hoje. Título que vence hoje
+   * NÃO é anterior a este limite — logo, não está vencido (#901).
    */
-  private startOfBusinessDay(now = new Date()): Date {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-      timeZone: BUSINESS_TZ,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).formatToParts(now);
-    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-    // 24 aparece em algumas implementações à meia-noite; normaliza para 0.
-    const elapsedMs = ((get('hour') % 24) * 3600 + get('minute') * 60 + get('second')) * 1000;
-    return new Date(now.getTime() - elapsedMs);
+  private limiteDeHoje(agora = new Date()): Date {
+    return limiteDeDataPura(dataOperacionalHoje(agora));
   }
 
-  /** Data (YYYY-MM-DD) de um instante no fuso da operação. */
-  private businessDate(now = new Date()): string {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: BUSINESS_TZ,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now);
+  /** Idem, deslocado N dias — para janelas sobre vencimento. */
+  private limiteEmDias(dias: number, agora = new Date()): Date {
+    return limiteDeDataPura(somarDias(dataOperacionalHoje(agora), dias));
   }
 
   /** current vs previous → variação %; null quando não há base (previous = 0). */
@@ -565,7 +540,7 @@ export class WorkspaceService {
                 { status: FinancialEntryStatus.OVERDUE },
                 {
                   status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.PARTIALLY_PAID] },
-                  dueDate: { lt: this.startOfToday() },
+                  dueDate: { lt: this.limiteDeHoje() },
                 },
               ],
             },
@@ -593,7 +568,7 @@ export class WorkspaceService {
               companyId: user.companyId,
               type: FinancialEntryType.PAYABLE,
               status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.PARTIALLY_PAID] },
-              dueDate: { gte: this.startOfToday(), lte: this.endOfDayIn(PAYABLE_WINDOW_DAYS) },
+              dueDate: { gte: this.limiteDeHoje(), lte: this.limiteEmDias(PAYABLE_WINDOW_DAYS) },
             },
           })
           .then((r) => {
@@ -802,7 +777,7 @@ export class WorkspaceService {
                   FinancialEntryStatus.PARTIALLY_PAID,
                 ],
               },
-              dueDate: { lt: this.startOfToday() },
+              dueDate: { lt: this.limiteDeHoje() },
             },
             select: { amount: true },
           })
@@ -917,13 +892,13 @@ export class WorkspaceService {
     const window = Math.min(Math.max(days, 1), MY_DAY_MAX_DAYS);
     const can = await this.canOf(user);
     const now = new Date();
-    const todayStart = this.startOfBusinessDay(now);
+    const todayStart = instanteInicioDoDia(dataOperacionalHoje(now));
     const dayMs = 86_400_000;
     const currentStart = new Date(now.getTime() - window * dayMs);
     const previousStart = new Date(now.getTime() - 2 * window * dayMs);
 
     const summary: MyDaySummary = {
-      date: this.businessDate(now),
+      date: dataOperacionalHoje(now),
       periodDays: window,
       today: {},
       period: {},
@@ -1066,7 +1041,7 @@ export class WorkspaceService {
     const now = new Date();
     // Começa na meia-noite (fuso da operação) de N-1 dias atrás: a janela
     // cobre dias INTEIROS, incluindo o de hoje.
-    const from = new Date(this.startOfBusinessDay(now).getTime() - (window - 1) * dayMs);
+    const from = new Date(instanteInicioDoDia(dataOperacionalHoje(now)).getTime() - (window - 1) * dayMs);
 
     const orders = await this.prisma.salesOrder.findMany({
       where: {
@@ -1079,11 +1054,11 @@ export class WorkspaceService {
 
     const byDay = new Map<string, number>();
     for (let i = 0; i < window; i++) {
-      byDay.set(this.businessDate(new Date(from.getTime() + i * dayMs)), 0);
+      byDay.set(formatarInstante(new Date(from.getTime() + i * dayMs)), 0);
     }
     for (const o of orders) {
       if (!o.invoicedAt) continue;
-      const key = this.businessDate(o.invoicedAt);
+      const key = formatarInstante(o.invoicedAt);
       if (!byDay.has(key)) continue; // fora da janela por arredondamento de fuso
       const amount = o.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
       byDay.set(key, byDay.get(key)! + amount);
@@ -1108,9 +1083,17 @@ export class WorkspaceService {
     const can = await this.canOf(user);
     const items: AgendaItem[] = [];
     const jobs: Promise<void>[] = [];
-    const from = this.startOfToday();
-    const to = this.endOfDayIn(window);
-    const todayIso = this.isoDay(from);
+    // A agenda cruza DOIS tipos de coluna e por isso tem DUAS janelas (#901):
+    // vencimento é data pura (limite canônico), enquanto término de OP e
+    // lembrete de CRM são instantes reais. Usar a mesma janela nos dois erra
+    // por 3 horas nas pontas.
+    const hoje = dataOperacionalHoje();
+    const ultimoDia = somarDias(hoje, window);
+    const deData = limiteDeDataPura(hoje);
+    const ateData = limiteDeDataPura(ultimoDia);
+    const deInstante = instanteInicioDoDia(hoje);
+    const ateInstante = instanteFimDoDia(ultimoDia);
+    const todayIso: string = hoje;
 
     if (can('finance.entries.view')) {
       jobs.push(
@@ -1119,7 +1102,7 @@ export class WorkspaceService {
             where: {
               companyId: user.companyId,
               status: { in: [FinancialEntryStatus.OPEN, FinancialEntryStatus.PARTIALLY_PAID] },
-              dueDate: { gte: from, lte: to },
+              dueDate: { gte: deData, lte: ateData },
             },
             orderBy: { dueDate: 'asc' },
             take: wide ? 100 : 20,
@@ -1127,7 +1110,9 @@ export class WorkspaceService {
           .then((entries) => {
             for (const e of entries) {
               const payable = e.type === FinancialEntryType.PAYABLE;
-              const date = this.isoDay(e.dueDate);
+              // Vencimento é data pura: ler em UTC preserva o dia. Formatar no fuso
+              // de São Paulo devolveria o dia ANTERIOR (00:00Z = 21h do dia -1).
+              const date: string = formatarDataPura(e.dueDate);
               items.push({
                 id: `finance-${e.id}`,
                 date,
@@ -1149,7 +1134,7 @@ export class WorkspaceService {
             where: {
               companyId: user.companyId,
               status: { in: [ProductionOrderStatus.RELEASED, ProductionOrderStatus.IN_PROGRESS] },
-              scheduledEnd: { gte: from, lte: to },
+              scheduledEnd: { gte: deInstante, lte: ateInstante },
             },
             include: { product: { select: { name: true } } },
             orderBy: { scheduledEnd: 'asc' },
@@ -1159,7 +1144,7 @@ export class WorkspaceService {
             for (const o of orders) {
               items.push({
                 id: `production-${o.id}`,
-                date: this.isoDay(o.scheduledEnd!),
+                date: formatarInstante(o.scheduledEnd!),
                 kind: 'production-end',
                 title: `OP de ${o.product?.name ?? 'produto'} termina`,
                 href: '/app/production',
@@ -1178,7 +1163,7 @@ export class WorkspaceService {
               companyId: user.companyId,
               userId: user.id,
               doneAt: null,
-              dueAt: { gte: from, lte: to },
+              dueAt: { gte: deInstante, lte: ateInstante },
             },
             include: { lead: { select: { name: true } } },
             orderBy: { dueAt: 'asc' },
@@ -1188,7 +1173,7 @@ export class WorkspaceService {
             for (const r of reminders) {
               items.push({
                 id: `crm-${r.id}`,
-                date: this.isoDay(r.dueAt),
+                date: formatarInstante(r.dueAt),
                 kind: 'crm-reminder',
                 title: r.lead?.name ? `Follow-up: ${r.lead.name}` : `Follow-up: ${r.text}`,
                 href: '/app/crm/leads',

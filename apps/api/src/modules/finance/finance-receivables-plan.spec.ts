@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DebtorType, FinancialEntryType, PaymentMethod } from '@prisma/client';
 import { FinanceService } from './finance.service';
+import { dataOperacionalHoje, limiteDeDataPura } from '../../common/date/dia-operacional';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -38,7 +39,12 @@ function pay(overrides: Record<string, any> = {}) {
 }
 
 const DAY = 86_400_000;
-const daysFromNow = (d: Date) => Math.round((d.getTime() - Date.now()) / DAY) || 0; // normaliza -0
+// #901: vencimento passou a ser DATA DE NEGÓCIO (data pura à meia-noite UTC),
+// não mais "agora + N dias" com hora. A distância se mede entre DATAS — medir
+// em milissegundos a partir de `Date.now()` devolveria N-1 sempre que a hora
+// corrente fosse depois da meia-noite, que é praticamente sempre.
+const daysFromNow = (d: Date) =>
+  Math.round((d.getTime() - limiteDeDataPura(dataOperacionalHoje()).getTime()) / DAY) || 0;
 
 describe('FinanceService — títulos por plano de pagamento (#586)', () => {
   let service: FinanceService;
