@@ -6,6 +6,10 @@ import { INSTALLMENT_METHODS, isCardMethod } from '../acquirer/payment-classific
 import {
   FUSO_OPERACIONAL,
   dataOperacionalHoje,
+  diferencaEmDias,
+  formatarDataPura,
+  instanteFimDoDia,
+  instanteInicioDoDia,
   limiteDeDataPura,
   somarDias,
 } from '../../common/date/dia-operacional';
@@ -1081,9 +1085,11 @@ export class FinanceService {
 
   async getCashFlowProjection(companyId: string, filters: { days?: number; bankAccountId?: string } = {}) {
     const days = filters.days ?? 30;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endDate = this.addDays(today, days);
+    // #1094: a projeção é sobre VENCIMENTO (data pura). Partir do relógio do
+    // processo deslocaria a janela inteira em um dia depois das 21h.
+    const hoje = dataOperacionalHoje();
+    const today = limiteDeDataPura(hoje);
+    const endDate = limiteDeDataPura(somarDias(hoje, days));
 
     // Get current balance
     const accountWhere: any = { companyId, active: true };
@@ -1138,16 +1144,16 @@ export class FinanceService {
     let runningBalance = currentBalance;
 
     for (let i = 0; i <= days; i++) {
-      const date = this.addDays(today, i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dataDoDia = somarDias(hoje, i);
+      const dateStr: string = dataDoDia;
 
       let dayReceivable = 0;
       let dayPayable = 0;
 
       for (const e of entries) {
-        const entryDate = new Date(e.dueDate);
-        entryDate.setHours(0, 0, 0, 0);
-        if (entryDate.getTime() === date.getTime()) {
+        // Vencimento já é data pura: comparar as DATAS, não normalizar o
+        // instante no fuso do processo (que desloca a data em si).
+        if (formatarDataPura(e.dueDate) === dataDoDia) {
           const remaining = Number(e.amount) - Number(e.paidAmount ?? 0);
           if (e.type === FinancialEntryType.RECEIVABLE) dayReceivable += remaining;
           else dayPayable += remaining;
@@ -1675,8 +1681,8 @@ export class FinanceService {
   // ─── Collection Monitor ───────────────────────────────────────────────────
 
   async getCollectionStatus(companyId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // #1094: dias de atraso pelo dia da operação, não pelo relógio do processo.
+    const hoje = dataOperacionalHoje();
 
     // Overdue FinancialEntry of type RECEIVABLE
     const overdueEntries = await this.prisma.financialEntry.findMany({
@@ -1706,7 +1712,7 @@ export class FinanceService {
     });
 
     const entriesResult = overdueEntries.map((e) => {
-      const daysOverdue = Math.floor((today.getTime() - new Date(e.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = diferencaEmDias(formatarDataPura(e.dueDate), hoje);
       return {
         id: e.id,
         source: 'FINANCIAL_ENTRY' as const,
@@ -1723,7 +1729,7 @@ export class FinanceService {
     });
 
     const receivablesResult = overdueReceivables.map((r) => {
-      const daysOverdue = Math.floor((today.getTime() - new Date(r.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = diferencaEmDias(formatarDataPura(r.dueDate), hoje);
       return {
         id: r.id,
         source: 'RECEIVABLE' as const,
@@ -1743,9 +1749,12 @@ export class FinanceService {
   }
 
   async getDailyCollectionReport(companyId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = this.addDays(today, 1);
+    // ATENÇÃO à distinção (#901/#1094): aqui a janela é sobre `paidAt`, que é
+    // INSTANTE real — logo usa o início/fim FÍSICO do dia em São Paulo, não o
+    // limite de data pura. Trocar um pelo outro erraria por 3 horas.
+    const hoje = dataOperacionalHoje();
+    const today = instanteInicioDoDia(hoje);
+    const tomorrow = new Date(instanteFimDoDia(hoje).getTime() + 1);
 
     // Total overdue (FinancialEntry RECEIVABLE + Receivable)
     const overdueEntries = await this.prisma.financialEntry.aggregate({

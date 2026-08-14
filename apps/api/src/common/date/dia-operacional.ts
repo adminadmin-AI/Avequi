@@ -98,6 +98,19 @@ export function somarDias(data: DataOperacional, dias: number): DataOperacional 
 }
 
 /**
+ * Distância em dias de calendário entre duas datas operacionais — positiva
+ * quando `ate` é posterior a `de`.
+ *
+ * Fonte única do "dias de atraso" do financeiro (#1094): calcular isso a
+ * partir de instantes (subtrair milissegundos e dividir por 86.400.000) só
+ * dá inteiro exato por coincidência, e erra quando o fuso do processo
+ * desloca uma das pontas. Aqui as duas pontas já são datas.
+ */
+export function diferencaEmDias(de: DataOperacional, ate: DataOperacional): number {
+  return Math.round((limiteDeDataPura(ate).getTime() - limiteDeDataPura(de).getTime()) / 86_400_000);
+}
+
+/**
  * Lê uma data pura persistida (`2026-08-14T00:00:00.000Z`) de volta como
  * `'2026-08-14'`.
  *
