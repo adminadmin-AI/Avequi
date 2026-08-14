@@ -3,6 +3,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CollectionAttemptChannel, DebtorType, FinancialEntryStatus, FinancialEntryType, Prisma, ScheduledPaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { INSTALLMENT_METHODS, isCardMethod } from '../acquirer/payment-classification';
+import {
+  FUSO_OPERACIONAL,
+  dataOperacionalHoje,
+  limiteDeDataPura,
+  somarDias,
+} from '../../common/date/dia-operacional';
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
@@ -74,7 +80,10 @@ export class FinanceService {
 
     // ── Legado: venda sem plano de pagamento → 1 CR cliente em 30 dias ──────
     if (plan.length === 0) {
-      const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
+      // Vencimento é DATA DE NEGÓCIO (#901): parte do dia operacional, não do
+      // instante do processo. Venda fechada às 22h de 14/08 continua contando
+      // a partir de 14/08 — antes, o relógio UTC já dizia 15/08.
+      const dueDate = params.dueDate ?? this.vencimentoEmDias(30);
       const entry = await this.prisma.financialEntry.create({
         data: {
           companyId: params.companyId,
@@ -100,7 +109,8 @@ export class FinanceService {
     }
 
     // ── Plano de pagamento → N títulos ──────────────────────────────────────
-    const invoiceDate = new Date();
+    // Data-base do plano: o DIA OPERACIONAL do faturamento (#901).
+    const diaDoFaturamento = dataOperacionalHoje();
 
     const receivables: any[] = [];
 
@@ -123,7 +133,7 @@ export class FinanceService {
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.OPEN,
             amount: inst.amount,
-            dueDate: this.addDays(invoiceDate, settlement + 30 * (inst.number - 1)),
+            dueDate: this.vencimentoEmDias(settlement + 30 * (inst.number - 1), diaDoFaturamento),
             description: `Venda #${params.salesOrderId} — cartão ${inst.number}/${n} (líquido adquirente)`,
             salesOrderId: params.salesOrderId,
             debtorType: DebtorType.ACQUIRER,
@@ -140,7 +150,7 @@ export class FinanceService {
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.OPEN,
             amount: inst.amount,
-            dueDate: this.addDays(invoiceDate, 30 * inst.number),
+            dueDate: this.vencimentoEmDias(30 * inst.number, diaDoFaturamento),
             description: `Venda #${params.salesOrderId} — ${p.method} ${inst.number}/${n}`,
             salesOrderId: params.salesOrderId,
             debtorType: DebtorType.CUSTOMER,
@@ -155,7 +165,7 @@ export class FinanceService {
           type: FinancialEntryType.RECEIVABLE,
           status: FinancialEntryStatus.OPEN,
           amount: gross,
-          dueDate: invoiceDate,
+          dueDate: this.vencimentoEmDias(0, diaDoFaturamento),
           description: `Venda #${params.salesOrderId} — ${p.method} à vista`,
           salesOrderId: params.salesOrderId,
           debtorType: DebtorType.CUSTOMER,
@@ -396,10 +406,9 @@ export class FinanceService {
       }
       // Ponto 6 — status é PERSISTIDO (cron markOverdue). Ao mudar o vencimento,
       // reconcilia OPEN/OVERDUE pela regra oficial (vencido = dueDate < hoje 00h).
-      const today0 = new Date();
-      today0.setHours(0, 0, 0, 0);
+      const limiteDeHoje = limiteDeDataPura(dataOperacionalHoje());
       const reconciled =
-        newDue < today0 ? FinancialEntryStatus.OVERDUE : FinancialEntryStatus.OPEN;
+        newDue < limiteDeHoje ? FinancialEntryStatus.OVERDUE : FinancialEntryStatus.OPEN;
       if (reconciled !== entry.status) {
         data.status = reconciled;
         track('status', entry.status, reconciled);
@@ -873,16 +882,28 @@ export class FinanceService {
 
   // ─── S09.05b: Cron diário — OPEN vencidos → OVERDUE ─────────────────────
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  /**
+   * Vira a chave dos vencidos na VIRADA REAL do dia brasileiro (#901).
+   *
+   * O fuso explícito é parte da correção, não enfeite: sem ele o cron dispara
+   * à meia-noite UTC, que é 21h em São Paulo — e marcava como vencido o título
+   * que vencia naquele mesmo dia, três horas antes de o dia acabar. Corrigir
+   * só a comparação e manter 00:00 UTC inverteria o erro: o título de ontem só
+   * viraria OVERDUE às 21h de hoje, 21 horas atrasado.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, {
+    name: 'finance-mark-overdue',
+    timeZone: FUSO_OPERACIONAL,
+  })
   async markOverdue(): Promise<void> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Data pura contra data pura: quem vence HOJE não é anterior a hoje.
+    const limiteDeHoje = limiteDeDataPura(dataOperacionalHoje());
 
     // tenant-lint: ok (cron de sistema: OPEN vencido vira OVERDUE em todos os tenants por design)
     const { count } = await this.prisma.financialEntry.updateMany({
       where: {
         status: FinancialEntryStatus.OPEN,
-        dueDate: { lt: today },
+        dueDate: { lt: limiteDeHoje },
       },
       data: { status: FinancialEntryStatus.OVERDUE },
     });
@@ -1831,6 +1852,16 @@ export class FinanceService {
   }
 
   // ─── Util ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Vencimento como DATA DE NEGÓCIO (#901): parte do dia operacional em São
+   * Paulo, soma o prazo em dias de calendário e devolve a representação
+   * canônica de data pura (`YYYY-MM-DDT00:00:00.000Z`) — a mesma forma dos
+   * 3.687 títulos já em produção (migração do Omie e lançamento manual).
+   */
+  private vencimentoEmDias(dias: number, base = dataOperacionalHoje()): Date {
+    return limiteDeDataPura(somarDias(base, dias));
+  }
 
   private addDays(date: Date, days: number): Date {
     const result = new Date(date);
