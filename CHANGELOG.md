@@ -6,6 +6,23 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.47.0] - 2026-08-17
+
+### Financeiro — dia operacional brasileiro (#901, #1094)
+- O container roda em UTC, então "hoje" virava às 21h no relógio da fábrica. Novo módulo `dia-operacional` centraliza a definição e o agendamento passa a declarar `America/Sao_Paulo`, disparando na virada real do dia (#1092)
+- O robô de inadimplência deixa de gravar `OVERDUE` em título que vence no próprio dia, e o vencimento gerado pela venda deixa de nascer com um dia a mais quando fechada depois das 21h (#1092)
+- Mesmo dia operacional aplicado aos cinco consumidores restantes: régua de cobrança, provisão (PDD), aging do livro gerencial, monitor de cobrança e fluxo de caixa projetado (#1095). Nenhuma regra de negócio mudou — faixas, percentuais e estágios seguem idênticos
+
+### Vendas — venda em depósito sem WMS (#729)
+- Chassi escolhido na conferência da carga: como não há separação nesse tipo de depósito, não havia onde dizer qual reboque físico está saindo. Agora isso acontece quando o operador de fato sabe (#1091)
+- O desvio sem WMS deixa de mentir no log e ganha cobertura de teste (#1090)
+
+### IAM — Fase D (#1006)
+- Telemetria do fallback legado de permissões: registra cada entrada pelo caminho antigo. É o que inicia a janela de observação antes de aposentar `User.role` (#1089)
+
+### Web
+- Download da Marcadora de Chassi via tag rolante `openclaw-estavel` (#1085, #1087)
+
 ## [1.46.0] - 2026-08-13
 
 ### Fiscal — Simples Nacional (épico #1068)
@@ -542,7 +559,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...HEAD
+[1.47.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.43.0...v1.44.0
