@@ -399,9 +399,15 @@ function mapItemToPayload(item: FiscalItem, idx: number, defaultCfop: string, fr
       }),
       // Crédito repassado ao destinatário (CSOSN 101/201/900). Sem isso o
       // cliente industrial não credita nada na compra — perda comercial direta.
+      //
+      // ⚠️ Nomes SEM o sufixo "_nacional" — dicionário Focus
+      // (campos.focusnfe.com.br/nfe/ItemNotaFiscalXML.html). A variante com
+      // "_nacional" é aceita pela API SEM ERRO e sai com pCredSN=0 no XML
+      // autorizado: a nota é autorizada e o crédito some em silêncio. Colhido
+      // na homologação de 17/08, depois de 6 tentativas de nome (#1069).
       ...(t.icmsCredSNAliquota != null && {
-        icms_aliquota_credito_simples_nacional: t.icmsCredSNAliquota,
-        icms_valor_credito_simples_nacional: t.icmsCredSNValor,
+        icms_aliquota_credito_simples: t.icmsCredSNAliquota,
+        icms_valor_credito_simples: t.icmsCredSNValor,
       }),
       ipi_situacao_tributaria: t.ipiCst,
       ipi_codigo_enquadramento_legal: '999', // cEnq obrigatório no grupo IPI

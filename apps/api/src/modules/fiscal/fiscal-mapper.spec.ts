@@ -722,8 +722,8 @@ describe('Simples Nacional — CSOSN (#1069)', () => {
     expect(item.icms_aliquota).toBe(18);
     expect(item.icms_valor).toBe(36);
     // nenhum campo de Simples vaza para o regime normal
-    expect(item.icms_aliquota_credito_simples_nacional).toBeUndefined();
-    expect(item.icms_valor_credito_simples_nacional).toBeUndefined();
+    expect(item.icms_aliquota_credito_simples).toBeUndefined();
+    expect(item.icms_valor_credito_simples).toBeUndefined();
   });
 
   it('emitente sem CRT declarado também não muda (retrocompat)', () => {
@@ -749,8 +749,13 @@ describe('Simples Nacional — CSOSN (#1069)', () => {
       1,
     );
     expect(item.icms_situacao_tributaria).toBe('101');
-    expect(item.icms_aliquota_credito_simples_nacional).toBe(2.5);
-    expect(item.icms_valor_credito_simples_nacional).toBe(5);
+    expect(item.icms_aliquota_credito_simples).toBe(2.5);
+    expect(item.icms_valor_credito_simples).toBe(5);
+    // Trava do nome (#1069): a variante com "_nacional" é aceita pela API SEM
+    // ERRO e a nota AUTORIZA — só que com pCredSN=0 no XML. O crédito some em
+    // silêncio, que é o pior modo de falha possível aqui.
+    expect(item.icms_aliquota_credito_simples_nacional).toBeUndefined();
+    expect(item.icms_valor_credito_simples_nacional).toBeUndefined();
     // 101 é tributado: mantém base de cálculo (≠ 102)
     expect(item.icms_modalidade_base_calculo).toBe('3');
     expect(item.icms_base_calculo).toBe(200);
@@ -759,6 +764,6 @@ describe('Simples Nacional — CSOSN (#1069)', () => {
   it('CSOSN 900 sem crédito cadastrado → não inventa pCredSN', () => {
     const item = buildItem({ ...cstTax, icmsCsosn: '900' }, 1);
     expect(item.icms_situacao_tributaria).toBe('900');
-    expect(item.icms_aliquota_credito_simples_nacional).toBeUndefined();
+    expect(item.icms_aliquota_credito_simples).toBeUndefined();
   });
 });
