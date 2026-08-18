@@ -6,6 +6,14 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.47.1] - 2026-08-18
+
+### Fixed
+- fix(fiscal): crédito do Simples usava nome de campo errado e sumia em silêncio (#1069) (#1097)
+
+### Changed
+- chore(web): ignora .env* no apps/web (#1088)
+
 ## [1.47.0] - 2026-08-17
 
 ### Financeiro — dia operacional brasileiro (#901, #1094)
@@ -559,7 +567,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.1...HEAD
+[1.47.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.44.0...v1.45.0
