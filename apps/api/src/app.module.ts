@@ -67,6 +67,7 @@ import { BudgetPlanModule } from './modules/budget-plan/budget-plan.module';
 import { CostingModule } from './modules/costing/costing.module';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { VersionModule } from './modules/version/version.module';
+import { HealthModule } from './modules/health/health.module';
 import { ApprovalModule } from './modules/approval/approval.module';
 import { CommissionModule } from './modules/commission/commission.module';
 import { RfqModule } from './modules/rfq/rfq.module';
@@ -173,6 +174,7 @@ import { EntitlementModule } from './modules/entitlement/entitlement.module';
     CostingModule,
     PricingModule,
     VersionModule,
+    HealthModule,
     ApprovalModule,
     CommissionModule,
     RfqModule,
