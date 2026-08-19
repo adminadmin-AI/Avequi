@@ -42,6 +42,14 @@ const PUBLIC_ALLOWLIST = [
   'FiscalController.webhook', // Focus NFe (x-focus-token, timingSafeEqual)
   'SupportController.updateDiagnosis', // write-back triagem (#768, HMAC x-triage-signature, fail-closed)
   'VersionController.version', // GET /version — público por design
+  // GET /health — público POR NECESSIDADE: o monitor externo de disponibilidade
+  // (#1024, cláusula B.1.5 do AVQ-CT v2) não tem credencial. Não expõe dado
+  // algum: a resposta é um vocabulário FECHADO de seis palavras
+  // (healthy/degraded/unhealthy, up/down) + uptime em segundos. Mensagem de
+  // erro do driver (host, porta, credencial) vai para o log da aplicação e
+  // NUNCA para o corpo HTTP — há teste dedicado provando isso. Protegida pelo
+  // ThrottlerGuard global (60 req/min) e sem consulta cara: SELECT 1 + PING.
+  'HealthController.health', // #1102
   'InviteController.accept', // aceite de convite de tenant (OPS WP2 #909 — token sha256 uso único 72h, throttle 5/min, resposta única p/ token inválido)
 ].sort();
 
