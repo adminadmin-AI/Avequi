@@ -735,6 +735,7 @@ export class SessionService {
     companyId: string,
     opcoes: { userId?: string; exceptUserIdsOfCompany?: boolean } = {},
   ): Promise<number> {
+    // list-lint: ok (revogação de segurança precisa alcançar TODAS as sessões abertas — um teto deixaria sessão viva, que é o oposto do objetivo; o recorte já é uma empresa e só as não revogadas)
     const sessions = await this.prisma.userSession.findMany({
       where: {
         companyId,

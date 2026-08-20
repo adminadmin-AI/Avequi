@@ -252,6 +252,7 @@ export class GroupsService {
     });
 
     for (const outra of remanescentes) {
+      // list-lint: ok (revogação de segurança — alcançar todo mundo é o ponto; `distinct` já reduz ao conjunto de usuários da empresa que saiu)
       const sessoes = await this.prisma.userSession.findMany({
         where: { companyId: outra, revokedAt: null, user: { companyId } },
         select: { userId: true },

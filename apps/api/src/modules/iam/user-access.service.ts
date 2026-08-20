@@ -83,13 +83,13 @@ export class UserAccessService {
   async assignRole(actor: Actor, userId: string, dto: AssignRoleDto) {
     const target = await this.findTargetUser(actor, userId);
     // #1107: empresa REAL do usuário administrado — pode ser uma filial.
-    // #1119: com `dto.companyId`, o vínculo vale em OUTRA empresa do grupo
+    // #1119: com `dto.empresaDoVinculo`, o vínculo vale em OUTRA empresa do grupo
     // econômico (a pessoa da GDR ganhando perfil na CRD) — duas travas no
     // resolvedor. Sem ele, nada muda.
     const alvoCompanyId = await this.resolverEmpresaDoVinculo(
       actor,
       target,
-      dto.companyId,
+      dto.empresaDoVinculo,
     );
 
     const role = await this.prisma.role.findFirst({

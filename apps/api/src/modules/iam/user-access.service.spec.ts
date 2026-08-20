@@ -123,7 +123,7 @@ describe('UserAccessService', () => {
         { provide: LegacyRoleMirrorService, useValue: mockLegacyMirror },
         { provide: TenantScopeService, useValue: mockTenantScope },
         // #1119: sem grupo econômico declarado, o grupo é o próprio tenant —
-        // é o estado de 100%% dos tenants antes de a operadora declarar um.
+        // é o estado de 100% dos tenants antes de a operadora declarar um.
         {
           provide: CompanyGroupService,
           useValue: {

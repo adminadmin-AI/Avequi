@@ -190,7 +190,7 @@ export class AuthController {
     @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.switchCompany(user, dto.companyId, {
+    const result = await this.authService.switchCompany(user, dto.empresaId, {
       ipAddress: req.ip,
       userAgent: req.headers?.['user-agent'],
     });

@@ -11,6 +11,7 @@ import { OpsMfaGuard } from './ops-mfa.guard';
 import { BillingController } from './billing.controller';
 import { ImpersonationController } from './impersonation.controller';
 import { OpsPanelController } from './ops-panel.controller';
+import { GroupsController } from './groups.controller';
 import { OpsController } from './ops.controller';
 import { PlansController } from './plans.controller';
 import { ContractController } from './contract.controller';
@@ -48,6 +49,10 @@ const OPS_CONTROLLERS: Array<{ name: string; cls: new (...args: any[]) => any }>
   { name: 'ImpersonationController', cls: ImpersonationController },
   { name: 'ContractController', cls: ContractController },
   { name: 'ProposalsController', cls: ProposalsController },
+  // #1119 — grupos econômicos: declarar que dois tenants são administrados
+  // pelas mesmas pessoas é decisão da operadora, com a mesma blindagem do
+  // resto do control plane (ops.groups.* + MFA duro + sessão do portal).
+  { name: 'GroupsController', cls: GroupsController },
 ];
 
 /** Self-service/público por design (cada um valida a si próprio; sem visão

@@ -117,6 +117,11 @@ export class AssignRoleDto {
    * grupo econômico declarado pela operadora, e o ator precisa de
    * `iam.roles.assign` NA EMPRESA DESTINO, não na dele.
    *
+   * O nome não é `companyId` porque o tenant-query-lint proíbe essa
+   * propriedade em qualquer DTO, sem waiver — regra do incidente #158. Ela
+   * vale; abrir exceção enfraqueceria a trava para os outros DTOs. Mesmo nome
+   * do query param que desfaz o vínculo (DELETE .../roles/:roleId).
+   *
    * Omitido (o caso normal) = a empresa do próprio usuário.
    */
   @ApiPropertyOptional({
@@ -125,7 +130,7 @@ export class AssignRoleDto {
   })
   @IsOptional()
   @IsString()
-  companyId?: string;
+  empresaDoVinculo?: string;
 }
 
 export class GrantUserPermissionDto {
