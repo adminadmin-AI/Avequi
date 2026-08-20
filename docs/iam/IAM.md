@@ -76,6 +76,12 @@ Pontos que pegam gente nova:
   filtrados na resolução.
 - **Perfis system** (`isSystem=true`, `companyId=null`) vêm do catálogo; perfis
   custom de empresa nunca são alterados pelo seed.
+- **`CompanyGroup`** (#1119) — grupo econômico: o laço entre tenants-RAIZ
+  administrados pelas mesmas pessoas (GDR + CRD). **Não é** a árvore
+  matriz→filial (`Company.parentId`): aquela é um tenant com várias unidades,
+  esta são N tenants distintos, cada um com CNPJ, assinatura, numeração fiscal
+  e lifecycle próprios. O grupo **não mistura dado nenhum** — só torna
+  *concedível* o vínculo de perfil entre as empresas dele.
 
 ## 4. Resolução de permissões efetivas
 
@@ -124,6 +130,32 @@ grant individual → deny individual. Lista vazia de perfis = conjunto vazio
    `JWT_EXPIRY` = 15 min e o refresh segue bloqueado pelos mecanismos persistentes).
    Tokens legados sem `sessionId` (transição M4) não consultam.
 
+### Empresa ativa da sessão (`/auth/switch-company`, #1119)
+
+O claim `companyId` do token significa **a empresa em que a sessão está
+trabalhando**, não onde o usuário foi cadastrado. O cadastro é o claim
+`homeCompanyId` — âncora de toda validação de troca. Para quem não tem grupo
+econômico (a esmagadora maioria) os dois são iguais e nada muda.
+
+- `GET /auth/me/companies` — empresas que a pessoa pode assumir (vínculo
+  vigente **E** dentro do grupo da empresa de cadastro). Um item só = sem
+  grupo; o front esconde o seletor.
+- `POST /auth/switch-company` — valida, nesta ordem e tudo fail-closed:
+  (1) `podeAssumir` (grupo + vínculo, resolvido a partir do **cadastro**, nunca
+  da ativa — senão A→B→C encadearia grupos que ninguém declarou junto);
+  (2) status do tenant destino (suspenso não recebe visita pela porta do
+  grupo); (3) reemite os tokens; (4) audita nas **duas** empresas e encerra a
+  sessão anterior.
+- **`refresh` valida a empresa ATIVA**, não a de cadastro: suspensão do destino
+  e vínculo ainda vigente. Vínculo revogado → **401 explícito**, nunca rebaixar
+  para a empresa de casa — trocar o contexto por baixo de quem trabalha é
+  caminho para lançar na empresa errada.
+- Perder o acesso (remoção de vínculo, desassociação do grupo) **revoga as
+  sessões** abertas naquela empresa (`revokeSessionsInCompany`), então o access
+  token vivo morre na próxima request em vez de expirar sozinho.
+- Impersonation (#913) não troca de empresa: o `ImpersonationReadonlyGuard`
+  global recusa a mutação, e o seletor some na sessão de suporte.
+
 ### MFA (`/auth/mfa/*` — self-service, autenticado)
 - `setup` → segredo TOTP (criptografado via `EncryptionService`/`ENCRYPTION_KEY`;
   sem a chave, MFA responde **503 fail-fast**) + QR otpauth.
@@ -151,9 +183,25 @@ quando a ação é sensível. Mudanças de perfil/permissão geram `PermissionCh
 | Reset de MFA por admin (#545) | `/iam/users/:id/mfa/reset` | `iam.roles.assign` |
 | Organização (filial/depto/equipe) | `/iam/org*` | `iam.org.view` / `manage` / `assign` |
 | Log de auditoria | `/iam/audit-logs` | `iam.audit-logs.view` |
+| Declarar grupo econômico (#1119) | `/ops/groups*` | `ops.groups.view` / `manage` (**operadora**) |
 
 Salvaguardas de servidor: **anti-auto-lockout** (400 ao remover o próprio acesso à
 gestão), denies não trancam SUPER_ADMIN fora da gestão, alvo sempre da MESMA empresa.
+
+**Grupo econômico (#1119) — quem pode o quê.** Declarar que dois tenants são
+administrados pelas mesmas pessoas é da **operadora** (portal `/ops`, por
+chamado): se o admin do tenant pudesse fazê-lo, ele se auto-concederia acesso a
+um cliente alheio. Declarado o grupo, o admin do tenant administra as pessoas
+sozinho — `POST /iam/users/:id/roles` aceita `empresaDoVinculo` (a empresa onde
+o perfil vale), com **duas travas independentes**: a empresa destino tem de
+estar no grupo do alvo, e o ator precisa de `iam.roles.assign` **na empresa
+destino**, não na dele. O grupo autoriza o vínculo a existir; não transforma
+admin de uma empresa em admin da outra.
+
+O campo se chama `empresaDoVinculo` (e não `companyId`) porque o
+`tenant-query-lint` proíbe, sem waiver, a propriedade `companyId` em qualquer
+DTO — regra do incidente #158. O mesmo vale para `empresaId` no
+`switch-company` e para o param `:memberId` do `/ops/groups`.
 
 ## 7. Sentinelas de CI (testes que impedem regressão)
 
