@@ -490,15 +490,23 @@ describe('AuthService', () => {
   // ─── logout ────────────────────────────────────────────────────────────────
 
   describe('logout', () => {
+    // #67: os mocks abaixo passaram a carregar `userId`, que é o dono
+    // persistido do refresh token (coluna NOT NULL, FK para gdr_users). Antes
+    // eles omitiam o campo porque o logout não o consultava — era exatamente
+    // a falha corrigida aqui, não uma regressão dos testes.
+    const DONO = 'user-a';
+    const OUTRO = 'user-b';
+
     it('should revoke refresh token and its session (#342)', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         token: hashToken('valid-token'),
+        userId: DONO,
         revokedAt: null,
       });
       mockPrisma.refreshToken.update.mockResolvedValue({});
 
-      await service.logout('valid-token');
+      await service.logout('valid-token', DONO);
 
       expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -513,7 +521,7 @@ describe('AuthService', () => {
     });
 
     it('should do nothing when refreshToken is empty', async () => {
-      await service.logout('');
+      await service.logout('', DONO);
 
       expect(mockPrisma.refreshToken.findUnique).not.toHaveBeenCalled();
     });
@@ -522,10 +530,11 @@ describe('AuthService', () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         token: hashToken('already-revoked'),
+        userId: DONO,
         revokedAt: new Date(),
       });
 
-      await service.logout('already-revoked');
+      await service.logout('already-revoked', DONO);
 
       expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
       expect(mockSessionService.revokeSessionByRefreshTokenId).not.toHaveBeenCalled();
@@ -534,8 +543,94 @@ describe('AuthService', () => {
     it('should do nothing when token not found', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue(null);
 
-      await service.logout('not-found-token');
+      await service.logout('not-found-token', DONO);
 
+      expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+    });
+
+    // ─── #67: posse do token não é autorização ──────────────────────────────
+
+    it('#67: NÃO revoga o refresh token de outro usuário', async () => {
+      // O token existe e é válido — só que é do usuário B. Quem chama é A.
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-do-b',
+        token: hashToken('token-do-b'),
+        userId: OUTRO,
+        revokedAt: null,
+      });
+
+      await service.logout('token-do-b', DONO);
+
+      // Nada do B é tocado: nem o token, nem a sessão.
+      expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeSessionByRefreshTokenId).not.toHaveBeenCalled();
+    });
+
+    it('#67: token de terceiro é indistinguível de token inexistente (sem oráculo)', async () => {
+      // Caminho A — token de outro usuário.
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-do-b',
+        token: hashToken('token-do-b'),
+        userId: OUTRO,
+        revokedAt: null,
+      });
+      const terceiro = await service.logout('token-do-b', DONO);
+
+      jest.clearAllMocks();
+
+      // Caminho B — token que não existe.
+      mockPrisma.refreshToken.findUnique.mockResolvedValue(null);
+      const inexistente = await service.logout('token-que-nao-existe', DONO);
+
+      // Mesmo retorno (void) e mesma ausência de efeito: nada no retorno nem
+      // no comportamento diferencia os dois casos para quem está de fora.
+      expect(terceiro).toBeUndefined();
+      expect(inexistente).toBeUndefined();
+      expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeSessionByRefreshTokenId).not.toHaveBeenCalled();
+    });
+
+    it('#67: usa o userId PERSISTIDO na comparação, não o token apresentado', async () => {
+      // A linha do banco é a fonte de verdade do dono. Aqui ela diz que o
+      // token é do DONO e o ator é o DONO — tem que revogar.
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('valid-token'),
+        userId: DONO,
+        revokedAt: null,
+      });
+      mockPrisma.refreshToken.update.mockResolvedValue({});
+
+      await service.logout('valid-token', DONO);
+
+      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rt-1' } }),
+      );
+    });
+
+    it('#67: sem ator identificado é no-op (fail-closed)', async () => {
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('valid-token'),
+        userId: DONO,
+        revokedAt: null,
+      });
+
+      await service.logout('valid-token', undefined);
+
+      expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeSessionByRefreshTokenId).not.toHaveBeenCalled();
+    });
+
+    it('#67: logout repetido continua idempotente, sem erro', async () => {
+      mockPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        token: hashToken('valid-token'),
+        userId: DONO,
+        revokedAt: new Date(), // já revogado pela primeira chamada
+      });
+
+      await expect(service.logout('valid-token', DONO)).resolves.toBeUndefined();
       expect(mockPrisma.refreshToken.update).not.toHaveBeenCalled();
     });
   });
