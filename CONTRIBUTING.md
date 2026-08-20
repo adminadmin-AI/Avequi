@@ -18,7 +18,8 @@
 9. [Fluxo de Branches](#9-fluxo-de-branches)
 10. [Testes](#10-testes)
 11. [Checklist de PR](#11-checklist-de-pr)
-12. [Links Importantes](#12-links-importantes)
+12. [Fechamento de Issues — evidência obrigatória](#12-fechamento-de-issues--evidência-obrigatória)
+13. [Links Importantes](#13-links-importantes)
 
 ---
 
@@ -411,7 +412,39 @@ Antes de abrir um Pull Request, confirme:
 
 ---
 
-## 12. Links Importantes
+## 12. Fechamento de Issues — evidência obrigatória
+
+> **Uma issue só pode ser considerada tecnicamente entregue quando houver evidência verificável.** (#1114)
+
+Esta regra existe por causa de um caso real: em 22/06/2026, as issues #60–#76 foram fechadas em lote com comentários citando commits — e a auditoria de 20/08/2026 verificou que **nenhum dos 17 SHAs citados existia**. Onde a proteção existia de verdade, veio de outros commits; onde não existia, o problema ficou aberto por semanas acreditando-se resolvido. O custo não foi o lote em si: foi o board deixar de ser confiável.
+
+### Evidência aceita, conforme o tipo de trabalho
+
+| Tipo de trabalho | Evidência |
+|---|---|
+| Código | **PR mergeado** ou **commit existente e resolvível** na `main` |
+| Entrega que depende de publicação | **release/tag** que contenha o commit |
+| Operacional/infra (sem código) | **validação verificável** — log de execução, saída de comando, print do painel |
+| Investigação | o próprio **relatório**, no corpo ou em comentário |
+| Decisão de produto | a **decisão escrita**, com quem decidiu e quando |
+| Outro | qualquer **artefato objetivo equivalente** que um terceiro consiga conferir |
+
+### O que NÃO conta como evidência
+
+- SHA que não resolve no histórico (`git cat-file -e <sha>^{commit}` falha);
+- comentário dizendo apenas "feito" / "implementado";
+- **fechamento em lote sem evidência individual** — um comentário cobrindo dez issues não é dez evidências;
+- intenção ou plano apresentados como implementação.
+
+### Se ainda não houver entrega
+
+Não feche como concluída. **Manter aberta**, ou usar o estado adequado do board (`💡 Ideia`, `🚫 Recusado`) — "não vamos fazer" é um desfecho legítimo; "feito sem prova" não é.
+
+A regra vale para **todo mundo que fecha issue neste repositório — humano ou agente.** Não é burocracia: é uma frase. Se a entrega existe, a evidência já existe; fechar é só apontá-la.
+
+---
+
+## 13. Links Importantes
 
 | Recurso | Link |
 |---|---|
