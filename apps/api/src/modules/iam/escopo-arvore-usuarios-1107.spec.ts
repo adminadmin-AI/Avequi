@@ -151,7 +151,27 @@ describe('#1107 — UserService: escopo de árvore', () => {
     expect(fora.getStatus()).toBe(inexistente.getStatus()); // 404 nos dois
   });
 
-  it('5) resolverEscopo falhando NUNCA amplia: o erro sobe, ninguém é encontrado a mais', async () => {
+  /**
+   * FAIL-CLOSED tem DOIS caminhos no TenantScopeService, e nenhum amplia:
+   *
+   *  a) falha ao DECIDIR a capability (`podeAmpliar`) — try/catch próprio,
+   *     devolve `[companyId]`: o escopo ENCOLHE para a própria empresa;
+   *  b) falha ao MONTAR a árvore (`empresasDoGrupo`) — sem try/catch, a
+   *     exceção SOBE e a requisição falha.
+   *
+   * Ciclo na árvore e profundidade acima do teto caem no caso (a): a raiz
+   * vira `null` e o grupo colapsa para a própria empresa.
+   */
+  it('5a) falha ao decidir a capability → escopo ENCOLHE para a própria empresa', async () => {
+    // É o que o TenantScopeService devolve quando podeAmpliar cai no catch,
+    // e também quando há ciclo ou a árvore é funda demais.
+    await montar(escopoRestrito);
+    await expect(service.findOne('user-filial', ATOR)).rejects.toThrow(NotFoundException);
+    const where = prisma.user.findFirst.mock.calls[0][0].where;
+    expect(where.companyId.in).toEqual([MATRIZ]); // nunca a filial
+  });
+
+  it('5b) falha ao montar a árvore → o erro SOBE, ninguém é encontrado a mais', async () => {
     await montar({ resolverEscopo: jest.fn(async () => { throw new Error('banco fora'); }) });
     await expect(service.findOne('user-filial', ATOR)).rejects.toThrow('banco fora');
     expect(prisma.user.findFirst).not.toHaveBeenCalled();
@@ -249,6 +269,46 @@ describe('#1107 — UserAccessService: actor × target', () => {
     // A chave do cache é `iam:perms:{companyId}:{userId}`. Com a empresa do
     // ator, apagaríamos uma chave inexistente e a real seguiria viva por até
     // 5 minutos (TTL) — revogação sem efeito, em silêncio.
+    expect(permissionService.invalidateUser).toHaveBeenCalledWith('user-filial', FILIAL);
+    expect(permissionService.invalidateUser).not.toHaveBeenCalledWith('user-filial', MATRIZ);
+  });
+
+  it('REVOGAÇÃO de perfil na filial: invalida o cache da empresa do ALVO', async () => {
+    // O caminho onde o cache errado é mais perigoso. Se o perfil é removido e
+    // a chave `iam:perms:{FILIAL}:{user}` sobrevive, o usuário continua com o
+    // acesso revogado por até 5 minutos — sem erro e sem log.
+    prisma.userRoleAssignment.findUnique.mockResolvedValueOnce({
+      id: 'ura-existente',
+      branchId: null,
+      expiresAt: null,
+      role: { code: 'COMERCIAL', name: 'Comercial' },
+    });
+
+    await service.removeRole(ATOR, 'user-filial', 'role-1');
+
+    // a busca do vínculo a remover foi feita na empresa do ALVO
+    const chave = prisma.userRoleAssignment.findUnique.mock.calls[0][0].where.userId_roleId_companyId;
+    expect(chave.companyId).toBe(FILIAL);
+    // o vínculo foi de fato apagado
+    expect(prisma.userRoleAssignment.delete).toHaveBeenCalled();
+    // e o cache invalidado é o do ALVO
+    expect(permissionService.invalidateUser).toHaveBeenCalledWith('user-filial', FILIAL);
+    expect(permissionService.invalidateUser).not.toHaveBeenCalledWith('user-filial', MATRIZ);
+    // o log de mudança também fica na empresa do alvo
+    expect(prisma.permissionChangeLog.create.mock.calls[0][0].data.companyId).toBe(FILIAL);
+  });
+
+  it('REVOGAÇÃO de permissão individual na filial: cache do ALVO', async () => {
+    prisma.userPermission.findFirst.mockResolvedValueOnce({
+      id: 'up-existente',
+      granted: true,
+      permission: { id: 'perm-1', code: 'sales.orders.view' },
+    });
+
+    await service.removePermission(ATOR, 'user-filial', 'up-existente');
+
+    expect(prisma.userPermission.findFirst.mock.calls[0][0].where.companyId).toBe(FILIAL);
+    expect(prisma.userPermission.delete).toHaveBeenCalled();
     expect(permissionService.invalidateUser).toHaveBeenCalledWith('user-filial', FILIAL);
     expect(permissionService.invalidateUser).not.toHaveBeenCalledWith('user-filial', MATRIZ);
   });

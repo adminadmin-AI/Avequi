@@ -511,7 +511,7 @@ export class UserAccessService {
    *
    * ⚠️ Devolve `companyId` — e ele NÃO é o do ator. Todo vínculo, chave,
    * log de mudança e invalidação de cache abaixo tem de usar ESTE valor:
-   * gravar com `alvoCompanyId` criaria o registro na empresa errada, e no
+   * gravar com `actor.companyId` criaria o registro na empresa errada, e no
    * caso do cache deixaria a permissão antiga viva por até 5 minutos.
    */
   private async findTargetUser(actor: Actor, userId: string) {
