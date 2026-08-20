@@ -7,6 +7,7 @@ import { AuditController } from './audit.controller';
 import { AuditProcessor } from './audit.processor';
 import { AuditService } from './audit.service';
 import { AUDIT_QUEUE } from './audit.types';
+import { CompanyGroupService } from './company-group.service';
 import { MfaService } from './mfa.service';
 import { OrgStructureController } from './org-structure.controller';
 import { OrgStructureService } from './org-structure.service';
@@ -59,6 +60,7 @@ import { UserAccessService } from './user-access.service';
   providers: [
     AuditProcessor,
     AuditService,
+    CompanyGroupService,
     EncryptionService,
     MfaService,
     LastAdminInvariantService,
@@ -76,6 +78,7 @@ import { UserAccessService } from './user-access.service';
   ],
   exports: [
     AuditService,
+    CompanyGroupService,
     EncryptionService,
     LastAdminInvariantService,
     LegacyRoleMirrorService,

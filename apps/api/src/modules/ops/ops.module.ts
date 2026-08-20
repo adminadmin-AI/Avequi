@@ -13,6 +13,8 @@ import {
   SupportAccessController,
 } from './impersonation.controller';
 import { ImpersonationService } from './impersonation.service';
+import { GroupsController } from './groups.controller';
+import { GroupsService } from './groups.service';
 import { InviteController } from './invite.controller';
 import { OpsMfaGuard } from './ops-mfa.guard';
 import { OpsSessionGuard } from './ops-session.guard';
@@ -57,6 +59,7 @@ import { UsageMeteringService } from './usage-metering.service';
   ],
   controllers: [
     OpsController,
+    GroupsController,
     OpsPanelController,
     PlansController,
     BillingController,
@@ -69,6 +72,7 @@ import { UsageMeteringService } from './usage-metering.service';
   ],
   providers: [
     BillingService,
+    GroupsService,
     ImpersonationService,
     OpsService,
     OpsMfaGuard,
