@@ -292,6 +292,10 @@ Este projeto usa **GSD (Get Shit Done)** + **xquads-squads**. Ver `.claude/SETUP
 **Fase 6 — Fiscal Complementar:** #193
 **Fase 7 — Maturidade:** #194-#200
 
+## Regra de fechamento de issues
+
+Issue só fecha como entregue com **evidência verificável** (PR mergeado, commit resolvível, release, validação objetiva). SHA inexistente, "feito" sem prova e fechamento em lote sem evidência individual **não contam**. A regra completa, com a tabela de evidência por tipo de trabalho, está no [`CONTRIBUTING.md` §12](CONTRIBUTING.md#12-fechamento-de-issues--evidência-obrigatória) — fonte única (#1114).
+
 ## Referências
 
 - **GitHub:** https://github.com/adminadmin-AI/Avequi
