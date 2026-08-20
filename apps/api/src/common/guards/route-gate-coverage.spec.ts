@@ -79,6 +79,13 @@ const SELF_SERVICE_OK = new Set([
   'AuthController.revokeAllSessions',
   'AuthController.listDevices',
   'AuthController.trustDevice',
+  // #1119 — empresa ativa da sessão. Self-service por natureza: a pessoa
+  // escolhe em qual das SUAS empresas quer trabalhar. Não é permissão de
+  // catálogo porque não há o que conceder — quem autoriza é o vínculo de
+  // perfil na empresa destino, conferido no service a cada troca (e de novo
+  // a cada refresh), com o grupo econômico resolvido pela empresa de cadastro.
+  'AuthController.myCompanies',
+  'AuthController.switchCompany',
   // Push notifications — inscrição do próprio dispositivo
   'NotificationController.getPublicKey',
   'NotificationController.listMine',

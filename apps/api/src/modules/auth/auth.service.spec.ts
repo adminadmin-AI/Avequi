@@ -9,6 +9,8 @@ import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { TenantStatusService } from '../iam/tenant-status.service';
+import { CompanyGroupService } from '../iam/company-group.service';
+import { AuditService } from '../iam/audit.service';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -91,6 +93,17 @@ describe('AuthService', () => {
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: TenantStatusService, useValue: mockTenantStatus },
+        // #1119: empresa ativa/grupo econômico — default é "não tem grupo".
+        {
+          provide: CompanyGroupService,
+          useValue: {
+            empresasDoGrupo: jest.fn().mockResolvedValue([]),
+            empresasDoUsuario: jest.fn().mockResolvedValue([]),
+            podeAssumir: jest.fn().mockResolvedValue(false),
+            raizDe: jest.fn(async (id: string) => id),
+          },
+        },
+        { provide: AuditService, useValue: { persist: jest.fn() } },
       ],
     }).compile();
 
@@ -261,6 +274,7 @@ describe('AuthService', () => {
         email: 'a@b.c',
         role: 'READER',
         companyId: 'company-1',
+        homeCompanyId: 'company-1',
         sessionId: 'sess-1',
       });
     });
@@ -279,6 +293,7 @@ describe('AuthService', () => {
         email: 'a@b.c',
         role: 'READER',
         companyId: 'company-1',
+        homeCompanyId: 'company-1',
       });
     });
   });
@@ -296,7 +311,7 @@ describe('AuthService', () => {
         revokedAt: null,
         expiresAt: new Date(Date.now() + 86400000),
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, companyId: 'company-1' });
       mockPrisma.refreshToken.update.mockResolvedValue({});
       mockJwt.sign
         .mockReturnValueOnce('new-access-token')
@@ -327,7 +342,7 @@ describe('AuthService', () => {
         revokedAt: null,
         expiresAt: new Date(Date.now() + 86400000),
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, companyId: 'company-1' });
       mockPrisma.refreshToken.update.mockResolvedValue({});
       mockJwt.sign.mockReturnValueOnce('new-access').mockReturnValueOnce('new-refresh');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-2' });
@@ -353,7 +368,7 @@ describe('AuthService', () => {
         revokedAt: null,
         expiresAt: new Date(Date.now() + 86400000),
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, companyId: 'company-1' });
       mockSessionService.validateSessionForRefresh.mockResolvedValue({ active: false, session: null });
 
       await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
@@ -414,7 +429,7 @@ describe('AuthService', () => {
         revokedAt: null,
         expiresAt: new Date(Date.now() + 86400000),
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
+      mockPrisma.user.findUnique.mockResolvedValue({ isActive: true, companyId: 'company-1' });
       mockPrisma.refreshToken.update.mockResolvedValue({});
       mockSessionService.validateSessionForRefresh.mockResolvedValue({ active: true, session: null });
       mockJwt.sign.mockReturnValueOnce('new-access').mockReturnValueOnce('new-refresh');

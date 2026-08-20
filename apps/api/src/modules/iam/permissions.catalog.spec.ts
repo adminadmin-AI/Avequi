@@ -151,7 +151,11 @@ describe('Catálogo de permissões (#338)', () => {
     // 333 = 331 + approvals.matrix.{view,configure} (#1005, IAM C6 — a matriz
     //       de alçadas de aprovação ganhou tela e CRUD; configurar quem
     //       aprova é governança, separada de aprovar).
-    expect(PERMISSIONS_CATALOG.length).toBe(333);
+    // 335 = 333 + ops.groups.{view,manage} (#1119 — grupo econômico: declarar
+    //       que dois tenants são administrados pelas mesmas pessoas é da
+    //       OPERADORA, nunca do cliente. Namespace ops.*, portanto fora de
+    //       tenantPermissionCodes() e de qualquer perfil de tenant.)
+    expect(PERMISSIONS_CATALOG.length).toBe(335);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

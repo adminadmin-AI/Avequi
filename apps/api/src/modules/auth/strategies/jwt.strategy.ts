@@ -117,7 +117,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       email: payload.email,
       role: payload.role,
+      // #1119: a empresa ATIVA da sessão — é ela que escopa toda a API. Para
+      // quem não tem grupo econômico (a maioria), é a mesma do cadastro.
       companyId: payload.companyId,
+      // #1119: a empresa de CADASTRO, âncora da autorização de troca. Claim
+      // opcional: token emitido antes do #1119 não tem, e aí o fallback é o
+      // próprio companyId — que para esses tokens É o cadastro.
+      homeCompanyId: payload.homeCompanyId ?? payload.companyId,
       // #342 (IAM v2, Decisão 4): claim OPCIONAL — tokens antigos não têm.
       sessionId: payload.sessionId,
     };
