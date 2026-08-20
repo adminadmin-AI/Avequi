@@ -357,6 +357,10 @@ export const OPS_NAV: NavSection[] = [
       // OPS WP2 (#909): wizard de onboarding — gate espelha o backend
       // (POST /ops/tenants/** exige ops.tenants.provision).
       { href: '/app/ops/new', label: 'Nova conta', icon: Plus, permission: 'ops.tenants.provision' },
+      // #1119: grupos econômicos — declarar que dois tenants são administrados
+      // pelas mesmas pessoas (o que habilita vínculo cruzado de usuários entre
+      // eles). Gate próprio `ops.groups.view`, espelhando o backend.
+      { href: '/app/ops/groups', label: 'Grupos econômicos', icon: Network, permission: 'ops.groups.view' },
       // OPS WP4 (#911): catálogo de planos/entitlements do SaaS.
       { href: '/app/ops/plans', label: 'Planos', icon: Crown, permission: 'ops.plans.view' },
       // OPS WP5 (#912): billing da operadora — MRR, aging e faturas da carteira.

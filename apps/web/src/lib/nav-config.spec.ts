@@ -181,11 +181,14 @@ describe('console da operadora (OPS F2)', () => {
     expect(erpOps[0].permission).toBe('ops.tenants.view');
   });
 
-  it('o console lista as 5 rotas da operadora, painel primeiro (#957)', () => {
+  it('o console lista as 6 rotas da operadora, painel primeiro (#957, #1119)', () => {
     expect(opsHrefs).toEqual([
       '/app/ops',
       '/app/ops/tenants',
       '/app/ops/new',
+      // #1119: grupos econômicos entram ANTES de planos/cobrança — é
+      // configuração de conta, vizinha do onboarding, não de faturamento.
+      '/app/ops/groups',
       '/app/ops/plans',
       '/app/ops/billing',
     ]);
