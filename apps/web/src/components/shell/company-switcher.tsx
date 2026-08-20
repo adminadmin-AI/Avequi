@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Building2, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { apiClient, confirmarCanalDeSessao, registrarSessao } from '@/lib/api-client';
+import * as impersonation from '@/lib/impersonation';
 import { useMyCompanies, type EmpresaDisponivel } from '@/hooks/use-my-companies';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils';
@@ -61,8 +62,15 @@ export function CompanySwitcher() {
   const { empresas, temGrupo } = useMyCompanies();
   const [trocando, setTrocando] = useState<string | null>(null);
 
+  // Sessão de suporte (#913) é somente-leitura: o backend recusaria a troca
+  // (ImpersonationReadonlyGuard barra toda mutação) e oferecer o controle só
+  // renderia um 403. Ler localStorage atrás de efeito — no servidor não há
+  // window, e ler direto no render causaria mismatch de hidratação.
+  const [emSuporte, setEmSuporte] = useState(false);
+  useEffect(() => setEmSuporte(!!impersonation.isActive()), []);
+
   // Sem grupo econômico, o controle inteiro não existe.
-  if (!temGrupo) return null;
+  if (!temGrupo || emSuporte) return null;
 
   const ativa = empresas.find((e) => e.id === user?.companyId);
   const cor = corDaEmpresa(ativa?.id ?? '');
