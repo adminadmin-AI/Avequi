@@ -6,7 +6,6 @@ import {
   Patch,
   Post,
   Put,
-  Request,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -68,7 +67,7 @@ export class UserController {
   @RequirePermission('settings.users.view')
   @ApiOperation({ summary: 'Buscar usuário por ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.userService.findOne(id, user.companyId);
+    return this.userService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -77,6 +76,6 @@ export class UserController {
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: any) {
     // user.id (do JWT) identifica o ATOR — usado pelo bloqueio de
     // autoinativação; nunca vem do body.
-    return this.userService.update(id, dto, user.companyId, user.id);
+    return this.userService.update(id, dto, user);
   }
 }

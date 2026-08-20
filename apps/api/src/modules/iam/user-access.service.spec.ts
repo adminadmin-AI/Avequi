@@ -9,6 +9,7 @@ import { PermissionService } from './permission.service';
 import { AuditService } from './audit.service';
 import { LastAdminInvariantService } from './last-admin-invariant.service';
 import { LegacyRoleMirrorService } from './legacy-role-mirror.service';
+import { TenantScopeService } from './tenant-scope.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -17,10 +18,27 @@ import { PrismaService } from '../../prisma/prisma.service';
  */
 
 const ACTOR = { id: 'admin-1', companyId: 'co-1' };
-const TARGET = { id: 'user-2', name: 'Fulano', email: 'f@gdr.com', role: 'COMMERCIAL' };
+// #1107: o alvo carrega o companyId REAL — é ele que vai para os vínculos.
+// Aqui o alvo está na MESMA empresa do ator (caso padrão, sem ampliação).
+const TARGET = {
+  id: 'user-2',
+  name: 'Fulano',
+  email: 'f@gdr.com',
+  role: 'COMMERCIAL',
+  companyId: 'co-1',
+};
 
 let mockLastAdmin: any;
 let mockLegacyMirror: any;
+/**
+ * #1107: por padrão SEM a capability — o escopo é só a própria empresa, que
+ * é exatamente o recorte anterior. Os testes de ampliação sobrescrevem.
+ */
+const mockTenantScope = {
+  resolverEscopo: jest.fn((_userId: string, companyId: string) =>
+    Promise.resolve({ companyIds: [companyId], ampliado: false }),
+  ),
+};
 
 function buildMockPrisma() {
   const prisma: any = {
@@ -101,6 +119,7 @@ describe('UserAccessService', () => {
         { provide: AuditService, useValue: mockAuditService },
         { provide: LastAdminInvariantService, useValue: mockLastAdmin },
         { provide: LegacyRoleMirrorService, useValue: mockLegacyMirror },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
 

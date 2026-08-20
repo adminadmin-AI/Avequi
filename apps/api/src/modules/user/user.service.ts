@@ -201,6 +201,39 @@ export class UserService {
    * O filtro por empresa NUNCA some: mesmo ampliado, o `where` é uma lista
    * fechada de ids. Não existe caminho aqui que devolva "sem filtro".
    */
+  /**
+   * Resolve o usuário-alvo JÁ dentro do escopo empresarial do ator (#1107).
+   *
+   * Uma consulta só, e o filtro de empresa vive DENTRO dela — não é
+   * "checa e depois busca". Verificar em duas etapas deixaria uma janela em
+   * que a segunda consulta roda sem o filtro da primeira; aqui, se o alvo
+   * não pertence à árvore, ele simplesmente não é encontrado.
+   *
+   * `companyIds` vem do TenantScopeService e é SEMPRE uma lista fechada de
+   * ids (fail-closed, guarda de ciclo, teto de profundidade, deny individual).
+   * Sem a capability a lista é `[ator.companyId]` — exatamente o recorte de
+   * antes, o que mantém o comportamento de quem não amplia byte a byte igual.
+   *
+   * 404 e não 403, de propósito: mesma resposta de usuário inexistente
+   * (anti-enumeração — 403 confirmaria que o id existe em outra empresa).
+   * Mesmo padrão do CompanyService.assertInScope.
+   *
+   * Devolve o alvo com o `companyId` REAL dele — é esse valor que as
+   * operações do IAM precisam usar para gravar vínculos no lugar certo.
+   */
+  private async resolverAlvoNoEscopo(
+    id: string,
+    ator: { id: string; companyId: string },
+  ) {
+    const { companyIds } = await this.tenantScope.resolverEscopo(ator.id, ator.companyId);
+    const alvo = await this.prisma.user.findFirst({
+      where: { id, companyId: { in: companyIds } },
+      select: SELECT_SAFE,
+    });
+    if (!alvo) throw new NotFoundException(`Usuário ${id} não encontrado`);
+    return alvo;
+  }
+
   async findAll(requestingUser: { id: string; companyId: string }) {
     const { companyIds } = await this.tenantScope.resolverEscopo(
       requestingUser.id,
@@ -214,17 +247,24 @@ export class UserService {
     });
   }
 
-  async findOne(id: string, companyId: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { id, companyId },
-      select: SELECT_SAFE,
-    });
-    if (!user) throw new NotFoundException(`Usuário ${id} não encontrado`);
-    return user;
+  /**
+   * #1107: o escopo é a ÁRVORE do grupo quando o ator tem a capability
+   * `iam.tenant-scope.cross-company`, e só a própria empresa quando não tem.
+   * Antes era sempre `ator.companyId`, o que fazia o findAll listar usuários
+   * de filial que este método devolvia como 404.
+   */
+  async findOne(id: string, ator: { id: string; companyId: string }) {
+    return this.resolverAlvoNoEscopo(id, ator);
   }
 
-  async update(id: string, dto: UpdateUserDto, companyId: string, actorId: string) {
-    const existing = await this.findOne(id, companyId);
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    ator: { id: string; companyId: string },
+  ) {
+    // #1107: resolve o alvo dentro da árvore E devolve o companyId REAL dele.
+    const existing = await this.resolverAlvoNoEscopo(id, ator);
+    const actorId = ator.id;
 
     // ── Inativação (isActive true→false): proteções obrigatórias ────────────
     // Todas rodam ANTES de qualquer persistência: rejeição não deixa update
@@ -275,7 +315,10 @@ export class UserService {
     // transação com lock do grupo — a contagem acontece após o lock e a
     // violação faz rollback (sem check-then-act, sem compensação posterior).
     const updated = alvoContaNaInvariante
-      ? await this.lastAdmin.executarProtegido(companyId, (tx) =>
+      ? // #1107: a empresa do ALVO. O serviço sobe até a raiz do grupo, então
+        // ator e alvo da mesma árvore dão o mesmo lock — mas passar a do alvo
+        // deixa a intenção explícita e não depende dessa coincidência.
+        await this.lastAdmin.executarProtegido(existing.companyId, (tx) =>
           tx.user.update({ where: { id }, data, select: SELECT_SAFE }),
         )
       : await this.prisma.user.update({

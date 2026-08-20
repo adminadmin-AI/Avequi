@@ -16,6 +16,7 @@ import {
   ResultadoEspelho,
 } from './legacy-role-mirror.service';
 import { PermissionService } from './permission.service';
+import { TenantScopeService } from './tenant-scope.service';
 import { wouldLockOutOfRolesAdmin } from './access-lockout.util';
 import { AssignRoleDto, GrantUserPermissionDto } from './dto/roles-admin.dto';
 
@@ -48,12 +49,16 @@ export class UserAccessService {
     private readonly auditService: AuditService,
     private readonly lastAdmin: LastAdminInvariantService,
     private readonly legacyMirror: LegacyRoleMirrorService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
 
-  async listUserRoles(companyId: string, userId: string) {
-    await this.findTargetUser(companyId, userId);
+  async listUserRoles(actor: Actor, userId: string) {
+    // #1107: o alvo pode estar numa filial da árvore. Os vínculos a listar
+    // são os da empresa DELE, não a de quem consulta.
+    const target = await this.findTargetUser(actor, userId);
+    const companyId = target.companyId;
     return this.prisma.userRoleAssignment.findMany({
       where: { userId, companyId },
       orderBy: { createdAt: 'asc' },
@@ -71,13 +76,15 @@ export class UserAccessService {
   }
 
   async assignRole(actor: Actor, userId: string, dto: AssignRoleDto) {
-    const target = await this.findTargetUser(actor.companyId, userId);
+    const target = await this.findTargetUser(actor, userId);
+    // #1107: empresa REAL do usuário administrado — pode ser uma filial.
+    const alvoCompanyId = target.companyId;
 
     const role = await this.prisma.role.findFirst({
       where: {
         id: dto.roleId,
         isActive: true,
-        OR: [{ isSystem: true }, { companyId: actor.companyId }],
+        OR: [{ isSystem: true }, { companyId: alvoCompanyId }],
       },
       select: { id: true, code: true, name: true },
     });
@@ -87,7 +94,7 @@ export class UserAccessService {
 
     if (dto.branchId) {
       const branch = await this.prisma.branch.findFirst({
-        where: { id: dto.branchId, companyId: actor.companyId },
+        where: { id: dto.branchId, companyId: alvoCompanyId },
         select: { id: true },
       });
       if (!branch) throw new NotFoundException('Filial não encontrada.');
@@ -98,7 +105,7 @@ export class UserAccessService {
         userId_roleId_companyId: {
           userId: target.id,
           roleId: role.id,
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
         },
       },
     });
@@ -118,7 +125,7 @@ export class UserAccessService {
         data: {
           userId: target.id,
           roleId: role.id,
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           branchId: dto.branchId ?? null,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
           grantedBy: actor.id,
@@ -127,7 +134,7 @@ export class UserAccessService {
       espelho = await this.legacyMirror.sincronizarNaTransacao(tx, target.id);
       await tx.permissionChangeLog.create({
         data: {
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           targetUserId: target.id,
           changedByUserId: actor.id,
           changeType: PermissionChangeType.ROLE_ASSIGNED,
@@ -151,7 +158,7 @@ export class UserAccessService {
     // nenhuma outra operação do grupo tira o perpétuo do caminho.
     const assignment =
       role.code === 'ADMIN_GLOBAL' && dto.expiresAt
-        ? await this.lastAdmin.executarProtegido(actor.companyId, async (tx, ctx) => {
+        ? await this.lastAdmin.executarProtegido(alvoCompanyId, async (tx, ctx) => {
             if (ctx.adminsPerpetuosAntes === 0) {
               throw new BadRequestException(TEMP_ADMIN_ERROR_MESSAGE);
             }
@@ -159,13 +166,16 @@ export class UserAccessService {
           })
         : await this.prisma.$transaction(criarAssignment);
 
-    await this.permissionService.invalidateUser(target.id, actor.companyId);
+    await this.permissionService.invalidateUser(target.id, alvoCompanyId);
     const sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
       espelho!,
       target.id,
     );
 
     await this.auditService.logWithDiff(null, assignment, {
+      // AuditLog fica no contexto de quem EXECUTOU (#1107, decisão do Rafael):
+      // é o registro da ação do administrador. A tela de auditoria é escopada
+      // pelo companyId do JWT — mover para o alvo sumiria com a própria ação.
       companyId: actor.companyId,
       userId: actor.id,
       entity: 'UserRoleAssignment',
@@ -178,14 +188,16 @@ export class UserAccessService {
   }
 
   async removeRole(actor: Actor, userId: string, roleId: string) {
-    const target = await this.findTargetUser(actor.companyId, userId);
+    const target = await this.findTargetUser(actor, userId);
+    // #1107: empresa REAL do usuário administrado — pode ser uma filial.
+    const alvoCompanyId = target.companyId;
 
     const assignment = await this.prisma.userRoleAssignment.findUnique({
       where: {
         userId_roleId_companyId: {
           userId: target.id,
           roleId,
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
         },
       },
       include: { role: { select: { code: true, name: true } } },
@@ -219,7 +231,7 @@ export class UserAccessService {
       espelho = await this.legacyMirror.sincronizarNaTransacao(tx, target.id);
       await tx.permissionChangeLog.create({
         data: {
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           targetUserId: target.id,
           changedByUserId: actor.id,
           changeType: PermissionChangeType.ROLE_REMOVED,
@@ -237,18 +249,21 @@ export class UserAccessService {
     // lock do grupo + invariante validada na MESMA transação (nunca deixa o
     // grupo sem administrador global, nem em remoções concorrentes).
     if (assignment.role.code === 'ADMIN_GLOBAL') {
-      await this.lastAdmin.executarProtegido(actor.companyId, removerAssignment);
+      await this.lastAdmin.executarProtegido(alvoCompanyId, removerAssignment);
     } else {
       await this.prisma.$transaction(removerAssignment);
     }
 
-    await this.permissionService.invalidateUser(target.id, actor.companyId);
+    await this.permissionService.invalidateUser(target.id, alvoCompanyId);
     const sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
       espelho!,
       target.id,
     );
 
     await this.auditService.logWithDiff(assignment, null, {
+      // AuditLog fica no contexto de quem EXECUTOU (#1107, decisão do Rafael):
+      // é o registro da ação do administrador. A tela de auditoria é escopada
+      // pelo companyId do JWT — mover para o alvo sumiria com a própria ação.
       companyId: actor.companyId,
       userId: actor.id,
       entity: 'UserRoleAssignment',
@@ -262,8 +277,10 @@ export class UserAccessService {
 
   // ─── Exceções individuais (grants/denies) ──────────────────────────────────
 
-  async listUserPermissions(companyId: string, userId: string) {
-    await this.findTargetUser(companyId, userId);
+  async listUserPermissions(actor: Actor, userId: string) {
+    // #1107: mesma razão do listUserRoles — escopo do ALVO.
+    const target = await this.findTargetUser(actor, userId);
+    const companyId = target.companyId;
     return this.prisma.userPermission.findMany({
       where: { userId, companyId },
       orderBy: { createdAt: 'asc' },
@@ -282,7 +299,9 @@ export class UserAccessService {
   }
 
   async grantPermission(actor: Actor, userId: string, dto: GrantUserPermissionDto) {
-    const target = await this.findTargetUser(actor.companyId, userId);
+    const target = await this.findTargetUser(actor, userId);
+    // #1107: empresa REAL do usuário administrado — pode ser uma filial.
+    const alvoCompanyId = target.companyId;
     const granted = dto.granted ?? true;
 
     const permission = await this.prisma.permission.findUnique({
@@ -329,7 +348,7 @@ export class UserAccessService {
         userId_permissionId_companyId: {
           userId: target.id,
           permissionId: permission.id,
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
         },
       },
     });
@@ -340,7 +359,7 @@ export class UserAccessService {
           userId_permissionId_companyId: {
             userId: target.id,
             permissionId: permission.id,
-            companyId: actor.companyId,
+            companyId: alvoCompanyId,
           },
         },
         update: {
@@ -352,7 +371,7 @@ export class UserAccessService {
         create: {
           userId: target.id,
           permissionId: permission.id,
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           granted,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
           reason: dto.reason ?? null,
@@ -361,7 +380,7 @@ export class UserAccessService {
       });
       await tx.permissionChangeLog.create({
         data: {
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           targetUserId: target.id,
           changedByUserId: actor.id,
           changeType: granted
@@ -386,9 +405,12 @@ export class UserAccessService {
       return upserted;
     });
 
-    await this.permissionService.invalidateUser(target.id, actor.companyId);
+    await this.permissionService.invalidateUser(target.id, alvoCompanyId);
 
     await this.auditService.logWithDiff(before, result, {
+      // AuditLog fica no contexto de quem EXECUTOU (#1107, decisão do Rafael):
+      // é o registro da ação do administrador. A tela de auditoria é escopada
+      // pelo companyId do JWT — mover para o alvo sumiria com a própria ação.
       companyId: actor.companyId,
       userId: actor.id,
       entity: 'UserPermission',
@@ -401,10 +423,12 @@ export class UserAccessService {
   }
 
   async removePermission(actor: Actor, userId: string, userPermissionId: string) {
-    const target = await this.findTargetUser(actor.companyId, userId);
+    const target = await this.findTargetUser(actor, userId);
+    // #1107: empresa REAL do usuário administrado — pode ser uma filial.
+    const alvoCompanyId = target.companyId;
 
     const exception = await this.prisma.userPermission.findFirst({
-      where: { id: userPermissionId, userId: target.id, companyId: actor.companyId },
+      where: { id: userPermissionId, userId: target.id, companyId: alvoCompanyId },
       include: { permission: { select: { id: true, code: true } } },
     });
     if (!exception) {
@@ -436,7 +460,7 @@ export class UserAccessService {
       await tx.userPermission.delete({ where: { id: exception.id } });
       await tx.permissionChangeLog.create({
         data: {
-          companyId: actor.companyId,
+          companyId: alvoCompanyId,
           targetUserId: target.id,
           changedByUserId: actor.id,
           // Remoção de grant = acesso revogado; remoção de deny = acesso volta
@@ -454,9 +478,12 @@ export class UserAccessService {
       });
     });
 
-    await this.permissionService.invalidateUser(target.id, actor.companyId);
+    await this.permissionService.invalidateUser(target.id, alvoCompanyId);
 
     await this.auditService.logWithDiff(exception, null, {
+      // AuditLog fica no contexto de quem EXECUTOU (#1107, decisão do Rafael):
+      // é o registro da ação do administrador. A tela de auditoria é escopada
+      // pelo companyId do JWT — mover para o alvo sumiria com a própria ação.
       companyId: actor.companyId,
       userId: actor.id,
       entity: 'UserPermission',
@@ -471,10 +498,27 @@ export class UserAccessService {
   // ─── Internos ──────────────────────────────────────────────────────────────
 
   /** Usuário-alvo DA MESMA empresa do JWT, ou 404 (anti-IDOR). */
-  private async findTargetUser(companyId: string, userId: string) {
+  /**
+   * O usuário-alvo, resolvido JÁ dentro do escopo empresarial do ator (#1107).
+   *
+   * O filtro de empresa vive DENTRO da consulta — não é "checa e depois
+   * busca". `companyIds` vem do TenantScopeService e é sempre uma lista
+   * fechada (fail-closed, guarda de ciclo, teto de profundidade, deny
+   * individual vence). Sem a capability a lista é `[ator.companyId]`, o que
+   * mantém o comportamento anterior intacto para quem não amplia.
+   *
+   * 404 com a MESMA mensagem de usuário inexistente (anti-enumeração).
+   *
+   * ⚠️ Devolve `companyId` — e ele NÃO é o do ator. Todo vínculo, chave,
+   * log de mudança e invalidação de cache abaixo tem de usar ESTE valor:
+   * gravar com `actor.companyId` criaria o registro na empresa errada, e no
+   * caso do cache deixaria a permissão antiga viva por até 5 minutos.
+   */
+  private async findTargetUser(actor: Actor, userId: string) {
+    const { companyIds } = await this.tenantScope.resolverEscopo(actor.id, actor.companyId);
     const user = await this.prisma.user.findFirst({
-      where: { id: userId, companyId },
-      select: { id: true, name: true, email: true, role: true },
+      where: { id: userId, companyId: { in: companyIds } },
+      select: { id: true, name: true, email: true, role: true, companyId: true },
     });
     if (!user) {
       throw new NotFoundException('Usuário não encontrado nesta empresa.');

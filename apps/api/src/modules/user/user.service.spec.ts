@@ -338,22 +338,28 @@ describe('UserService', () => {
   });
 
   describe('findOne', () => {
-    it('busca escopado por id + companyId (anti-IDOR)', async () => {
+    it('busca escopada por id + escopo empresarial (anti-IDOR)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(SAFE_USER);
 
-      await service.findOne('user-1', 'co-1');
+      await service.findOne('user-1', { id: 'ator-1', companyId: 'co-1' });
 
+      // #1107: o filtro deixou de ser um companyId cru e passou a ser a lista
+      // FECHADA devolvida pelo TenantScopeService. Sem a capability essa lista
+      // é `['co-1']` — mesmo recorte de antes, agora vindo de uma única fonte.
       expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'user-1', companyId: 'co-1' },
+          where: { id: 'user-1', companyId: { in: ['co-1'] } },
         }),
       );
+      // A trava que importa: NUNCA pode virar consulta sem escopo de empresa.
+      const arg = mockPrisma.user.findFirst.mock.calls[0][0];
+      expect(arg.where.companyId).toBeDefined();
     });
 
     it('404 quando o user nao existe na empresa (cross-tenant)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne('user-1', 'outra-co')).rejects.toThrow(
+      await expect(service.findOne('user-1', { id: 'ator-1', companyId: 'outra-co' })).rejects.toThrow(
         NotFoundException,
       );
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
@@ -377,7 +383,7 @@ describe('UserService', () => {
     });
 
     it('re-hasheia a senha quando o update inclui password', async () => {
-      await service.update('user-1', { password: 'NovaSenha@1' } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { password: 'NovaSenha@1' } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       // senha em claro nao pode chegar ao banco
@@ -391,7 +397,7 @@ describe('UserService', () => {
     });
 
     it('NAO toca no passwordHash quando o update nao envia password', async () => {
-      await service.update('user-1', { name: 'Novo Nome' } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { name: 'Novo Nome' } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.passwordHash).toBeUndefined();
@@ -400,14 +406,14 @@ describe('UserService', () => {
     });
 
     it('NAO toca no passwordHash quando password e string vazia', async () => {
-      await service.update('user-1', { password: '' } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { password: '' } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.passwordHash).toBeUndefined();
     });
 
     it('inativa o usuário quando o update envia isActive=false (toggle da tela)', async () => {
-      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.isActive).toBe(false);
@@ -416,7 +422,7 @@ describe('UserService', () => {
 
     it('reativa o usuário quando o update envia isActive=true', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({ ...SAFE_USER, isActive: false });
-      await service.update('user-1', { isActive: true } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: true } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.data.isActive).toBe(true);
@@ -426,21 +432,21 @@ describe('UserService', () => {
 
     it('AUTOINATIVAÇÃO: ator = alvo → 403 e NADA é persistido (nem outros campos)', async () => {
       await expect(
-        service.update('user-1', { isActive: false, name: 'Hacker' } as any, 'co-1', 'user-1'),
+        service.update('user-1', { isActive: false, name: 'Hacker' } as any, { id: 'user-1', companyId: 'co-1' }),
       ).rejects.toThrow(ForbiddenException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
 
     it('autoedição SEM inativação (ex.: nome) segue permitida', async () => {
-      await service.update('user-1', { name: 'Novo Nome' } as any, 'co-1', 'user-1');
+      await service.update('user-1', { name: 'Novo Nome' } as any, { id: 'user-1', companyId: 'co-1' });
       expect(mockPrisma.user.update).toHaveBeenCalled();
     });
 
     it('#752: alvo com vínculo ADMIN_GLOBAL perpétuo → inativação roda no mecanismo central (lock)', async () => {
       mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(true);
 
-      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' });
 
       expect(mockLastAdmin.executarProtegido).toHaveBeenCalledWith('co-1', expect.any(Function));
       const args = mockPrisma.user.update.mock.calls[0][0];
@@ -454,7 +460,7 @@ describe('UserService', () => {
       );
 
       await expect(
-        service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1'),
+        service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' }),
       ).rejects.toThrow(ConflictException);
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
@@ -462,7 +468,7 @@ describe('UserService', () => {
     it('#752: alvo que NÃO conta na invariante inativa direto, sem lock', async () => {
       mockLastAdmin.temVinculoAdminPerpetuo.mockResolvedValue(false);
 
-      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' });
 
       expect(mockLastAdmin.executarProtegido).not.toHaveBeenCalled();
       const args = mockPrisma.user.update.mock.calls[0][0];
@@ -470,20 +476,20 @@ describe('UserService', () => {
     });
 
     it('SESSÕES: inativar revoga TODAS as sessões do alvo (reason SECURITY)', async () => {
-      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' });
       expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith('user-1', 'SECURITY');
     });
 
     it('SESSÕES: update comum (nome/papel) NÃO revoga nada', async () => {
-      await service.update('user-1', { name: 'Novo Nome', role: 'MANAGER' } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { name: 'Novo Nome', role: 'MANAGER' } as any, { id: 'admin-1', companyId: 'co-1' });
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
 
     it('SESSÕES: update que MANTÉM inativo não revoga de novo; reativar não restaura', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({ ...SAFE_USER, isActive: false });
 
-      await service.update('user-1', { isActive: false } as any, 'co-1', 'admin-1');
-      await service.update('user-1', { isActive: true } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { isActive: false } as any, { id: 'admin-1', companyId: 'co-1' });
+      await service.update('user-1', { isActive: true } as any, { id: 'admin-1', companyId: 'co-1' });
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
 
@@ -493,8 +499,7 @@ describe('UserService', () => {
       const result = await service.update(
         'user-1',
         { isActive: false } as any,
-        'co-1',
-        'admin-1',
+        { id: 'admin-1', companyId: 'co-1' },
       );
       expect(result).toBeDefined();
       expect(mockPrisma.user.update.mock.calls[0][0].data.isActive).toBe(false);
@@ -504,13 +509,13 @@ describe('UserService', () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.update('user-1', { name: 'X' } as any, 'outra-co', 'admin-1'),
+        service.update('user-1', { name: 'X' } as any, { id: 'admin-1', companyId: 'outra-co' }),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('usa select seguro (sem passwordHash) na resposta do update', async () => {
-      await service.update('user-1', { name: 'X' } as any, 'co-1', 'admin-1');
+      await service.update('user-1', { name: 'X' } as any, { id: 'admin-1', companyId: 'co-1' });
 
       const args = mockPrisma.user.update.mock.calls[0][0];
       expect(args.select).toBeDefined();

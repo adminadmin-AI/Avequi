@@ -12,6 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { EncryptionService } from '../../common/encryption/encryption.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantScopeService } from './tenant-scope.service';
 import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from './totp.util';
 
 /**
@@ -55,6 +56,7 @@ export class MfaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   private assertEncryptionAvailable(): void {
@@ -319,9 +321,15 @@ export class MfaService {
       throw new UnauthorizedException('Senha do administrador inválida.');
     }
 
+    // #1107: o alvo é resolvido dentro da ÁRVORE do grupo quando o admin tem
+    // a capability `iam.tenant-scope.cross-company`; sem ela, `companyIds` é
+    // só a própria empresa e o comportamento é o de antes. O filtro vive
+    // DENTRO da consulta — fora do escopo o usuário não é encontrado (404 com
+    // a mesma mensagem de inexistente: anti-enumeração).
+    const { companyIds } = await this.tenantScope.resolverEscopo(admin.id, admin.companyId);
     const target = await this.prisma.user.findFirst({
-      where: { id: targetUserId, companyId: admin.companyId },
-      select: { id: true },
+      where: { id: targetUserId, companyId: { in: companyIds } },
+      select: { id: true, companyId: true },
     });
     if (!target) {
       throw new NotFoundException('Usuário não encontrado nesta empresa.');
@@ -335,7 +343,9 @@ export class MfaService {
       this.prisma.userMFA.delete({ where: { userId: targetUserId } }),
       this.prisma.securityEvent.create({
         data: {
-          companyId: admin.companyId,
+          // #1107: o evento de segurança pertence à empresa do USUÁRIO cujo
+          // MFA foi resetado, não à de quem executou.
+          companyId: target.companyId,
           userId: targetUserId,
           eventType: SecurityEventType.MFA_DISABLED,
           severity: SecurityEventSeverity.WARNING,

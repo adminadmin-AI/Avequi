@@ -82,12 +82,15 @@ describe('UserController', () => {
   });
 
   describe('findOne', () => {
-    it('usa o companyId do JWT, nunca de query/param', async () => {
+    it('repassa o ATOR do JWT, nunca companyId de query/param', async () => {
       mockUserService.findOne.mockResolvedValue({ id: 'user-2' });
 
       await controller.findOne('user-2', CURRENT_USER);
 
-      expect(mockUserService.findOne).toHaveBeenCalledWith('user-2', 'co-1');
+      // #1107: o serviço precisa do ator INTEIRO (id + companyId) — a
+      // ampliação de escopo é capability do usuário, resolvida no
+      // TenantScopeService. Nada aqui vem de query ou param.
+      expect(mockUserService.findOne).toHaveBeenCalledWith('user-2', CURRENT_USER);
     });
   });
 
@@ -97,11 +100,11 @@ describe('UserController', () => {
 
       await controller.update('user-2', { name: 'Novo' } as any, CURRENT_USER);
 
+      // #1107: um único objeto ator (id + companyId), ambos do JWT.
       expect(mockUserService.update).toHaveBeenCalledWith(
         'user-2',
         { name: 'Novo' },
-        'co-1',
-        'user-1',
+        CURRENT_USER,
       );
     });
   });

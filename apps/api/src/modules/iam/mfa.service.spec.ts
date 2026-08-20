@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { EncryptionService } from '../../common/encryption/encryption.service';
+import { TenantScopeService } from './tenant-scope.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MfaService } from './mfa.service';
 import { totpCode } from './totp.util';
@@ -37,6 +38,14 @@ const mockPrisma = {
 
 const user = { id: 'user-1', email: 'rafael@gdr.com.br', companyId: 'company-1' };
 
+const mockTenantScope = {
+  // Padrão dos testes: SEM a capability — escopo é só a própria empresa,
+  // exatamente o recorte que existia antes do #1107.
+  resolverEscopo: jest.fn((_userId: string, companyId: string) =>
+    Promise.resolve({ companyIds: [companyId], ampliado: false }),
+  ),
+};
+
 async function buildService(key?: string): Promise<{ service: MfaService; encryption: EncryptionService }> {
   const encryption = new EncryptionService({
     get: jest.fn().mockReturnValue(key),
@@ -46,6 +55,9 @@ async function buildService(key?: string): Promise<{ service: MfaService; encryp
       MfaService,
       { provide: PrismaService, useValue: mockPrisma },
       { provide: EncryptionService, useValue: encryption },
+      // #1107: sem a capability, o escopo é só a própria empresa — é o
+      // padrão dos testes, e mantém o comportamento anterior.
+      { provide: TenantScopeService, useValue: mockTenantScope },
     ],
   }).compile();
   return { service: module.get(MfaService), encryption };
@@ -419,11 +431,16 @@ describe('MfaService (#344)', () => {
       await expect(service.adminReset(admin, 'user-de-outra-empresa', ADMIN_PASS)).rejects.toThrow(
         'Usuário não encontrado nesta empresa.',
       );
+      // #1107: o filtro virou a lista FECHADA do TenantScopeService. Sem a
+      // capability ela é `[admin.companyId]` — mesmo recorte de antes.
       expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'user-de-outra-empresa', companyId: admin.companyId },
+          where: { id: 'user-de-outra-empresa', companyId: { in: [admin.companyId] } },
         }),
       );
+      // Trava: a consulta NUNCA pode perder o escopo de empresa.
+      const arg = mockPrisma.user.findFirst.mock.calls.at(-1)![0];
+      expect(arg.where.companyId).toBeDefined();
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
 
