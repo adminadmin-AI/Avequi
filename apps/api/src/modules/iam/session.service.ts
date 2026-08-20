@@ -760,13 +760,21 @@ export class SessionService {
     return sessions.length;
   }
 
-  /** Revogação a partir do refresh token (logout). Best-effort. */
+  /**
+   * Revogação a partir do refresh token (logout). Best-effort.
+   *
+   * #67: quem autoriza é o chamador, não este método. O `AuthService.logout`
+   * confere que `refreshToken.userId` é o usuário autenticado ANTES de chegar
+   * aqui — posse do id não é autorização. Revogação de sessão de TERCEIRO não
+   * passa por este caminho: usa `revokeSession`, com permissão, escopo de
+   * empresas e SecurityEvent.
+   */
   async revokeSessionByRefreshTokenId(
     refreshTokenId: string,
     reason: SessionRevokedReason,
   ): Promise<void> {
     try {
-      // tenant-lint: ok (plumbing de auth: revogação pela posse do refreshTokenId)
+      // tenant-lint: ok (plumbing de auth: dono já conferido pelo AuthService)
       await this.prisma.userSession.updateMany({
         where: { refreshTokenId, revokedAt: null },
         data: { revokedAt: new Date(), revokedReason: reason },

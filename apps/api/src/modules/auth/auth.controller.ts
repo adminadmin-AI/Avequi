@@ -99,14 +99,19 @@ export class AuthController {
   @SkipCsrf()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Logout — invalida refresh token e sessão (requer autenticação)' })
+  @ApiOperation({ summary: 'Logout — invalida o PRÓPRIO refresh token e sessão (requer autenticação)' })
   async logout(
+    @CurrentUser() user: any,
     @Request() req: any,
     @Res({ passthrough: true }) res: Response,
     @Body('refreshToken') refreshToken?: string,
   ) {
-    await this.authService.logout(refreshToken || req.cookies?.[REFRESH_COOKIE]);
-    // #349: sessão de cookie morre junto, sempre.
+    // #67: logout é self-service. Quem chama precisa dizer QUEM é — a posse do
+    // refresh token não basta como autorização. Revogar sessão de terceiro
+    // continua exigindo DELETE /auth/sessions/:id, com iam.sessions.revoke-any.
+    await this.authService.logout(refreshToken || req.cookies?.[REFRESH_COOKIE], user?.id);
+    // #349: sessão de cookie morre junto, sempre. #67: inclusive quando o token
+    // apresentado é de outra pessoa — quem pediu logout tem que sair do browser.
     clearAuthCookies(res);
   }
 

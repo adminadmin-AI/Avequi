@@ -427,13 +427,42 @@ export class AuthService {
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
-  async logout(refreshToken: string) {
+  /**
+   * Logout — revoga o refresh token do PRÓPRIO usuário autenticado (#67).
+   *
+   * A rota já exige JWT (JwtAuthGuard global). O que faltava era a outra
+   * metade: confirmar que o token apresentado É DELE. Antes, quem tivesse a
+   * string crua do refresh token de outra pessoa derrubava a sessão dela —
+   * contornando o `DELETE /auth/sessions/:id`, que exige a permissão
+   * `iam.sessions.revoke-any`, respeita o escopo de empresas (#947) e grava
+   * SecurityEvent. Logout é self-service; revogação de terceiro não passa
+   * por aqui.
+   *
+   * Dono = `stored.userId`, a coluna persistida (NOT NULL, FK para gdr_users
+   * com ON DELETE CASCADE — nenhuma linha existe sem dono). Não usamos o
+   * `sub` do JWT do refresh: exigir assinatura válida transformaria o logout
+   * numa segunda implementação do `refresh()` e impediria revogar um token
+   * legítimo já expirado, que é justamente quando o usuário mais quer sair.
+   *
+   * Mismatch e token inexistente são o MESMO caminho: retorno silencioso,
+   * sem revogar nada. Responder diferente (403 vs 204) transformaria o
+   * endpoint em oráculo — "este token existe e é de outra pessoa" é
+   * informação que não se confirma a ninguém. Mesmo princípio do 404 do
+   * `revokeSession`.
+   *
+   * Sem `actorUserId` (guard fora do ar, chamador interno novo) também é
+   * no-op: fail-closed. O `clearAuthCookies` do controller acontece fora
+   * daqui, em qualquer cenário — quem pediu logout sai do browser sempre.
+   */
+  async logout(refreshToken: string, actorUserId?: string) {
     if (!refreshToken) return;
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: tokenHash },
     });
     if (!stored || stored.revokedAt) return;
+    // #67: posse do token não é autorização. Silêncio, não 403.
+    if (!actorUserId || stored.userId !== actorUserId) return;
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
       data: { revokedAt: new Date() },
