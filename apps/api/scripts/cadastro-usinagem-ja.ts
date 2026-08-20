@@ -79,9 +79,15 @@ const CNPJ_CRD = '30284708000182';
       }
     }
 
-    // A regra da operação real: venda interna com repasse de crédito.
-    // Continua INATIVA: o pCredSN ainda não foi confirmado pelo contador, e
-    // ativar com percentual errado gera crédito indevido para a CRD.
+    // A regra da operação real (venda da ponta de eixo para a CRD).
+    //
+    // CSOSN 102 — SEM repasse de crédito, definido pela contadora em 19/08.
+    // O 101 exigiria pCredSN, e nenhum número inventado pode ir para o XML:
+    // o crédito destacado é escriturado pelo destinatário, então errar para
+    // mais vira crédito indevido tomado pela CRD. Com 102 não existe campo,
+    // não existe número, não existe risco.
+    //
+    // Segue INATIVA — quem ativa é quem confere.
     const vendaInterna = await prisma.taxRule.findFirst({
       where: { companyId, operationType: 'VENDA_INTERNA' },
     });
@@ -89,14 +95,14 @@ const CNPJ_CRD = '30284708000182';
       await prisma.taxRule.update({
         where: { id: vendaInterna.id },
         data: {
-          icmsCsosn: '101',
-          pCredSN: 1.44,
-          description: '[REVISAR — pCredSN NÃO CONFIRMADO] Venda de produção própria — dentro do estado (CRD)',
+          icmsCsosn: '102',
+          pCredSN: null,
+          description: 'Venda de produção própria — dentro do estado (contadora 19/08: CSOSN 102, sem crédito)',
         },
       });
-      log('✅', 'VENDA_INTERNA ajustada para CSOSN 101 + pCredSN 1,44% — segue INATIVA');
+      log('✅', 'VENDA_INTERNA em CSOSN 102 (sem crédito) — segue INATIVA');
     } else if (vendaInterna) {
-      log('+', 'VENDA_INTERNA seria ajustada para CSOSN 101 + pCredSN 1,44% (inativa)');
+      log('+', 'VENDA_INTERNA seria ajustada para CSOSN 102 (inativa)');
     }
   }
   } catch (e: any) {
