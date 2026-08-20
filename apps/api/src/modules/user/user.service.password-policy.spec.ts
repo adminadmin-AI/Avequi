@@ -156,7 +156,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
 
   describe('update (reset de senha pelo admin)', () => {
     it('aplica complexidade + bloqueio de reuso antes de trocar', async () => {
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       expect(mockPasswordPolicy.validateComplexity).toHaveBeenCalledWith('NovaSenha#2026x', {
         email: createdUser.email,
@@ -190,7 +190,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       );
 
       await expect(
-        service.update('user-novo', { password: 'Repetida#2026x' } as any, 'company-1', 'admin-1'),
+        service.update('user-novo', { password: 'Repetida#2026x' } as any, { id: 'admin-1', companyId: 'company-1' }),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
@@ -199,8 +199,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       await service.update(
         'user-novo',
         { password: 'NovaSenha#2026x', mustChangePassword: true } as any,
-        'company-1',
-        'admin-1',
+        { id: 'admin-1', companyId: 'company-1' },
       );
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -211,7 +210,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('#468: reset por admin SEM a flag já força a troca (mustChangePassword=true por padrão)', async () => {
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -221,7 +220,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('update SEM senha não toca na política nem nos campos de senha', async () => {
-      await service.update('user-novo', { name: 'Novo Nome' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { name: 'Novo Nome' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       expect(mockPasswordPolicy.validateComplexity).not.toHaveBeenCalled();
       expect(mockPasswordPolicy.assertNotReused).not.toHaveBeenCalled();
@@ -234,7 +233,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
   // ─── #750: reset por admin revoga as sessões do ALVO ─────────────────────
   describe('update (reset de senha pelo admin) — revogação de sessões (#750)', () => {
     it('revoga TODAS as sessões do usuário-alvo com reason SECURITY (nunca as do ator)', async () => {
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       expect(mockSessionService.revokeAllSessions).toHaveBeenCalledTimes(1);
       // Alvo = usuário redefinido; SEM exceptSessionId (todas caem, denylist
@@ -243,7 +242,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     });
 
     it('update SEM senha não revoga sessão nenhuma', async () => {
-      await service.update('user-novo', { name: 'Novo Nome' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { name: 'Novo Nome' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
     });
@@ -254,7 +253,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       });
 
       await expect(
-        service.update('user-novo', { password: 'fraca' } as any, 'company-1', 'admin-1'),
+        service.update('user-novo', { password: 'fraca' } as any, { id: 'admin-1', companyId: 'company-1' }),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
@@ -264,7 +263,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       mockPrisma.user.findFirst.mockResolvedValue(null); // findOne escopado por companyId
 
       await expect(
-        service.update('user-outra-cia', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1'),
+        service.update('user-outra-cia', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' }),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
       expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
@@ -277,8 +276,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       const result = await service.update(
         'user-novo',
         { password: 'NovaSenha#2026x' } as any,
-        'company-1',
-        'admin-1',
+        { id: 'admin-1', companyId: 'company-1' },
       );
 
       // A troca persiste e a chamada retorna sucesso (não há como "destrocar"
@@ -299,7 +297,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
     it('reset em usuário inativo não reativa (payload não toca isActive)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({ ...createdUser, isActive: false });
 
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       const data = mockPrisma.user.update.mock.calls[0][0].data;
       expect(data).not.toHaveProperty('isActive');
@@ -309,7 +307,7 @@ describe('UserService — política de senha no create/update pelo admin (#345)'
       const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
       const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation();
 
-      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, 'company-1', 'admin-1');
+      await service.update('user-novo', { password: 'NovaSenha#2026x' } as any, { id: 'admin-1', companyId: 'company-1' });
 
       // Banco recebe HASH (nunca o texto puro).
       const data = mockPrisma.user.update.mock.calls[0][0].data;

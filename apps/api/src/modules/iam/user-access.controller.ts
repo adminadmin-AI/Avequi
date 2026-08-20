@@ -52,7 +52,7 @@ export class UserAccessController {
   @RequirePermission('iam.roles.view')
   @ApiOperation({ summary: 'Perfis atribuídos ao usuário' })
   async listUserRoles(@CurrentUser() user: any, @Param('userId') userId: string) {
-    return this.userAccessService.listUserRoles(user.companyId, userId);
+    return this.userAccessService.listUserRoles(user, userId);
   }
 
   @Post('roles')
@@ -99,7 +99,7 @@ export class UserAccessController {
     summary: 'Exceções individuais (grants/denies) do usuário',
   })
   async listUserPermissions(@CurrentUser() user: any, @Param('userId') userId: string) {
-    return this.userAccessService.listUserPermissions(user.companyId, userId);
+    return this.userAccessService.listUserPermissions(user, userId);
   }
 
   @Post('permissions')
