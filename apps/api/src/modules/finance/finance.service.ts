@@ -222,7 +222,11 @@ export class FinanceService {
       return;
     }
 
-    const dueDate = params.dueDate ?? this.addDays(new Date(), 30);
+    // Vencimento é DATA DE NEGÓCIO (#1093, mesma causa raiz da #901): parte do
+    // dia operacional em São Paulo, não do instante do processo. Mercadoria
+    // recebida às 22h de 14/08 conta 30 dias a partir de 14/08 — antes, o
+    // relógio UTC já dizia 15/08 e o vencimento nascia um dia adiante.
+    const dueDate = params.dueDate ?? this.vencimentoEmDias(30);
 
     const entry = await this.prisma.financialEntry.create({
       data: {
