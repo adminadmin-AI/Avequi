@@ -194,7 +194,41 @@ model Company {
   invoices             Invoice[]
   subscriptionProposals SubscriptionProposal[]
 
+  /// GRUPO ECONÔMICO (#1119): empresas de donos comuns que compartilham a
+  /// administração. Só a OPERADORA declara o vínculo (portal /ops) — o admin
+  /// do cliente não se auto-concede acesso a outro tenant.
+  /// Vale só na empresa RAIZ: filial pertence ao grupo da matriz.
+  groupId String?       @map("group_id")
+  group   CompanyGroup? @relation(fields: [groupId], references: [id])
+
+  @@index([groupId])
   @@map("gdr_companies")
+}
+
+/// Grupo econômico (#1119) — o laço entre tenants-raiz que a mesma
+/// administração opera (ex.: GDR Reboques + CRD).
+///
+/// ── O que ele NÃO é ───────────────────────────────────────────────────────
+/// NÃO é a árvore matriz→filial (`Company.parentId`). Aquela é UM tenant com
+/// várias unidades; esta é N tenants distintos, cada um com CNPJ, assinatura,
+/// numeração fiscal e ciclo de vida próprios no control plane. Juntar os dois
+/// conceitos pendurando um tenant como "filial" do outro quebraria billing
+/// (o entitlement resolve plano pela raiz) e tiraria o tenant do portal
+/// (a impersonation exige `parentId === null`).
+///
+/// ── O que ele autoriza ────────────────────────────────────────────────────
+/// SOMENTE isto: um usuário de uma empresa do grupo PODE receber perfil nas
+/// outras empresas do MESMO grupo, e alternar a empresa ativa da sessão. Não
+/// mistura dado nenhum: cada consulta continua filtrada pela empresa ativa.
+/// Sem o grupo declarado, todo vínculo cruzado é recusado (fail-closed).
+model CompanyGroup {
+  id        String    @id @default(cuid())
+  name      String
+  companies Company[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("gdr_company_groups")
 }
 
 // ─── OPS WP5 (#912) — Billing da operadora (F1: contrato + régua) ─────────────

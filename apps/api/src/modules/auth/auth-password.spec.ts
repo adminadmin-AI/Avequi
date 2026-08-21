@@ -12,6 +12,8 @@ import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { TenantStatusService } from '../iam/tenant-status.service';
+import { CompanyGroupService } from '../iam/company-group.service';
+import { AuditService } from '../iam/audit.service';
 
 const mockPrisma = {
   user: {
@@ -93,6 +95,17 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: TenantStatusService, useValue: mockTenantStatus },
+        // #1119: empresa ativa/grupo econômico — default é "não tem grupo".
+        {
+          provide: CompanyGroupService,
+          useValue: {
+            empresasDoGrupo: jest.fn().mockResolvedValue([]),
+            empresasDoUsuario: jest.fn().mockResolvedValue([]),
+            podeAssumir: jest.fn().mockResolvedValue(false),
+            raizDe: jest.fn(async (id: string) => id),
+          },
+        },
+        { provide: AuditService, useValue: { persist: jest.fn() } },
       ],
     }).compile();
 

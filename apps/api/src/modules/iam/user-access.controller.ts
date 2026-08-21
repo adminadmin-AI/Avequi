@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -83,11 +83,20 @@ export class UserAccessController {
     @CurrentUser() user: any,
     @Param('userId') userId: string,
     @Param('roleId') roleId: string,
+    // #1119: desfaz uma concessão CRUZADA do grupo econômico. Precisa ser
+    // explícito — a chave do vínculo é (userId, roleId, companyId), e quem
+    // tem o mesmo perfil em duas empresas do grupo tem DOIS vínculos.
+    // O nome não é `companyId` de propósito: a sentinela
+    // tenant-isolation.sweep proíbe esse nome vindo do cliente em
+    // @Query/@Param, e a regra vale — a autorização aqui é conferida no
+    // service (grupo declarado + poder na empresa destino), não presumida.
+    @Query('empresaDoVinculo') empresaDoVinculo?: string,
   ) {
     return this.userAccessService.removeRole(
       { id: user.id, companyId: user.companyId },
       userId,
       roleId,
+      empresaDoVinculo,
     );
   }
 

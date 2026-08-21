@@ -766,6 +766,14 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
       'POST /ops/plans, PATCH /ops/plans/:id (OPS WP4 #911; trocar plano/exceções de um tenant fica em ops.tenants.manage)',
     ],
   ]),
+  ...r('ops', 'groups', 'Operadora — grupos econômicos', [
+    ['view', 'ver grupos e suas empresas', 'GET /ops/groups, GET /ops/groups/:id (#1119)'],
+    [
+      'manage',
+      'criar grupo, associar/desassociar tenant',
+      'POST /ops/groups, POST /ops/groups/:id/companies, DELETE /ops/groups/:id/companies/:companyId (#1119 — declarar o grupo é da OPERADORA; desassociar revoga vínculos cruzados e sessões)',
+    ],
+  ]),
   ...r('ops', 'impersonation', 'Operadora — ver como o cliente', [
     [
       'execute',

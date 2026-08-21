@@ -10,6 +10,8 @@ import { AuditService } from './audit.service';
 import { LastAdminInvariantService } from './last-admin-invariant.service';
 import { LegacyRoleMirrorService } from './legacy-role-mirror.service';
 import { TenantScopeService } from './tenant-scope.service';
+import { CompanyGroupService } from './company-group.service';
+import { SessionService } from './session.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -120,6 +122,21 @@ describe('UserAccessService', () => {
         { provide: LastAdminInvariantService, useValue: mockLastAdmin },
         { provide: LegacyRoleMirrorService, useValue: mockLegacyMirror },
         { provide: TenantScopeService, useValue: mockTenantScope },
+        // #1119: sem grupo econômico declarado, o grupo é o próprio tenant —
+        // é o estado de 100% dos tenants antes de a operadora declarar um.
+        {
+          provide: CompanyGroupService,
+          useValue: {
+            empresasDoGrupo: jest.fn(async (id: string) => [id]),
+            empresasDoUsuario: jest.fn(async (_u: string, id: string) => [id]),
+            podeAssumir: jest.fn().mockResolvedValue(false),
+            raizDe: jest.fn(async (id: string) => id),
+          },
+        },
+        {
+          provide: SessionService,
+          useValue: { revokeSessionsInCompany: jest.fn().mockResolvedValue(0) },
+        },
       ],
     }).compile();
 

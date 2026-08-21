@@ -1,12 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, AuditAction, PermissionChangeType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from './audit.service';
+import { CompanyGroupService } from './company-group.service';
+import { SessionService } from './session.service';
 import {
   LastAdminInvariantService,
   TEMP_ADMIN_ERROR_MESSAGE,
@@ -50,6 +53,8 @@ export class UserAccessService {
     private readonly lastAdmin: LastAdminInvariantService,
     private readonly legacyMirror: LegacyRoleMirrorService,
     private readonly tenantScope: TenantScopeService,
+    private readonly companyGroup: CompanyGroupService,
+    private readonly sessionService: SessionService,
   ) {}
 
   // ─── Perfis do usuário ─────────────────────────────────────────────────────
@@ -78,7 +83,14 @@ export class UserAccessService {
   async assignRole(actor: Actor, userId: string, dto: AssignRoleDto) {
     const target = await this.findTargetUser(actor, userId);
     // #1107: empresa REAL do usuário administrado — pode ser uma filial.
-    const alvoCompanyId = target.companyId;
+    // #1119: com `dto.empresaDoVinculo`, o vínculo vale em OUTRA empresa do grupo
+    // econômico (a pessoa da GDR ganhando perfil na CRD) — duas travas no
+    // resolvedor. Sem ele, nada muda.
+    const alvoCompanyId = await this.resolverEmpresaDoVinculo(
+      actor,
+      target,
+      dto.empresaDoVinculo,
+    );
 
     const role = await this.prisma.role.findFirst({
       where: {
@@ -187,10 +199,23 @@ export class UserAccessService {
     return { ...assignment, legacyRole: { ...espelho!, sessoesRevogadas } };
   }
 
-  async removeRole(actor: Actor, userId: string, roleId: string) {
+  async removeRole(
+    actor: Actor,
+    userId: string,
+    roleId: string,
+    empresaDoVinculo?: string,
+  ) {
     const target = await this.findTargetUser(actor, userId);
     // #1107: empresa REAL do usuário administrado — pode ser uma filial.
-    const alvoCompanyId = target.companyId;
+    // #1119: `empresaDoVinculo` desfaz uma concessão CRUZADA. Precisa ser
+    // explícito porque a chave do vínculo é (userId, roleId, companyId): quem
+    // tem o mesmo perfil na GDR e na CRD tem DOIS vínculos, e adivinhar qual
+    // remover seria remover o errado metade das vezes.
+    const alvoCompanyId = await this.resolverEmpresaDoVinculo(
+      actor,
+      target,
+      empresaDoVinculo,
+    );
 
     const assignment = await this.prisma.userRoleAssignment.findUnique({
       where: {
@@ -255,10 +280,22 @@ export class UserAccessService {
     }
 
     await this.permissionService.invalidateUser(target.id, alvoCompanyId);
-    const sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
+    let sessoesRevogadas = await this.legacyMirror.revogarSessoesSeMudou(
       espelho!,
       target.id,
     );
+
+    // #1119: desfazer uma concessão CRUZADA derruba na hora quem está com
+    // aquela empresa ativa. A revogação do espelho legado acima não cobre
+    // este caso — ela só dispara quando o enum muda, e tirar o acesso de um
+    // visitante não muda o enum dele. Sem isto, a pessoa continuaria
+    // trabalhando na empresa até o access token expirar sozinho.
+    if (alvoCompanyId !== target.companyId) {
+      sessoesRevogadas += await this.sessionService.revokeSessionsInCompany(
+        alvoCompanyId,
+        { userId: target.id },
+      );
+    }
 
     await this.auditService.logWithDiff(assignment, null, {
       // AuditLog fica no contexto de quem EXECUTOU (#1107, decisão do Rafael):
@@ -496,6 +533,51 @@ export class UserAccessService {
   }
 
   // ─── Internos ──────────────────────────────────────────────────────────────
+
+  /**
+   * A empresa ONDE o vínculo vai valer (#1119).
+   *
+   * Sem `companyIdSolicitada`, é a empresa do próprio alvo — o comportamento
+   * de sempre, e o de 100% dos tenants sem grupo econômico. Com ela, é uma
+   * concessão CRUZADA (dar à pessoa da GDR um perfil na CRD), e aí passam
+   * DUAS travas independentes:
+   *
+   *  1. **O grupo tem de existir.** A empresa destino precisa estar no grupo
+   *     econômico do alvo — laço que só a operadora declara (portal /ops).
+   *     Sem grupo, 404 igual a empresa inexistente: não é papel desta rota
+   *     contar quais outros tenants existem no banco.
+   *  2. **O ator tem de mandar LÁ.** `iam.roles.assign` na empresa DESTINO,
+   *     não na dele. Sem isto, quem administra acessos na GDR passaria a
+   *     conceder acesso na CRD só porque as duas viraram grupo — o grupo
+   *     autoriza o vínculo a existir, não transforma admin de uma em admin
+   *     da outra.
+   */
+  private async resolverEmpresaDoVinculo(
+    actor: Actor,
+    target: { id: string; companyId: string },
+    companyIdSolicitada?: string,
+  ): Promise<string> {
+    const padrao = target.companyId;
+    if (!companyIdSolicitada || companyIdSolicitada === padrao) return padrao;
+
+    const doGrupo = await this.companyGroup.empresasDoGrupo(target.companyId);
+    if (!doGrupo.includes(companyIdSolicitada)) {
+      throw new NotFoundException('Empresa não encontrada no grupo econômico.');
+    }
+
+    const podeLa = await this.permissionService.hasPermission(
+      actor.id,
+      companyIdSolicitada,
+      'iam.roles.assign',
+    );
+    if (!podeLa) {
+      throw new ForbiddenException(
+        'Você não administra acessos nesta empresa do grupo econômico.',
+      );
+    }
+
+    return companyIdSolicitada;
+  }
 
   /** Usuário-alvo DA MESMA empresa do JWT, ou 404 (anti-IDOR). */
   /**

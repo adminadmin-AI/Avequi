@@ -105,6 +105,32 @@ export class AssignRoleDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  /**
+   * #1119 — empresa ONDE o perfil vale, quando diferente da empresa do usuário
+   * (concessão cruzada dentro do grupo econômico: dar à pessoa da GDR um
+   * perfil na CRD).
+   *
+   * NÃO é o `companyId` de escopo que o #450 tirou dos DTOs. Aquele era o
+   * cliente dizendo de qual tenant queria os dados — IDOR. Este é o OBJETO da
+   * concessão, e passa por duas travas no service: a empresa tem de estar no
+   * grupo econômico declarado pela operadora, e o ator precisa de
+   * `iam.roles.assign` NA EMPRESA DESTINO, não na dele.
+   *
+   * O nome não é `companyId` porque o tenant-query-lint proíbe essa
+   * propriedade em qualquer DTO, sem waiver — regra do incidente #158. Ela
+   * vale; abrir exceção enfraqueceria a trava para os outros DTOs. Mesmo nome
+   * do query param que desfaz o vínculo (DELETE .../roles/:roleId).
+   *
+   * Omitido (o caso normal) = a empresa do próprio usuário.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Empresa do grupo econômico onde o perfil vale (#1119). Omitido = empresa do próprio usuário.',
+  })
+  @IsOptional()
+  @IsString()
+  empresaDoVinculo?: string;
 }
 
 export class GrantUserPermissionDto {

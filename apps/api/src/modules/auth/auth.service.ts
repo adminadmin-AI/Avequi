@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
+  AuditAction,
   LoginFailReason,
   SecurityEventSeverity,
   SecurityEventType,
@@ -15,6 +17,8 @@ import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { expiryToMs } from '../../common/auth/auth-cookies';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../iam/audit.service';
+import { CompanyGroupService } from '../iam/company-group.service';
 import { MfaService } from '../iam/mfa.service';
 import { PasswordPolicyService } from '../iam/password-policy.service';
 import { LoginContext, SessionService } from '../iam/session.service';
@@ -66,6 +70,8 @@ export class AuthService {
     private readonly mfaService: MfaService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly tenantStatus: TenantStatusService,
+    private readonly companyGroup: CompanyGroupService,
+    private readonly auditService: AuditService,
   ) {}
 
   private hashToken(token: string): string {
@@ -288,13 +294,23 @@ export class AuthService {
    * SHA-256) e UserSession vinculada (#342). O access token ganha o claim
    * `sessionId` quando a sessão foi criada; se a criação falhar
    * (best-effort), o token sai sem o claim — tratado como legado.
+   *
+   * #1119 — EMPRESA ATIVA: `companyId` do token passou a significar "a empresa
+   * em que esta SESSÃO está trabalhando", não mais "onde o usuário foi
+   * cadastrado". Para a esmagadora maioria dos usuários as duas são a mesma
+   * coisa e nada muda. O cadastro fica no claim `homeCompanyId`, que é a
+   * âncora de toda validação de troca (o grupo econômico é resolvido a partir
+   * DELE, nunca da empresa ativa — senão bastaria pular de empresa em empresa
+   * para atravessar grupos encadeados).
    */
-  private async issueTokens(user: any, ctx: LoginContext = {}) {
+  private async issueTokens(user: any, ctx: LoginContext = {}, activeCompanyId?: string) {
+    const empresaAtiva = activeCompanyId ?? user.companyId;
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
-      companyId: user.companyId,
+      companyId: empresaAtiva,
+      homeCompanyId: user.companyId,
     };
 
     const refreshToken = this.jwtService.sign(payload, {
@@ -312,8 +328,11 @@ export class AuthService {
     });
 
     // #342: sessão amarrada ao refresh token (Decisão 4 — híbrido).
+    // #1119: a sessão grava a empresa ATIVA — é ela que a revogação por
+    // empresa (revokeSessionsInCompany) usa para derrubar visitantes quando o
+    // acesso cruzado deixa de valer.
     const session = await this.sessionService.createSession(
-      { id: user.id, companyId: user.companyId },
+      { id: user.id, companyId: empresaAtiva },
       ctx,
       stored.id,
     );
@@ -353,12 +372,39 @@ export class AuthService {
       throw new UnauthorizedException('Usuário desativado');
     }
 
+    // #1119: a sessão pode estar trabalhando em OUTRA empresa do grupo. Todas
+    // as checagens abaixo valem sobre a empresa ATIVA — validar a empresa de
+    // cadastro deixaria um visitante renovando token numa empresa suspensa, ou
+    // numa que já o desautorizou.
+    const empresaAtiva: string = payload?.companyId ?? user.companyId;
+
     // OPS WP1 (#908): defesa em profundidade — a suspensão do tenant já
     // revoga as sessões (OpsService), mas um refresh legado sem sessão
     // escaparia da denylist; aqui ele morre de vez.
-    const tenantBlock = await this.tenantStatus.getLoginBlock(user.companyId);
+    const tenantBlock = await this.tenantStatus.getLoginBlock(empresaAtiva);
     if (tenantBlock) {
       throw new ForbiddenException(tenantBlock.message);
+    }
+
+    // #1119: o acesso cruzado ainda vale? A remoção do vínculo (ou a
+    // desassociação do grupo) já revoga as sessões — isto é o backstop para
+    // a revogação que falhou no meio ou para o refresh legado sem sessão.
+    //
+    // Falha com 401 em vez de rebaixar silenciosamente para a empresa de
+    // cadastro: trocar o contexto por baixo de quem está trabalhando é o
+    // caminho para lançar na empresa errada. Perder o acesso é um evento
+    // visível; login de novo, e o seletor mostra o que sobrou.
+    if (empresaAtiva !== user.companyId) {
+      const aindaPode = await this.companyGroup.podeAssumir(
+        stored.userId,
+        user.companyId,
+        empresaAtiva,
+      );
+      if (!aindaPode) {
+        throw new UnauthorizedException(
+          'Seu acesso a esta empresa foi encerrado. Faça login novamente.',
+        );
+      }
     }
 
     // #750 (defesa em profundidade): troca obrigatória pendente = refresh
@@ -425,6 +471,134 @@ export class AuthService {
     }
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  /**
+   * As empresas que esta pessoa pode assumir (#1119) — alimenta o seletor.
+   *
+   * Devolve sempre pelo menos a empresa de cadastro. Uma só na lista = quem
+   * não tem grupo econômico; o front esconde o seletor nesse caso.
+   */
+  async listCompaniesForUser(userId: string, homeCompanyId: string) {
+    const ids = await this.companyGroup.empresasDoUsuario(userId, homeCompanyId);
+
+    const empresas = await this.prisma.company.findMany({
+      // tenant-lint: ok (lista fechada de ids autorizada pelo CompanyGroupService #1119)
+      where: { id: { in: ids } },
+      select: { id: true, name: true, razaoSocial: true, cnpj: true, parentId: true },
+      orderBy: { name: 'asc' },
+    });
+
+    return empresas.map((e) => ({
+      id: e.id,
+      name: e.name,
+      razaoSocial: e.razaoSocial,
+      cnpj: e.cnpj,
+      isHome: e.id === homeCompanyId,
+      isBranch: e.parentId !== null,
+    }));
+  }
+
+  /**
+   * Troca a empresa ATIVA da sessão (#1119).
+   *
+   * Emite um par de tokens NOVO apontando para a empresa destino e encerra a
+   * sessão anterior — não é "mais um login", é a mesma pessoa mudando de
+   * mesa. Sequência deliberada:
+   *
+   *   1. autorização (`podeAssumir`) — grupo econômico E vínculo vigente, com
+   *      o grupo resolvido a partir da empresa de CADASTRO (nunca da ativa);
+   *   2. status do tenant destino — suspenso não recebe visita (a suspensão
+   *      não pode ser contornada entrando pela porta do grupo);
+   *   3. emite os tokens novos;
+   *   4. audita nas DUAS empresas: a de origem registra a saída, a de destino
+   *      registra a entrada. Sem isso, o admin da CRD veria ações de uma
+   *      pessoa que, para a trilha dele, nunca entrou.
+   *
+   * A sessão antiga é revogada DEPOIS de emitir a nova: se a revogação falhar,
+   * o usuário fica com uma sessão a mais, não com nenhuma.
+   */
+  async switchCompany(
+    user: { id: string; companyId: string; homeCompanyId?: string; sessionId?: string },
+    targetCompanyId: string,
+    ctx: LoginContext = {},
+  ) {
+    const home = user.homeCompanyId ?? user.companyId;
+
+    if (targetCompanyId === user.companyId) {
+      throw new BadRequestException('Você já está trabalhando nesta empresa.');
+    }
+
+    const pode = await this.companyGroup.podeAssumir(user.id, home, targetCompanyId);
+    if (!pode) {
+      // Mesma resposta para "empresa não existe", "fora do meu grupo" e "sem
+      // vínculo": distinguir entregaria um oráculo de quais empresas existem
+      // no banco e de quem tem acesso a quê.
+      throw new ForbiddenException('Empresa indisponível para este usuário.');
+    }
+
+    const tenantBlock = await this.tenantStatus.getLoginBlock(targetCompanyId);
+    if (tenantBlock) {
+      throw new ForbiddenException(tenantBlock.message);
+    }
+
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, email: true, role: true, companyId: true, isActive: true },
+    });
+    if (!dbUser?.isActive) {
+      throw new UnauthorizedException('Usuário desativado');
+    }
+
+    const tokens = await this.issueTokens(dbUser, ctx, targetCompanyId);
+
+    // Trilha nos dois lados — origem e destino.
+    for (const companyId of [user.companyId, targetCompanyId]) {
+      try {
+        await this.auditService.persist({
+          companyId,
+          userId: user.id,
+          entity: 'UserSession',
+          action: AuditAction.UPDATE,
+          module: 'auth',
+          oldValue: { activeCompanyId: user.companyId },
+          newValue: { activeCompanyId: targetCompanyId },
+          ipAddress: ctx.ipAddress ?? null,
+          userAgent: ctx.userAgent ?? null,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Falha ao auditar troca de empresa em ${companyId} (best-effort): ` +
+            `${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (user.sessionId) {
+      try {
+        await this.sessionService.revokeSession(
+          user.sessionId,
+          SessionRevokedReason.LOGOUT,
+          user.id,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Falha ao encerrar a sessão anterior na troca de empresa (best-effort): ` +
+            `${(err as Error).message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'auth_company_switched',
+        userId: user.id,
+        de: user.companyId,
+        para: targetCompanyId,
+      }),
+    );
+
+    return tokens;
   }
 
   /**

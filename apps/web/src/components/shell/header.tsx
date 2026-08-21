@@ -2,6 +2,7 @@
 
 import { Menu, Search } from 'lucide-react';
 import { Breadcrumbs } from '@/components/shell/breadcrumbs';
+import { CompanySwitcher } from '@/components/shell/company-switcher';
 import { UserMenu } from '@/components/shell/user-menu';
 import { NotificationBell } from '@/components/notification-bell';
 import { useUiStore } from '@/stores/ui-store';
@@ -19,6 +20,11 @@ export function Header() {
       >
         <Menu size={18} />
       </button>
+
+      {/* #1119 — empresa ativa. Fica ANTES dos breadcrumbs de propósito: é o
+          contexto em que tudo o que vem depois acontece, inclusive o CNPJ
+          emitente da nota. Some sozinho para quem não tem grupo econômico. */}
+      <CompanySwitcher />
 
       {/* Breadcrumbs */}
       <div className="hidden min-w-0 flex-1 sm:flex">

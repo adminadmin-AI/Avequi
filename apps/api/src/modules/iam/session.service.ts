@@ -718,6 +718,77 @@ export class SessionService {
   }
 
   /**
+   * Revoga as sessões ativas ABERTAS EM uma empresa (#1119).
+   *
+   * Existe para o momento em que um acesso cruzado deixa de valer: a operadora
+   * desassocia um tenant do grupo econômico, ou um admin remove o perfil de
+   * alguém na segunda empresa. Sem isto, o access token já emitido continuaria
+   * trabalhando na empresa perdida até expirar sozinho.
+   *
+   * `userId` restringe a um usuário (remoção de vínculo individual); sem ele,
+   * pega todo mundo que está com aquela empresa ativa (desassociação do grupo).
+   *
+   * Sempre ADMIN_REVOKE → entra na denylist, o token morre na próxima request.
+   * Best-effort por sessão: falha em uma não impede as outras.
+   */
+  async revokeSessionsInCompany(
+    companyId: string,
+    opcoes: { userId?: string; exceptUserIdsOfCompany?: boolean } = {},
+  ): Promise<number> {
+    // list-lint: ok (revogação de segurança precisa alcançar TODAS as sessões abertas — um teto deixaria sessão viva, que é o oposto do objetivo; o recorte já é uma empresa e só as não revogadas)
+    const sessions = await this.prisma.userSession.findMany({
+      where: {
+        companyId,
+        revokedAt: null,
+        ...(opcoes.userId ? { userId: opcoes.userId } : {}),
+        // Na desassociação do grupo, quem é DA CASA continua trabalhando: só
+        // as sessões de visitantes (usuário cadastrado em outra empresa)
+        // perderam a autorização.
+        ...(opcoes.exceptUserIdsOfCompany
+          ? { user: { companyId: { not: companyId } } }
+          : {}),
+      },
+      select: { id: true, userId: true, refreshTokenId: true },
+    });
+
+    let revogadas = 0;
+    for (const session of sessions) {
+      try {
+        await this.revokeSessionRow(
+          session.id,
+          session.refreshTokenId,
+          SessionRevokedReason.ADMIN_REVOKE,
+        );
+        await this.denylist.deny(session.id);
+        revogadas++;
+      } catch (err) {
+        this.logger.warn(
+          `Falha ao revogar sessão ${session.id} da empresa ${companyId} ` +
+            `(best-effort): ${(err as Error).message}`,
+        );
+      }
+    }
+
+    if (revogadas > 0) {
+      await this.prisma.securityEvent.create({
+        data: {
+          companyId,
+          userId: sessions[0].userId,
+          eventType: SecurityEventType.SESSION_REVOKED,
+          severity: SecurityEventSeverity.INFO,
+          metadata: {
+            count: revogadas,
+            reason: SessionRevokedReason.ADMIN_REVOKE,
+            motivo: 'acesso cruzado revogado (grupo econômico #1119)',
+          },
+        },
+      });
+    }
+
+    return revogadas;
+  }
+
+  /**
    * Logout global: revoga TODAS as sessões ativas do usuário.
    * `exceptSessionId` (#345): preserva a sessão informada — usado na troca de
    * senha para derrubar todos os OUTROS dispositivos sem deslogar o atual.

@@ -21,6 +21,7 @@ import {
   setAuthCookies,
 } from '../../common/auth/auth-cookies';
 import { AuthService } from './auth.service';
+import { SwitchCompanyDto } from './dto/switch-company.dto';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { SkipCsrf } from '../../common/decorators/skip-csrf.decorator';
@@ -147,6 +148,54 @@ export class AuthController {
       // Não participa da decisão de acesso — isto aqui é UX (menu).
       'auth_me_permissions',
     );
+  }
+
+  // ─── Empresa ativa / grupo econômico (#1119) ───────────────────────────────
+
+  /**
+   * As empresas que o usuário pode assumir — alimenta o seletor do topo.
+   * Lista com um item só = usuário sem grupo econômico (o front some com o
+   * seletor). userId e empresa de cadastro vêm SEMPRE do JWT.
+   */
+  @Get('me/companies')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Empresas que o usuário pode assumir como empresa ativa (grupo econômico, #1119)',
+  })
+  async myCompanies(@CurrentUser() user: any) {
+    return this.authService.listCompaniesForUser(
+      user.id,
+      user.homeCompanyId ?? user.companyId,
+    );
+  }
+
+  /**
+   * Troca a empresa ativa da sessão. Devolve tokens novos (e cookies novos —
+   * mesmo caminho do login/refresh); o front precisa limpar o cache de dados
+   * ao receber, senão mistura tela de uma empresa com dado da outra.
+   */
+  @Post('switch-company')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      'Troca a empresa ativa da sessão dentro do grupo econômico (#1119). ' +
+      'Exige vínculo vigente na empresa destino; tenant suspenso é recusado.',
+  })
+  async switchCompany(
+    @CurrentUser() user: any,
+    @Body() dto: SwitchCompanyDto,
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.switchCompany(user, dto.empresaId, {
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+    const csrfToken = setAuthCookies(res, result);
+    return { ...result, csrfToken };
   }
 
   // ─── Password policy (#345) ────────────────────────────────────────────────

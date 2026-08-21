@@ -65,8 +65,26 @@ describe('JwtStrategy', () => {
       email: 'admin@gdr.com.br',
       role: 'SUPER_ADMIN',
       companyId: 'company-1',
+      // #1119: token sem o claim novo (emitido antes do grupo econômico) —
+      // a empresa de cadastro cai no companyId, que para esses tokens É ela.
+      homeCompanyId: 'company-1',
       sessionId: undefined,
     });
+  });
+
+  it('#1119: com empresa ativa diferente da de cadastro, os dois claims sobrevivem', async () => {
+    // A sessão está trabalhando na CRD; o cadastro (âncora da autorização de
+    // troca) continua sendo a GDR. Trocar um pelo outro aqui deixaria alguém
+    // pular de empresa em empresa atravessando grupos encadeados.
+    const result = await strategy.validate({
+      sub: 'user-1',
+      email: 'claudio@gdr.com.br',
+      role: 'SUPER_ADMIN',
+      companyId: 'crd',
+      homeCompanyId: 'gdr',
+    });
+
+    expect(result).toMatchObject({ companyId: 'crd', homeCompanyId: 'gdr' });
   });
 
   it('should map sub to id', async () => {
