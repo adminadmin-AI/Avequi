@@ -9,7 +9,7 @@
  *
  * ORIGEM: tabela `Setores_Operacionais` do SQL Server local da ferramenta
  * interna `producao_v2` (projeto_sql_xml). Extração manual conferida em
- * 29/07/2026 — 34 registros, ordenados por `OrdemExibicao`. O ERP NÃO conecta
+ * 29/07/2026 (34 registros) e 21/08/2026 (35: + SET-MON-007 Montagem de Pneu), ordenados por `OrdemExibicao`. O ERP NÃO conecta
  * ao SQL Server: quando o cadastro mudar na ferramenta, atualize
  * `GDR_WORK_CENTER_SOURCE` manualmente e reexecute o CLI
  * `apps/api/scripts/import-work-centers-gdr.ts`.
@@ -93,23 +93,24 @@ export const GDR_WORK_CENTER_SOURCE: readonly GdrSectorSource[] = [
   { code: 'SET-MON-004', name: 'Montagem de Tampa', group: 'Montagem', type: 'Producao', displayOrder: 18 },
   { code: 'SET-MON-005', name: 'Montagem de Eixo', group: 'Montagem', type: 'Producao', displayOrder: 19 },
   { code: 'SET-MON-006', name: 'Gravação de Número de Chassi', group: 'Montagem', type: 'Producao', displayOrder: 20 },
+  { code: 'SET-MON-007', name: 'Montagem de Pneu', group: 'Montagem', type: 'Producao', displayOrder: 21 },
 
-  { code: 'SET-EXP-001', name: 'Almoxarifado - Montagem de Kits', group: 'Expedição', type: 'Producao', displayOrder: 21 },
-  { code: 'SET-EXP-002', name: 'Montagem de Kit Carretinha', group: 'Expedição', type: 'Producao', displayOrder: 22 },
-  { code: 'SET-EXP-003', name: 'Carregamento', group: 'Expedição', type: 'Producao', displayOrder: 23 },
+  { code: 'SET-EXP-001', name: 'Almoxarifado - Montagem de Kits', group: 'Expedição', type: 'Producao', displayOrder: 22 },
+  { code: 'SET-EXP-002', name: 'Montagem de Kit Carretinha', group: 'Expedição', type: 'Producao', displayOrder: 23 },
+  { code: 'SET-EXP-003', name: 'Carregamento', group: 'Expedição', type: 'Producao', displayOrder: 24 },
 
-  { code: 'SET-MER-001', name: 'Mercado Corte Chapas', group: 'Mercados', type: 'Estoque', displayOrder: 24 },
-  { code: 'SET-MER-002', name: 'Mercado Corte Tubos', group: 'Mercados', type: 'Estoque', displayOrder: 25 },
-  { code: 'SET-MER-003', name: 'Mercado Dobra', group: 'Mercados', type: 'Estoque', displayOrder: 26 },
-  { code: 'SET-MER-004', name: 'Mercado Solda', group: 'Mercados', type: 'Estoque', displayOrder: 27 },
-  { code: 'SET-MER-005', name: 'Mercado Galvanização', group: 'Mercados', type: 'Estoque', displayOrder: 28 },
-  { code: 'SET-MER-006', name: 'Mercado Montagem - Metalúrgica', group: 'Mercados', type: 'Estoque', displayOrder: 29 },
-  { code: 'SET-MER-007', name: 'Mercado Montagem - Marcenaria', group: 'Mercados', type: 'Estoque', displayOrder: 30 },
-  { code: 'SET-MER-008', name: 'Almoxarifado', group: 'Mercados', type: 'Estoque', displayOrder: 31 },
+  { code: 'SET-MER-001', name: 'Mercado Corte Chapas', group: 'Mercados', type: 'Estoque', displayOrder: 25 },
+  { code: 'SET-MER-002', name: 'Mercado Corte Tubos', group: 'Mercados', type: 'Estoque', displayOrder: 26 },
+  { code: 'SET-MER-003', name: 'Mercado Dobra', group: 'Mercados', type: 'Estoque', displayOrder: 27 },
+  { code: 'SET-MER-004', name: 'Mercado Solda', group: 'Mercados', type: 'Estoque', displayOrder: 28 },
+  { code: 'SET-MER-005', name: 'Mercado Galvanização', group: 'Mercados', type: 'Estoque', displayOrder: 29 },
+  { code: 'SET-MER-006', name: 'Mercado Montagem - Metalúrgica', group: 'Mercados', type: 'Estoque', displayOrder: 30 },
+  { code: 'SET-MER-007', name: 'Mercado Montagem - Marcenaria', group: 'Mercados', type: 'Estoque', displayOrder: 31 },
+  { code: 'SET-MER-008', name: 'Almoxarifado', group: 'Mercados', type: 'Estoque', displayOrder: 32 },
 
-  { code: 'SET-ADM-001', name: 'Administrativo', group: 'Administrativo', type: 'Apoio', displayOrder: 32 },
-  { code: 'SET-DIR-001', name: 'Diretoria', group: 'Diretoria', type: 'Apoio', displayOrder: 33 },
-  { code: 'SET-REF-001', name: 'Refeitório', group: 'Refeitório', type: 'Apoio', displayOrder: 34 },
+  { code: 'SET-ADM-001', name: 'Administrativo', group: 'Administrativo', type: 'Apoio', displayOrder: 33 },
+  { code: 'SET-DIR-001', name: 'Diretoria', group: 'Diretoria', type: 'Apoio', displayOrder: 34 },
+  { code: 'SET-REF-001', name: 'Refeitório', group: 'Refeitório', type: 'Apoio', displayOrder: 35 },
 ];
 
 /**
