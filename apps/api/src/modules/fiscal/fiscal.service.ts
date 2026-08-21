@@ -1,5 +1,12 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FiscalDocumentType, FiscalFinalidade, FiscalStatus, PaymentMethod, TaxOperationType } from '@prisma/client';
+import {
+  FiscalDirection,
+  FiscalDocumentType,
+  FiscalFinalidade,
+  FiscalStatus,
+  PaymentMethod,
+  TaxOperationType,
+} from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from './emissor.port';
@@ -35,6 +42,24 @@ export class FiscalService {
     private readonly eventEmitter: EventEmitter2,
     private readonly ibsCbsAdjustment: IbsCbsAdjustmentService,
   ) {}
+
+  /**
+   * CNPJ do EMITENTE (só dígitos) para documentos que a própria company emite
+   * (Fase 1 — 21/08/2026). Entra na unicidade de numeração por emitente
+   * (companyId, issuerCnpj, series, number, type). Recebe o CNPJ já carregado
+   * quando o chamador tem a company à mão; senão busca. Falha alto se a
+   * company não tiver CNPJ válido — sem CNPJ não há emissão fiscal possível.
+   */
+  private async emitterCnpj(companyId: string, known?: string | null): Promise<string> {
+    const raw =
+      known ??
+      (await this.prisma.company.findUnique({ where: { id: companyId }, select: { cnpj: true } }))?.cnpj;
+    const digits = (raw ?? '').replace(/\D/g, '');
+    if (digits.length !== 14) {
+      throw new BadRequestException(`Empresa ${companyId} sem CNPJ válido para emissão fiscal`);
+    }
+    return digits;
+  }
 
   // ─── S08.03: Emitir NF para venda confirmada ──────────────────────────────
 
@@ -91,6 +116,8 @@ export class FiscalService {
             type,
             status: FiscalStatus.PENDING,
             focusRef: ref,
+            direction: FiscalDirection.EMITIDA,
+            issuerCnpj: await this.emitterCnpj(order.companyId, order.company?.cnpj),
           },
         });
 
@@ -481,6 +508,8 @@ export class FiscalService {
             referencedDocumentId: original.id,
             status: FiscalStatus.PENDING,
             focusRef: ref,
+            direction: FiscalDirection.EMITIDA,
+            issuerCnpj: await this.emitterCnpj(companyId, original.salesOrder?.company?.cnpj),
           },
         });
 
@@ -783,6 +812,8 @@ export class FiscalService {
             [tipoField]: dto.tipo,
             referencedDocumentId: original.id,
             status: FiscalStatus.PENDING,
+            direction: FiscalDirection.EMITIDA,
+            issuerCnpj: await this.emitterCnpj(companyId, original.salesOrder?.company?.cnpj),
             focusRef: ref,
           },
         });
@@ -1128,6 +1159,8 @@ export class FiscalService {
             type: FiscalDocumentType.NFE,
             status: FiscalStatus.PENDING,
             focusRef: ref,
+            direction: FiscalDirection.EMITIDA,
+            issuerCnpj: await this.emitterCnpj(transfer.companyId, transfer.company?.cnpj),
           },
         });
 
@@ -1432,9 +1465,13 @@ export class FiscalService {
 
   // ─── Consultas ────────────────────────────────────────────────────────────
 
-  async findAll(companyId: string) {
+  /**
+   * Lista documentos fiscais da company. `direction` é opcional e ADITIVO
+   * (Fase 1): sem o parâmetro, o comportamento é o de sempre (todos).
+   */
+  async findAll(companyId: string, direction?: FiscalDirection) {
     return this.prisma.fiscalDocument.findMany({
-      where: { companyId },
+      where: { companyId, ...(direction && { direction }) },
       include: { salesOrder: { include: { customer: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -1518,12 +1555,19 @@ export class FiscalService {
    * só o CAMINHO do XML (não o conteúdo) — documentos sem xml no banco são
    * baixados da Focus sob demanda e cacheados para as próximas exportações.
    */
-  async listXmlsForExport(companyId: string, from: Date, to: Date, type?: FiscalDocumentType) {
+  async listXmlsForExport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    type?: FiscalDocumentType,
+    direction?: FiscalDirection,
+  ) {
     const docs = await this.prisma.fiscalDocument.findMany({
       where: {
         companyId,
         status: { in: [FiscalStatus.AUTHORIZED, FiscalStatus.CANCELLED] },
         ...(type && { type }),
+        ...(direction && { direction }), // Fase 1: opcional — contador pode pedir só emitidas ou só recebidas
         // autorizada no período; docs antigos sem authorizedAt caem no createdAt
         OR: [
           { authorizedAt: { gte: from, lte: to } },

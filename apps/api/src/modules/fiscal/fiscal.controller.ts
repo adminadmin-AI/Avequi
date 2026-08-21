@@ -19,7 +19,17 @@ import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
 import type { Response } from 'express';
 import archiver = require('archiver');
-import { FiscalDocumentType } from '@prisma/client';
+import { FiscalDirection, FiscalDocumentType } from '@prisma/client';
+
+/**
+ * Fase 1: valida o filtro opcional `direction` da query string. Valor fora do
+ * enum vira 400 em vez de um `where` inválido no Prisma.
+ */
+export function parseDirection(raw?: string): FiscalDirection | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  if (raw === FiscalDirection.EMITIDA || raw === FiscalDirection.RECEBIDA) return raw;
+  throw new BadRequestException(`direction inválida: ${raw} (use EMITIDA ou RECEBIDA)`);
+}
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -230,8 +240,9 @@ export class FiscalController {
   @Get()
   @RequirePermission('fiscal.documents.view')
   @ApiOperation({ summary: 'Listar documentos fiscais da empresa' })
-  findAll(@CurrentUser() user: any) {
-    return this.fiscalService.findAll(user.companyId);
+  @ApiQuery({ name: 'direction', required: false, enum: FiscalDirection, description: 'Fase 1: EMITIDA | RECEBIDA (sem o parâmetro, todos)' })
+  findAll(@CurrentUser() user: any, @Query('direction') direction?: FiscalDirection) {
+    return this.fiscalService.findAll(user.companyId, parseDirection(direction));
   }
 
   /**
@@ -245,12 +256,14 @@ export class FiscalController {
   @ApiQuery({ name: 'from', description: 'Data inicial (YYYY-MM-DD)' })
   @ApiQuery({ name: 'to', description: 'Data final (YYYY-MM-DD)' })
   @ApiQuery({ name: 'type', required: false, enum: FiscalDocumentType })
+  @ApiQuery({ name: 'direction', required: false, enum: FiscalDirection })
   async export(
     @Query('from') from: string,
     @Query('to') to: string,
     @CurrentUser() user: any,
     @Res() res: Response,
     @Query('type') type?: FiscalDocumentType,
+    @Query('direction') direction?: FiscalDirection,
   ) {
     const fromDate = new Date(`${from}T00:00:00-03:00`);
     const toDate = new Date(`${to}T23:59:59.999-03:00`);
@@ -258,7 +271,13 @@ export class FiscalController {
       throw new BadRequestException('Parâmetros from/to inválidos — use YYYY-MM-DD');
     }
 
-    const xmls = await this.fiscalService.listXmlsForExport(user.companyId, fromDate, toDate, type);
+    const xmls = await this.fiscalService.listXmlsForExport(
+      user.companyId,
+      fromDate,
+      toDate,
+      type,
+      parseDirection(direction),
+    );
     if (xmls.length === 0) {
       throw new NotFoundException('Nenhum XML no período informado');
     }

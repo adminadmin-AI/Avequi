@@ -119,9 +119,12 @@ export class UsageMeteringService {
           select: { userId: true },
           distinct: ['userId'],
         }),
+        // Fase 1: medição conta só o que a company EMITIU (direction). Notas
+        // recebidas de fornecedores não são uso de emissão.
         this.prisma.fiscalDocument.count({
           where: {
             companyId: inTree,
+            direction: 'EMITIDA',
             status: FiscalStatus.AUTHORIZED,
             authorizedAt: { gte: from, lt: to },
           },
@@ -129,6 +132,7 @@ export class UsageMeteringService {
         this.prisma.fiscalDocument.count({
           where: {
             companyId: inTree,
+            direction: 'EMITIDA',
             status: FiscalStatus.REJECTED,
             createdAt: { gte: from, lt: to },
           },

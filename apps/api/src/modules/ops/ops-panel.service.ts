@@ -169,6 +169,7 @@ export class OpsPanelService {
       this.prisma.fiscalDocument.findMany({
         where: {
           companyId: { in: treeIds },
+          direction: 'EMITIDA', // Fase 1: rejeições são da emissão própria
           status: FiscalStatus.REJECTED,
           createdAt: { gte: daysAgo(7) },
         },

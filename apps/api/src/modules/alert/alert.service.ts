@@ -182,8 +182,9 @@ export class AlertService {
   // ─── S24.04: Verificar NF-e rejeitadas ───────────────────────────────────
 
   async checkNfeRejected(companyId: string): Promise<number> {
+    // Fase 1: rejeição só existe na emissão própria (direction EMITIDA).
     const docs = await this.prisma.fiscalDocument.findMany({
-      where: { companyId, status: 'REJECTED' },
+      where: { companyId, direction: 'EMITIDA', status: 'REJECTED' },
       include: {
         salesOrder: { include: { customer: { select: { name: true } } } },
       },
