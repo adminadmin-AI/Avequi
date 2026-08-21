@@ -21,14 +21,14 @@ describe('gdrResolveIsActive — regra de atividade da GDR', () => {
 });
 
 describe('GDR_WORK_CENTER_SOURCE — espelho da tabela Setores_Operacionais', () => {
-  it('contém os 34 setores atuais com codes únicos', () => {
-    expect(GDR_WORK_CENTER_SOURCE).toHaveLength(34);
-    expect(new Set(GDR_WORK_CENTER_SOURCE.map((s) => s.code)).size).toBe(34);
+  it('contém os 35 setores atuais com codes únicos', () => {
+    expect(GDR_WORK_CENTER_SOURCE).toHaveLength(35);
+    expect(new Set(GDR_WORK_CENTER_SOURCE.map((s) => s.code)).size).toBe(35);
   });
 
-  it('displayOrder é 1..34 sem repetição ou lacuna (espelho da origem)', () => {
+  it('displayOrder é 1..35 sem repetição ou lacuna (espelho da origem)', () => {
     const orders = GDR_WORK_CENTER_SOURCE.map((s) => s.displayOrder).sort((a, b) => a - b);
-    expect(orders).toEqual(Array.from({ length: 34 }, (_, i) => i + 1));
+    expect(orders).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
   });
 
   it('nenhum registro carrega companyId, CNPJ ou campo operacional', () => {
@@ -39,15 +39,15 @@ describe('GDR_WORK_CENTER_SOURCE — espelho da tabela Setores_Operacionais', ()
 });
 
 describe('GDR_WORK_CENTERS — estado final derivado para o núcleo', () => {
-  it('deriva os 34 no formato genérico { code, name, description, isActive }', () => {
-    expect(GDR_WORK_CENTERS).toHaveLength(34);
+  it('deriva os 35 no formato genérico { code, name, description, isActive }', () => {
+    expect(GDR_WORK_CENTERS).toHaveLength(35);
     for (const wc of GDR_WORK_CENTERS) {
       expect(Object.keys(wc).sort()).toEqual(['code', 'description', 'isActive', 'name']);
     }
   });
 
-  it('tem 23 ativos e 11 inativos', () => {
-    expect(GDR_WORK_CENTERS.filter((wc) => wc.isActive)).toHaveLength(23);
+  it('tem 24 ativos e 11 inativos', () => {
+    expect(GDR_WORK_CENTERS.filter((wc) => wc.isActive)).toHaveLength(24);
     expect(GDR_WORK_CENTERS.filter((wc) => !wc.isActive)).toHaveLength(11);
   });
 
