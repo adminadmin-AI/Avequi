@@ -91,7 +91,14 @@ if (listaA.status !== 200) {
   console.error(`✗ Tenant A não conseguiu listar clientes (${listaA.status}) — smoke inconclusivo.`);
   process.exit(1);
 }
-const clientes = Array.isArray(listaA.body) ? listaA.body : (listaA.body?.data ?? []);
+// PERF #1028: as listagens passaram a responder `{ items, total, page, pageSize }`.
+// Este parser só conhecia `array` e `{ data }`, então desde aquele épico o smoke
+// abortava com "Tenant A sem clientes" — saía 1 sem testar NADA. Falso negativo
+// silencioso num script de segurança é pior que teste ausente: parece que rodou.
+// Aceita os três formatos para não voltar a quebrar na próxima mudança de envelope.
+const clientes = Array.isArray(listaA.body)
+  ? listaA.body
+  : (listaA.body?.items ?? listaA.body?.data ?? []);
 if (!clientes.length) {
   console.error('✗ Tenant A sem clientes para o teste — semeie um cliente e rode de novo.');
   process.exit(1);
