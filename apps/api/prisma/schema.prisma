@@ -870,6 +870,7 @@ model Supplier {
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   advances             SupplierAdvance[] // adiantamentos (#393)
+  fiscalDocuments      FiscalDocument[] // notas RECEBIDAS deste fornecedor (Fase 1)
 
   @@unique([companyId, cnpj])
   @@map("gdr_suppliers")
@@ -1496,12 +1497,43 @@ model FiscalDocument {
   tipoNotaDebito            String?              @map("tipo_nota_debito") @db.VarChar(2) // tpNFDebito 01-08 (SINIEF 49/2025)
   tipoNotaCredito           String?              @map("tipo_nota_credito") @db.VarChar(2) // tpNFCredito 01-06
   status                    FiscalStatus         @default(PENDING)
+  // ── Direção e partes (Fase 1 — notas de entrada, 21/08/2026) ──────────────
+  // EMITIDA: a company é o emitente (fluxo Focus de hoje). RECEBIDA: um
+  // fornecedor emitiu contra a company. Default EMITIDA preserva as 11.087
+  // notas existentes e os dois `create` da emissão; todo caminho de ENTRADA
+  // deve gravar direction explicitamente.
+  direction                 FiscalDirection      @default(EMITIDA)
+  issueDate                 DateTime? // ide/dhEmi — emissão. NÃO confundir com authorizedAt (dhRecbto)
+  // Snapshot do emitente no momento do documento (fiel mesmo se o cadastro
+  // mudar). EMITIDA: CNPJ da própria company. RECEBIDA: CNPJ do fornecedor.
+  // Entra na unicidade de numeração: série/número são únicos por EMITENTE.
+  issuerCnpj                String               @db.VarChar(14)
+  issuerName                String?
+  recipientCnpj             String?              @db.VarChar(14) // RECEBIDA: CNPJ da company (checagem de que a nota é nossa)
+  naturezaOperacao          String? // ide/natOp
+  tpNF                      Int? // ide/tpNF: 0 entrada / 1 saída, na visão do EMITENTE (≠ direction)
+  supplierId                String?
+  supplier                  Supplier?            @relation(fields: [supplierId], references: [id])
   focusRef                  String?
   chave                     String?
   number                    Int? // número da NF-e retornado pelo Focus (#361)
   series                    Int?                 @default(1)
   protocolNumber            String? // nProt da SEFAZ (#361)
-  authorizedAt              DateTime? // data/hora de autorização (#361)
+  authorizedAt              DateTime? // data/hora de autorização (#361) — protNFe/infProt/dhRecbto
+  // Totais do grupo <total><ICMSTot> (Fase 1). Frete/seguro/desconto/outros
+  // são de cabeçalho e não derivam dos itens.
+  vProd                     Decimal?             @db.Decimal(14, 2)
+  vFrete                    Decimal?             @db.Decimal(14, 2)
+  vSeg                      Decimal?             @db.Decimal(14, 2)
+  vDesc                     Decimal?             @db.Decimal(14, 2)
+  vOutro                    Decimal?             @db.Decimal(14, 2)
+  vIPI                      Decimal?             @db.Decimal(14, 2)
+  vICMS                     Decimal?             @db.Decimal(14, 2)
+  vICMSUFDest               Decimal?             @db.Decimal(14, 2)
+  vFCPUFDest                Decimal?             @db.Decimal(14, 2)
+  vPIS                      Decimal?             @db.Decimal(14, 2)
+  vCOFINS                   Decimal?             @db.Decimal(14, 2)
+  vNF                       Decimal?             @db.Decimal(14, 2)
   // Totais IBS/CBS — grupo W03 NT 2025.002-RTC (#412)
   vIBS                      Decimal?             @db.Decimal(14, 2) // Σ (vIBSUF + vIBSMun) dos itens
   vCBS                      Decimal?             @db.Decimal(14, 2) // Σ vCBS dos itens
@@ -1526,9 +1558,23 @@ model FiscalDocument {
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
 
-  @@unique([companyId, series, number, type]) // controle de numeração fiscal (#361)
+  // Identidade SEFAZ: a chave de acesso é única por company (emitida ou
+  // recebida). Legado sem chave não colide (NULL é distinto no Postgres).
+  @@unique([companyId, chave])
+  // Controle de numeração (#361) POR EMITENTE: para EMITIDA a tupla equivale
+  // à antiga (issuerCnpj = CNPJ da company); para RECEBIDA, fornecedores
+  // diferentes podem emitir legitimamente a mesma série/número.
+  @@unique([companyId, issuerCnpj, series, number, type])
   @@index([referencedDocumentId])
+  @@index([companyId, direction, issueDate])
+  @@index([supplierId])
   @@map("gdr_fiscal_documents")
+}
+
+/// Direção do documento fiscal em relação à company (Fase 1 — 21/08/2026).
+enum FiscalDirection {
+  EMITIDA // a company emitiu (saída, fluxo Focus)
+  RECEBIDA // um terceiro emitiu contra a company (entrada)
 }
 
 /// NFS-e Nacional (épico #1077) — nota de SERVIÇO, ISS municipal.
@@ -1634,8 +1680,9 @@ model FiscalDocumentItem {
   id               String                  @id @default(cuid())
   fiscalDocumentId String
   fiscalDocument   FiscalDocument          @relation(fields: [fiscalDocumentId], references: [id], onDelete: Cascade)
+  nItem            Int? // det@nItem — posição do item na NF-e (Fase 1); antes recomposta por orderBy id
   productId        String?
-  productCode      String?
+  productCode      String? // cProd — código do produto no EMITENTE (entrada: código do fornecedor, base do de-para da Fase 2)
   productName      String
   ncm              String?
   cest             String? // Código Especificador de Substituição Tributária
@@ -1655,6 +1702,8 @@ model FiscalDocumentItemTax {
   id                   String             @id @default(cuid())
   fiscalDocumentItemId String
   fiscalDocumentItem   FiscalDocumentItem @relation(fields: [fiscalDocumentItemId], references: [id], onDelete: Cascade)
+  origemIcms           String?            @db.VarChar(1) // ICMS/orig — origem da mercadoria POR DOCUMENTO (Product.origem é cadastral)
+  modalidadeBcIcms     String?            @db.VarChar(1) // ICMS/modBC
   cstIcms              String?
   baseIcms             Decimal?           @db.Decimal(14, 4)
   aliquotaIcms         Decimal?           @db.Decimal(14, 4)

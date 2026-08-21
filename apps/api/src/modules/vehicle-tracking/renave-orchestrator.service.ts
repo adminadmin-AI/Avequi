@@ -374,6 +374,7 @@ export class RenaveOrchestratorService {
           where: {
             salesOrderId: serial.salesOrderId,
             companyId: operation.companyId,
+            direction: 'EMITIDA', // Fase 1: NF-e de venda emitida pela company
             status: 'AUTHORIZED',
           },
           select: { id: true, chave: true },

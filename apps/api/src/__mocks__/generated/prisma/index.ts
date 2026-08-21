@@ -232,6 +232,12 @@ export enum FiscalDocumentType {
   NFCE = 'NFCE',
 }
 
+/** Fase 1 (21/08/2026): direção do documento fiscal em relação à company. */
+export enum FiscalDirection {
+  EMITIDA = 'EMITIDA',
+  RECEBIDA = 'RECEBIDA',
+}
+
 export enum FiscalFinalidade {
   NORMAL = 'NORMAL',
   COMPLEMENTAR = 'COMPLEMENTAR',

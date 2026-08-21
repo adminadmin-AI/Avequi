@@ -45,13 +45,15 @@ export class ComplianceService {
         where: this.vigenteWhere(companyId, now),
         _count: { _all: true },
       }),
+      // Fase 1: só documentos EMITIDOS pela company — a régua mede a saúde da
+      // emissão própria, não o que fornecedores emitiram contra nós.
       this.prisma.fiscalDocument.groupBy({
         by: ['status'],
-        where: { companyId, createdAt: { gte: d30 } },
+        where: { companyId, direction: 'EMITIDA', createdAt: { gte: d30 } },
         _count: { _all: true },
       }),
       this.prisma.fiscalDocument.findMany({
-        where: { companyId, createdAt: { gte: d30 }, status: { in: ['REJECTED', 'ERROR'] } },
+        where: { companyId, direction: 'EMITIDA', createdAt: { gte: d30 }, status: { in: ['REJECTED', 'ERROR'] } },
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: { id: true, type: true, status: true, lastError: true, createdAt: true },

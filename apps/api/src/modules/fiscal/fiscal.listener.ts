@@ -57,6 +57,7 @@ export class FiscalListener {
       where: {
         salesOrderId: event.salesOrderId,
         companyId: event.companyId,
+        direction: 'EMITIDA', // Fase 1: a NF-e da OV é sempre emissão própria
         status: FiscalStatus.AUTHORIZED,
       },
     });
