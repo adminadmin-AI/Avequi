@@ -224,11 +224,22 @@ export function assertHasOffset(iso: string, label: string): string {
   return iso;
 }
 
+/**
+ * Timestamp sem offset vindo do banco é UTC naive (convenção Prisma para
+ * colunas `timestamp`): normaliza para ISO com 'Z' antes de comparar. Sem
+ * isso, `Date.parse` interpreta o texto como hora LOCAL da máquina e cria uma
+ * divergência artificial de fuso (ex.: 3h) na comparação de idempotência.
+ */
+export function normalizeDbTimestamp(v: string): string {
+  const m = v.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/);
+  return m ? `${m[1]}T${m[2]}Z` : v;
+}
+
 /** Compara instantes independentemente do offset de exibição. */
 export function sameInstant(a: string | null, b: string | null): boolean {
   if (a === null || b === null) return a === b;
-  const ta = Date.parse(a);
-  const tb = Date.parse(b);
+  const ta = Date.parse(normalizeDbTimestamp(a));
+  const tb = Date.parse(normalizeDbTimestamp(b));
   if (Number.isNaN(ta) || Number.isNaN(tb)) return a === b;
   return ta === tb;
 }

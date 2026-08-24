@@ -116,6 +116,28 @@ describe('normalização e comparações', () => {
     expect(sameInstant('2026-01-06T11:08:21-03:00', '2026-01-06T11:08:21-05:00')).toBe(false);
     expect(sameInstant(null, null)).toBe(true);
   });
+  it('timestamp sem offset do banco é UTC naive: 14:20 UTC == 11:20 -03:00 → mesmo instante', () => {
+    // caso real da reidratação: coluna timestamp guarda UTC naive; o alvo vem com offset
+    expect(sameInstant('2026-01-05 14:20:43', '2026-01-05T11:20:43-03:00')).toBe(true);
+    expect(sameInstant('2026-01-05 14:20:43.000', '2026-01-05T11:20:43-03:00')).toBe(true);
+    // e NÃO iguala instantes realmente diferentes
+    expect(sameInstant('2026-01-05 14:20:43', '2026-01-05T14:20:43-03:00')).toBe(false);
+  });
+  it('doc reidratado com authorizedAt UTC naive no banco resulta em UNCHANGED', () => {
+    const res = buildTarget(mkDoc({}), mkCtx({}));
+    const t = res.target!;
+    const done = mkDoc({
+      companyId: t.companyId, chave: t.chave, number: t.number, series: t.series,
+      authorizedAt: '2026-01-06 14:08:21', // como o Postgres devolve a coluna timestamp (UTC naive)
+      protocolNumber: t.protocolNumber, direction: t.direction,
+      issueDate: '2026-01-06 14:07:00', issuerCnpj: t.issuerCnpj,
+      issuerName: t.issuerName, recipientCnpj: t.recipientCnpj,
+      naturezaOperacao: t.naturezaOperacao, tpNF: t.tpNF, supplierId: t.supplierId,
+      totals: { vProd: '300.00', vNF: '300.00' }, xmlPresent: true,
+      items: [mkItem({ nItem: 1, taxOrigemIcms: '0', taxModalidadeBcIcms: '3' })],
+    });
+    expect(diffDoc(done, buildTarget(done, mkCtx({})).target!)).toEqual([]);
+  });
 });
 
 describe('datas (política N2)', () => {
