@@ -113,11 +113,20 @@ reidratado, reexecutar devolve `UNCHANGED` sem novo UPDATE/DELETE.
 1. Exige a migration `20260821120000` no banco (senão **aborta**; o dry-run
    roda em modo `PRE_MIGRATION` só para relatório).
 2. Exige evidência de dry-run **do mesmo dia** no diretório de relatório.
-3. **Aborta antes de qualquer escrita** se o universo divergir do auditado
-   (11.087 docs / 11.081 históricos / 6 Focus / 14.108 itens / 18 espelhos /
-   9.828 EMITIDA / 1.259 RECEBIDA / 14.090 itens finais) ou se a simulação
-   apontar colisão nas uniques `(companyId, chave)` /
-   `(companyId, issuerCnpj, series, number, type)`.
+3. **Aborta antes de qualquer escrita** se o universo violar os INVARIANTES
+   auditados (11.087 docs / 11.081 históricos / 6 Focus / projeção final
+   9.828 EMITIDA + 1.259 RECEBIDA / itens = 14.090 + espelhos pendentes /
+   partição UNCHANGED+WOULD_UPDATE completa / 0 CONFLICT / 0 unresolved) ou
+   se a simulação apontar colisão nas uniques `(companyId, chave)` /
+   `(companyId, issuerCnpj, series, number, type)`. Os invariantes valem
+   tanto para o estado inicial quanto para um **resume state** legítimo
+   (execução anterior parcial) — nada é afrouxado: a consistência entre as
+   contas é exigida sempre. Além disso o gate é **nominal**: o conjunto de
+   documentos a escrever tem de ser exatamente o conjunto provado no dry-run
+   do dia (`wouldUpdateIds` na evidência); um documento diferente ⇒ abort.
+   Timeout da transação interativa: 60s (maxWait 15s) — o default de 5s/2s
+   derrubou 62 docs por latência de WAN em 24/08; o teto continua existindo
+   e uma transação presa ainda expira com rollback do documento/par.
 4. Transação por documento (pares: por par). Falha → rollback daquele
    documento/par, contabilizado como `FAILED`, e o resto continua.
 

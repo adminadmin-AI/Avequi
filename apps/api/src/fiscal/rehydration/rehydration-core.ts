@@ -724,39 +724,72 @@ export function simulateUniqueCollisions(docs: FinalDocKey[]): {
 
 // ─── Safety assertions ───────────────────────────────────────────────────────
 
-/** Universo auditado em 24/08/2026 — referência, não meta a forçar. */
-export const EXPECTED_UNIVERSE = {
+/**
+ * INVARIANTES do universo auditado em 24/08/2026 — valem tanto para o estado
+ * inicial (nada reidratado) quanto para um resume state legítimo (parte já
+ * concluída por uma execução anterior interrompida/parcial). O que muda entre
+ * os dois é apenas a partição UNCHANGED × WOULD_UPDATE e quantos espelhos
+ * ainda existem — e isso é validado por CONSISTÊNCIA (as contas têm de fechar
+ * entre si), nunca por afrouxamento: um documento a mais, um item órfão, um
+ * espelho fora da allowlist ou uma projeção final diferente continua abortando.
+ */
+export const EXPECTED_FINAL = {
   totalDocs: 11087,
   historicDocs: 11081,
   focusDocs: 6,
-  finalEmitida: 9828, // 9.813 + 9 pares + 6 Focus
-  finalRecebida: 1259, // 1.250 + 9 pares
-  totalItems: 14108,
-  mirrorItems: 18,
-  finalItems: 14090,
+  finalEmitida: 9828, // 9.813 + 9 pares + 6 Focus — projeção invariante
+  finalRecebida: 1259, // 1.250 + 9 pares — projeção invariante
+  finalItems: 14090, // 14.108 originais − 18 espelhos
+  totalMirrors: 18, // espelhos auditados (allowlist congelada)
 } as const;
 
-export interface UniverseCounts {
+export interface UniverseSnapshot {
   totalDocs: number;
   historicDocs: number;
   focusDocs: number;
   finalEmitida: number;
   finalRecebida: number;
-  totalItems: number;
-  mirrorItems: number;
-  finalItems: number;
+  totalItems: number; // itens existentes AGORA no banco
+  pendingMirrors: number; // espelhos ainda presentes (WOULD_DELETE_MIRROR)
+  unchanged: number;
+  wouldUpdate: number;
+  conflicts: number;
+  unresolved: number;
 }
 
 /**
- * Compara o banco atual + simulação com o universo auditado. Qualquer desvio
- * material ⇒ lista de violações; o commit real DEVE abortar antes de escrever.
+ * Valida o snapshot atual contra os invariantes. Estado inicial e resume
+ * state passam; qualquer estado intermediário INESPERADO (contas que não
+ * fecham, conflito, doc não resolvido, item fora da conta, projeção final
+ * divergente) ⇒ violações; o commit real DEVE abortar antes de escrever.
  */
-export function safetyAssertions(actual: UniverseCounts): string[] {
-  const violations: string[] = [];
-  for (const key of Object.keys(EXPECTED_UNIVERSE) as (keyof UniverseCounts)[]) {
-    if (actual[key] !== EXPECTED_UNIVERSE[key]) {
-      violations.push(`${key}: esperado ${EXPECTED_UNIVERSE[key]}, encontrado ${actual[key]}`);
-    }
+export function safetyAssertions(s: UniverseSnapshot): string[] {
+  const v: string[] = [];
+  const eq = (label: string, actual: number, expected: number) => {
+    if (actual !== expected) v.push(`${label}: esperado ${expected}, encontrado ${actual}`);
+  };
+  eq('totalDocs', s.totalDocs, EXPECTED_FINAL.totalDocs);
+  eq('historicDocs', s.historicDocs, EXPECTED_FINAL.historicDocs);
+  eq('focusDocs', s.focusDocs, EXPECTED_FINAL.focusDocs);
+  eq('finalEmitida (projeção)', s.finalEmitida, EXPECTED_FINAL.finalEmitida);
+  eq('finalRecebida (projeção)', s.finalRecebida, EXPECTED_FINAL.finalRecebida);
+  // consistência de itens: os itens de hoje têm de ser exatamente o estado
+  // final auditado MAIS os espelhos que ainda não foram removidos.
+  eq('totalItems (= finalItems + espelhos pendentes)', s.totalItems, EXPECTED_FINAL.finalItems + s.pendingMirrors);
+  if (s.pendingMirrors > EXPECTED_FINAL.totalMirrors) {
+    v.push(`espelhos pendentes (${s.pendingMirrors}) excedem os ${EXPECTED_FINAL.totalMirrors} auditados`);
   }
-  return violations;
+  // partição completa dos históricos: tudo resolve, nada em conflito.
+  eq('UNCHANGED + WOULD_UPDATE', s.unchanged + s.wouldUpdate, EXPECTED_FINAL.historicDocs);
+  eq('CONFLICT', s.conflicts, 0);
+  eq('unresolved', s.unresolved, 0);
+  return v;
+}
+
+/** Igualdade exata de conjuntos de ids (ordem irrelevante, sem duplicatas). */
+export function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = new Set(a);
+  if (sa.size !== a.length) return false;
+  return b.every((id) => sa.has(id)) && new Set(b).size === b.length;
 }
