@@ -1294,10 +1294,12 @@ model SupplierProductMap {
   /// cProd exatamente como vem no det/prod da NF-e do fornecedor
   supplierProductCode String                    @map("supplier_product_code")
   status              SupplierProductMapStatus  @default(UNRESOLVED)
-  /// NULL enquanto não classificado; obrigatório para CONFIRMED (check no banco)
+  /// VERDADE CANÔNICA — só preenchido em CONFIRMED/REVIEW (REVIEW mantém o
+  /// vínculo confirmado anterior). Em UNRESOLVED/SUGGESTED fica NULL: sugestão
+  /// vive só nos campos suggested* (checks no banco garantem)
   kind                SupplierProductMapKind?
-  /// Product canônico — obrigatório quando kind=PRODUCT confirmado; sempre
-  /// NULL para os demais kinds (check no banco impede Product artificial)
+  /// Product canônico — obrigatório quando kind=PRODUCT (CONFIRMED/REVIEW);
+  /// NULL para os demais kinds e antes da confirmação (checks no banco)
   productId           String?
   product             Product?                  @relation("SpmProduct", fields: [productId], references: [id])
   // ── Sugestão (nunca vira CONFIRMED sozinha) ────────────────────────────────

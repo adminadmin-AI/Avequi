@@ -29,18 +29,30 @@ export interface SpmState {
   confirmedAt: Date | null;
 }
 
-/** Valida as invariantes de um estado (espelho dos CHECKs do banco). */
+/**
+ * Valida as invariantes de um estado (espelho dos CHECKs do banco).
+ * productId e kind representam EXCLUSIVAMENTE a verdade canônica (confirmada,
+ * ou confirmada e depois posta em REVIEW). Sugestão vive só nos campos
+ * suggested* — antes da confirmação, os canônicos ficam vazios.
+ */
 export function validateState(s: SpmState): string[] {
   const errors: string[] = [];
-  if (s.productId !== null && s.kind !== 'PRODUCT') {
-    errors.push('productId só é permitido quando kind = PRODUCT');
-  }
-  if (s.status === 'CONFIRMED') {
-    if (s.kind === null) errors.push('CONFIRMED exige kind');
+  const preCanonical = s.status === 'UNRESOLVED' || s.status === 'SUGGESTED';
+  if (preCanonical) {
+    if (s.kind !== null) errors.push(`${s.status} não pode ter kind canônico (sugestão vai em suggestedKind)`);
+    if (s.productId !== null) errors.push(`${s.status} não pode ter productId canônico (sugestão vai em suggestedProductId)`);
+    if (s.confirmedAt !== null) errors.push(`${s.status} não pode ter confirmedAt`);
+  } else {
+    // CONFIRMED e REVIEW carregam a verdade canônica (REVIEW NÃO perde o
+    // vínculo anterior — só sinaliza que precisa de reavaliação humana).
+    if (s.kind === null) errors.push(`${s.status} exige kind`);
+    if (s.confirmedAt === null) errors.push(`${s.status} exige confirmedAt`);
     if (s.kind === 'PRODUCT' && s.productId === null) {
-      errors.push('CONFIRMED como PRODUCT exige productId');
+      errors.push(`${s.status} como PRODUCT exige productId`);
     }
-    if (s.confirmedAt === null) errors.push('CONFIRMED exige confirmedAt');
+    if (s.kind !== null && s.kind !== 'PRODUCT' && s.productId !== null) {
+      errors.push('productId só é permitido quando kind = PRODUCT');
+    }
   }
   return errors;
 }
@@ -67,18 +79,10 @@ export function maxStatusForSource(source: SuggestionSource, hasHumanActor: bool
   return source === 'MANUAL' ? 'CONFIRMED' : 'SUGGESTED';
 }
 
-/** NCM sozinho nunca identifica Product — só classifica/filtra candidatos. */
-export function ncmCanIdentifyProduct(): false {
-  return false;
-}
-
-/** Faixas de NCM que indicam ativo/máquina (classificação sugerida, não identidade). */
-export function suggestKindFromNcm(ncm: string | null): SpmKind | null {
-  if (!ncm) return null;
-  const prefix = ncm.replace(/\D/g, '').slice(0, 2);
-  if (['84', '85', '90'].includes(prefix)) return 'ASSET';
-  return null;
-}
+// NCM: decisão de produto (24/08) — NCM sozinho NUNCA identifica um Product
+// nem define kind (84/85/90 contêm componentes legítimos de BOM). Ele pode
+// entrar numa heurística FUTURA combinada (descrição+histórico+seed+natureza
+// contábil), deliberadamente NÃO codificada no PR-1.
 
 /**
  * Prioridade de conciliação (decisão de produto §5): combinação de valor
@@ -94,13 +98,48 @@ export interface PriorityInput {
   activeBomCount: number;
 }
 
-export function priorityScore(p: PriorityInput): number {
-  // valor domina (log10 comprime ordens de grandeza), recorrência e presença
-  // em BOM desempatam — um item de BOM ativa fura a fila de um avulso caro.
-  const valueTerm = Math.log10(Math.max(p.totalPurchasedValue, 1));
-  const recurrenceTerm = Math.log10(Math.max(p.occurrenceCount, 1));
-  const bomTerm = p.suggestedInActiveBom ? 2 + Math.min(p.activeBomCount, 10) / 10 : 0;
-  return valueTerm * 2 + recurrenceTerm + bomTerm;
+/**
+ * PROVISÓRIO (fundação): a política concreta de pesos será calibrada no PR-2
+ * com o dataset real da listagem. Direção aprovada: valor domina; presença em
+ * BOM ativa recebe peso FORTE PORÉM FINITO (nunca ultrapassa qualquer item de
+ * fora da BOM independentemente do valor); recorrência desempata.
+ */
+export function provisionalPriorityScore(p: PriorityInput): number {
+  const valueTerm = Math.log10(Math.max(p.totalPurchasedValue, 1)) * 2;
+  const recurrenceTerm = Math.log10(Math.max(p.occurrenceCount, 1)) * 0.5;
+  // boost limitado: equivale a no máx. ~1 ordem de grandeza de valor
+  const bomTerm = p.suggestedInActiveBom ? 1.5 + Math.min(p.activeBomCount, 10) / 20 : 0;
+  return valueTerm + recurrenceTerm + bomTerm;
+}
+
+/**
+ * Isolamento entre empresas — padrão multi-tenant do Avequi (guard de
+ * serviço com { id, companyId }; não há FK composta por tenant no schema).
+ * O serviço (PR-2/3) DEVE carregar supplier/product/suggestedProduct com o
+ * companyId do map e passar por aqui antes de gravar.
+ */
+export interface TenantRefs {
+  mapCompanyId: string;
+  supplierCompanyId: string | null; // null = supplier não encontrado no tenant
+  productCompanyId: string | null | undefined; // undefined = sem product
+  suggestedProductCompanyId: string | null | undefined;
+}
+
+export function validateTenantConsistency(refs: TenantRefs): string[] {
+  const errors: string[] = [];
+  if (refs.supplierCompanyId !== refs.mapCompanyId) {
+    errors.push('supplier não pertence à company do map');
+  }
+  if (refs.productCompanyId !== undefined && refs.productCompanyId !== refs.mapCompanyId) {
+    errors.push('product não pertence à company do map');
+  }
+  if (
+    refs.suggestedProductCompanyId !== undefined &&
+    refs.suggestedProductCompanyId !== refs.mapCompanyId
+  ) {
+    errors.push('suggestedProduct não pertence à company do map');
+  }
+  return errors;
 }
 
 /**

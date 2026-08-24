@@ -104,19 +104,24 @@ ALTER TABLE "gdr_supplier_product_map_events" ADD CONSTRAINT "gdr_supplier_produ
     FOREIGN KEY ("actor_id") REFERENCES "gdr_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Invariantes de negócio no BANCO (defesa em profundidade — o serviço valida,
--- mas script/console/SQL direto também têm de esbarrar aqui):
--- 1) Product canônico só existe quando o vínculo é de mercadoria (kind=PRODUCT).
-ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_product_only_for_kind_product"
-    CHECK ("productId" IS NULL OR "kind" = 'PRODUCT');
+-- mas script/console/SQL direto também têm de esbarrar aqui).
+-- productId e kind são EXCLUSIVAMENTE a verdade canônica (CONFIRMED, ou
+-- CONFIRMED posto em REVIEW — que MANTÉM o vínculo e a trilha anteriores);
+-- sugestão vive apenas nos campos suggested_*.
 
--- 2) CONFIRMED exige classificação: sem kind não há confirmação.
-ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_confirmed_requires_kind"
-    CHECK ("status" <> 'CONFIRMED' OR "kind" IS NOT NULL);
+-- 1) Antes da confirmação (UNRESOLVED/SUGGESTED) os canônicos ficam vazios.
+ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_pre_canonical_clean"
+    CHECK ("status" NOT IN ('UNRESOLVED', 'SUGGESTED')
+        OR ("kind" IS NULL AND "productId" IS NULL AND "confirmed_at" IS NULL));
 
--- 3) CONFIRMED como PRODUCT exige o Product apontado (nunca confirmação vazia).
-ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_confirmed_product_requires_product_id"
-    CHECK ("status" <> 'CONFIRMED' OR "kind" <> 'PRODUCT' OR "productId" IS NOT NULL);
+-- 2) CONFIRMED e REVIEW exigem classificação e rastro de confirmação.
+ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_canonical_requires_confirmation"
+    CHECK ("status" NOT IN ('CONFIRMED', 'REVIEW')
+        OR ("kind" IS NOT NULL AND "confirmed_at" IS NOT NULL));
 
--- 4) Rastro de quem confirmou acompanha a confirmação.
-ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_confirmed_requires_confirmed_at"
-    CHECK ("status" <> 'CONFIRMED' OR "confirmed_at" IS NOT NULL);
+-- 3) Coerência kind × productId (vale em CONFIRMED e em REVIEW):
+--    PRODUCT ⇒ productId obrigatório; qualquer outro kind ⇒ productId NULL.
+ALTER TABLE "gdr_supplier_product_maps" ADD CONSTRAINT "spm_product_coherence"
+    CHECK (("kind" IS NULL AND "productId" IS NULL)
+        OR ("kind" = 'PRODUCT' AND "productId" IS NOT NULL)
+        OR ("kind" <> 'PRODUCT' AND "productId" IS NULL));
