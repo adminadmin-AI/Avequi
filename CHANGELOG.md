@@ -6,6 +6,25 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-08-24
+
+### Added
+- fiscal: CSOSN 102 na venda para a CRD — decisão da contadora (#1068) (#1101)
+- feat(fiscal): reidratador do histórico fiscal — 11.081 notas via legacyId (dry-run por padrão) (#1123)
+- feat(fiscal): Fase 1 — FiscalDocument ganha direção (EMITIDA/RECEBIDA), emitente e identidade por chave (#1122)
+- feat(production): seed T4 — BOM de montagem dos conjuntos + Roda Montada; SET-MON-007 no dataset GDR (#1121)
+- feat: grupo econômico e seletor de empresa — um login para GDR e CRD (#1119)
+- feat(ops): endpoint /api/health — saúde real da API para monitor externo (#1102) (#1103)
+
+### Fixed
+- fix(smoke): isolamento cross-tenant abortava desde a paginação da #1028 (#1120)
+- fix(finance): CP de compra vence pelo dia operacional, não pelo instante (#1093) (#1117)
+- fix(auth): logout só revoga o refresh token do próprio usuário (#67) (#1116)
+- fix(iam): escopo de grupo nas operações de usuário — matriz administra a filial (#1107) (#1108)
+
+### Changed
+- docs: issue só fecha com evidência verificável — regra de governança (#1114) (#1118)
+
 ## [1.47.1] - 2026-08-18
 
 ### Fixed
@@ -567,7 +586,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.48.0...HEAD
+[1.48.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.1...v1.48.0
 [1.47.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.45.0...v1.46.0
