@@ -1,0 +1,204 @@
+{
+  "auditedAt": "2026-08-24",
+  "auditSource": "audit_pares.json (microauditoria 24/08/2026, sessao Notas ERP 2)",
+  "pairs": [
+    {
+      "chave": "41250830284708000182550010000092921233203284",
+      "nfNumber": 9292,
+      "docId": "59ca43e6-db50-4a7b-b4c8-cebc635e668a",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "06c455ab-aca8-41a5-8145-4814cc793f60",
+      "keepLegacyId": "item_saida_6015",
+      "dropItemId": "ea3fa731-2db1-4b45-8969-aab9f47fa1f0",
+      "dropLegacyId": "item_entrada_399"
+    },
+    {
+      "chave": "41250830284708000182550010000092921233203284",
+      "nfNumber": 9292,
+      "docId": "d5cd494d-0841-43b4-8377-467e650b6bba",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "b4708cd3-29bc-479c-b58f-bfeb500aae07",
+      "keepLegacyId": "item_entrada_399",
+      "dropItemId": "bf08fc71-0b44-4015-b4ca-63474e85c2c3",
+      "dropLegacyId": "item_saida_6015"
+    },
+    {
+      "chave": "41260130284708000182550010000115441817213401",
+      "nfNumber": 11544,
+      "docId": "1f8d80fc-ab0e-4847-a0f1-d258316dfd30",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "6dd597c7-6f9f-4c12-91f5-68172f6c4255",
+      "keepLegacyId": "item_saida_36",
+      "dropItemId": "9dd96e42-c3ca-4576-b44f-102b5a041414",
+      "dropLegacyId": "item_entrada_1471"
+    },
+    {
+      "chave": "41260130284708000182550010000115441817213401",
+      "nfNumber": 11544,
+      "docId": "e42930af-a3e0-4cd4-9673-995f2a75e416",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "55aba4ad-27b7-43ea-a14b-4d22a198b7b5",
+      "keepLegacyId": "item_entrada_1471",
+      "dropItemId": "92e0d47d-c5ab-44a4-88d7-402c850986dc",
+      "dropLegacyId": "item_saida_36"
+    },
+    {
+      "chave": "41260130284708000182550010000116691498159540",
+      "nfNumber": 11669,
+      "docId": "a06a0759-b90d-4860-8ede-58aff74c4c48",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "0e620999-6415-43cc-9814-807b4bdf3bb3",
+      "keepLegacyId": "item_saida_161",
+      "dropItemId": "db80e5f0-1151-4a59-8076-73b07f6c232d",
+      "dropLegacyId": "item_entrada_736"
+    },
+    {
+      "chave": "41260130284708000182550010000116691498159540",
+      "nfNumber": 11669,
+      "docId": "c27899b8-a801-44d1-b1e7-fcb015d76485",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "a6c02445-3a08-4b91-b6fc-aca1c074bcfb",
+      "keepLegacyId": "item_entrada_736",
+      "dropItemId": "f8eb4970-c4d9-4766-aa7c-34e06085369c",
+      "dropLegacyId": "item_saida_161"
+    },
+    {
+      "chave": "41260230284708000182550010000121801692165817",
+      "nfNumber": 12180,
+      "docId": "27b7f769-3e24-43e4-a098-19f10a8d50fb",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "06cf8b75-8854-4e6c-9f86-8797bb68324b",
+      "keepLegacyId": "item_saida_656",
+      "dropItemId": "0edfac34-9bcd-498f-b1ba-e4ab739a3cab",
+      "dropLegacyId": "item_entrada_1547"
+    },
+    {
+      "chave": "41260230284708000182550010000121801692165817",
+      "nfNumber": 12180,
+      "docId": "37e9bc56-66fa-447c-8621-8afb7fe947c8",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "c1a49010-f627-489e-adfc-87b8a7df7037",
+      "keepLegacyId": "item_entrada_1547",
+      "dropItemId": "bfe3fbf5-08e2-4a02-8ef2-3c5b9e73eff6",
+      "dropLegacyId": "item_saida_656"
+    },
+    {
+      "chave": "41260330284708000182550010000123961486915681",
+      "nfNumber": 12396,
+      "docId": "31d001d8-1591-4757-b677-353ef5422476",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "124f48cc-b957-49cc-a20c-b835b3529855",
+      "keepLegacyId": "item_saida_8327",
+      "dropItemId": "739c633b-99d6-4158-84ff-a85808ea02e3",
+      "dropLegacyId": "item_entrada_873"
+    },
+    {
+      "chave": "41260330284708000182550010000123961486915681",
+      "nfNumber": 12396,
+      "docId": "2761f7bb-2a8c-4109-b924-343c93cc8074",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "f2b0a718-c3fb-4e8a-8385-99500fd81958",
+      "keepLegacyId": "item_entrada_873",
+      "dropItemId": "cd871ddd-7400-450f-8b3d-8b73a5ddf62b",
+      "dropLegacyId": "item_saida_8327"
+    },
+    {
+      "chave": "41260330284708000182550010000126001531141576",
+      "nfNumber": 12600,
+      "docId": "ae85373f-0adc-4423-ac40-4558e5d69612",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "535fcbab-5163-43a6-8fc2-d5b3aca98887",
+      "keepLegacyId": "item_saida_8528",
+      "dropItemId": "431c89ac-b066-4762-a86b-044640d23923",
+      "dropLegacyId": "item_entrada_1577"
+    },
+    {
+      "chave": "41260330284708000182550010000126001531141576",
+      "nfNumber": 12600,
+      "docId": "549bb1b0-2a79-4d85-94a3-042e835a7f69",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "7d09dfc0-ce48-43c8-84ab-482d281e4dea",
+      "keepLegacyId": "item_entrada_1577",
+      "dropItemId": "d5c9eb4a-dc24-4ba6-8e44-b215cb6310c3",
+      "dropLegacyId": "item_saida_8528"
+    },
+    {
+      "chave": "41260530284708000182550010000135901957230160",
+      "nfNumber": 13590,
+      "docId": "b9b5864e-1c9a-4f2b-a32e-e194519ac70d",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "2fa79726-c084-44a3-a39e-6b281a9c03a7",
+      "keepLegacyId": "item_saida_9621",
+      "dropItemId": "1a685d52-e1c4-4135-8d0e-0eaa2c2ad556",
+      "dropLegacyId": "item_entrada_3856"
+    },
+    {
+      "chave": "41260530284708000182550010000135901957230160",
+      "nfNumber": 13590,
+      "docId": "0da76bf5-2b60-46a0-ab2c-6662d4e2e669",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "b9ada7c4-9218-4873-b960-25336ee0750f",
+      "keepLegacyId": "item_entrada_3856",
+      "dropItemId": "55ce84b9-e6c8-4a35-beb1-f71255fc3164",
+      "dropLegacyId": "item_saida_9621"
+    },
+    {
+      "chave": "41260630284708000182550010000137621932139932",
+      "nfNumber": 13762,
+      "docId": "15d96fc5-d1c6-4022-b4de-276c952bec06",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "28fefdc8-f71e-4baf-991d-618cf0ec1983",
+      "keepLegacyId": "item_saida_9789",
+      "dropItemId": "7d33de73-cbea-4da7-8bb9-2f1713ed6508",
+      "dropLegacyId": "item_entrada_3940"
+    },
+    {
+      "chave": "41260630284708000182550010000137621932139932",
+      "nfNumber": 13762,
+      "docId": "f12d20b4-017a-4a48-bec4-f2f675c342b5",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "cf6cc177-ad5c-4872-83ed-b22595307f02",
+      "keepLegacyId": "item_entrada_3940",
+      "dropItemId": "1489e071-e6c0-4195-8b50-90ab2c397bf2",
+      "dropLegacyId": "item_saida_9789"
+    },
+    {
+      "chave": "41260630284708000182550010000138081754301098",
+      "nfNumber": 13808,
+      "docId": "c431b5fd-4cfe-46a2-b8dc-812185776f61",
+      "expectedDirection": "EMITIDA",
+      "expectedCompanyCnpj": "30284708000182",
+      "keepItemId": "96f17eb6-2e09-481f-97df-36e04e8067f4",
+      "keepLegacyId": "item_saida_9835",
+      "dropItemId": "c65f9cd0-dd3e-4569-8cf4-24abfea75565",
+      "dropLegacyId": "item_entrada_3941"
+    },
+    {
+      "chave": "41260630284708000182550010000138081754301098",
+      "nfNumber": 13808,
+      "docId": "c034aa23-baf9-47cc-a194-48dd0e25dbe9",
+      "expectedDirection": "RECEBIDA",
+      "expectedCompanyCnpj": "46247069000115",
+      "keepItemId": "87d75ae6-2e85-41ba-8f43-54b09673d5ba",
+      "keepLegacyId": "item_entrada_3941",
+      "dropItemId": "0221091d-4e29-495e-a06f-12af1dd058cc",
+      "dropLegacyId": "item_saida_9835"
+    }
+  ]
+}
