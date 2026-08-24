@@ -122,6 +122,9 @@ describe('normalização e comparações', () => {
     expect(sameInstant('2026-01-05 14:20:43.000', '2026-01-05T11:20:43-03:00')).toBe(true);
     // e NÃO iguala instantes realmente diferentes
     expect(sameInstant('2026-01-05 14:20:43', '2026-01-05T14:20:43-03:00')).toBe(false);
+    // Prisma devolve Date para colunas timestamp — também tem de comparar certo
+    expect(sameInstant(new Date('2026-01-05T14:20:43Z'), '2026-01-05T11:20:43-03:00')).toBe(true);
+    expect(sameInstant(new Date('2026-01-05T14:20:43Z'), '2026-01-05T14:20:43-03:00')).toBe(false);
   });
   it('doc reidratado com authorizedAt UTC naive no banco resulta em UNCHANGED', () => {
     const res = buildTarget(mkDoc({}), mkCtx({}));

@@ -235,12 +235,18 @@ export function normalizeDbTimestamp(v: string): string {
   return m ? `${m[1]}T${m[2]}Z` : v;
 }
 
-/** Compara instantes independentemente do offset de exibição. */
-export function sameInstant(a: string | null, b: string | null): boolean {
+/**
+ * Compara instantes independentemente do offset de exibição. Aceita string
+ * (texto do banco/alvo) ou Date (Prisma devolve Date para colunas timestamp,
+ * já interpretado como UTC naive pela convenção do client).
+ */
+export function sameInstant(a: string | Date | null, b: string | Date | null): boolean {
   if (a === null || b === null) return a === b;
-  const ta = Date.parse(normalizeDbTimestamp(a));
-  const tb = Date.parse(normalizeDbTimestamp(b));
-  if (Number.isNaN(ta) || Number.isNaN(tb)) return a === b;
+  const toEpoch = (v: string | Date): number =>
+    v instanceof Date ? v.getTime() : Date.parse(normalizeDbTimestamp(v));
+  const ta = toEpoch(a);
+  const tb = toEpoch(b);
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return String(a) === String(b);
   return ta === tb;
 }
 
