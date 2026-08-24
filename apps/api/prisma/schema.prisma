@@ -80,6 +80,7 @@ model Company {
   demandForecasts       DemandForecast[]
   purchaseRequests      PurchaseRequest[]
   supplierPriceHistory  SupplierPriceHistory[]
+  supplierProductMaps   SupplierProductMap[]
   systemParameters      SystemParameter[]
   mrpRuns               MrpRun[]
   productionOrders      ProductionOrder[]
@@ -552,6 +553,8 @@ model User {
   approvedPurchaseOrders    PurchaseOrder[]        @relation("POApprovedBy")
   goodsReceipts             GoodsReceipt[]         @relation("GRReceivedBy")
   createdSalesOrders        SalesOrder[]           @relation("SOCreatedBy")
+  confirmedSupplierProductMaps SupplierProductMap[]      @relation("SpmConfirmedBy")
+  supplierProductMapEvents     SupplierProductMapEvent[] @relation("SpmEventActor")
   requestedTransfers        StoreTransfer[]        @relation("TransferRequestedBy")
   dispatchedTransfers       StoreTransfer[]        @relation("TransferDispatchedBy")
   receivedTransfers         StoreTransfer[]        @relation("TransferReceivedBy")
@@ -809,6 +812,8 @@ model Product {
   demandForecasts           DemandForecast[]
   purchaseRequests          PurchaseRequest[]
   supplierPriceHistory      SupplierPriceHistory[]
+  supplierProductMaps       SupplierProductMap[]   @relation("SpmProduct")
+  supplierProductSuggestions SupplierProductMap[]  @relation("SpmSuggestedProduct")
   mrpSuggestions            MrpSuggestion[]
   productionOrdersAsProduct ProductionOrder[]      @relation("ProductionOrderProduct")
   productionOrderItems      ProductionOrderItem[]  @relation("ProductionOrderComponent")
@@ -861,6 +866,7 @@ model Supplier {
   isActive             Boolean                @default(true)
   purchaseOrders       PurchaseOrder[]
   supplierPriceHistory SupplierPriceHistory[]
+  supplierProductMaps  SupplierProductMap[]
   nonConformances      NonConformance[]
   portalTokens         SupplierToken[]
   batches              Batch[]                @relation("BatchSupplier")
@@ -1244,6 +1250,110 @@ model SupplierPriceHistory {
   @@index([supplierId, productId])
   @@index([companyId])
   @@map("gdr_supplier_price_history")
+}
+
+// ─── Conciliação de compras (Fase 2 — NF-e recebida → Product) ───────────────
+
+/// Estado do vínculo fornecedor+cProd. UNRESOLVED = ninguém olhou; SUGGESTED =
+/// há candidato (seed producao_v2, descrição normalizada ou regra), SEM valor
+/// canônico; CONFIRMED = um humano bateu o martelo; REVIEW = estava CONFIRMED
+/// e uma evidência nova divergiu (ex.: descrição mudou demais) — volta à fila
+/// sem perder o vínculo anterior.
+enum SupplierProductMapStatus {
+  UNRESOLVED
+  SUGGESTED
+  CONFIRMED
+  REVIEW
+}
+
+/// O que o fornecedor vende sob este cProd, na visão da fábrica.
+/// PRODUCT → aponta um Product canônico (entra em BOM/custo de material).
+/// CONSUMABLE (insumo/EPI), ASSET (máquina/equipamento) e FREIGHT_OTHER
+/// (frete/serviço/outros) são conciliados SEM criar Product artificial —
+/// saem da fila e ficam fora da BOM. Classificação auditável e reversível
+/// via SupplierProductMapEvent.
+enum SupplierProductMapKind {
+  PRODUCT
+  CONSUMABLE
+  ASSET
+  FREIGHT_OTHER
+}
+
+/// De-para do vocabulário do fornecedor para o cadastro canônico.
+/// IDENTIDADE: (companyId, supplierId, supplierProductCode) — o cProd é
+/// estável no sistema do emissor; descrição/NCM/unidade são EVIDÊNCIAS
+/// auxiliares (mudam quando o fornecedor quiser) e nunca identidade.
+/// Não existe chave paralela por CNPJ: fornecedor sem cadastro passa antes
+/// pelo fluxo canônico da #611.
+model SupplierProductMap {
+  id                  String                    @id @default(cuid())
+  companyId           String
+  company             Company                   @relation(fields: [companyId], references: [id])
+  supplierId          String
+  supplier            Supplier                  @relation(fields: [supplierId], references: [id])
+  /// cProd exatamente como vem no det/prod da NF-e do fornecedor
+  supplierProductCode String                    @map("supplier_product_code")
+  status              SupplierProductMapStatus  @default(UNRESOLVED)
+  /// VERDADE CANÔNICA — só preenchido em CONFIRMED/REVIEW (REVIEW mantém o
+  /// vínculo confirmado anterior). Em UNRESOLVED/SUGGESTED fica NULL: sugestão
+  /// vive só nos campos suggested* (checks no banco garantem)
+  kind                SupplierProductMapKind?
+  /// Product canônico — obrigatório quando kind=PRODUCT (CONFIRMED/REVIEW);
+  /// NULL para os demais kinds e antes da confirmação (checks no banco)
+  productId           String?
+  product             Product?                  @relation("SpmProduct", fields: [productId], references: [id])
+  // ── Sugestão (nunca vira CONFIRMED sozinha) ────────────────────────────────
+  suggestedProductId  String?                   @map("suggested_product_id")
+  suggestedProduct    Product?                  @relation("SpmSuggestedProduct", fields: [suggestedProductId], references: [id])
+  suggestedKind       SupplierProductMapKind?   @map("suggested_kind")
+  /// origem da sugestão: SEED_PRODUCAO_V2 | DESCRIPTION | RULE_NCM | MANUAL
+  suggestionSource    String?                   @map("suggestion_source")
+  // ── Evidências auxiliares (última ocorrência vista) ───────────────────────
+  lastSeenDescription String?                   @map("last_seen_description")
+  lastSeenNcm         String?                   @map("last_seen_ncm")
+  lastSeenUnit        String?                   @map("last_seen_unit")
+  lastSeenUnitPrice   Decimal?                  @map("last_seen_unit_price") @db.Decimal(14, 4)
+  lastSeenAt          DateTime?                 @map("last_seen_at")
+  /// snapshot da descrição no momento da confirmação — base do gatilho REVIEW
+  confirmedDescription String?                  @map("confirmed_description")
+  // ── Auditoria da decisão ──────────────────────────────────────────────────
+  confirmedById       String?                   @map("confirmed_by_id")
+  confirmedBy         User?                     @relation("SpmConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt         DateTime?                 @map("confirmed_at")
+  reviewReason        String?                   @map("review_reason")
+  notes               String?
+  events              SupplierProductMapEvent[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@unique([companyId, supplierId, supplierProductCode])
+  @@index([companyId, status])
+  @@index([supplierId])
+  @@index([productId])
+  @@map("gdr_supplier_product_maps")
+}
+
+/// Trilha de auditoria do map: toda mudança de status/kind/product gera um
+/// evento com o antes/depois — a classificação é reversível sem perder
+/// história (reclassificar não apaga o que já foi decidido).
+model SupplierProductMapEvent {
+  id            String                    @id @default(cuid())
+  mapId         String                    @map("map_id")
+  map           SupplierProductMap        @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  action        String // SUGGESTED | CONFIRMED | RECLASSIFIED | REVIEW_FLAGGED | REVERTED
+  fromStatus    SupplierProductMapStatus? @map("from_status")
+  toStatus      SupplierProductMapStatus? @map("to_status")
+  fromKind      SupplierProductMapKind?   @map("from_kind")
+  toKind        SupplierProductMapKind?   @map("to_kind")
+  fromProductId String?                   @map("from_product_id")
+  toProductId   String?                   @map("to_product_id")
+  reason        String?
+  actorId       String?                   @map("actor_id")
+  actor         User?                     @relation("SpmEventActor", fields: [actorId], references: [id])
+  createdAt     DateTime                  @default(now())
+
+  @@index([mapId])
+  @@map("gdr_supplier_product_map_events")
 }
 
 enum PurchaseOrderStatus {
