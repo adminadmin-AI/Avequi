@@ -15,6 +15,7 @@ import {
   resolveSupplier,
   safetyAssertions,
   sameDecimal,
+  sameIdSet,
   sameInstant,
   saoPauloLocalToIso,
   simulateUniqueCollisions,
@@ -115,6 +116,31 @@ describe('normalização e comparações', () => {
     expect(sameInstant('2026-01-06T11:08:21-03:00', '2026-01-06T14:08:21Z')).toBe(true);
     expect(sameInstant('2026-01-06T11:08:21-03:00', '2026-01-06T11:08:21-05:00')).toBe(false);
     expect(sameInstant(null, null)).toBe(true);
+  });
+  it('timestamp sem offset do banco é UTC naive: 14:20 UTC == 11:20 -03:00 → mesmo instante', () => {
+    // caso real da reidratação: coluna timestamp guarda UTC naive; o alvo vem com offset
+    expect(sameInstant('2026-01-05 14:20:43', '2026-01-05T11:20:43-03:00')).toBe(true);
+    expect(sameInstant('2026-01-05 14:20:43.000', '2026-01-05T11:20:43-03:00')).toBe(true);
+    // e NÃO iguala instantes realmente diferentes
+    expect(sameInstant('2026-01-05 14:20:43', '2026-01-05T14:20:43-03:00')).toBe(false);
+    // Prisma devolve Date para colunas timestamp — também tem de comparar certo
+    expect(sameInstant(new Date('2026-01-05T14:20:43Z'), '2026-01-05T11:20:43-03:00')).toBe(true);
+    expect(sameInstant(new Date('2026-01-05T14:20:43Z'), '2026-01-05T14:20:43-03:00')).toBe(false);
+  });
+  it('doc reidratado com authorizedAt UTC naive no banco resulta em UNCHANGED', () => {
+    const res = buildTarget(mkDoc({}), mkCtx({}));
+    const t = res.target!;
+    const done = mkDoc({
+      companyId: t.companyId, chave: t.chave, number: t.number, series: t.series,
+      authorizedAt: '2026-01-06 14:08:21', // como o Postgres devolve a coluna timestamp (UTC naive)
+      protocolNumber: t.protocolNumber, direction: t.direction,
+      issueDate: '2026-01-06 14:07:00', issuerCnpj: t.issuerCnpj,
+      issuerName: t.issuerName, recipientCnpj: t.recipientCnpj,
+      naturezaOperacao: t.naturezaOperacao, tpNF: t.tpNF, supplierId: t.supplierId,
+      totals: { vProd: '300.00', vNF: '300.00' }, xmlPresent: true,
+      items: [mkItem({ nItem: 1, taxOrigemIcms: '0', taxModalidadeBcIcms: '3' })],
+    });
+    expect(diffDoc(done, buildTarget(done, mkCtx({})).target!)).toEqual([]);
   });
 });
 
@@ -480,18 +506,87 @@ describe('colisões simuladas', () => {
   });
 });
 
-describe('safety assertions (abort before write)', () => {
-  const ok = {
+describe('safety assertions (abort before write) — estado inicial e resume state', () => {
+  const inicial = {
     totalDocs: 11087, historicDocs: 11081, focusDocs: 6,
     finalEmitida: 9828, finalRecebida: 1259,
-    totalItems: 14108, mirrorItems: 18, finalItems: 14090,
+    totalItems: 14108, pendingMirrors: 18,
+    unchanged: 0, wouldUpdate: 11081, conflicts: 0, unresolved: 0,
   };
-  it('universo auditado passa limpo', () => {
-    expect(safetyAssertions(ok)).toEqual([]);
+  const resume = {
+    // estado real após a execução parcial de 24/08: 11.019 concluídos,
+    // 62 pendentes, todos os 18 espelhos já removidos.
+    totalDocs: 11087, historicDocs: 11081, focusDocs: 6,
+    finalEmitida: 9828, finalRecebida: 1259,
+    totalItems: 14090, pendingMirrors: 0,
+    unchanged: 11019, wouldUpdate: 62, conflicts: 0, unresolved: 0,
+  };
+  it('estado inicial (pré-execução) passa limpo', () => {
+    expect(safetyAssertions(inicial)).toEqual([]);
   });
-  it('qualquer desvio material vira violação', () => {
-    expect(safetyAssertions({ ...ok, totalDocs: 11088 })).toHaveLength(1);
-    expect(safetyAssertions({ ...ok, mirrorItems: 17, finalItems: 14091 })).toHaveLength(2);
+  it('resume state legítimo passa limpo — sem afrouxar nada', () => {
+    expect(safetyAssertions(resume)).toEqual([]);
+  });
+  it('meio-caminho consistente também passa (itens = final + espelhos pendentes)', () => {
+    expect(safetyAssertions({
+      ...resume, totalItems: 14096, pendingMirrors: 6,
+      unchanged: 4000, wouldUpdate: 7081,
+    })).toEqual([]);
+  });
+  it('estado intermediário INESPERADO aborta: item órfão fora da conta', () => {
+    expect(safetyAssertions({ ...resume, totalItems: 14091 })).toHaveLength(1);
+  });
+  it('estado intermediário INESPERADO aborta: documento a mais no universo', () => {
+    expect(safetyAssertions({ ...resume, totalDocs: 11088 })).toHaveLength(1);
+  });
+  it('estado intermediário INESPERADO aborta: partição não fecha (doc sumiu)', () => {
+    expect(safetyAssertions({ ...resume, unchanged: 11018 })).toHaveLength(1);
+  });
+  it('projeção final divergente aborta (nunca ajustar para fazer passar)', () => {
+    expect(safetyAssertions({ ...resume, finalEmitida: 9827, finalRecebida: 1260 })).toHaveLength(2);
+  });
+  it('CONFLICT ou unresolved abortam', () => {
+    expect(safetyAssertions({ ...resume, conflicts: 1, wouldUpdate: 61 })).toHaveLength(2);
+    expect(safetyAssertions({ ...resume, unresolved: 1, wouldUpdate: 61 })).toHaveLength(2);
+  });
+  it('espelhos além dos 18 auditados abortam', () => {
+    expect(safetyAssertions({ ...inicial, pendingMirrors: 19, totalItems: 14109 })).toHaveLength(1);
+  });
+});
+
+describe('gate nominal do resume (--commit vinculado à evidência)', () => {
+  it('conjunto idêntico de ids passa; qualquer diferença aborta', () => {
+    expect(sameIdSet(['a', 'b', 'c'], ['c', 'a', 'b'])).toBe(true);
+    expect(sameIdSet(['a', 'b'], ['a', 'b', 'c'])).toBe(false); // doc a mais
+    expect(sameIdSet(['a', 'b', 'c'], ['a', 'b'])).toBe(false); // doc a menos
+    expect(sameIdSet(['a', 'b', 'x'], ['a', 'b', 'c'])).toBe(false); // doc trocado
+    expect(sameIdSet(['a', 'a'], ['a', 'a'])).toBe(false); // duplicata não conta
+    expect(sameIdSet([], [])).toBe(true);
+  });
+});
+
+describe('retomada: só os pendentes são candidatos a UPDATE', () => {
+  it('doc já reidratado sai como UNCHANGED e doc pendente como WOULD_UPDATE', () => {
+    const ctx = mkCtx({});
+    // pendente: estado antigo (sem chave/direção corretas)
+    const pendente = mkDoc({ id: 'doc-pendente' });
+    const rPend = buildTarget(pendente, ctx);
+    expect(rPend.state).toBe('WOULD_UPDATE');
+    expect(diffDoc(pendente, rPend.target!).length).toBeGreaterThan(0);
+    // concluído: espelho do alvo, com timestamps como o banco devolve (UTC naive)
+    const t = rPend.target!;
+    const done = mkDoc({
+      id: 'doc-concluido', companyId: t.companyId, chave: t.chave,
+      number: t.number, series: t.series,
+      authorizedAt: '2026-01-06 14:08:21', protocolNumber: t.protocolNumber,
+      direction: t.direction, issueDate: '2026-01-06 14:07:00',
+      issuerCnpj: t.issuerCnpj, issuerName: t.issuerName,
+      recipientCnpj: t.recipientCnpj, naturezaOperacao: t.naturezaOperacao,
+      tpNF: t.tpNF, supplierId: t.supplierId,
+      totals: { vProd: '300.00', vNF: '300.00' }, xmlPresent: true,
+      items: [mkItem({ nItem: 1, taxOrigemIcms: '0', taxModalidadeBcIcms: '3' })],
+    });
+    expect(diffDoc(done, buildTarget(done, ctx).target!)).toEqual([]);
   });
 });
 

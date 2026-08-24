@@ -35,7 +35,8 @@ import {
   DocResolution,
   ErpDoc,
   ErpItem,
-  EXPECTED_UNIVERSE,
+  EXPECTED_FINAL,
+  sameIdSet,
   FinalDocKey,
   SourceHeader,
   SourceItem,
@@ -251,6 +252,9 @@ async function main(): Promise<number> {
   const withTarget = resolutions.filter((r) => r.target !== null);
   const mirrors = withTarget.filter((r) => r.target!.dropMirrorItemId !== null);
   const totalItems = erpDocs.reduce((n, d) => n + d.items.length, 0);
+  // Snapshot com invariantes que valem no estado inicial E num resume state
+  // legítimo (execução anterior parcial): a partição UNCHANGED × WOULD_UPDATE
+  // pode variar, mas as contas têm de fechar entre si (ver safetyAssertions).
   const counts = {
     totalDocs: erpDocs.length,
     historicDocs: historic.length,
@@ -260,10 +264,20 @@ async function main(): Promise<number> {
       resolutions.filter((r) => r.state === 'FOCUS_IGNORED').length,
     finalRecebida: withTarget.filter((r) => r.target!.direction === 'RECEBIDA').length,
     totalItems,
-    mirrorItems: mirrors.length,
-    finalItems: totalItems - mirrors.length,
+    pendingMirrors: mirrors.length,
+    unchanged: resolutions.filter((r) => r.state === 'UNCHANGED').length,
+    wouldUpdate: resolutions.filter((r) => r.state === 'WOULD_UPDATE').length,
+    conflicts: resolutions.filter((r) => r.state === 'CONFLICT').length,
+    unresolved: resolutions.filter((r) => r.state === 'SKIPPED_UNRESOLVED').length,
   };
   const violations = safetyAssertions(counts);
+  // Evidência nominal: quais documentos seriam escritos. O gate do --commit
+  // compara este conjunto com o do dry-run do dia — a autorização fica
+  // vinculada à evidência, não a um número.
+  const wouldUpdateIds = resolutions
+    .filter((r) => r.state === 'WOULD_UPDATE')
+    .map((r) => r.docId)
+    .sort();
 
   // ── relatório por company (antes/depois) ──
   const coName = (id: string) => companies.find((c) => c.id === id)?.name ?? id;
@@ -313,8 +327,9 @@ async function main(): Promise<number> {
     commit: args.commit,
     executedAt: new Date().toISOString(),
     counts,
-    expected: EXPECTED_UNIVERSE,
+    expected: EXPECTED_FINAL,
     assertionViolations: violations,
+    wouldUpdateDocIds: wouldUpdateIds,
     collisions: {
       chave: collisions.chaveCollisions,
       numeracao: collisions.numberCollisions,
@@ -362,7 +377,7 @@ async function main(): Promise<number> {
     // evidência de dry-run para o gate do --commit (mesmo dia)
     fs.writeFileSync(
       path.join(args.report, '.rehydrate-dryrun.json'),
-      JSON.stringify({ day: report.executedAt.slice(0, 10), counts, violations, collisions: report.collisions }),
+      JSON.stringify({ day: report.executedAt.slice(0, 10), counts, violations, collisions: report.collisions, wouldUpdateIds }),
     );
     console.log('dry-run: NENHUMA escrita foi executada.');
     await prisma.$disconnect();
@@ -389,6 +404,16 @@ async function main(): Promise<number> {
   }
   if (collisions.chaveCollisions.length > 0 || collisions.numberCollisions.length > 0) {
     console.error('ABORT BEFORE WRITE: colisões simuladas nas uniques.');
+    await prisma.$disconnect();
+    return 2;
+  }
+  // Gate nominal: o conjunto de documentos a escrever AGORA tem de ser
+  // exatamente o conjunto provado no dry-run do dia. Um documento a mais (ou a
+  // menos) significa que algo mudou depois da evidência → abort before write.
+  if (!Array.isArray(evidence.wouldUpdateIds) || !sameIdSet(evidence.wouldUpdateIds, wouldUpdateIds)) {
+    console.error(
+      `ABORT BEFORE WRITE: conjunto de documentos a escrever (${wouldUpdateIds.length}) difere da evidência do dry-run (${evidence.wouldUpdateIds?.length ?? 'ausente'}). Rode o dry-run de novo e revalide.`,
+    );
     await prisma.$disconnect();
     return 2;
   }
@@ -464,9 +489,17 @@ async function main(): Promise<number> {
       if (partner.state === 'WOULD_UPDATE') group.push(partner);
     }
     try {
-      await prisma.$transaction(async (tx) => {
-        for (const g of group) await execOne(tx, g);
-      });
+      // Timeout da transação interativa: o default do Prisma (timeout 5s /
+      // maxWait 2s) derrubou 62 documentos na execução de 24/08 por latência
+      // de WAN até o banco (us-west-2) em documentos com XML grande. 60s/15s
+      // dá margem ampla SEM remover o teto: uma transação presa de verdade
+      // ainda expira, faz rollback do documento/par e vira FAILED.
+      await prisma.$transaction(
+        async (tx) => {
+          for (const g of group) await execOne(tx, g);
+        },
+        { timeout: 60_000, maxWait: 15_000 },
+      );
       group.forEach((g) => done.add(g.docId));
     } catch (err) {
       failed++;
