@@ -52,7 +52,7 @@ export function pairKey(supplierId: string, supplierProductCode: string): string
  */
 export function parseSearchTerm(raw: string): { text: string; cnpjDigits: string | null } {
   const text = raw.trim().toLowerCase();
-  const numericLike = text.length > 0 && /^[\d.\-\/\s]+$/.test(text);
+  const numericLike = text.length > 0 && /^[\d.\-/\s]+$/.test(text);
   const digits = text.replace(/\D/g, '');
   return { text, cnpjDigits: numericLike && digits.length > 0 ? digits : null };
 }
