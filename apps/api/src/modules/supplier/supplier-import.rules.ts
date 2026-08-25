@@ -23,6 +23,8 @@
  * SOMENTE para os campos classe A abaixo — nunca clonagem do registro.
  */
 
+import { decodeEntities } from '../../fiscal/nfe-xml/xml-tree';
+
 // ── Classificação dos campos do model Supplier ────────────────────────────────
 /** Classe A — identidade/fiscal/neutros: podem ser reaproveitados de um
  *  Supplier homônimo de outro tenant PARA PREENCHER LACUNA (campo a campo). */
@@ -80,9 +82,16 @@ export interface EmitData {
   phone: string | null;
 }
 
+/**
+ * Texto de uma tag do bloco, já com as entidades XML decodificadas
+ * (`&amp;` → `&`, `&#39;` → `'` …) pela MESMA função do parser canônico de
+ * NF-e (`nfe-xml/xml-tree.ts`). Sem isso, "B &amp; M" virava razão social
+ * literal no cadastro (defeito visto nos 6 Suppliers com `&amp;` no nome).
+ * A decodificação acontece uma única vez, aqui — nunca de novo a jusante.
+ */
 function tag(block: string, name: string): string | null {
   const m = block.match(new RegExp(`<${name}>([^<]+)</${name}>`));
-  return m ? m[1].trim() : null;
+  return m ? decodeEntities(m[1]).trim() : null;
 }
 
 /** Parse tolerante do emitente. Retorna null se não houver bloco <emit>. */
