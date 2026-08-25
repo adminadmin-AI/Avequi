@@ -502,6 +502,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'purchases.matching.view',
       'purchases.matching.execute',
       'purchases.matching.resolve',
+      'purchases.supplier-map.view',
+      'purchases.supplier-map.resolve',
       ...resourceCodes('purchases', 'inbound-nfe'),
       'customers.registry.view',
       'suppliers.registry.view',
@@ -668,6 +670,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       ...resourceCodes('purchases', 'rfq').filter((c) => c !== 'purchases.rfq.award'),
       'purchases.supplier-prices.view',
       'purchases.inbound-nfe.view',
+      // Fase 2 (#609): comprador concilia fornecedor+cProd → Product
+      'purchases.supplier-map.view',
+      'purchases.supplier-map.resolve',
       'suppliers.registry.view',
       'products.catalog.view',
       'products.pricing.view',
@@ -919,6 +924,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'purchases.orders.view',
       'purchases.matching.view',
       'purchases.matching.execute',
+      'purchases.supplier-map.view',
       'purchases.inbound-nfe.view',
       'purchases.inbound-nfe.import',
       'customers.registry.view',
@@ -957,6 +963,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'finance.entries.view',
       'finance.reports.view',
       ...resourceCodes('purchases', 'inbound-nfe'),
+      'purchases.supplier-map.view',
+      'purchases.supplier-map.resolve',
       // #625 (bloco G, decisão Rafael): CAT/CCT/projeto técnico são documentos
       // REGULATÓRIOS do veículo — o perfil fiscal vê e gere.
       ...resourceCodes('vehicle-tracking', 'documents'),

@@ -322,6 +322,10 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
     ['execute', 'executar match', 'POST /purchase/orders/:id/match'],
     ['resolve', 'resolver divergência', 'POST /purchase/matches/:id/resolve'],
   ]),
+  ...r('purchases', 'supplier-map', 'Conciliação fornecedor+cProd → Product (Fase 2)', [
+    ['view', 'ver/priorizar', 'GET /purchase/supplier-product-maps, /summary, /bom-coverage, /pairs/:supplierId/:code, /divergences'],
+    ['resolve', 'confirmar/classificar/sugerir/rever', 'POST /purchase/supplier-product-maps/pairs/:supplierId/:code/{confirm-product,classify,suggest,dismiss-suggestion,review}, POST /suggestions/description'],
+  ]),
   ...r('purchases', 'requests', 'Solicitações de compra', [
     ['view', 'ver', 'GET /purchase/requests'],
     ['create', 'criar', 'POST /purchase/requests'],
