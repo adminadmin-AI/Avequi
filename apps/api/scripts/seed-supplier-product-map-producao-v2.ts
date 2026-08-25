@@ -63,6 +63,15 @@ function parseArgs(argv: string[]): Args {
 
 const PURCHASED_TYPES = new Set(['RAW_MATERIAL', 'COMPONENT', 'CONSUMABLE']);
 
+/**
+ * EXCLUSÕES NOMINAIS do legado (decisão humana, versionada aqui — não depende
+ * de flag no dia do commit). A linha continua íntegra no DB_Financeiro/TSV;
+ * o bootstrap apenas recusa usá-la como sugestão (SKIPPED_MANUAL_EXCLUSION).
+ */
+const LEGACY_EXCLUSIONS = new Map<string, string>([
+  ['225', 'ARRUELA 1/4 LISA não corresponde à Arruela do Francês 3/8; exclusão confirmada após auditoria física em 25/08/2026 (Rafael)'],
+]);
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const prisma = new PrismaClient();
@@ -115,7 +124,7 @@ async function main() {
       else throw err;
     }
 
-    const plan = planSeed({ companyId: c.id, pairs, legacy: legacyIdx, products: productIdx, existing });
+    const plan = planSeed({ companyId: c.id, pairs, legacy: legacyIdx, products: productIdx, existing, exclusions: LEGACY_EXCLUSIONS });
     plans.push(...plan);
 
     // BOM ativa: componentes comprados (mesmo critério do serviço, simplificado ao tipo + evidência de mapa CONFIRMED)
@@ -146,12 +155,14 @@ async function main() {
   const evidence = nominalEvidence(plans);
   const report = {
     executedAt, mode: args.commit ? 'COMMIT' : 'DRY_RUN', source: path.basename(args.source), legacyRows: legacy.length, legacyDistinctDescriptions: legacyIdx.size,
-    companies: perCompany, evidence: { product: evidence.product.length, kind: evidence.kind.length }, mapsTableMissing,
+    companies: perCompany, evidence: { product: evidence.product.length, kind: evidence.kind.length, excluded: evidence.excluded.length }, mapsTableMissing,
+    legacyExclusions: [...LEGACY_EXCLUSIONS.entries()].map(([id, reason]) => ({ legacyId: id, reason })),
     samples: {
       ambiguous: plans.filter((p) => p.outcome === 'AMBIGUOUS').slice(0, 10).map((p) => ({ supplierId: p.supplierId, cProd: p.supplierProductCode, reason: p.reason })),
       skippedTenant: plans.filter((p) => p.outcome === 'SKIPPED_TENANT').slice(0, 5).map((p) => ({ companyId: p.companyId, cProd: p.supplierProductCode, reason: p.reason })),
       inactive: plans.filter((p) => p.outcome === 'SKIPPED_INACTIVE_PRODUCT').map((p) => ({ cProd: p.supplierProductCode, reason: p.reason })),
       conflicts: plans.filter((p) => p.outcome.startsWith('CONFLICT')).slice(0, 10).map((p) => ({ cProd: p.supplierProductCode, outcome: p.outcome, reason: p.reason })),
+      manualExclusions: plans.filter((p) => p.outcome === 'SKIPPED_MANUAL_EXCLUSION').map((p) => ({ companyId: p.companyId, supplierId: p.supplierId, cProd: p.supplierProductCode, legacyIds: p.legacyIds, reason: p.reason })),
       invalid: plans.filter((p) => p.outcome === 'INVALID').slice(0, 10).map((p) => ({ cProd: p.supplierProductCode, reason: p.reason })),
     },
   };
@@ -172,7 +183,7 @@ async function main() {
   const ev = JSON.parse(fs.readFileSync(evidencePath, 'utf-8'));
   if (ev.day !== executedAt.slice(0, 10)) { console.error('ABORT: evidência de dry-run não é de hoje. Rode o dry-run de novo. Nada foi escrito.'); process.exit(2); }
   const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
-  if (!same(ev.evidence?.product ?? [], evidence.product) || !same(ev.evidence?.kind ?? [], evidence.kind)) {
+  if (!same(ev.evidence?.product ?? [], evidence.product) || !same(ev.evidence?.kind ?? [], evidence.kind) || !same(ev.evidence?.excluded ?? [], evidence.excluded)) {
     console.error('ABORT BEFORE WRITE: conjunto nominal difere da evidência do dry-run. O universo mudou — rode novo dry-run. Nada foi escrito.'); process.exit(2);
   }
 

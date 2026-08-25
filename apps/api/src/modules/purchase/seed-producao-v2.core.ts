@@ -63,6 +63,7 @@ export type SeedOutcome =
   | 'AMBIGUOUS'
   | 'CONFLICT_EXISTING_DECISION'
   | 'CONFLICT_EXISTING_SUGGESTION'
+  | 'SKIPPED_MANUAL_EXCLUSION'
   | 'INVALID'
   | 'NO_MATCH';
 
@@ -120,6 +121,13 @@ export interface PlanInput {
   products: Map<string, TenantProduct[]>;
   /** mapa existente por chave `${supplierId} ${code}` (pode estar vazio) */
   existing: Map<string, ExistingMapState>;
+  /**
+   * Exclusões NOMINAIS de linhas legadas (legacyId → razão): o dado legado
+   * continua existindo e íntegro na fonte; o bootstrap apenas recusa usá-lo
+   * como sugestão, de forma explícita e versionada. Um par cuja única
+   * correspondência legada esteja excluída sai como SKIPPED_MANUAL_EXCLUSION.
+   */
+  exclusions?: Map<string, string>;
 }
 
 interface Resolution {
@@ -130,13 +138,16 @@ interface Resolution {
   tenantBlocked: string[];
   inactive: string[];
   legacyIds: string[];
+  excluded: Array<{ id: string; reason: string }>;
 }
 
 function resolveLegacy(input: PlanInput, descriptions: string[]): Resolution | null {
-  const r: Resolution = { productIds: new Set(), skus: new Set(), kinds: new Set(), invalid: [], tenantBlocked: [], inactive: [], legacyIds: [] };
+  const r: Resolution = { productIds: new Set(), skus: new Set(), kinds: new Set(), invalid: [], tenantBlocked: [], inactive: [], legacyIds: [], excluded: [] };
   let hits = 0;
   for (const d of descriptions) {
     for (const row of input.legacy.get(normalizeDescription(d)) ?? []) {
+      const exclusion = input.exclusions?.get(row.id);
+      if (exclusion !== undefined) { r.excluded.push({ id: row.id, reason: exclusion }); continue; }
       hits++;
       r.legacyIds.push(row.id);
       if (KIND_TIPOS.has(row.tipo)) { r.kinds.add('CONSUMABLE'); continue; }
@@ -156,7 +167,7 @@ function resolveLegacy(input: PlanInput, descriptions: string[]): Resolution | n
       r.productIds.add(p.id); r.skus.add(sku);
     }
   }
-  return hits === 0 ? null : r;
+  return hits === 0 && r.excluded.length === 0 ? null : r;
 }
 
 /**
@@ -174,6 +185,11 @@ export function planSeed(input: PlanInput): SeedPlanItem[] {
     const res = resolveLegacy(input, pair.descriptions);
     if (!res) { out.push({ ...base, outcome: 'NO_MATCH', reason: 'descrição sem correspondência no legado', legacyIds: [], rationale: '' }); continue; }
     const legacyIds = [...new Set(res.legacyIds)];
+    if (legacyIds.length === 0) {
+      // só havia correspondências legadas EXCLUÍDAS nominalmente: recusa consciente, não erro
+      out.push({ ...base, outcome: 'SKIPPED_MANUAL_EXCLUSION', reason: res.excluded.map((e) => `legado Id ${e.id} excluído: ${e.reason}`).join('; '), legacyIds: res.excluded.map((e) => e.id), rationale: '' });
+      continue;
+    }
     const rationale = `${SEED_SOURCE} legado=[${legacyIds.join(',')}] descricao="${normalizeDescription(pair.descriptions[0] ?? '')}"`;
 
     // 1) resolução do legado para este par
@@ -221,7 +237,7 @@ export function summarizeSeed(
   bomComponents: Array<{ id: string; sku: string }>,
   confirmedProductIds: Set<string>,
 ): SeedSummary {
-  const outcomes: SeedOutcome[] = ['WOULD_SUGGEST_PRODUCT', 'WOULD_SUGGEST_KIND', 'UNCHANGED', 'SKIPPED_TENANT', 'SKIPPED_INACTIVE_PRODUCT', 'AMBIGUOUS', 'CONFLICT_EXISTING_DECISION', 'CONFLICT_EXISTING_SUGGESTION', 'INVALID', 'NO_MATCH'];
+  const outcomes: SeedOutcome[] = ['WOULD_SUGGEST_PRODUCT', 'WOULD_SUGGEST_KIND', 'UNCHANGED', 'SKIPPED_TENANT', 'SKIPPED_INACTIVE_PRODUCT', 'AMBIGUOUS', 'CONFLICT_EXISTING_DECISION', 'CONFLICT_EXISTING_SUGGESTION', 'SKIPPED_MANUAL_EXCLUSION', 'INVALID', 'NO_MATCH'];
   const byOutcome = Object.fromEntries(outcomes.map((o) => [o, { pairs: 0, value: 0 }])) as SeedSummary['byOutcome'];
   for (const p of plan) { byOutcome[p.outcome].pairs += 1; byOutcome[p.outcome].value += p.totalValue; }
   for (const o of outcomes) byOutcome[o].value = Math.round(byOutcome[o].value * 100) / 100;
@@ -237,12 +253,13 @@ export function summarizeSeed(
   };
 }
 
-/** Evidência nominal (chaves ordenadas) para o gate do --commit. */
-export function nominalEvidence(plan: SeedPlanItem[]): { product: string[]; kind: string[] } {
+/** Evidência nominal (chaves ordenadas) para o gate do --commit — inclui as exclusões conscientes. */
+export function nominalEvidence(plan: SeedPlanItem[]): { product: string[]; kind: string[]; excluded: string[] } {
   const key = (p: SeedPlanItem) => `${p.companyId}|${p.supplierId}|${p.supplierProductCode}|${p.suggestedProductId ?? p.suggestedKind}`;
   return {
     product: plan.filter((p) => p.outcome === 'WOULD_SUGGEST_PRODUCT').map(key).sort(),
     kind: plan.filter((p) => p.outcome === 'WOULD_SUGGEST_KIND').map(key).sort(),
+    excluded: plan.filter((p) => p.outcome === 'SKIPPED_MANUAL_EXCLUSION').map((p) => `${p.companyId}|${p.supplierId}|${p.supplierProductCode}|legado:${p.legacyIds.join('+')}`).sort(),
   };
 }
 

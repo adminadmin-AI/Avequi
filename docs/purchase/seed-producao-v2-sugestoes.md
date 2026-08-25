@@ -76,22 +76,35 @@ Sim. `SupplierProductMap` tem `suggestedKind`/`suggestedProductId`/
 - Tabela de mapas ausente (migration pendente) ⇒ dry-run avisa e
   `--commit` é impossível.
 
+## Exclusões nominais do legado (versionadas no script)
+
+A fonte legada nunca é editada. Quando uma linha do `Mapeamento_Nota_Item`
+não deve virar sugestão (decisão humana), ela entra em `LEGACY_EXCLUSIONS`
+no script, com razão — e o planner devolve `SKIPPED_MANUAL_EXCLUSION` (não
+`INVALID`: o dado existe, estamos recusando usá-lo conscientemente). A
+exclusão entra na evidência nominal do gate do `--commit`.
+
+| legacyId | Razão |
+|---|---|
+| 225 | ARRUELA 1/4 LISA não corresponde à Arruela do Francês 3/8; exclusão confirmada após auditoria física em 25/08/2026 (Rafael) — o par PROIND `07849` fica sem sugestão; os pares PROIND `08070` (ARRUELA 3/8 INOX LISA) continuam sugerindo `COM-CHA-004` |
+
 ## Dry-run read-only de 25/08 (dados reais; nada escrito)
 
 | | GDR Reboques (1.177 pares) | CRD (970 pares) |
 |---|---|---|
-| WOULD_SUGGEST_PRODUCT | **121** — R$ 3.085.112,59 | 0 |
+| WOULD_SUGGEST_PRODUCT | **123** — R$ 3.085.178,72 (121 + 2 pares PROIND `08070` → `COM-CHA-004`) | 0 |
 | WOULD_SUGGEST_KIND | 512 — R$ 622.098,52 | 93 — R$ 292.188,39 |
 | SKIPPED_TENANT | 0 | 62 — R$ 1.380.061,28 (Products da GDR) |
-| SKIPPED_INACTIVE_PRODUCT | 3 — R$ 334,13 (`COM-CHA-004` inativo) | 0 |
+| SKIPPED_INACTIVE_PRODUCT | 0 (era 3 antes da reativação auditada de `COM-CHA-004` em 25/08) | 0 |
+| SKIPPED_MANUAL_EXCLUSION | 1 — R$ 268,00 (PROIND `07849`, legado Id 225) | 0 |
 | AMBIGUOUS | 2 (cProd genéricos `10`/`11`: chapa + insumo) | 2 (idem) |
 | NO_MATCH | 539 — R$ 4.499.962,16 | 813 — R$ 7.018.256,43 |
-| **suggestionCoverage** (componentes comprados de BOM ativa) | **35 / 57** | 0 / 0 |
+| **suggestionCoverage** (componentes comprados de BOM ativa) | **36 / 57** | 0 / 0 |
 | **confirmedCoverage** | **0 / 57** | 0 / 0 |
 
-Total: 121 sugestões de Product + 605 de kind (R$ 4,0 mi) — **0 resolvidos**.
-Os 22 componentes de BOM ativa **sem** sugestão (por nº de BOMs): COM-LAT-004,
-COM-EIX-005, COM-CHA-002, COM-SUS-004, COM-CHA-004 (inativo no ERP), COM-CHA-005,
+Total: 123 sugestões de Product + 605 de kind (R$ 4,0 mi) — **0 resolvidos**.
+Os 21 componentes de BOM ativa **sem** sugestão (por nº de BOMs): COM-LAT-004,
+COM-EIX-005, COM-CHA-002, COM-SUS-004, COM-CHA-005,
 MP-CHP-003, MET-EIX-005, COM-PAR-002, COM-EIX-002, MP-CHP-006, MP-CHP-007,
 MP-CHP-001, MP-CHP-002, MP-TUB-001, MP-TUB-003, MP-TUB-004, COM-EIX-006,
 COM-EIX-007, COM-SUS-006, COM-EIX-008, COM-EIX-009.
@@ -124,10 +137,9 @@ exercitado no script (evidência ausente / de outro dia / conjunto diferente
 
 ## Decisões pendentes (Rafael)
 
-1. `COM-CHA-004` (Arruela do Francês) está **inativo** no ERP mas é componente
-   de 16 BOMs ativas e tem 3 pares no legado — reativar o Product? (o seed não
-   sugere Product inativo).
-2. Aceitar as 605 sugestões de kind `CONSUMABLE` como pré-preenchimento
-   (continuam pendentes de confirmação humana)?
+1. ~~`COM-CHA-004` inativo~~ — reativado em 25/08 após auditoria (AuditLog
+   `REACTIVATE_AFTER_AUDIT`); o par `07849` ficou fora por exclusão nominal.
+2. ~~Aceitar as 605 sugestões de kind~~ — aprovadas (25/08) exatamente como
+   desenhadas: só `suggestedKind`, nunca canônico.
 3. Quando aplicar: após merge da #1131 e da migration `20260824230000` em
    produção — dry-run do dia + `--commit`, com relatório nominal.

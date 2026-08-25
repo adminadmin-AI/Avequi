@@ -139,7 +139,62 @@ describe('seed producao_v2 — plano puro (nunca confirma)', () => {
       pair({ supplierProductCode: 'B', descriptions: ['CHAPA 2,00 MM'] }),
       pair({ supplierProductCode: 'A', descriptions: ['DILUENTE UNIVERSAL 18L LL'] }),
     ]));
-    expect(nominalEvidence(plan)).toEqual({ product: ['gdr|sup-A|B|p-chapa'], kind: ['gdr|sup-A|A|CONSUMABLE'] });
+    expect(nominalEvidence(plan)).toEqual({ product: ['gdr|sup-A|B|p-chapa'], kind: ['gdr|sup-A|A|CONSUMABLE'], excluded: [] });
+  });
+
+  describe('exclusão nominal de linha legada (caso PROIND 07849 → Id 225)', () => {
+    // legado real: Id 202 "ARRUELA 3/8 INOX LISA" e Id 225 "ARRUELA 1/4 LISA" apontam ambos para COM-CHA-004
+    const legacyArruela: LegacyRow[] = [
+      { id: '202', descricaoNota: 'ARRUELA 3/8 INOX LISA Diversos', tipo: 'Comprado', codigo: 'COM-CHA-004' },
+      { id: '225', descricaoNota: 'ARRUELA 1/4 LISA Diversos Ref.:1141c.1', tipo: 'Comprado', codigo: 'COM-CHA-004' },
+    ];
+    const prods: TenantProduct[] = [{ id: 'p-arruela', companyId: 'gdr', sku: 'COM-CHA-004', name: 'Arruela do Frances', isActive: true }];
+    const exclusions = new Map([['225', 'ARRUELA 1/4 LISA não corresponde à Arruela do Francês 3/8; exclusão confirmada após auditoria física em 25/08/2026']]);
+    const pairs = () => [
+      pair({ supplierId: 'proind-1', supplierProductCode: '08070', descriptions: ['ARRUELA 3/8 INOX LISA Diversos'], totalValue: 59.87 }),
+      pair({ supplierId: 'proind-2', supplierProductCode: '08070', descriptions: ['ARRUELA 3/8 INOX LISA Diversos'], totalValue: 6.26 }),
+      pair({ supplierId: 'proind-1', supplierProductCode: '07849', descriptions: ['ARRUELA 1/4 LISA Diversos Ref.:1141c.1'], totalValue: 268 }),
+    ];
+    const run = (ex?: Map<string, string>) => planSeed({ companyId: 'gdr', pairs: pairs(), legacy: indexLegacy(legacyArruela), products: indexProducts(prods), existing: new Map(), exclusions: ex });
+
+    it('sem exclusão o legado sugeriria os 3 pares (inclusive 07849) — é o que a exclusão precisa evitar', () => {
+      expect(run().map((p) => [p.supplierProductCode, p.outcome])).toEqual([['08070', 'WOULD_SUGGEST_PRODUCT'], ['08070', 'WOULD_SUGGEST_PRODUCT'], ['07849', 'WOULD_SUGGEST_PRODUCT']]);
+    });
+
+    it('legacyId 225 excluído: 07849 vira SKIPPED_MANUAL_EXCLUSION (não INVALID), sem suggestedProductId; ambos 08070 seguem sugerindo COM-CHA-004', () => {
+      const plan = run(exclusions);
+      const by = Object.fromEntries(plan.map((p) => [`${p.supplierId} ${p.supplierProductCode}`, p]));
+      expect(by['proind-1 08070']).toMatchObject({ outcome: 'WOULD_SUGGEST_PRODUCT', suggestedSku: 'COM-CHA-004', legacyIds: ['202'] });
+      expect(by['proind-2 08070']).toMatchObject({ outcome: 'WOULD_SUGGEST_PRODUCT', suggestedSku: 'COM-CHA-004' });
+      expect(by['proind-1 07849']).toMatchObject({ outcome: 'SKIPPED_MANUAL_EXCLUSION', legacyIds: ['225'] });
+      expect(by['proind-1 07849'].suggestedProductId).toBeUndefined();
+      expect(by['proind-1 07849'].suggestedKind).toBeUndefined();
+      expect(by['proind-1 07849'].reason).toContain('Id 225');
+      expect(by['proind-1 07849'].reason).toContain('auditoria física');
+      // seed continua nunca confirmando: nada canônico em lugar nenhum
+      expect(plan.every((p) => !('productId' in p) && !('kind' in p))).toBe(true);
+    });
+
+    it('exclusão não afeta a cobertura de BOM (08070 ainda cobre COM-CHA-004) nem confirmedCoverage', () => {
+      const s = summarizeSeed(run(exclusions), [{ id: 'p-arruela', sku: 'COM-CHA-004' }], new Set());
+      expect(s.byOutcome.WOULD_SUGGEST_PRODUCT).toEqual({ pairs: 2, value: 66.13 });
+      expect(s.byOutcome.SKIPPED_MANUAL_EXCLUSION).toEqual({ pairs: 1, value: 268 });
+      expect(s.suggestionCoverage).toEqual({ components: 1, of: 1, skus: ['COM-CHA-004'] });
+      expect(s.confirmedCoverage).toEqual({ components: 0, of: 1 });
+    });
+
+    it('a exclusão entra na evidência nominal e é idempotente (duas execuções = mesmo plano)', () => {
+      const a = nominalEvidence(run(exclusions));
+      const b = nominalEvidence(run(exclusions));
+      expect(a.excluded).toEqual(['gdr|proind-1|07849|legado:225']);
+      expect(a.product).toEqual(['gdr|proind-1|08070|p-arruela', 'gdr|proind-2|08070|p-arruela']);
+      expect(a).toEqual(b);
+    });
+
+    it('par com duas descrições, uma excluída e outra válida, continua sugerindo pela válida', () => {
+      const plan = planSeed({ companyId: 'gdr', pairs: [pair({ supplierProductCode: 'X', descriptions: ['ARRUELA 1/4 LISA Diversos Ref.:1141c.1', 'ARRUELA 3/8 INOX LISA Diversos'] })], legacy: indexLegacy(legacyArruela), products: indexProducts(prods), existing: new Map(), exclusions });
+      expect(plan[0]).toMatchObject({ outcome: 'WOULD_SUGGEST_PRODUCT', suggestedSku: 'COM-CHA-004', legacyIds: ['202'] });
+    });
   });
 
   it('parseLegacyTsv: cabeçalho obrigatório, código vazio vira null', () => {
