@@ -216,6 +216,24 @@ async function main(): Promise<number> {
     invalid: batch.plans.filter((p) => p.state === 'INVALID').map((p) => ({ chave: p.chave, reasons: p.reasons })),
     skipped: batch.plans.filter((p) => p.state === 'SKIPPED').map((p) => ({ chave: p.chave, reasons: p.reasons })),
     updates: batch.plans.filter((p) => p.state === 'UPDATE').map((p) => ({ chave: p.chave, docId: p.existingDocId, reasons: p.reasons })),
+    // Lista NOMINAL do que seria inserido — é o que o revisor confere antes do
+    // --commit (data, empresa, status, fornecedor resolvido ou não, pendências).
+    inserts: batch.plans
+      .filter((p) => p.state === 'INSERT' && p.target)
+      .map((p) => ({
+        chave: p.chave,
+        company: companies.find((c) => c.id === p.companyId)?.name ?? null,
+        issueDate: p.target!.issueDate,
+        status: p.target!.status,
+        cancelledAt: p.target!.cancelledAt,
+        issuerCnpj: p.target!.issuerCnpj,
+        issuerName: p.target!.issuerName,
+        number: p.target!.number,
+        vNF: p.target!.totals.vNF ?? null,
+        supplierResolved: p.target!.supplierId !== null,
+        pendencies: p.pendencies,
+      }))
+      .sort((a, b) => (a.issueDate < b.issueDate ? -1 : a.issueDate > b.issueDate ? 1 : a.chave < b.chave ? -1 : 1)),
     supplierMissing: batch.plans
       .filter((p) => p.state === 'INSERT' && p.pendencies.includes('SUPPLIER_MISSING'))
       .map((p) => ({ chave: p.chave, company: companies.find((c) => c.id === p.companyId)?.name, issuerCnpj: p.target!.issuerCnpj, issuerName: p.target!.issuerName, vNF: p.target!.totals.vNF ?? null })),

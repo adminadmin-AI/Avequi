@@ -115,10 +115,24 @@ DATABASE_URL=... npx ts-node -T scripts/import-received-nfe-xml.ts --dir ... --r
 (todas as notas já reidratadas batem campo a campo com o XML — prova do parser),
 **330 INSERT** (CRD 160 · GDR 170; 1.021 itens, todos com imposto), 0 UPDATE,
 **0 CONFLICT**, 0 INVALID, 0 SKIPPED, 0 arquivos inválidos, 0 eventos órfãos.
-Inserções: 297 notas de 13/06 → 20/08/2026 (fecham o buraco), 29 canceladas
-(entram como `CANCELLED`) e 5 antigas que o DB_Financeiro nunca teve.
-Pendências: 17 docs (12 CNPJs, R$ 148,8 mil) sem Supplier; 22 pares
-intra-grupo CRD→GDR; 31 CC-e não persistidas.
+
+Composição dos 330 (chaves únicas; a lista nominal fica em `inserts` no
+relatório):
+
+| | 13/06 → 20/08/2026 ("buraco") | antes de 13/06 | total |
+|---|---|---|---|
+| `AUTHORIZED` | 291 | 0 | 291 |
+| `CANCELLED` (evento 110111 registrado) | 11 | 28 | 39 |
+| total | 302 | 28 | 330 |
+
+As 28 antigas são todas notas canceladas: a carga de 18/06 (DB_Financeiro)
+nunca registrou notas canceladas, por isso nenhuma existe no ERP. Pendências:
+17 docs (12 CNPJs, R$ 148,8 mil) sem Supplier; 22 pares intra-grupo CRD→GDR;
+31 CC-e não persistidas.
+
+Os números acima são do lote daquele dia — **nada é fixo no código**; um novo
+export do Qive na mesma pasta só exige rodar o dry-run de novo (o que já
+entrou vira `UNCHANGED`, o novo vira `INSERT`).
 
 ## Como a Focus entra depois (não implementado aqui)
 
