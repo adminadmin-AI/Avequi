@@ -40,6 +40,29 @@ describe('parse do emitente no XML da NF-e (enriquecimento fiscal)', () => {
     expect(emit.ibgeCode).toBe('4113700');
     expect(emit.phone).toBe('4333330000');
   });
+  it('decodifica entidades XML do <emit> uma única vez (mesma função do parser canônico)', () => {
+    const xml = `<nfeProc><NFe><infNFe><emit><CNPJ>61909155000130</CNPJ>
+      <xNome>B &amp; M COMERCIO DE MADEIRAS</xNome><xFant>VERDE &amp; NOBRE &lt;SUL&gt;</xFant>
+      <enderEmit><xLgr>R. S&#227;o Jo&#xE3;o &quot;A&quot;</xLgr><xBairro>D&apos;OESTE</xBairro><xMun>Rio Branco</xMun><UF>AC</UF></enderEmit>
+      <IE>0110399200170</IE></emit></infNFe></NFe></nfeProc>`;
+    const e = parseEmit(xml)!;
+    expect(e.xNome).toBe('B & M COMERCIO DE MADEIRAS'); // &amp;
+    expect(e.xFant).toBe('VERDE & NOBRE <SUL>'); // &lt; &gt;
+    expect(e.address).toBe('R. São João "A"'); // numéricas decimal e hex + &quot;
+    expect(e.neighborhood).toBe("D'OESTE"); // &apos;
+    // o valor decodificado chega intacto ao cadastro (razão E exibição)
+    const draft = buildSupplierDraft({ companyId: 'co-gdr', issuerCnpj: '61909155000130', issuerName: 'B & M COMERCIO DE MADEIRAS', latestEmit: e, crossTenant: null, omieFantasia: null });
+    expect(draft.razaoSocial).toBe('B & M COMERCIO DE MADEIRAS');
+    expect(draft.name).toBe('VERDE & NOBRE <SUL>');
+  });
+  it('não decodifica duas vezes: "&amp;amp;" vira "&amp;" literal, não "&"', () => {
+    const e = parseEmit(`<emit><CNPJ>61909155000130</CNPJ><xNome>A &amp;amp; B</xNome></emit>`)!;
+    expect(e.xNome).toBe('A &amp; B');
+  });
+  it('sem entidade nada muda (comportamento normal preservado)', () => {
+    expect(emit.xNome).toBe('RODA BRASIL PNEUS LTDA');
+    expect(parseEmit(`<emit><CNPJ>61909155000130</CNPJ><xNome>ACOS MOURA PRODUTOS SIDERURGICOS LTDA</xNome></emit>`)!.xNome).toBe('ACOS MOURA PRODUTOS SIDERURGICOS LTDA');
+  });
   it('sem XML ou sem <emit> → null (não bloqueia criação)', () => {
     expect(parseEmit(null)).toBeNull();
     expect(parseEmit('<xml>vazio</xml>')).toBeNull();
