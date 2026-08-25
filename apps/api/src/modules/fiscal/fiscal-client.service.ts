@@ -1,9 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmissionResponse, EmissorPort, NfseEmissionResponse } from './emissor.port';
+import { EmissionResponse, EmissorPort, NfseEmissionResponse, ReceivedNfePageRaw } from './emissor.port';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
+
+/** Erro de consulta às NF-e recebidas na Focus (Focus-A, #608) — nunca vira lista vazia. */
+export class FocusReceivedNfeError extends Error {
+  constructor(message: string, public readonly httpStatus?: number) {
+    super(message);
+    this.name = 'FocusReceivedNfeError';
+  }
+}
 
 // Compat: o shape da resposta agora vive no contrato EmissorPort (#501)
 export type FocusEmissionResponse = EmissionResponse;
@@ -92,6 +100,37 @@ export class FiscalClientService implements EmissorPort {
       this.logger.error(`Erro ao buscar NF-e recebidas: ${axiosErr.message}`);
       return [];
     }
+  }
+
+  /**
+   * Focus-A (#608): página incremental de NF-e recebidas. Diferente de
+   * fetchReceivedNfes, QUALQUER falha (rede, 4xx/5xx, corpo que não é lista)
+   * lança FocusReceivedNfeError — o cursor do chamador não avança e o estado
+   * fica FAILED com a mensagem, em vez de "0 notas".
+   */
+  async fetchReceivedNfesPage(cnpj: string, cursor: number, companyId?: string): Promise<ReceivedNfePageRaw> {
+    const url = `${this.baseUrl}/v2/nfes_recebidas?cnpj=${encodeURIComponent(cnpj)}&versao=${Math.max(0, Math.floor(cursor))}`;
+    let res;
+    try {
+      res = await firstValueFrom(
+        this.http.get<unknown>(url, { auth: { username: this.tokenFor(companyId), password: '' } }),
+      );
+    } catch (err) {
+      const e = err as AxiosError<any>;
+      const status = e.response?.status;
+      const body = e.response?.data;
+      const detail = typeof body === 'object' && body ? JSON.stringify(body).slice(0, 300) : String(body ?? '');
+      throw new FocusReceivedNfeError(`Focus nfes_recebidas cnpj=${cnpj} versao=${cursor}: ${status ? `HTTP ${status}` : e.message}${detail ? ` ${detail}` : ''}`, status);
+    }
+    if (!Array.isArray(res.data)) {
+      throw new FocusReceivedNfeError(`Focus nfes_recebidas cnpj=${cnpj} versao=${cursor}: corpo não é lista (${typeof res.data})`, res.status);
+    }
+    const header = (name: string): number | null => {
+      const v = res.headers?.[name] ?? res.headers?.[name.toLowerCase()];
+      const n = v === undefined || v === null ? NaN : parseInt(String(v), 10);
+      return Number.isFinite(n) ? n : null;
+    };
+    return { items: res.data as Record<string, unknown>[], maxVersion: header('x-max-version'), totalCount: header('x-total-count') };
   }
 
   /** Manifestar NF-e recebida (ciência, confirmação, rejeição, desconhecimento) */
