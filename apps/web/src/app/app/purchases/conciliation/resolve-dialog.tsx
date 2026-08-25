@@ -75,9 +75,11 @@ export function ResolveDialog({ row, onOpenChange, onResolved }: Props) {
     setReason('');
   }, [row]);
 
-  // busca de Products ativos da company (tenant pelo JWT); só quando o modo pede
+  // busca de Products ativos da company (tenant pelo JWT) — a query só existe
+  // no modo "Escolher Product"; nos outros modos não sai request nenhuma
   const { options: productOptions, items: productItems, isLoading: productsLoading } = useProductOptions(
-    mode === 'PRODUCT' ? { search: productSearch, isActive: true, take: 20 } : undefined,
+    { search: productSearch, isActive: true, take: 20 },
+    { enabled: !!row && mode === 'PRODUCT' },
   );
 
   const hasProductSuggestion = !!row?.suggestion?.productId;
