@@ -23,6 +23,22 @@ describe('xml-tree — parser mínimo sem dependência', () => {
     expect(text(root, 'x')).toBe('1 < 2 & A');
     expect(text(root, 'c')).toBe('<raw>&amp;');
     expect(decodeEntities('&unknown;')).toBe('&unknown;');
+    expect(decodeEntities('&#x110000;')).toBe('&#x110000;'); // fora da faixa Unicode: literal, sem RangeError
+    expect(decodeEntities('&#169;')).toBe('©');
+  });
+
+  it('atributos com aspas simples, ">" dentro de valor e sem espaço entre atributos', () => {
+    const root = parseXml(`<r a='x>y' b="1"c='2'><v>1 > 0</v></r>`);
+    expect(root.attrs).toEqual({ a: 'x>y', b: '1', c: '2' });
+    expect(text(root, 'v')).toBe('1 > 0');
+  });
+
+  it('elementos opcionais ausentes e ordem diferente não quebram a leitura', () => {
+    const root = parseXml(`<det><imposto><PIS><PISNT><CST>07</CST></PISNT></PIS><ICMS><ICMS00><CST>00</CST></ICMS00></ICMS></imposto><prod><xProd>P</xProd></prod></det>`);
+    expect(text(root, 'prod', 'xProd')).toBe('P');
+    expect(text(root, 'prod', 'NCM')).toBeNull();
+    expect(text(root, 'imposto', 'ICMS', 'ICMS00', 'CST')).toBe('00');
+    expect(text(root, 'imposto', 'IPI', 'IPITrib', 'CST')).toBeNull();
   });
 
   it('não confunde tags homônimas em grupos diferentes', () => {

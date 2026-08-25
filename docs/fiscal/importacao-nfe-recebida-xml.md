@@ -33,7 +33,7 @@
 
 | Peça | Arquivo | O que faz |
 |---|---|---|
-| Árvore XML | `apps/api/src/fiscal/nfe-xml/xml-tree.ts` | Parser XML mínimo, sem dependência, com erro em arquivo truncado. Substitui a leitura por regex (que confunde `CNPJ`/`xNome`/`CST` repetidos em grupos diferentes). |
+| Árvore XML | `apps/api/src/fiscal/nfe-xml/xml-tree.ts` | Parser XML mínimo, sem dependência, com erro em arquivo truncado. Substitui a leitura por regex (que confunde `CNPJ`/`xNome`/`CST` repetidos em grupos diferentes). É um tokenizer escrito do zero (~150 linhas) — decisão consciente: o monorepo não tem lib XML direta (só `saxes` transitivo via `exceljs`, que não deve ser dependência de domínio), a NF-e não usa DTD/entidades externas (sem superfície XXE) e o parser foi provado em 12.533 XMLs reais. |
 | Parser NF-e | `apps/api/src/fiscal/nfe-xml/nfe-proc.parser.ts` | `nfeProc`/`NFe` → DTO (ide, emit, dest, itens com ICMS/IPI/PIS/COFINS/DIFAL/IBS-CBS, totais, protNFe); `procEventoNFe` → DTO de evento. Decimais como string. |
 | Núcleo (puro) | `apps/api/src/fiscal/inbound/received-nfe-import-core.ts` | Resolve company (= destinatário), Supplier (exato, na company, **nunca cria**), direção, datas, eventos; compara com o existente; produz o plano e a evidência nominal. |
 | Escritor | `apps/api/src/fiscal/inbound/received-nfe-import-writer.ts` | `planFromXml(xml, ctx)` (entrada para a Focus) e `applyPlan(tx, plan, xml)` (única porta de escrita). |
@@ -109,30 +109,76 @@ DATABASE_URL=... npx ts-node -T scripts/import-received-nfe-xml.ts \
 DATABASE_URL=... npx ts-node -T scripts/import-received-nfe-xml.ts --dir ... --report /tmp/recebidas --commit
 ```
 
-## Dry-run real de 25/08/2026 (sem escrita)
+## Dry-run real de 25/08/2026 (export do Qive de 25/08, sem escrita)
 
-1.660 arquivos (1.590 nfeProc + 70 eventos) → 1.589 chaves · **1.259 UNCHANGED**
-(todas as notas já reidratadas batem campo a campo com o XML — prova do parser),
-**330 INSERT** (CRD 160 · GDR 170; 1.021 itens, todos com imposto), 0 UPDATE,
-**0 CONFLICT**, 0 INVALID, 0 SKIPPED, 0 arquivos inválidos, 0 eventos órfãos.
+1.684 arquivos (1.611 nfeProc + 60 eventos + …) → 1.610 chaves · **1.259
+UNCHANGED** (todas as notas já reidratadas batem campo a campo com o XML) ·
+**351 INSERT** (CRD 170 · GDR 181; 1.064 itens, todos com imposto) · 0 UPDATE ·
+**0 CONFLICT** · 0 INVALID · 0 SKIPPED · 0 arquivos inválidos · 0 eventos órfãos.
 
-Composição dos 330 (chaves únicas; a lista nominal fica em `inserts` no
-relatório):
+Composição dos 351 (chaves únicas; lista nominal em `inserts` no relatório):
 
-| | 13/06 → 20/08/2026 ("buraco") | antes de 13/06 | total |
+| | 13/06 → 24/08/2026 ("buraco") | antes de 13/06 | total |
 |---|---|---|---|
-| `AUTHORIZED` | 291 | 0 | 291 |
-| `CANCELLED` (evento 110111 registrado) | 11 | 28 | 39 |
-| total | 302 | 28 | 330 |
+| `AUTHORIZED` | 310 | 0 | 310 |
+| `CANCELLED` (evento 110111 registrado) | 13 | 28 | 41 |
+| total | 323 | 28 | 351 |
 
 As 28 antigas são todas notas canceladas: a carga de 18/06 (DB_Financeiro)
-nunca registrou notas canceladas, por isso nenhuma existe no ERP. Pendências:
-17 docs (12 CNPJs, R$ 148,8 mil) sem Supplier; 22 pares intra-grupo CRD→GDR;
-31 CC-e não persistidas.
+nunca registrou canceladas. Pendências: 27 docs (14 CNPJs, R$ 197,7 mil) sem
+Supplier; 22 pares intra-grupo CRD→GDR; 32 CC-e não persistidas. Cobertura das
+RECEBIDAS após o commit: contínua até **24/08/2026**.
 
-Os números acima são do lote daquele dia — **nada é fixo no código**; um novo
-export do Qive na mesma pasta só exige rodar o dry-run de novo (o que já
-entrou vira `UNCHANGED`, o novo vira `INSERT`).
+Os números acima são do lote daquele dia — **nada é fixo no código**. Um novo
+export do Qive na mesma pasta exige **novo dry-run** (a evidência nominal é do
+dia e do conjunto exato; o `--commit` recomputa o universo e aborta se qualquer
+chave a inserir/atualizar for diferente da evidência).
+
+### Prova do parser no dataset real (25/08/2026, só leitura)
+
+O parser foi executado sobre **todos os 12.533 XMLs** da pasta `dados`
+(recebidas, emitidas, eventos, inutilizações, CT-e, NFS-e): 10.797 NF-e
+(100% layout 4.00, `dhEmi` com hora e offset, `protNFe` presente), 1.234
+eventos, 121 `procInutNFe`/72 `cteProc`/302 `CompNfse` corretamente
+classificados como desconhecidos, 298 arquivos com entidades XML e 9 com CDATA
+lidos, encodings UTF-8/sem declaração. **1 arquivo real truncado** (emitida GDR,
+4.096 bytes) foi rejeitado com `XmlParseError` — nenhuma nota "meio lida".
+Grupos tributários encontrados e lidos: ICMS00/10/20/40/51/60/90/ST e
+CSOSN 101/102/500/900; IPITrib/IPINT; PISAliq/PISNT/PISOutr (e COFINS
+equivalentes); DIFAL em 6.961 itens; IBS/CBS em 2.734 itens.
+Comparação tributária das 1.259 recebidas existentes (4.132 itens) contra o
+banco — `cProd`, NCM, CFOP, unidade, quantidade, preço (na precisão da coluna),
+total, ICMS (origem, modBC, CST/CSOSN, base, alíquota, valor), IPI, PIS,
+datas, protocolo, natureza, `vNF`/`vProd`, emitente: **0 divergências**.
+
+## Invariantes para os próximos PRs
+
+- **Agregações econômicas de compra** (custo, `SupplierPriceHistory`,
+  precificação, conciliação #609) **usam `direction = RECEBIDA` e
+  `status = AUTHORIZED`**. Documentos `CANCELLED` existem para rastreabilidade
+  fiscal e nunca entram em valor de compra.
+- Supplier nunca é criado por importação; `SUPPLIER_MISSING` é resolvido pelo
+  fluxo canônico da #611 e a reexecução preenche **só** `supplierId`.
+- CC-e e eventos de manifestação ganharão um ledger próprio
+  (`FiscalDocumentEvent`, frente posterior, também usado pela Focus);
+  `FiscalCorrection` não é usado como substituto.
+- NFS-e e CT-e não entram em `FiscalDocument` de NF-e — estruturas canônicas
+  próprias na #607.
+
+## Decisão: DB_Financeiro deixa de receber documentos novos (25/08/2026)
+
+- O ETL antigo (`projeto_sql_xml/scripts/etl_completo.py` e
+  `etl_cte_nfse.py` → tabelas `stg_*` do SQL Server) **não faz mais parte do
+  fluxo fiscal**. XML é a entrada; o Avequi é o destino canônico; a Focus
+  entregará o XML ao mesmo pipeline.
+- O DB_Financeiro permanece **só como fonte legada/histórica** (reconstrução
+  já feita pela reidratação #1123).
+- As análises que ainda leem `stg_*` (qualificação de fornecedores, DRE,
+  mapeamento nota→MP, conferências de chassi) ficam **congeladas em 12/06/2026**
+  até serem migradas para consultar o Avequi.
+- Qualquer execução futura do ETL antigo é **excepcional e consciente**, não
+  rotina. A ferramenta de produção (`producao_v2`) usa o DB_Financeiro, mas
+  **nenhuma tabela `stg_*`** — não é afetada.
 
 ## Como a Focus entra depois (não implementado aqui)
 

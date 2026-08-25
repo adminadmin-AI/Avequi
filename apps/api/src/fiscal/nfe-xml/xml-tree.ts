@@ -46,7 +46,8 @@ export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (whole, body: string) => {
     if (body[0] === '#') {
       const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+      // fora da faixa Unicode, String.fromCodePoint lança RangeError — mantém o texto literal
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
     }
     return body in ENTITIES ? ENTITIES[body] : whole;
   });
