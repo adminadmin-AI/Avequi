@@ -111,6 +111,7 @@ export class SupplierProductMapService {
   }
 
   private async loadMaps(companyId: string, filter: { supplierId?: string } = {}): Promise<ExistingMap[]> {
+    // list-lint: ok (visão derivada por tenant: todos os mapas da company são cruzados em memória com os pares dos itens fiscais — ~2 mil linhas; vira GROUP BY/view materializada quando escalar)
     const rows = await this.prisma.supplierProductMap.findMany({
       where: { companyId, ...(filter.supplierId ? { supplierId: filter.supplierId } : {}) },
     });
@@ -134,6 +135,7 @@ export class SupplierProductMapService {
   }
 
   private async loadProducts(companyId: string, ids?: string[]): Promise<Map<string, ProductRef>> {
+    // list-lint: ok (catálogo de Products do tenant para resolver nomes/SKUs e sugerir por descrição — centenas de linhas; com `ids` é limitado pelo conjunto)
     const rows = await this.prisma.product.findMany({
       where: { companyId, ...(ids ? { id: { in: ids } } : {}) },
       select: { id: true, sku: true, name: true, type: true, isActive: true },
@@ -401,6 +403,7 @@ export class SupplierProductMapService {
    */
   async detectDivergences(companyId: string): Promise<Array<{ mapId: string; supplierProductCode: string; confirmed: string | null; incoming: string | null }>> {
     const views = await this.buildViews(companyId);
+    // list-lint: ok (varredura dos mapas CONFIRMED do tenant para detectar divergência de descrição — subconjunto pequeno, execução sob demanda)
     const maps = await this.prisma.supplierProductMap.findMany({ where: { companyId, status: 'CONFIRMED' }, select: { id: true, supplierId: true, supplierProductCode: true, confirmedDescription: true } });
     const out: Array<{ mapId: string; supplierProductCode: string; confirmed: string | null; incoming: string | null }> = [];
     for (const m of maps) {
