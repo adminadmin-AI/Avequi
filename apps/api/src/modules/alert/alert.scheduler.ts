@@ -182,9 +182,12 @@ export class AlertScheduler {
 
     for (const company of companies) {
       try {
-        const { synced } = await this.manifestService.syncReceivedNfes(company.id);
-        if (synced > 0) {
-          this.logger.log(`Manifest sync company=${company.id}: ${synced} novas NF-e`);
+        // Focus-A (#608): gate por company, default OFF — desligada = pula em
+        // silêncio (sem cursor, sem NfeManifest, sem FAILED)
+        if (!(await this.manifestService.isSyncEnabled(company.id))) continue;
+        const { synced, updated } = await this.manifestService.syncReceivedNfes(company.id);
+        if (synced > 0 || updated > 0) {
+          this.logger.log(`Manifest sync company=${company.id}: ${synced} novas NF-e, ${updated} alteradas`);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);

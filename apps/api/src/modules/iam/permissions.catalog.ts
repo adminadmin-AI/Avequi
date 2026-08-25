@@ -613,7 +613,7 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   ]),
   ...r('fiscal', 'manifestation', 'Manifestação do destinatário', [
     ['view', 'ver', 'GET /fiscal/manifest, /fiscal/manifest/pending, /fiscal/manifest/stats, /fiscal/manifest/overdue'],
-    ['sync', 'sincronizar com a SEFAZ', 'POST /fiscal/manifest/sync'],
+    ['sync', 'sincronizar com a SEFAZ / habilitar sync Focus', 'POST /fiscal/manifest/sync, PATCH /fiscal/manifest/sync/settings'],
     ['execute', 'manifestar (ciência/confirmar/rejeitar/desconhecer)', 'POST /fiscal/manifest/:chaveNfe/{ciencia,confirm,reject,unknown}'],
   ]),
   ...r('fiscal', 'tax-rules', 'Regras tributárias', [

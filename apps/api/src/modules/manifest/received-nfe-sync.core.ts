@@ -68,6 +68,7 @@ export interface ReceivedNfeSyncState {
   lastError: string | null;
   lastRunSeen: number; // itens devolvidos pela Focus na última execução
   lastRunNew: number; // itens novos persistidos na última execução
+  lastRunUpdated: number; // chaves já conhecidas que reapareceram com versão maior (alteração na Focus)
   lastRunPages: number;
   totalCount: number | null; // X-Total-Count visto no início da última execução (pendentes acima do cursor)
 }
@@ -75,8 +76,32 @@ export interface ReceivedNfeSyncState {
 export function initialState(cnpj: string): ReceivedNfeSyncState {
   return {
     cnpj, cursor: 0, lastRunStatus: 'NEVER', lastSyncAt: null, lastSuccessAt: null,
-    lastError: null, lastRunSeen: 0, lastRunNew: 0, lastRunPages: 0, totalCount: null,
+    lastError: null, lastRunSeen: 0, lastRunNew: 0, lastRunUpdated: 0, lastRunPages: 0, totalCount: null,
   };
+}
+
+/** Resultado da persistência de uma página. */
+export interface PersistPageResult {
+  /** chaves novas (NfeManifest criado) */
+  created: number;
+  /** chaves já conhecidas que reapareceram com `versao` maior (alteração registrada) */
+  updated: number;
+}
+
+/**
+ * Mapeia `manifestacao_destinatario` da Focus para o status do ERP. Usado ao
+ * CRIAR o NfeManifest (estado real conhecido pela Focus, não PENDING
+ * artificial) e para PROMOVER um PENDING — nunca para rebaixar um status
+ * já registrado pelo ERP.
+ */
+export function manifestStatusFromFocus(manifestacao: string | null): 'PENDING' | 'CIENCIA' | 'CONFIRMED' | 'NOT_PERFORMED' | 'UNKNOWN' {
+  switch ((manifestacao ?? '').toLowerCase()) {
+    case 'ciencia': return 'CIENCIA';
+    case 'confirmacao': return 'CONFIRMED';
+    case 'nao_realizada': return 'NOT_PERFORMED';
+    case 'desconhecimento': return 'UNKNOWN';
+    default: return 'PENDING'; // 'nulo', vazio, desconhecido
+  }
 }
 
 /** Chave genérica: provider.resource.sync:<identificador externo>. */
@@ -163,8 +188,12 @@ export class SyncNoProgressError extends Error {
 export interface SyncDeps {
   /** Busca uma página com versao > cursor. DEVE lançar em erro de rede/API. */
   fetchPage: (cursor: number) => Promise<ReceivedNfePage>;
-  /** Persiste os itens da página de forma idempotente; devolve quantos eram novos. */
-  persistPage: (items: ReceivedNfeSummary[]) => Promise<number>;
+  /**
+   * Persiste os itens da página de forma idempotente (novo → cria; conhecido
+   * com versão maior → registra a alteração; mesma versão → nada) e devolve
+   * quantos eram novos e quantos reapareceram alterados.
+   */
+  persistPage: (items: ReceivedNfeSummary[]) => Promise<PersistPageResult>;
   /** Grava o estado (chamado ao iniciar, após CADA página confirmada e ao terminar). */
   saveState: (state: ReceivedNfeSyncState) => Promise<void>;
   now: () => Date;
@@ -178,6 +207,7 @@ export interface SyncResult {
   pages: number;
   seen: number;
   synced: number;
+  updated: number;
   state: ReceivedNfeSyncState;
 }
 
@@ -196,6 +226,7 @@ export async function runIncrementalSync(start: ReceivedNfeSyncState, deps: Sync
     lastError: null,
     lastRunSeen: 0,
     lastRunNew: 0,
+    lastRunUpdated: 0,
     lastRunPages: 0,
   };
   await deps.saveState(state);
@@ -219,12 +250,13 @@ export async function runIncrementalSync(start: ReceivedNfeSyncState, deps: Sync
       const newCursor = page.maxVersion ?? itemMax;
       if (newCursor === null || newCursor <= state.cursor) throw new SyncNoProgressError(state.cursor, newCursor);
 
-      const created = await deps.persistPage(page.items);
-      // cursor avança SÓ depois da persistência da página
+      const persisted = await deps.persistPage(page.items);
+      // cursor avança SÓ depois da persistência da página (novos E reaparições)
       state.cursor = newCursor;
       state.lastRunPages += 1;
       state.lastRunSeen += page.items.length;
-      state.lastRunNew += created;
+      state.lastRunNew += persisted.created;
+      state.lastRunUpdated += persisted.updated;
       await deps.saveState(state);
 
       // Continua se a página veio cheia OU se o X-Total-Count desta página diz
@@ -235,7 +267,7 @@ export async function runIncrementalSync(start: ReceivedNfeSyncState, deps: Sync
     state.lastRunStatus = 'OK';
     state.lastSuccessAt = deps.now().toISOString();
     await deps.saveState(state);
-    return { cursorFrom, cursorTo: state.cursor, pages: state.lastRunPages, seen: state.lastRunSeen, synced: state.lastRunNew, state };
+    return { cursorFrom, cursorTo: state.cursor, pages: state.lastRunPages, seen: state.lastRunSeen, synced: state.lastRunNew, updated: state.lastRunUpdated, state };
   } catch (err) {
     state.lastRunStatus = 'FAILED';
     state.lastError = (err as Error).message;

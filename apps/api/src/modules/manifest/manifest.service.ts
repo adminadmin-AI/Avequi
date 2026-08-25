@@ -9,10 +9,13 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from '../fiscal/emissor.port';
+import { FeatureFlag, FeatureFlagService } from '../../common/feature-flag/feature-flag.service';
 import {
+  PersistPageResult,
   ReceivedNfeSummary,
   ReceivedNfeSyncState,
   SyncAlreadyRunningError,
+  manifestStatusFromFocus,
   normalizeReceivedItem,
   parseState,
   runIncrementalSync,
@@ -27,6 +30,13 @@ import {
  * execução viva renova o lease sozinha; um processo morto libera após o prazo.
  */
 export const SYNC_LEASE_MS = 30 * 60 * 1000;
+
+/**
+ * Situações da Focus em que a nota NÃO é manifestável/pendente de verdade:
+ * cancelada/denegada não entram na fila nem no alerta de "> 30 dias".
+ */
+const NON_MANIFESTABLE_SITUACOES = ['cancelada', 'denegada'];
+const MANIFESTABLE_WHERE = { OR: [{ focusSituacao: null }, { focusSituacao: { notIn: NON_MANIFESTABLE_SITUACOES } }] };
 
 /** Focus NFe manifest event codes */
 const MANIFEST_EVENTS = {
@@ -62,7 +72,43 @@ export class ManifestService {
     private readonly prisma: PrismaService,
     @Inject(EMISSOR_PORT) private readonly fiscalClient: EmissorPort,
     private readonly eventEmitter: EventEmitter2,
+    private readonly featureFlags: FeatureFlagService,
   ) {}
+
+  // ─── Gate por company (Focus-A): default OFF ──────────────────────────────
+  //
+  // Flag canônica `focus.nfe_recebidas.enabled` em SystemParameter (mesmo
+  // mecanismo do `renave.enabled`, fail-closed). Nenhum deploy liga sync
+  // sozinho: o cron pula companies desligadas sem tocar em nada e o POST
+  // manual devolve 409. Ligar/desligar é ato explícito via
+  // PATCH /fiscal/manifest/sync/settings (permissão fiscal.manifestation.sync).
+
+  async isSyncEnabled(companyId: string): Promise<boolean> {
+    return this.featureFlags.isEnabled(companyId, FeatureFlag.FOCUS_NFE_RECEBIDAS_ENABLED);
+  }
+
+  async getSyncSettings(companyId: string): Promise<{ enabled: boolean }> {
+    return { enabled: await this.isSyncEnabled(companyId) };
+  }
+
+  async updateSyncSettings(companyId: string, enabled: boolean, userId?: string): Promise<{ enabled: boolean }> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, cnpj: true } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+    if (enabled && (company.cnpj ?? '').replace(/\D/g, '').length !== 14) {
+      throw new BadRequestException('Empresa sem CNPJ válido — não é possível habilitar a sincronização de NF-e recebidas');
+    }
+    await this.featureFlags.setEnabled(companyId, FeatureFlag.FOCUS_NFE_RECEBIDAS_ENABLED, enabled);
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'SystemParameter',
+        action: enabled ? 'FOCUS_NFE_RECEBIDAS_SYNC_ENABLED' : 'FOCUS_NFE_RECEBIDAS_SYNC_DISABLED',
+        payload: { key: FeatureFlag.FOCUS_NFE_RECEBIDAS_ENABLED, enabled, userId: userId ?? null },
+      },
+    });
+    this.logger.log(`Sync NF-e recebidas (Focus) ${enabled ? 'HABILITADO' : 'DESABILITADO'} para company=${companyId}`);
+    return { enabled };
+  }
 
   // ─── Focus-A (#608): sync INCREMENTAL de NF-e recebidas ──────────────────
   //
@@ -74,20 +120,27 @@ export class ManifestService {
   // "documentos detectados" já existente) — o destino fiscal continua sendo o
   // FiscalDocument via XML/parser da #1128, no Focus-B.
 
-  async getSyncState(companyId: string): Promise<ReceivedNfeSyncState> {
+  async getSyncState(companyId: string): Promise<ReceivedNfeSyncState & { enabled: boolean }> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Empresa não encontrada');
     const cnpj = (company.cnpj ?? '').replace(/\D/g, '');
-    const param = await this.prisma.systemParameter.findUnique({
-      where: { companyId_key: { companyId, key: syncStateKey(cnpj) } },
-    });
-    return parseState(cnpj, param?.value ?? null);
+    const [param, enabled] = await Promise.all([
+      this.prisma.systemParameter.findUnique({ where: { companyId_key: { companyId, key: syncStateKey(cnpj) } } }),
+      this.isSyncEnabled(companyId),
+    ]);
+    return { ...parseState(cnpj, param?.value ?? null), enabled };
   }
 
   /** Exclusão mútua EM PROCESSO por company (cron e POST no mesmo container). */
   private readonly syncInFlight = new Map<string, Promise<unknown>>();
 
-  async syncReceivedNfes(companyId: string): Promise<{ synced: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
+  async syncReceivedNfes(companyId: string): Promise<{ synced: number; updated: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
+    if (!(await this.isSyncEnabled(companyId))) {
+      // gate: sem cursor, sem NfeManifest, sem estado FAILED — só recusa
+      throw new ConflictException(
+        `Sincronização de NF-e recebidas (Focus) desabilitada para a empresa ${companyId}. Habilite explicitamente em PATCH /fiscal/manifest/sync/settings.`,
+      );
+    }
     if (this.syncInFlight.has(companyId)) {
       throw new ConflictException(`Sincronização de NF-e recebidas já em execução para a empresa ${companyId}`);
     }
@@ -133,7 +186,7 @@ export class ManifestService {
     return start;
   }
 
-  private async syncReceivedNfesExclusive(companyId: string): Promise<{ synced: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
+  private async syncReceivedNfesExclusive(companyId: string): Promise<{ synced: number; updated: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Empresa não encontrada');
     const cnpj = (company.cnpj ?? '').replace(/\D/g, '');
@@ -155,41 +208,7 @@ export class ManifestService {
         const items = raw.items.map(normalizeReceivedItem).filter((i): i is ReceivedNfeSummary => i !== null);
         return { items, maxVersion: raw.maxVersion, totalCount: raw.totalCount };
       },
-      persistPage: async (items) => {
-        let created = 0;
-        for (const it of items) {
-          // idempotente por (companyId, chave): existente → nada muda (status e
-          // manifestação são do ERP, não da listagem); novo → PENDING.
-          const before = await this.prisma.nfeManifest.findUnique({
-            where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
-            select: { id: true },
-          });
-          if (before) continue;
-          try {
-            await this.prisma.nfeManifest.upsert({
-              where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
-              update: {},
-              create: {
-                companyId,
-                chaveNfe: it.chave,
-                nfeNumber: it.numero,
-                series: it.serie,
-                supplierCnpj: it.cnpjEmitente ?? '',
-                supplierName: it.nomeEmitente,
-                issueDate: it.dataEmissao ? new Date(it.dataEmissao) : null,
-                totalValue: it.valorTotal === null ? null : (it.valorTotal as any),
-                status: ManifestStatus.PENDING,
-              },
-            });
-          } catch (err) {
-            // corrida perdida com outra escrita da mesma chave: já existe → idempotente
-            if ((err as { code?: string }).code === 'P2002') continue;
-            throw err;
-          }
-          created++;
-        }
-        return created;
-      },
+      persistPage: (items) => this.persistReceivedPage(companyId, items),
       saveState: async (state) => {
         await this.prisma.systemParameter.upsert({
           where: { companyId_key: { companyId, key } },
@@ -200,9 +219,87 @@ export class ManifestService {
     });
 
     this.logger.log(
-      `Sync NF-e recebidas company=${companyId} cnpj=${cnpj}: cursor ${result.cursorFrom}→${result.cursorTo}, ${result.pages} página(s), ${result.synced} novas de ${result.seen} vistas`,
+      `Sync NF-e recebidas company=${companyId} cnpj=${cnpj}: cursor ${result.cursorFrom}→${result.cursorTo}, ${result.pages} página(s), ${result.synced} novas + ${result.updated} alteradas de ${result.seen} vistas`,
     );
-    return { synced: result.synced, total: result.seen, cursorFrom: result.cursorFrom, cursorTo: result.cursorTo, pages: result.pages, state: result.state };
+    return { synced: result.synced, updated: result.updated, total: result.seen, cursorFrom: result.cursorFrom, cursorTo: result.cursorTo, pages: result.pages, state: result.state };
+  }
+
+  /**
+   * Persistência de UMA página (idempotente por companyId+chave). Invariantes:
+   *  - chave nova → NfeManifest criado com o estado REAL da Focus (status
+   *    derivado de `manifestacao_destinatario`, não PENDING artificial);
+   *  - chave conhecida com `versao` MAIOR → alteração registrada de forma
+   *    durável (focusVersion/focusChangedAt/situacao/manifestacao) ANTES de o
+   *    cursor avançar — o Focus-B enxerga `focusVersion > focusProcessedVersion`;
+   *  - chave conhecida com a MESMA versão → só `focusSeenAt` (reexecução não
+   *    duplica nem perde sinal);
+   *  - enriquecimento SEGURO: só preenche metadado vazio/nulo com o que a Focus
+   *    devolveu agora (corrige os registros do mapeamento antigo); nunca
+   *    sobrescreve valor já preenchido; nunca toca FiscalDocument;
+   *  - status do ERP nunca é rebaixado: só PENDING → estado da Focus.
+   */
+  private async persistReceivedPage(companyId: string, items: ReceivedNfeSummary[]): Promise<PersistPageResult> {
+    let created = 0;
+    let updated = 0;
+    const now = new Date();
+    for (const it of items) {
+      const before = await this.prisma.nfeManifest.findUnique({
+        where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
+        select: { id: true, status: true, focusVersion: true, supplierCnpj: true, nfeNumber: true, series: true, supplierName: true, issueDate: true, totalValue: true },
+      });
+      const focusStatus = manifestStatusFromFocus(it.manifestacao);
+      if (before) {
+        const versionUp = it.versao !== null && (before.focusVersion == null || it.versao > before.focusVersion);
+        const data: Record<string, unknown> = { focusSeenAt: now };
+        if (versionUp) {
+          Object.assign(data, {
+            focusVersion: it.versao,
+            focusChangedAt: now,
+            focusSituacao: it.situacao,
+            focusManifestacao: it.manifestacao,
+            focusNfeCompleta: it.nfeCompleta,
+          });
+          if (before.status === ManifestStatus.PENDING && focusStatus !== ManifestStatus.PENDING) data.status = focusStatus;
+        }
+        // enriquecimento seguro (só o que está vazio)
+        if (!before.supplierCnpj && it.cnpjEmitente) data.supplierCnpj = it.cnpjEmitente;
+        if (before.nfeNumber === null && it.numero) data.nfeNumber = it.numero;
+        if (before.series === null && it.serie) data.series = it.serie;
+        if (before.supplierName === null && it.nomeEmitente) data.supplierName = it.nomeEmitente;
+        if (before.issueDate === null && it.dataEmissao) data.issueDate = new Date(it.dataEmissao);
+        if (before.totalValue === null && it.valorTotal !== null) data.totalValue = it.valorTotal as any;
+        await this.prisma.nfeManifest.update({ where: { id: before.id }, data });
+        if (versionUp) updated++;
+        continue;
+      }
+      try {
+        await this.prisma.nfeManifest.create({
+          data: {
+            companyId,
+            chaveNfe: it.chave,
+            nfeNumber: it.numero,
+            series: it.serie,
+            supplierCnpj: it.cnpjEmitente ?? '',
+            supplierName: it.nomeEmitente,
+            issueDate: it.dataEmissao ? new Date(it.dataEmissao) : null,
+            totalValue: it.valorTotal === null ? null : (it.valorTotal as any),
+            status: focusStatus,
+            focusVersion: it.versao,
+            focusSituacao: it.situacao,
+            focusManifestacao: it.manifestacao,
+            focusNfeCompleta: it.nfeCompleta,
+            focusSeenAt: now,
+            focusChangedAt: now,
+          },
+        });
+      } catch (err) {
+        // corrida perdida com outra escrita da mesma chave: já existe → idempotente
+        if ((err as { code?: string }).code === 'P2002') continue;
+        throw err;
+      }
+      created++;
+    }
+    return { created, updated };
   }
 
   // ─── Ciência da Operação ──────────────────────────────────────────────────
@@ -360,7 +457,7 @@ export class ManifestService {
 
   async findPending(companyId: string) {
     return this.prisma.nfeManifest.findMany({
-      where: { companyId, status: ManifestStatus.PENDING },
+      where: { companyId, status: ManifestStatus.PENDING, ...MANIFESTABLE_WHERE },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -384,6 +481,7 @@ export class ManifestService {
         companyId,
         status: ManifestStatus.PENDING,
         createdAt: { lt: cutoff },
+        ...MANIFESTABLE_WHERE,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -401,6 +499,7 @@ export class ManifestService {
           companyId,
           status: ManifestStatus.PENDING,
           createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          ...MANIFESTABLE_WHERE,
         },
       }),
     ]);

@@ -5,6 +5,7 @@ import {
   SyncForeignRecipientError,
   SyncNoProgressError,
   initialState,
+  manifestStatusFromFocus,
   normalizeReceivedItem,
   parseState,
   runIncrementalSync,
@@ -32,7 +33,7 @@ function focusFake(universe: () => ReceivedNfeSummary[], opts: { pageSize?: numb
   return { fetchPage, calls: () => calls };
 }
 
-/** Persistência fake por company: idempotente por chave. */
+/** Persistência fake por company: idempotente por chave; versão maior = alteração registrada. */
 function store() {
   const saved = new Map<string, ReceivedNfeSummary>();
   const states: ReceivedNfeSyncState[] = [];
@@ -41,8 +42,13 @@ function store() {
     states,
     persistPage: async (items: ReceivedNfeSummary[]) => {
       let created = 0;
-      for (const i of items) if (!saved.has(i.chave)) { saved.set(i.chave, i); created++; }
-      return created;
+      let updated = 0;
+      for (const i of items) {
+        const prev = saved.get(i.chave);
+        if (!prev) { saved.set(i.chave, i); created++; }
+        else if ((i.versao ?? 0) > (prev.versao ?? 0)) { saved.set(i.chave, i); updated++; }
+      }
+      return { created, updated };
     },
     saveState: async (s: ReceivedNfeSyncState) => { states.push(JSON.parse(JSON.stringify(s))); },
   };
@@ -149,6 +155,46 @@ describe('runIncrementalSync — Focus-A', () => {
     const r = await runIncrementalSync(initialState('x'), { ...db, fetchPage: focusFake(() => universe).fetchPage, now, maxPages: 1 });
     expect(r).toMatchObject({ cursorTo: 100, pages: 1, synced: 100 });
     expect(r.state.lastRunStatus).toBe('OK');
+  });
+});
+
+describe('mesma chave reaparece com versao maior (CC-e/cancelamento/manifestação)', () => {
+  it('versao 100 → persistida; versao 150 com situacao diferente → alteração registrada, cursor 150; reexecução não duplica nem perde', async () => {
+    const X = { ...it_(100), situacao: 'autorizada', manifestacao: null };
+    const universe: ReceivedNfeSummary[] = [X];
+    const focus = focusFake(() => universe);
+    const db = store();
+    let s = initialState('30284708000182');
+
+    const r1 = await runIncrementalSync(s, { ...db, fetchPage: focus.fetchPage, now });
+    expect(r1).toMatchObject({ cursorTo: 100, synced: 1, updated: 0 });
+    expect(db.saved.get(X.chave)).toMatchObject({ versao: 100, situacao: 'autorizada' });
+
+    // a MESMA chave volta com versao 150 e situacao cancelada
+    universe[0] = { ...X, versao: 150, situacao: 'cancelada', manifestacao: 'ciencia' };
+    s = r1.state;
+    const r2 = await runIncrementalSync(s, { ...db, fetchPage: focus.fetchPage, now });
+    expect(r2).toMatchObject({ cursorFrom: 100, cursorTo: 150, seen: 1, synced: 0, updated: 1 });
+    expect(db.saved.size).toBe(1); // não duplicou
+    expect(db.saved.get(X.chave)).toMatchObject({ versao: 150, situacao: 'cancelada', manifestacao: 'ciencia' }); // sinal preservado
+    // a alteração foi gravada ANTES de o cursor avançar: o estado RUNNING intermediário já tem cursor 150 só após persistir
+    const afterPage = db.states.find((st) => st.cursor === 150);
+    expect(afterPage).toMatchObject({ lastRunUpdated: 1 });
+
+    // reexecução: nada novo, cursor fica em 150, sinal continua lá
+    const r3 = await runIncrementalSync(r2.state, { ...db, fetchPage: focus.fetchPage, now });
+    expect(r3).toMatchObject({ cursorFrom: 150, cursorTo: 150, seen: 0, synced: 0, updated: 0 });
+    expect(db.saved.get(X.chave)).toMatchObject({ versao: 150, situacao: 'cancelada' });
+  });
+
+  it('manifestStatusFromFocus: estado real da Focus → status do ERP; nulo/desconhecido → PENDING', () => {
+    expect(manifestStatusFromFocus('nulo')).toBe('PENDING');
+    expect(manifestStatusFromFocus(null)).toBe('PENDING');
+    expect(manifestStatusFromFocus('ciencia')).toBe('CIENCIA');
+    expect(manifestStatusFromFocus('confirmacao')).toBe('CONFIRMED');
+    expect(manifestStatusFromFocus('desconhecimento')).toBe('UNKNOWN');
+    expect(manifestStatusFromFocus('nao_realizada')).toBe('NOT_PERFORMED');
+    expect(manifestStatusFromFocus('qualquer_coisa')).toBe('PENDING');
   });
 });
 

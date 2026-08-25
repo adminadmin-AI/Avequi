@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { ManifestService } from './manifest.service';
  * GERENTE_FINANCEIRO perdeu a operação (mantém manifestation.view).
  */
 import { ManifestActionDto } from './dto/manifest-action.dto';
+import { SyncSettingsDto } from './dto/sync-settings.dto';
 
 @ApiTags('Manifestação do Destinatário')
 @ApiBearerAuth()
@@ -72,9 +74,25 @@ export class ManifestController {
   /** Focus-A (#608): estado do cursor/último sync desta company */
   @Get('sync/state')
   @RequirePermission('fiscal.manifestation.view')
-  @ApiOperation({ summary: 'Estado da sincronização incremental de NF-e recebidas (cursor, último sync)' })
+  @ApiOperation({ summary: 'Estado da sincronização incremental de NF-e recebidas (cursor, último sync, habilitada?)' })
   syncState(@CurrentUser() user: any) {
     return this.manifestService.getSyncState(user.companyId);
+  }
+
+  /** Focus-A (#608): gate por company — default OFF */
+  @Get('sync/settings')
+  @RequirePermission('fiscal.manifestation.view')
+  @ApiOperation({ summary: 'Sincronização automática de NF-e recebidas (Focus) habilitada para esta empresa?' })
+  syncSettings(@CurrentUser() user: any) {
+    return this.manifestService.getSyncSettings(user.companyId);
+  }
+
+  /** Focus-A (#608): habilitar/desabilitar explicitamente a sincronização desta company */
+  @Patch('sync/settings')
+  @RequirePermission('fiscal.manifestation.sync')
+  @ApiOperation({ summary: 'Habilitar/desabilitar a sincronização de NF-e recebidas (Focus) para esta empresa' })
+  updateSyncSettings(@CurrentUser() user: any, @Body() dto: SyncSettingsDto) {
+    return this.manifestService.updateSyncSettings(user.companyId, dto.enabled, user.id ?? user.sub);
   }
 
   /** Registrar ciência da operação */

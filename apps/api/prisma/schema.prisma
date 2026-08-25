@@ -3329,11 +3329,23 @@ model NfeManifest {
   inboundNfe     InboundNfe?        @relation(fields: [inboundNfeId], references: [id])
   manifestedById String?
   manifestedBy   User?              @relation("NfeManifestBy", fields: [manifestedById], references: [id])
+  // ── Estado do conector Focus (Focus-A, #608) — detecção, NÃO verdade fiscal ──
+  // A Focus atribui a cada nota um `versao` único por CNPJ que sobe a cada
+  // alteração (CC-e, cancelamento, manifestação). Guardar a última versão vista
+  // e a última consumida pelo Focus-B garante que nenhuma reaparição se perde.
+  focusVersion          Int? // última `versao` vista na Focus para esta chave
+  focusProcessedVersion Int? // última `versao` consumida pelo Focus-B (null = nunca)
+  focusSituacao         String? // autorizada | cancelada | denegada (como a Focus devolveu)
+  focusManifestacao     String? // nulo | ciencia | confirmacao | desconhecimento | nao_realizada
+  focusNfeCompleta      Boolean? // a Focus já tem o XML completo (só após manifestar)
+  focusSeenAt           DateTime? // última vez que a chave veio numa página da Focus
+  focusChangedAt        DateTime? // última vez que `focusVersion` subiu (reaparição)
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
   @@unique([companyId, chaveNfe])
   @@index([companyId, status])
+  @@index([companyId, focusProcessedVersion])
   @@index([supplierCnpj])
   @@map("gdr_nfe_manifests")
 }
