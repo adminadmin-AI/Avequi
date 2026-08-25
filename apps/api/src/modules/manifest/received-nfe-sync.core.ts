@@ -11,7 +11,10 @@
  *    uma falha no meio deixa o cursor na última página confirmada; a próxima
  *    execução rebusca a partir dela — e a persistência é idempotente por
  *    (companyId, chave), então nada duplica);
- *  - paginação até esgotar: enquanto a página vier cheia (pageSize itens);
+ *  - paginação até esgotar: enquanto a página vier cheia (pageSize itens) OU o
+ *    X-Total-Count da página indicar que sobrou registro fora dela;
+ *  - nota destinada a outro CNPJ (cnpj_destinatario ≠ company) é erro: token/
+ *    configuração errada nunca vira dado persistido na company errada;
  *  - erro de rede/API NUNCA vira "0 notas": `fetchPage` lança, o núcleo marca
  *    o estado como FAILED (com a mensagem) e relança;
  *  - sem progresso (página não vazia cujo maxVersion não supera o cursor) é
@@ -25,14 +28,23 @@
 export interface ReceivedNfeSummary {
   chave: string;
   versao: number | null;
+  /** nNF — derivado da chave (posições 26–34) quando a Focus não manda `numero`. */
   numero: string | null;
+  /** série — derivada da chave (posições 23–25) quando a Focus não manda `serie`. */
   serie: string | null;
+  /** `documento_emitente` na API v2 (CNPJ ou CPF, só dígitos). */
   cnpjEmitente: string | null;
   nomeEmitente: string | null;
+  /** `cnpj_destinatario` — o CNPJ da NOSSA company; usado como guarda de isolamento. */
+  cnpjDestinatario: string | null;
   dataEmissao: string | null;
   valorTotal: string | number | null;
+  /** autorizada | cancelada | denegada */
   situacao: string | null;
+  /** nulo | ciencia | confirmacao | desconhecimento | nao_realizada */
   manifestacao: string | null;
+  /** `nfe_completa`: a Focus já tem o XML completo (só depois de manifestar). Focus-B depende disto. */
+  nfeCompleta: boolean | null;
   raw: Record<string, unknown>;
 }
 
@@ -88,26 +100,57 @@ export function serializeState(s: ReceivedNfeSyncState): string {
   return JSON.stringify(s);
 }
 
-/** Normaliza um item bruto da Focus (nomes conforme a API v2). */
+/**
+ * Normaliza um item bruto da Focus (nomes conforme a API v2 — resumo de
+ * `GET /v2/nfes_recebidas`): `chave_nfe`, `versao`, `documento_emitente`,
+ * `nome_emitente`, `cnpj_destinatario`, `data_emissao`, `valor_total`,
+ * `situacao`, `manifestacao_destinatario`, `nfe_completa`. O resumo NÃO traz
+ * número/série: são derivados da chave (cUF2 AAMM4 CNPJ14 mod2 serie3 nNF9 …).
+ * Nomes antigos (`cnpj_emitente`, `numero`, `serie`) continuam aceitos como
+ * fallback.
+ */
 export function normalizeReceivedItem(raw: Record<string, unknown>): ReceivedNfeSummary | null {
   const chave = String(raw.chave_nfe ?? raw.chave ?? '').replace(/\D/g, '');
   if (chave.length !== 44) return null;
   const v = raw.versao;
   const versao = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? parseInt(v, 10) : null;
   const str = (x: unknown): string | null => (x === null || x === undefined || x === '' ? null : String(x));
+  const digits = (x: unknown): string | null => str(x)?.replace(/\D/g, '') || null;
+  const bool = (x: unknown): boolean | null =>
+    typeof x === 'boolean' ? x : x === 'true' || x === 1 || x === '1' ? true : x === 'false' || x === 0 || x === '0' ? false : null;
+  const serieFromChave = String(parseInt(chave.slice(22, 25), 10));
+  const numeroFromChave = String(parseInt(chave.slice(25, 34), 10));
   return {
     chave,
     versao,
-    numero: str(raw.numero),
-    serie: str(raw.serie),
-    cnpjEmitente: str(raw.cnpj_emitente)?.replace(/\D/g, '') ?? null,
+    numero: str(raw.numero) ?? numeroFromChave,
+    serie: str(raw.serie) ?? serieFromChave,
+    cnpjEmitente: digits(raw.documento_emitente ?? raw.cnpj_emitente),
     nomeEmitente: str(raw.nome_emitente),
+    cnpjDestinatario: digits(raw.cnpj_destinatario),
     dataEmissao: str(raw.data_emissao),
     valorTotal: (raw.valor_total as string | number | null | undefined) ?? null,
     situacao: str(raw.situacao),
     manifestacao: str(raw.manifestacao_destinatario ?? raw.manifestacao),
+    nfeCompleta: bool(raw.nfe_completa),
     raw,
   };
+}
+
+/** Focus devolveu nota destinada a OUTRO CNPJ — configuração/token errado; nunca persistir. */
+export class SyncForeignRecipientError extends Error {
+  constructor(expectedCnpj: string, foundCnpj: string, chave: string) {
+    super(`Focus devolveu NF-e ${chave} destinada ao CNPJ ${foundCnpj}, mas a company consultada é ${expectedCnpj} — abortado`);
+    this.name = 'SyncForeignRecipientError';
+  }
+}
+
+/** Já existe uma execução em andamento para esta company (lease ativo). */
+export class SyncAlreadyRunningError extends Error {
+  constructor(cnpj: string, since: string | null) {
+    super(`sincronização de NF-e recebidas já em execução para o CNPJ ${cnpj}${since ? ` desde ${since}` : ''}`);
+    this.name = 'SyncAlreadyRunningError';
+  }
 }
 
 export class SyncNoProgressError extends Error {
@@ -168,6 +211,10 @@ export async function runIncrementalSync(start: ReceivedNfeSyncState, deps: Sync
       if (page.totalCount !== null && state.lastRunPages === 0) state.totalCount = page.totalCount;
       if (page.items.length === 0) break;
 
+      // guarda de isolamento: nada de outro CNPJ entra nesta company
+      const foreign = page.items.find((it) => it.cnpjDestinatario !== null && it.cnpjDestinatario !== state.cnpj);
+      if (foreign) throw new SyncForeignRecipientError(state.cnpj, foreign.cnpjDestinatario as string, foreign.chave);
+
       const itemMax = page.items.reduce<number | null>((m, it) => (it.versao !== null && (m === null || it.versao > m) ? it.versao : m), null);
       const newCursor = page.maxVersion ?? itemMax;
       if (newCursor === null || newCursor <= state.cursor) throw new SyncNoProgressError(state.cursor, newCursor);
@@ -180,7 +227,10 @@ export async function runIncrementalSync(start: ReceivedNfeSyncState, deps: Sync
       state.lastRunNew += created;
       await deps.saveState(state);
 
-      if (page.items.length < pageSize) break;
+      // Continua se a página veio cheia OU se o X-Total-Count desta página diz
+      // que ficaram registros de fora (defesa contra página < 100 com resto).
+      const hasMore = page.items.length >= pageSize || (page.totalCount !== null && page.totalCount > page.items.length);
+      if (!hasMore) break;
     }
     state.lastRunStatus = 'OK';
     state.lastSuccessAt = deps.now().toISOString();

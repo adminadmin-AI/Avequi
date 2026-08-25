@@ -2,6 +2,7 @@ import {
   ReceivedNfePage,
   ReceivedNfeSummary,
   ReceivedNfeSyncState,
+  SyncForeignRecipientError,
   SyncNoProgressError,
   initialState,
   normalizeReceivedItem,
@@ -13,7 +14,7 @@ import {
 
 const it_ = (n: number): ReceivedNfeSummary => ({
   chave: String(n).padStart(44, '0'), versao: n, numero: String(n), serie: '1', cnpjEmitente: '11111111000191',
-  nomeEmitente: 'F', dataEmissao: '2026-08-01T00:00:00-03:00', valorTotal: '1.00', situacao: 'autorizado', manifestacao: null, raw: {},
+  nomeEmitente: 'F', cnpjDestinatario: null, dataEmissao: '2026-08-01T00:00:00-03:00', valorTotal: '1.00', situacao: 'autorizada', manifestacao: null, nfeCompleta: false, raw: {},
 });
 
 /** Focus fake: universo de itens com versao crescente; página = até `pageSize` itens com versao > cursor. */
@@ -151,6 +152,52 @@ describe('runIncrementalSync — Focus-A', () => {
   });
 });
 
+describe('paginação — X-Total-Count e isolamento por CNPJ', () => {
+  it('página < 100 mas X-Total-Count maior ⇒ continua buscando; termina só quando a página vem vazia', async () => {
+    // Focus "estranha": entrega 60 por página apesar do limite 100, mas o X-Total-Count diz que há mais
+    const universe = Array.from({ length: 150 }, (_, i) => it_(i + 1));
+    const focus = focusFake(() => universe, { pageSize: 60 });
+    const db = store();
+    const r = await runIncrementalSync(initialState('30284708000182'), { ...db, fetchPage: focus.fetchPage, now });
+    // 60 + 60 + 30 (X-Total-Count = 30 = itens ⇒ para) — nada pulado
+    expect(r).toMatchObject({ cursorTo: 150, pages: 3, seen: 150, synced: 150 });
+    expect(focus.calls()).toBe(3);
+    expect(db.saved.size).toBe(150);
+  });
+
+  it('sem X-Total-Count vale a regra da página cheia', async () => {
+    const universe = Array.from({ length: 120 }, (_, i) => it_(i + 1));
+    let calls = 0;
+    const fetchPage = async (cursor: number): Promise<ReceivedNfePage> => {
+      calls++;
+      const items = universe.filter((i) => i.versao! > cursor).slice(0, 100);
+      return { items, maxVersion: items.at(-1)?.versao ?? cursor, totalCount: null };
+    };
+    const db = store();
+    const r = await runIncrementalSync(initialState('30284708000182'), { ...db, fetchPage, now });
+    expect(r).toMatchObject({ cursorTo: 120, pages: 2, seen: 120 });
+    expect(calls).toBe(2);
+  });
+
+  it('nota destinada a outro CNPJ ⇒ SyncForeignRecipientError, nada persistido, estado FAILED, cursor parado', async () => {
+    const universe = [it_(1), { ...it_(2), cnpjDestinatario: '99999999000199' }];
+    const focus = focusFake(() => universe);
+    const db = store();
+    await expect(runIncrementalSync(initialState('30284708000182'), { ...db, fetchPage: focus.fetchPage, now })).rejects.toBeInstanceOf(SyncForeignRecipientError);
+    expect(db.saved.size).toBe(0);
+    expect(db.states.at(-1)).toMatchObject({ lastRunStatus: 'FAILED', cursor: 0 });
+    expect(db.states.at(-1)!.lastError).toContain('99999999000199');
+  });
+
+  it('nota com cnpj_destinatario igual ao da company passa normalmente', async () => {
+    const universe = [{ ...it_(1), cnpjDestinatario: '30284708000182' }];
+    const focus = focusFake(() => universe);
+    const db = store();
+    const r = await runIncrementalSync(initialState('30284708000182'), { ...db, fetchPage: focus.fetchPage, now });
+    expect(r.synced).toBe(1);
+  });
+});
+
 describe('estado e normalização', () => {
   it('parseState/serializeState: round-trip, default e corrompido sinalizado', () => {
     const s = { ...initialState('30284708000182'), cursor: 42, lastRunStatus: 'OK' as const };
@@ -160,9 +207,26 @@ describe('estado e normalização', () => {
     expect(parseState('x', '{nope')).toMatchObject({ cursor: 0, lastRunStatus: 'FAILED' });
   });
 
-  it('normalizeReceivedItem: chave/versao/emitente; item sem chave válida é descartado', () => {
-    const n = normalizeReceivedItem({ chave_nfe: '41260611111111000191550010000123451000012345', versao: '77', cnpj_emitente: '11.111.111/0001-91', nome_emitente: 'X', valor_total: '10.00', situacao: 'autorizado', manifestacao_destinatario: 'ciencia_da_operacao' });
-    expect(n).toMatchObject({ chave: '41260611111111000191550010000123451000012345', versao: 77, cnpjEmitente: '11111111000191', manifestacao: 'ciencia_da_operacao' });
+  it('normalizeReceivedItem: nomes reais da API v2 (documento_emitente, cnpj_destinatario, nfe_completa); número/série derivados da chave', () => {
+    // exemplo da documentação oficial da Focus (resumo de nfes_recebidas)
+    const n = normalizeReceivedItem({
+      nome_emitente: 'Empresa emitente Ltda.', documento_emitente: '12345678000123', cnpj_destinatario: '30.284.708/0001-82',
+      chave_nfe: '41171179060190000182550010000002661875685069', valor_total: '24560.00', data_emissao: '2017-11-07T01:00:00-02:00',
+      situacao: 'autorizada', manifestacao_destinatario: 'ciencia', nfe_completa: true, tipo_nfe: '1', versao: 73,
+    });
+    expect(n).toMatchObject({
+      chave: '41171179060190000182550010000002661875685069', versao: 73,
+      cnpjEmitente: '12345678000123', cnpjDestinatario: '30284708000182', nomeEmitente: 'Empresa emitente Ltda.',
+      serie: '1', numero: '266', // chave: …55 001 000000266 …
+      situacao: 'autorizada', manifestacao: 'ciencia', nfeCompleta: true, valorTotal: '24560.00',
+    });
+    expect(normalizeReceivedItem({ chave_nfe: '41171179060190000182550010000002661875685069', nfe_completa: 'false' })!.nfeCompleta).toBe(false);
+    expect(normalizeReceivedItem({ chave_nfe: '41171179060190000182550010000002661875685069' })!.nfeCompleta).toBeNull();
+  });
+
+  it('normalizeReceivedItem: nomes antigos (cnpj_emitente/numero/serie) continuam aceitos; item sem chave válida é descartado', () => {
+    const n = normalizeReceivedItem({ chave_nfe: '41260611111111000191550010000123451000012345', versao: '77', cnpj_emitente: '11.111.111/0001-91', numero: '12345', serie: '1', nome_emitente: 'X', valor_total: '10.00', situacao: 'autorizada', manifestacao_destinatario: 'ciencia' });
+    expect(n).toMatchObject({ chave: '41260611111111000191550010000123451000012345', versao: 77, cnpjEmitente: '11111111000191', numero: '12345', serie: '1', cnpjDestinatario: null, manifestacao: 'ciencia' });
     expect(normalizeReceivedItem({ chave: '123' })).toBeNull();
   });
 });

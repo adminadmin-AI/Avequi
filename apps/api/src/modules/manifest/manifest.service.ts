@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -11,12 +12,21 @@ import { EMISSOR_PORT, EmissorPort } from '../fiscal/emissor.port';
 import {
   ReceivedNfeSummary,
   ReceivedNfeSyncState,
+  SyncAlreadyRunningError,
   normalizeReceivedItem,
   parseState,
   runIncrementalSync,
   serializeState,
   syncStateKey,
 } from './received-nfe-sync.core';
+
+/**
+ * Lease da sincronização (Focus-A): uma execução RUNNING cuja linha de estado
+ * foi atualizada há menos que isto bloqueia outra execução para a mesma
+ * company (cron × POST manual). Como o estado é regravado a cada página, uma
+ * execução viva renova o lease sozinha; um processo morto libera após o prazo.
+ */
+export const SYNC_LEASE_MS = 30 * 60 * 1000;
 
 /** Focus NFe manifest event codes */
 const MANIFEST_EVENTS = {
@@ -74,15 +84,69 @@ export class ManifestService {
     return parseState(cnpj, param?.value ?? null);
   }
 
+  /** Exclusão mútua EM PROCESSO por company (cron e POST no mesmo container). */
+  private readonly syncInFlight = new Map<string, Promise<unknown>>();
+
   async syncReceivedNfes(companyId: string): Promise<{ synced: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
+    if (this.syncInFlight.has(companyId)) {
+      throw new ConflictException(`Sincronização de NF-e recebidas já em execução para a empresa ${companyId}`);
+    }
+    const run = this.syncReceivedNfesExclusive(companyId);
+    this.syncInFlight.set(companyId, run.catch(() => undefined));
+    try {
+      return await run;
+    } finally {
+      this.syncInFlight.delete(companyId);
+    }
+  }
+
+  /**
+   * Lease ENTRE processos/instâncias: só entra quem conseguir trocar o estado
+   * persistido de (não-RUNNING, ou RUNNING vencido) para RUNNING com um
+   * compare-and-swap no valor anterior (`UPDATE … WHERE value = <lido>`),
+   * mesmo padrão de guarda otimista já usado nos importadores fiscais. Duas
+   * execuções simultâneas leem o mesmo valor; só uma troca — a outra recebe 409.
+   */
+  private async acquireSyncLease(companyId: string, key: string, cnpj: string): Promise<ReceivedNfeSyncState> {
+    const now = new Date();
+    const param = await this.prisma.systemParameter.findUnique({ where: { companyId_key: { companyId, key } } });
+    const start = parseState(cnpj, param?.value ?? null);
+    const touchedAt: Date | null = param?.updatedAt ?? null;
+    if (start.lastRunStatus === 'RUNNING' && touchedAt && now.getTime() - touchedAt.getTime() < SYNC_LEASE_MS) {
+      throw new SyncAlreadyRunningError(cnpj, start.lastSyncAt);
+    }
+    const running = serializeState({ ...start, lastRunStatus: 'RUNNING', lastSyncAt: now.toISOString(), lastError: null });
+    if (param) {
+      const r = await this.prisma.systemParameter.updateMany({
+        where: { companyId, key, value: param.value },
+        data: { value: running },
+      });
+      if (r.count !== 1) throw new SyncAlreadyRunningError(cnpj, null);
+    } else {
+      try {
+        await this.prisma.systemParameter.create({ data: { companyId, key, value: running } });
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2002') throw new SyncAlreadyRunningError(cnpj, null);
+        throw err;
+      }
+    }
+    return start;
+  }
+
+  private async syncReceivedNfesExclusive(companyId: string): Promise<{ synced: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Empresa não encontrada');
     const cnpj = (company.cnpj ?? '').replace(/\D/g, '');
     if (cnpj.length !== 14) throw new BadRequestException(`Empresa ${companyId} sem CNPJ válido para consultar NF-e recebidas`);
     const key = syncStateKey(cnpj);
 
-    const param = await this.prisma.systemParameter.findUnique({ where: { companyId_key: { companyId, key } } });
-    const start = parseState(cnpj, param?.value ?? null);
+    let start: ReceivedNfeSyncState;
+    try {
+      start = await this.acquireSyncLease(companyId, key, cnpj);
+    } catch (err) {
+      if (err instanceof SyncAlreadyRunningError) throw new ConflictException(err.message);
+      throw err;
+    }
 
     const result = await runIncrementalSync(start, {
       now: () => new Date(),
@@ -101,21 +165,27 @@ export class ManifestService {
             select: { id: true },
           });
           if (before) continue;
-          await this.prisma.nfeManifest.upsert({
-            where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
-            update: {},
-            create: {
-              companyId,
-              chaveNfe: it.chave,
-              nfeNumber: it.numero,
-              series: it.serie,
-              supplierCnpj: it.cnpjEmitente ?? '',
-              supplierName: it.nomeEmitente,
-              issueDate: it.dataEmissao ? new Date(it.dataEmissao) : null,
-              totalValue: it.valorTotal === null ? null : (it.valorTotal as any),
-              status: ManifestStatus.PENDING,
-            },
-          });
+          try {
+            await this.prisma.nfeManifest.upsert({
+              where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
+              update: {},
+              create: {
+                companyId,
+                chaveNfe: it.chave,
+                nfeNumber: it.numero,
+                series: it.serie,
+                supplierCnpj: it.cnpjEmitente ?? '',
+                supplierName: it.nomeEmitente,
+                issueDate: it.dataEmissao ? new Date(it.dataEmissao) : null,
+                totalValue: it.valorTotal === null ? null : (it.valorTotal as any),
+                status: ManifestStatus.PENDING,
+              },
+            });
+          } catch (err) {
+            // corrida perdida com outra escrita da mesma chave: já existe → idempotente
+            if ((err as { code?: string }).code === 'P2002') continue;
+            throw err;
+          }
           created++;
         }
         return created;

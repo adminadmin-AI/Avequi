@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ManifestService, MANIFEST_CONFIRMED_EVENT } from './manifest.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -49,7 +49,12 @@ describe('ManifestService', () => {
         update: jest.fn(),
         count: jest.fn(),
       },
-      systemParameter: { findUnique: jest.fn(), upsert: jest.fn().mockResolvedValue({}) },
+      systemParameter: {
+        findUnique: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({}),
+      },
       auditLog: { create: jest.fn() },
     };
 
@@ -129,6 +134,124 @@ describe('ManifestService', () => {
       prisma.company.findUnique.mockResolvedValue(mockCompany);
       prisma.systemParameter.findUnique.mockResolvedValue(null);
       expect(await service.getSyncState('comp-1')).toMatchObject({ cnpj: '12345678000190', cursor: 0, lastRunStatus: 'NEVER' });
+    });
+
+    it('item real da Focus (documento_emitente, sem numero/serie) grava supplierCnpj e número/série derivados da chave', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({
+        items: [{ chave_nfe: CH1, versao: 3, documento_emitente: '98765432000199', nome_emitente: 'Fornecedor Teste', valor_total: '1500.00', situacao: 'autorizada', manifestacao_destinatario: 'nulo', nfe_completa: false }],
+        maxVersion: 3, totalCount: 1,
+      });
+      prisma.nfeManifest.findUnique.mockResolvedValue(null);
+      await service.syncReceivedNfes('comp-1');
+      expect(prisma.nfeManifest.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ supplierCnpj: '98765432000199', nfeNumber: '1', series: '1' }),
+      }));
+    });
+
+    it('nota de outro CNPJ na resposta ⇒ lança, nada persistido, estado FAILED', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({
+        items: [{ ...item(CH1, 3), cnpj_destinatario: '99999999000199' }], maxVersion: 3, totalCount: 1,
+      });
+      await expect(service.syncReceivedNfes('comp-1')).rejects.toThrow('destinada ao CNPJ 99999999000199');
+      expect(prisma.nfeManifest.upsert).not.toHaveBeenCalled();
+      const last = prisma.systemParameter.upsert.mock.calls.at(-1)[0];
+      expect(JSON.parse(last.update.value)).toMatchObject({ cursor: 0, lastRunStatus: 'FAILED' });
+    });
+
+    it('unique violation (P2002) no NfeManifest não derruba a execução: conta como já existente', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({ items: [item(CH1, 10), item(CH2, 12)], maxVersion: 12, totalCount: 2 });
+      prisma.nfeManifest.findUnique.mockResolvedValue(null);
+      prisma.nfeManifest.upsert.mockRejectedValueOnce(Object.assign(new Error('Unique constraint'), { code: 'P2002' }));
+      const r = await service.syncReceivedNfes('comp-1');
+      expect(r).toMatchObject({ synced: 1, total: 2, cursorTo: 12 });
+    });
+  });
+
+  describe('syncReceivedNfes — exclusão mútua por company (cron × POST manual)', () => {
+    const KEY = 'focus.nfe_recebidas.sync:12345678000190';
+    const CH1 = '35260612345678000190550010000000011000000011';
+    const item = (chave: string, versao: number) => ({ chave_nfe: chave, versao, documento_emitente: '98765432000199', nome_emitente: 'F', valor_total: '1.00' });
+
+    /** Simula a linha gdr_system_parameters de verdade: compare-and-swap no valor. */
+    function fakeParamRow() {
+      const row: { value: string | null; updatedAt: Date } = { value: null, updatedAt: new Date(0) };
+      prisma.systemParameter.findUnique.mockImplementation(async () => (row.value === null ? null : { companyId: 'comp-1', key: KEY, value: row.value, updatedAt: row.updatedAt }));
+      prisma.systemParameter.updateMany.mockImplementation(async ({ where, data }: any) => {
+        if (row.value !== where.value) return { count: 0 };
+        row.value = data.value; row.updatedAt = new Date();
+        return { count: 1 };
+      });
+      prisma.systemParameter.create.mockImplementation(async ({ data }: any) => {
+        if (row.value !== null) throw Object.assign(new Error('Unique'), { code: 'P2002' });
+        row.value = data.value; row.updatedAt = new Date();
+        return {};
+      });
+      prisma.systemParameter.upsert.mockImplementation(async ({ update }: any) => { row.value = update.value; row.updatedAt = new Date(); return {}; });
+      return row;
+    }
+
+    it('cron e POST simultâneos na mesma company: só um executa; o outro recebe 409 e não toca cursor nem NfeManifest', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      const row = fakeParamRow();
+      prisma.nfeManifest.findUnique.mockResolvedValue(null);
+      let release!: () => void;
+      const gate = new Promise<void>((res) => { release = res; });
+      fiscalClient.fetchReceivedNfesPage.mockImplementation(async () => { await gate; return { items: [item(CH1, 10)], maxVersion: 10, totalCount: 1 }; });
+
+      const a = service.syncReceivedNfes('comp-1'); // "cron"
+      const b = service.syncReceivedNfes('comp-1'); // "POST manual", enquanto a ainda roda
+      await expect(b).rejects.toBeInstanceOf(ConflictException);
+      release();
+      await expect(a).resolves.toMatchObject({ synced: 1, cursorTo: 10 });
+      expect(fiscalClient.fetchReceivedNfesPage).toHaveBeenCalledTimes(1);
+      expect(prisma.nfeManifest.upsert).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(row.value!)).toMatchObject({ cursor: 10, lastRunStatus: 'OK' });
+
+      // depois que a primeira terminou, a mesma company pode sincronizar de novo
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({ items: [], maxVersion: null, totalCount: 0 });
+      await expect(service.syncReceivedNfes('comp-1')).resolves.toMatchObject({ synced: 0, cursorFrom: 10, cursorTo: 10 });
+    });
+
+    it('lease RUNNING recente em OUTRA instância (só no banco) ⇒ 409; RUNNING vencido (processo morto) ⇒ assume e retoma do cursor', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      const row = fakeParamRow();
+      row.value = JSON.stringify({ cursor: 40, lastRunStatus: 'RUNNING', lastSyncAt: '2026-08-25T10:00:00Z' });
+      row.updatedAt = new Date(); // acabou de ser tocado por outro processo
+      await expect(service.syncReceivedNfes('comp-1')).rejects.toBeInstanceOf(ConflictException);
+      expect(fiscalClient.fetchReceivedNfesPage).not.toHaveBeenCalled();
+
+      row.updatedAt = new Date(Date.now() - 31 * 60 * 1000); // lease vencido
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({ items: [], maxVersion: null, totalCount: 0 });
+      await expect(service.syncReceivedNfes('comp-1')).resolves.toMatchObject({ cursorFrom: 40, cursorTo: 40 });
+    });
+
+    it('compare-and-swap perdido (outra instância mudou o estado entre a leitura e a escrita) ⇒ 409, nada executado', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue({ value: JSON.stringify({ cursor: 5, lastRunStatus: 'OK' }), updatedAt: new Date() });
+      prisma.systemParameter.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.syncReceivedNfes('comp-1')).rejects.toBeInstanceOf(ConflictException);
+      expect(fiscalClient.fetchReceivedNfesPage).not.toHaveBeenCalled();
+      expect(prisma.systemParameter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('companies diferentes não se bloqueiam', async () => {
+      prisma.company.findUnique.mockImplementation(async ({ where }: any) => ({ id: where.id, cnpj: where.id === 'comp-1' ? '12345678000190' : '30284708000182', name: where.id }));
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      prisma.nfeManifest.findUnique.mockResolvedValue(null);
+      let release!: () => void;
+      const gate = new Promise<void>((res) => { release = res; });
+      fiscalClient.fetchReceivedNfesPage.mockImplementation(async () => { await gate; return { items: [], maxVersion: null, totalCount: 0 }; });
+      const a = service.syncReceivedNfes('comp-1');
+      const b = service.syncReceivedNfes('comp-2');
+      release();
+      await expect(Promise.all([a, b])).resolves.toHaveLength(2);
+      expect(fiscalClient.fetchReceivedNfesPage).toHaveBeenCalledTimes(2);
     });
   });
 
