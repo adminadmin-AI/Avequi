@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ManifestService, MANIFEST_CONFIRMED_EVENT } from './manifest.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -45,14 +45,17 @@ describe('ManifestService', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({}),
         update: jest.fn(),
         count: jest.fn(),
       },
+      systemParameter: { findUnique: jest.fn(), upsert: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn() },
     };
 
     fiscalClient = {
       fetchReceivedNfes: jest.fn(),
+      fetchReceivedNfesPage: jest.fn(),
       manifestNfe: jest.fn(),
     };
 
@@ -70,49 +73,62 @@ describe('ManifestService', () => {
     service = module.get<ManifestService>(ManifestService);
   });
 
-  describe('syncReceivedNfes', () => {
-    it('should sync new NF-e from Focus NFe', async () => {
+  describe('syncReceivedNfes (Focus-A: incremental, cursor em SystemParameter)', () => {
+    const KEY = 'focus.nfe_recebidas.sync:12345678000190';
+    const item = (chave: string, versao: number) => ({
+      chave_nfe: chave, versao, numero: '1', serie: '1', cnpj_emitente: '98765432000199',
+      nome_emitente: 'Fornecedor Teste', data_emissao: '2026-06-01', valor_total: 1500.0,
+    });
+    const CH1 = '35260612345678000190550010000000011000000011';
+    const CH2 = '35260612345678000190550010000000021000000022';
+
+    it('primeira execução: busca a partir de versao=0, cria os novos e persiste o cursor', async () => {
       prisma.company.findUnique.mockResolvedValue(mockCompany);
-      fiscalClient.fetchReceivedNfes.mockResolvedValue([
-        {
-          chave: '35260612345678000190550010000000011000000011',
-          numero: '1',
-          serie: '1',
-          cnpj_emitente: '98765432000199',
-          nome_emitente: 'Fornecedor Teste',
-          data_emissao: '2026-06-01',
-          valor_total: 1500.0,
-        },
-      ]);
-      prisma.nfeManifest.findUnique.mockResolvedValue(null); // not existing
-      prisma.nfeManifest.create.mockResolvedValue(mockManifest);
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({ items: [item(CH1, 10), item(CH2, 12)], maxVersion: 12, totalCount: 2 });
+      prisma.nfeManifest.findUnique.mockResolvedValue(null);
 
       const result = await service.syncReceivedNfes('comp-1');
 
-      expect(result.synced).toBe(1);
-      expect(result.total).toBe(1);
-      expect(prisma.nfeManifest.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            companyId: 'comp-1',
-            chaveNfe: '35260612345678000190550010000000011000000011',
-            status: 'PENDING',
-          }),
-        }),
-      );
+      expect(fiscalClient.fetchReceivedNfesPage).toHaveBeenCalledWith('12345678000190', 0, 'comp-1');
+      expect(result).toMatchObject({ synced: 2, total: 2, cursorFrom: 0, cursorTo: 12, pages: 1 });
+      expect(prisma.nfeManifest.upsert).toHaveBeenCalledTimes(2);
+      expect(prisma.nfeManifest.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { companyId_chaveNfe: { companyId: 'comp-1', chaveNfe: CH1 } },
+        create: expect.objectContaining({ companyId: 'comp-1', chaveNfe: CH1, supplierCnpj: '98765432000199', status: 'PENDING' }),
+      }));
+      const last = prisma.systemParameter.upsert.mock.calls.at(-1)[0];
+      expect(last.where).toEqual({ companyId_key: { companyId: 'comp-1', key: KEY } });
+      expect(JSON.parse(last.update.value)).toMatchObject({ cursor: 12, lastRunStatus: 'OK', lastRunNew: 2, lastRunSeen: 2 });
     });
 
-    it('should skip already synced NF-e', async () => {
+    it('já sincronizada → não recria (idempotente) e o cursor avança mesmo assim', async () => {
       prisma.company.findUnique.mockResolvedValue(mockCompany);
-      fiscalClient.fetchReceivedNfes.mockResolvedValue([
-        { chave: '35260612345678000190550010000000011000000011' },
-      ]);
-      prisma.nfeManifest.findUnique.mockResolvedValue(mockManifest); // already exists
+      prisma.systemParameter.findUnique.mockResolvedValue({ value: JSON.stringify({ cursor: 5 }) });
+      fiscalClient.fetchReceivedNfesPage.mockResolvedValueOnce({ items: [item(CH1, 10)], maxVersion: 10, totalCount: 1 });
+      prisma.nfeManifest.findUnique.mockResolvedValue(mockManifest);
 
       const result = await service.syncReceivedNfes('comp-1');
 
-      expect(result.synced).toBe(0);
-      expect(prisma.nfeManifest.create).not.toHaveBeenCalled();
+      expect(fiscalClient.fetchReceivedNfesPage).toHaveBeenCalledWith('12345678000190', 5, 'comp-1');
+      expect(result).toMatchObject({ synced: 0, total: 1, cursorFrom: 5, cursorTo: 10 });
+      expect(prisma.nfeManifest.upsert).not.toHaveBeenCalled();
+    });
+
+    it('falha da Focus LANÇA (não vira 0 notas) e grava estado FAILED sem mover o cursor', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue({ value: JSON.stringify({ cursor: 7 }) });
+      fiscalClient.fetchReceivedNfesPage.mockRejectedValueOnce(new Error('HTTP 503'));
+
+      await expect(service.syncReceivedNfes('comp-1')).rejects.toThrow('HTTP 503');
+      const last = prisma.systemParameter.upsert.mock.calls.at(-1)[0];
+      expect(JSON.parse(last.update.value)).toMatchObject({ cursor: 7, lastRunStatus: 'FAILED', lastError: 'HTTP 503' });
+    });
+
+    it('getSyncState devolve o estado persistido (ou inicial)', async () => {
+      prisma.company.findUnique.mockResolvedValue(mockCompany);
+      prisma.systemParameter.findUnique.mockResolvedValue(null);
+      expect(await service.getSyncState('comp-1')).toMatchObject({ cnpj: '12345678000190', cursor: 0, lastRunStatus: 'NEVER' });
     });
   });
 

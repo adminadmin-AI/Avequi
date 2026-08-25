@@ -69,6 +69,14 @@ export class ManifestController {
     return this.manifestService.syncReceivedNfes(user.companyId);
   }
 
+  /** Focus-A (#608): estado do cursor/último sync desta company */
+  @Get('sync/state')
+  @RequirePermission('fiscal.manifestation.view')
+  @ApiOperation({ summary: 'Estado da sincronização incremental de NF-e recebidas (cursor, último sync)' })
+  syncState(@CurrentUser() user: any) {
+    return this.manifestService.getSyncState(user.companyId);
+  }
+
   /** Registrar ciência da operação */
   @Post(':chaveNfe/ciencia')
   @RequirePermission('fiscal.manifestation.execute')

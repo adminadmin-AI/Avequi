@@ -8,6 +8,15 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from '../fiscal/emissor.port';
+import {
+  ReceivedNfeSummary,
+  ReceivedNfeSyncState,
+  normalizeReceivedItem,
+  parseState,
+  runIncrementalSync,
+  serializeState,
+  syncStateKey,
+} from './received-nfe-sync.core';
 
 /** Focus NFe manifest event codes */
 const MANIFEST_EVENTS = {
@@ -45,51 +54,85 @@ export class ManifestService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  // ─── Sync: buscar NF-e destinadas via Focus NFe ──────────────────────────
+  // ─── Focus-A (#608): sync INCREMENTAL de NF-e recebidas ──────────────────
+  //
+  // Cursor `versao` por company/CNPJ persistido em SystemParameter (estrutura
+  // genérica já usada por feature flags e conectores): chave
+  // `focus.nfe_recebidas.sync:<cnpj>`, valor JSON com cursor + observabilidade.
+  // Paginação até esgotar, cursor só avança após persistir a página, falha da
+  // Focus lança (nunca "0 notas"). Persistência: NfeManifest (camada de
+  // "documentos detectados" já existente) — o destino fiscal continua sendo o
+  // FiscalDocument via XML/parser da #1128, no Focus-B.
 
-  async syncReceivedNfes(companyId: string): Promise<{ synced: number; total: number }> {
+  async getSyncState(companyId: string): Promise<ReceivedNfeSyncState> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Empresa não encontrada');
+    const cnpj = (company.cnpj ?? '').replace(/\D/g, '');
+    const param = await this.prisma.systemParameter.findUnique({
+      where: { companyId_key: { companyId, key: syncStateKey(cnpj) } },
+    });
+    return parseState(cnpj, param?.value ?? null);
+  }
 
-    const cnpj = company.cnpj.replace(/\D/g, '');
-    const received = await this.fiscalClient.fetchReceivedNfes(cnpj, companyId);
+  async syncReceivedNfes(companyId: string): Promise<{ synced: number; total: number; cursorFrom: number; cursorTo: number; pages: number; state: ReceivedNfeSyncState }> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+    const cnpj = (company.cnpj ?? '').replace(/\D/g, '');
+    if (cnpj.length !== 14) throw new BadRequestException(`Empresa ${companyId} sem CNPJ válido para consultar NF-e recebidas`);
+    const key = syncStateKey(cnpj);
 
-    if (!Array.isArray(received)) {
-      this.logger.warn(`Focus NFe retornou formato inesperado para NF-e recebidas: ${typeof received}`);
-      return { synced: 0, total: 0 };
-    }
+    const param = await this.prisma.systemParameter.findUnique({ where: { companyId_key: { companyId, key } } });
+    const start = parseState(cnpj, param?.value ?? null);
 
-    let synced = 0;
+    const result = await runIncrementalSync(start, {
+      now: () => new Date(),
+      fetchPage: async (cursor) => {
+        const raw = await this.fiscalClient.fetchReceivedNfesPage(cnpj, cursor, companyId);
+        const items = raw.items.map(normalizeReceivedItem).filter((i): i is ReceivedNfeSummary => i !== null);
+        return { items, maxVersion: raw.maxVersion, totalCount: raw.totalCount };
+      },
+      persistPage: async (items) => {
+        let created = 0;
+        for (const it of items) {
+          // idempotente por (companyId, chave): existente → nada muda (status e
+          // manifestação são do ERP, não da listagem); novo → PENDING.
+          const before = await this.prisma.nfeManifest.findUnique({
+            where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
+            select: { id: true },
+          });
+          if (before) continue;
+          await this.prisma.nfeManifest.upsert({
+            where: { companyId_chaveNfe: { companyId, chaveNfe: it.chave } },
+            update: {},
+            create: {
+              companyId,
+              chaveNfe: it.chave,
+              nfeNumber: it.numero,
+              series: it.serie,
+              supplierCnpj: it.cnpjEmitente ?? '',
+              supplierName: it.nomeEmitente,
+              issueDate: it.dataEmissao ? new Date(it.dataEmissao) : null,
+              totalValue: it.valorTotal === null ? null : (it.valorTotal as any),
+              status: ManifestStatus.PENDING,
+            },
+          });
+          created++;
+        }
+        return created;
+      },
+      saveState: async (state) => {
+        await this.prisma.systemParameter.upsert({
+          where: { companyId_key: { companyId, key } },
+          update: { value: serializeState(state) },
+          create: { companyId, key, value: serializeState(state) },
+        });
+      },
+    });
 
-    for (const nfe of received) {
-      const chave = nfe.chave ?? nfe.chave_nfe;
-      if (!chave) continue;
-
-      const existing = await this.prisma.nfeManifest.findUnique({
-        where: { companyId_chaveNfe: { companyId, chaveNfe: chave } },
-      });
-
-      if (existing) continue;
-
-      await this.prisma.nfeManifest.create({
-        data: {
-          companyId,
-          chaveNfe: chave,
-          nfeNumber: nfe.numero ?? null,
-          series: nfe.serie ?? null,
-          supplierCnpj: nfe.cnpj_emitente ?? '',
-          supplierName: nfe.nome_emitente ?? null,
-          issueDate: nfe.data_emissao ? new Date(nfe.data_emissao) : null,
-          totalValue: nfe.valor_total ?? null,
-          status: ManifestStatus.PENDING,
-        },
-      });
-
-      synced++;
-    }
-
-    this.logger.log(`Sync NF-e recebidas company=${companyId}: ${synced} novas de ${received.length} total`);
-    return { synced, total: received.length };
+    this.logger.log(
+      `Sync NF-e recebidas company=${companyId} cnpj=${cnpj}: cursor ${result.cursorFrom}→${result.cursorTo}, ${result.pages} página(s), ${result.synced} novas de ${result.seen} vistas`,
+    );
+    return { synced: result.synced, total: result.seen, cursorFrom: result.cursorFrom, cursorTo: result.cursorTo, pages: result.pages, state: result.state };
   }
 
   // ─── Ciência da Operação ──────────────────────────────────────────────────

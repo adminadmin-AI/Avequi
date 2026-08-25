@@ -114,6 +114,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     findOverdue: 'fiscal.manifestation.view',
     findAll: 'fiscal.manifestation.view',
     sync: 'fiscal.manifestation.sync',
+    syncState: 'fiscal.manifestation.view',
     ciencia: 'fiscal.manifestation.execute',
     confirm: 'fiscal.manifestation.execute',
     reject: 'fiscal.manifestation.execute',

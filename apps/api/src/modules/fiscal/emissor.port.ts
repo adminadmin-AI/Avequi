@@ -11,6 +11,13 @@
  * fazer; listeners nunca desfazem a venda por falha fiscal).
  */
 
+/** Página bruta de NF-e recebidas (Focus-A, #608). */
+export interface ReceivedNfePageRaw {
+  items: Record<string, unknown>[];
+  maxVersion: number | null; // X-Max-Version
+  totalCount: number | null; // X-Total-Count
+}
+
 export interface EmissionResponse {
   status: 'autorizado' | 'processando_autorizacao' | 'rejeitado' | 'cancelado' | 'erro';
   chave_nfe?: string;
@@ -67,8 +74,19 @@ export interface EmissorPort {
     justificativa: string;
   }, companyId?: string): Promise<EmissionResponse>;
 
-  /** NF-e destinadas ao CNPJ (entrada) — lista vazia em erro */
+  /**
+   * @deprecated (Focus-A, #608) devolve lista vazia em erro — indistinguível de
+   * "nenhuma nota". Use fetchReceivedNfesPage, que lança em falha.
+   */
   fetchReceivedNfes(cnpj: string, companyId?: string): Promise<any[]>;
+
+  /**
+   * Focus-A (#608): uma página de NF-e recebidas com versao > cursor
+   * (`GET /v2/nfes_recebidas?cnpj=&versao=`), com os cabeçalhos
+   * X-Max-Version / X-Total-Count. LANÇA em erro de rede/HTTP/formato —
+   * nunca "lista vazia silenciosa".
+   */
+  fetchReceivedNfesPage(cnpj: string, cursor: number, companyId?: string): Promise<ReceivedNfePageRaw>;
 
   /** Manifestação do destinatário (ciência/confirmação/rejeição/desconhecimento) */
   manifestNfe(
