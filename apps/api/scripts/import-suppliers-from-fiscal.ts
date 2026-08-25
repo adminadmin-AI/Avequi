@@ -27,13 +27,17 @@ import { PrismaClient } from '@prisma/client';
 import {
   CandidateSources,
   CROSS_TENANT_REUSABLE_FIELDS,
-  EmitData,
+  DatedEmit,
   assessConflicts,
   buildSupplierDraft,
   decideCreation,
+  mergeEmitsNewestFirst,
   normalizeCnpj,
+  orderEvidenceNewestFirst,
+  pairKey,
   parseEmit,
 } from '../src/modules/supplier/supplier-import.rules';
+import { sameIdSet } from '../src/fiscal/rehydration/rehydration-core';
 
 interface Args {
   commit: boolean;
@@ -77,36 +81,50 @@ async function main(): Promise<number> {
      FROM gdr_suppliers`,
   );
 
-  // agrupa por (companyId, cnpj) preservando ordem por recência
-  const groups = new Map<string, { companyId: string; cnpj: string; docIds: string[]; names: Set<string>; xmlDocIds: string[] }>();
+  // agrupa por (companyId, cnpj); a ordem de leitura NÃO importa — a
+  // ordenação temporal é feita explicitamente por issueDate/docId depois
+  const groups = new Map<
+    string,
+    { companyId: string; cnpj: string; docIds: string[]; names: Set<string>; xmlDocs: Array<{ id: string; issueDate: string | null }> }
+  >();
   for (const d of docs) {
     const cnpj = normalizeCnpj(d.issuerCnpj);
-    const key = `${d.companyId}|${cnpj}`;
+    const key = pairKey(d.companyId, cnpj);
     if (!groups.has(key)) {
-      groups.set(key, { companyId: d.companyId, cnpj, docIds: [], names: new Set(), xmlDocIds: [] });
+      groups.set(key, { companyId: d.companyId, cnpj, docIds: [], names: new Set(), xmlDocs: [] });
     }
     const g = groups.get(key)!;
     g.docIds.push(d.id);
     if (d.issuerName) g.names.add(d.issuerName);
-    if (d.has_xml) g.xmlDocIds.push(d.id);
+    if (d.has_xml) g.xmlDocs.push({ id: d.id, issueDate: d.issue_date });
   }
 
   const results: any[] = [];
   for (const g of groups.values()) {
-    // emits dos XMLs confiáveis, do mais recente para o mais antigo (máx. 5 — o
-    // conflito material é decidido pelos 2 mais recentes; o resto é história)
-    const emits: EmitData[] = [];
-    for (const docId of g.xmlDocIds.slice(0, 5)) {
+    // evidências dos XMLs confiáveis, ordenadas DETERMINISTICAMENTE por
+    // issueDate desc (desempate docId asc) — máx. 5 mais recentes (o conflito
+    // material é decidido pelos 2 mais recentes; o resto é história)
+    const newestDocs = [...g.xmlDocs]
+      .sort((a, b) => {
+        const ta = a.issueDate ? Date.parse(a.issueDate) : Number.NEGATIVE_INFINITY;
+        const tb = b.issueDate ? Date.parse(b.issueDate) : Number.NEGATIVE_INFINITY;
+        if (tb !== ta) return tb - ta;
+        return a.id < b.id ? -1 : 1;
+      })
+      .slice(0, 5);
+    const dated: DatedEmit[] = [];
+    for (const doc of newestDocs) {
       const [row] = await prisma.$queryRawUnsafe<any[]>(
         'SELECT xml FROM gdr_fiscal_documents WHERE id = $1',
-        docId,
+        doc.id,
       );
       const e = parseEmit(row?.xml ?? null);
-      if (e) emits.push(e);
+      if (e) dated.push({ emit: e, issueDate: doc.issueDate, docId: doc.id });
     }
+    const emits = orderEvidenceNewestFirst(dated);
     const conflict = assessConflicts(g.cnpj, {
       emitsNewestFirst: emits,
-      distinctIssuerNames: [...g.names],
+      distinctIssuerNames: [...g.names].sort(),
     });
 
     // match local: SÓ o mesmo tenant conta; outro tenant é fonte auxiliar
@@ -123,8 +141,10 @@ async function main(): Promise<number> {
     const sources: CandidateSources = {
       companyId: g.companyId,
       issuerCnpj: g.cnpj,
-      issuerName: [...g.names][0] ?? null,
-      latestEmit: emits[0] ?? null,
+      issuerName: [...g.names].sort()[0] ?? null,
+      // consolidação por campo: cada campo vem da evidência MAIS RECENTE que o
+      // possui — dado antigo nunca sobrescreve dado novo
+      latestEmit: mergeEmitsNewestFirst(emits),
       crossTenant: crossTenant as CandidateSources['crossTenant'],
       omieFantasia: omie[g.cnpj] ?? null,
     };
@@ -137,7 +157,7 @@ async function main(): Promise<number> {
       decision,
       draft,
       docCount: g.docIds.length,
-      xmlCount: g.xmlDocIds.length,
+      xmlCount: g.xmlDocs.length,
       conflictReasons: conflict.reasons,
       notes: conflict.notes,
       usedCrossTenant: !!crossTenant,
@@ -188,10 +208,54 @@ async function main(): Promise<number> {
   console.log(JSON.stringify({ ...report, pares: undefined, review: report.review.slice(0, 10) }, null, 1));
   console.log(`relatório completo: ${reportPath}`);
 
+  // Identidade nominal do que seria criado — o gate do --commit compara este
+  // CONJUNTO (não a quantidade) com o do dry-run do dia.
+  const createPairs = byDecision('CREATE')
+    .map((r) => pairKey(r.companyId, r.cnpj))
+    .sort();
+  const evidencePath = path.join(args.report, '.import-suppliers-dryrun.json');
+
   if (!args.commit) {
+    fs.writeFileSync(
+      evidencePath,
+      JSON.stringify({
+        day: report.executedAt.slice(0, 10),
+        createPairs,
+        reviewPairs: byDecision('REVIEW').map((r) => pairKey(r.companyId, r.cnpj)).sort(),
+        counts: report.decisao,
+      }),
+    );
     console.log('dry-run: NENHUMA escrita foi executada.');
     await prisma.$disconnect();
     return 0;
+  }
+
+  // ── GATE NOMINAL (mesmo princípio do reidratador) ──
+  // O universo foi recomputado acima, imediatamente antes da escrita; agora o
+  // conjunto recomputado tem de ser EXATAMENTE o aprovado no dry-run do dia.
+  // Candidato novo, removido, mudança de tenant/CNPJ ou candidato que virou
+  // REVIEW alteram o conjunto ⇒ abort + novo dry-run. Um Supplier criado
+  // legitimamente entre o dry-run e o commit também muda o conjunto (o par sai
+  // de CREATE) ⇒ abort — mudança de snapshot exige nova aprovação; o ON
+  // CONFLICT abaixo fica só como última defesa contra race condition.
+  if (!fs.existsSync(evidencePath)) {
+    console.error('ABORT: --commit exige dry-run prévio (evidência ausente). Nada foi escrito.');
+    await prisma.$disconnect();
+    return 2;
+  }
+  const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf-8'));
+  if (evidence.day !== report.executedAt.slice(0, 10)) {
+    console.error('ABORT: evidência de dry-run não é de hoje. Rode o dry-run de novo. Nada foi escrito.');
+    await prisma.$disconnect();
+    return 2;
+  }
+  if (!Array.isArray(evidence.createPairs) || !sameIdSet(evidence.createPairs, createPairs)) {
+    console.error(
+      `ABORT: conjunto nominal a criar (${createPairs.length} pares) difere da evidência do dry-run ` +
+        `(${evidence.createPairs?.length ?? 'ausente'}). O snapshot mudou — rode novo dry-run e revalide. Nada foi escrito.`,
+    );
+    await prisma.$disconnect();
+    return 2;
   }
 
   // ── COMMIT: só INSERT, um por vez; nunca UPDATE/DELETE ──

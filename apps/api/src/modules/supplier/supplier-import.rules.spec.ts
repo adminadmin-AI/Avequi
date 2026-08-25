@@ -4,9 +4,13 @@ import {
   assessConflicts,
   buildSupplierDraft,
   decideCreation,
+  mergeEmitsNewestFirst,
+  orderEvidenceNewestFirst,
+  pairKey,
   parseEmit,
   taxRegimeFromCrt,
 } from './supplier-import.rules';
+import { sameIdSet } from '../../fiscal/rehydration/rehydration-core';
 
 const XML = `
 <nfeProc><NFe><infNFe Id="NFe412608062088990001605500..."><emit>
@@ -144,6 +148,13 @@ describe('conflitos de identidade fiscal', () => {
     expect(c.review).toBe(false);
     expect(c.notes.length).toBeGreaterThan(0);
   });
+  it('inconsistência material não explicável → REVIEW, nunca cadastro inventado', () => {
+    const c = assessConflicts(emit.cnpj, {
+      emitsNewestFirst: [emit, { ...emit, ie: 'IE-CONFLITANTE' }],
+      distinctIssuerNames: [],
+    });
+    expect(decideCreation(false, c)).toBe('REVIEW');
+  });
   it('IE que mudou só no passado distante usa a mais recente com nota', () => {
     const c = assessConflicts(emit.cnpj, {
       emitsNewestFirst: [emit, emit, { ...emit, ie: 'IE-ANTIGA' }],
@@ -151,5 +162,71 @@ describe('conflitos de identidade fiscal', () => {
     });
     expect(c.review).toBe(false);
     expect(c.notes.join(' ')).toContain('IE mudou');
+  });
+});
+
+describe('gate nominal dry-run ⇄ commit (mesmo princípio do reidratador)', () => {
+  const A = [pairKey('co-crd', '06889977000198'), pairKey('co-gdr', '06889977000198'), pairKey('co-crd', '09398976000139')].sort();
+  it('dry-run com conjunto A → commit recomputa A → permitido', () => {
+    expect(sameIdSet(A, [...A].reverse())).toBe(true);
+  });
+  it('candidato NOVO entre dry-run e commit → abort', () => {
+    expect(sameIdSet(A, [...A, pairKey('co-crd', '11111111000111')])).toBe(false);
+  });
+  it('candidato REMOVIDO (ex.: Supplier criado no meio-tempo) → abort', () => {
+    expect(sameIdSet(A, A.slice(1))).toBe(false);
+  });
+  it('mudança de tenant na identidade → abort', () => {
+    const trocado = [...A.slice(1), pairKey('co-gdr', '09398976000139')];
+    expect(sameIdSet(A, trocado)).toBe(false);
+  });
+  it('mesma quantidade mas pares diferentes → abort', () => {
+    const outros = [...A.slice(1), pairKey('co-crd', '22222222000122')];
+    expect(outros.length).toBe(A.length);
+    expect(sameIdSet(A, outros)).toBe(false);
+  });
+  it('pairKey normaliza CNPJ (máscara não cria identidade nova)', () => {
+    expect(pairKey('co-crd', '06.889.977/0001-98')).toBe(pairKey('co-crd', '06889977000198'));
+  });
+});
+
+describe('determinismo temporal das evidências fiscais', () => {
+  const antigo = { ...emit, xNome: 'RODA BRASIL COMERCIO DE PNEUS LTDA', city: 'CAMBE', zipCode: '86181000' };
+  const novo = { ...emit }; // LONDRINA, razão atual
+  const dNovo = { emit: novo, issueDate: '2026-06-01T10:00:00-03:00', docId: 'doc-b' };
+  const dAntigo = { emit: antigo, issueDate: '2024-01-01T10:00:00-03:00', docId: 'doc-a' };
+
+  it('mudança histórica legítima de endereço → escolhe deterministicamente o registro fiscal mais recente', () => {
+    const merged = mergeEmitsNewestFirst(orderEvidenceNewestFirst([dAntigo, dNovo]))!;
+    expect(merged.city).toBe('LONDRINA');
+    expect(merged.xNome).toBe('RODA BRASIL PNEUS LTDA');
+  });
+  it('XMLs fornecidos em ordem diferente → resultado cadastral idêntico', () => {
+    const a = mergeEmitsNewestFirst(orderEvidenceNewestFirst([dAntigo, dNovo]));
+    const b = mergeEmitsNewestFirst(orderEvidenceNewestFirst([dNovo, dAntigo]));
+    expect(a).toEqual(b);
+  });
+  it('dado antigo nunca sobrescreve dado recente; campo AUSENTE no novo cai para o antigo', () => {
+    const novoSemCep = { ...novo, zipCode: null };
+    const merged = mergeEmitsNewestFirst(
+      orderEvidenceNewestFirst([{ emit: novoSemCep, issueDate: dNovo.issueDate, docId: 'doc-b' }, dAntigo]),
+    )!;
+    expect(merged.city).toBe('LONDRINA'); // recente vence
+    expect(merged.zipCode).toBe('86181000'); // lacuna preenchida pelo antigo
+  });
+  it('empate de issueDate desempata por docId de forma estável', () => {
+    const t = '2026-06-01T10:00:00-03:00';
+    const x = orderEvidenceNewestFirst([
+      { emit: antigo, issueDate: t, docId: 'doc-z' },
+      { emit: novo, issueDate: t, docId: 'doc-a' },
+    ]);
+    expect(x[0]).toEqual(novo); // doc-a vem primeiro
+  });
+  it('evidência sem data vai para o fim (nunca define o cadastro atual sozinha)', () => {
+    const x = orderEvidenceNewestFirst([
+      { emit: antigo, issueDate: null, docId: 'doc-a' },
+      { emit: novo, issueDate: '2026-06-01T10:00:00-03:00', docId: 'doc-b' },
+    ]);
+    expect(x[0]).toEqual(novo);
   });
 });

@@ -118,6 +118,65 @@ export function taxRegimeFromCrt(crt: string | null): 'SIMPLES_NACIONAL' | null 
   return crt === '1' || crt === '2' ? 'SIMPLES_NACIONAL' : null;
 }
 
+// ── Ordenação temporal determinística das evidências ──────────────────────────
+export interface DatedEmit {
+  emit: EmitData;
+  /** issueDate fiscal do documento (dhEmi reidratado); null = sem data */
+  issueDate: string | null;
+  /** desempate ESTÁVEL para issueDate igual/ausente */
+  docId: string;
+}
+
+/**
+ * Ordena evidências fiscais do MAIS RECENTE para o mais antigo, de forma
+ * determinística e independente da ordem de leitura: issueDate desc; empate
+ * (ou data ausente, que vai para o fim) desempata por docId asc. O resultado
+ * cadastral NUNCA depende da ordem em que os XMLs foram fornecidos.
+ */
+export function orderEvidenceNewestFirst(evidence: DatedEmit[]): EmitData[] {
+  return [...evidence]
+    .sort((a, b) => {
+      const ta = a.issueDate ? Date.parse(a.issueDate) : Number.NEGATIVE_INFINITY;
+      const tb = b.issueDate ? Date.parse(b.issueDate) : Number.NEGATIVE_INFINITY;
+      if (tb !== ta) return tb - ta;
+      return a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : 0;
+    })
+    .map((e) => e.emit);
+}
+
+/**
+ * Consolida as evidências (já ordenadas newest-first) num único cadastro:
+ * cada campo usa o valor da evidência MAIS RECENTE que o possui — dado antigo
+ * nunca sobrescreve dado recente; campo ausente no XML mais novo cai para o
+ * próximo mais novo que o tenha. Identidade (cnpj) vem sempre da mais recente.
+ */
+export function mergeEmitsNewestFirst(emitsNewestFirst: EmitData[]): EmitData | null {
+  if (emitsNewestFirst.length === 0) return null;
+  const pick = <K extends keyof EmitData>(k: K): EmitData[K] | null =>
+    (emitsNewestFirst.find((e) => e[k] !== null)?.[k] as EmitData[K] | undefined) ?? null;
+  return {
+    cnpj: emitsNewestFirst[0].cnpj,
+    xNome: pick('xNome'),
+    xFant: pick('xFant'),
+    ie: pick('ie'),
+    crt: pick('crt'),
+    address: pick('address'),
+    number: pick('number'),
+    complement: pick('complement'),
+    neighborhood: pick('neighborhood'),
+    city: pick('city'),
+    state: pick('state'),
+    zipCode: pick('zipCode'),
+    ibgeCode: pick('ibgeCode'),
+    phone: pick('phone'),
+  };
+}
+
+/** Identidade nominal do candidato (gate dry-run ⇄ commit). */
+export function pairKey(companyId: string, cnpj: string): string {
+  return `${companyId}|${normalizeCnpj(cnpj)}`;
+}
+
 // ── Montagem do cadastro (precedência por campo) ──────────────────────────────
 export interface CandidateSources {
   companyId: string;
