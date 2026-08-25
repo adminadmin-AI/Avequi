@@ -15,6 +15,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   PURCHASED_COMPONENT_TYPES,
   aggregatePairs,
+  purchasedReason,
   suggestByDescription,
 } from '../src/modules/purchase/supplier-product-map.aggregate';
 
@@ -37,7 +38,24 @@ async function main() {
     const bom = await prisma.bomItem.groupBy({ by: ['componentId'], where: { bomVersion: { companyId: c.id, isActive: true } }, _count: { bomVersionId: true } });
     const bomIds = new Set(bom.map((b) => b.componentId));
     const products = await prisma.product.findMany({ where: { companyId: c.id }, select: { id: true, sku: true, name: true, type: true, isActive: true } });
-    const purchasedBomComponents = products.filter((p) => bomIds.has(p.id) && (PURCHASED_COMPONENT_TYPES as readonly string[]).includes(p.type));
+    const bomIdList = [...bomIds];
+    const ownBoms = new Set((await prisma.bomVersion.groupBy({ by: ['productId'], where: { companyId: c.id, isActive: true, productId: { in: bomIdList } } })).map((b) => b.productId));
+    const evidence = new Set<string>([
+      ...(await prisma.pOItem.groupBy({ by: ['productId'], where: { productId: { in: bomIdList }, purchaseOrder: { companyId: c.id } } })).map((e) => e.productId),
+      ...(await prisma.supplierPriceHistory.groupBy({ by: ['productId'], where: { companyId: c.id, productId: { in: bomIdList } } })).map((e) => e.productId),
+    ]);
+    const byTypeOnly = products.filter((p) => bomIds.has(p.id) && (PURCHASED_COMPONENT_TYPES as readonly string[]).includes(p.type));
+    const reasons = new Map<string, string>();
+    for (const p of products) {
+      if (!bomIds.has(p.id)) continue;
+      const r = purchasedReason({ ...p, activeBomCount: 1, hasOwnActiveBom: ownBoms.has(p.id), hasPurchaseEvidence: evidence.has(p.id) });
+      if (r) reasons.set(p.id, r);
+    }
+    const purchasedBomComponents = products.filter((p) => reasons.has(p.id));
+    const byReason: Record<string, number> = {};
+    for (const r of reasons.values()) byReason[r] = (byReason[r] ?? 0) + 1;
+    const semiInBom = products.filter((p) => bomIds.has(p.id) && p.type === 'SEMI_FINISHED');
+    console.log(`\n=== ${c.name}: critério antigo (só tipo) = ${byTypeOnly.length} · critério novo (tipo ∪ evidência ∪ SEMI_FINISHED folha) = ${purchasedBomComponents.length} · por motivo ${JSON.stringify(byReason)} · SEMI_FINISHED em BOM ativa: ${semiInBom.length} (com BOM própria ${semiInBom.filter((p) => ownBoms.has(p.id)).length}, folha ${semiInBom.filter((p) => !ownBoms.has(p.id)).length}) · com PO/preço: ${evidence.size}`);
     let suggested = 0, suggestedBom = 0, suggestedValue = 0;
     const bomHits = new Set<string>();
     for (const p of pairs) {
@@ -49,7 +67,7 @@ async function main() {
     console.log(`\n=== ${c.name} (${c.id})`);
     console.log(`itens lidos: ${items.length} · pares AUTHORIZED: ${pairs.length} · valor: R$ ${total.toFixed(2)} · pares 1x: ${pairs.filter((p) => p.documentCount === 1).length}`);
     console.log(`pares para 50/80/90% do valor: ${needed(0.5)} / ${needed(0.8)} / ${needed(0.9)}`);
-    console.log(`BOMs ativas: componentes distintos ${bomIds.size} · comprados (RAW/COMPONENT/CONSUMABLE): ${purchasedBomComponents.length}`);
+    console.log(`BOMs ativas: componentes distintos ${bomIds.size} · comprados (critério canônico: tipo ∪ evidência ∪ SEMI_FINISHED folha): ${purchasedBomComponents.length}`);
     console.log(`sugestão por descrição (prévia, nada gravado): ${suggested} pares (R$ ${suggestedValue.toFixed(2)}, ${total ? ((suggestedValue / total) * 100).toFixed(1) : 0}%) · ${suggestedBom} apontam para componente de BOM ativa · ${bomHits.size}/${purchasedBomComponents.length} componentes comprados alcançados`);
     console.log(`componentes comprados de BOM ativa SEM candidato por descrição: ${purchasedBomComponents.filter((p) => !bomHits.has(p.id)).length}`);
   }

@@ -6,6 +6,7 @@ import {
   buildPairViews,
   comparePriority,
   normalizeSupplierProductCode,
+  purchasedReason,
   suggestByDescription,
   summarize,
 } from './supplier-product-map.aggregate';
@@ -154,21 +155,39 @@ describe('summarize / bomCoverage', () => {
     expect(summarize([v('a', 100, 'CONFIRMED')], 0.8).pairsToReachTarget).toBe(0);
   });
 
-  it('bomCoverage: componente comprado sem par CONFIRMED = descoberto (impede custo); sugestão não cobre', () => {
+  it('purchasedReason: tipo comprado por natureza; SEMI_FINISHED só como folha ou com evidência; FINISHED_GOOD só com evidência; fabricado internamente fica fora', () => {
+    const c = (type: string, hasOwnActiveBom: boolean, hasPurchaseEvidence: boolean) =>
+      purchasedReason({ id: 'x', sku: 'X', name: 'x', isActive: true, activeBomCount: 1, type, hasOwnActiveBom, hasPurchaseEvidence });
+    expect(c('COMPONENT', true, false)).toBe('BY_TYPE');
+    expect(c('RAW_MATERIAL', false, false)).toBe('BY_TYPE');
+    expect(c('CONSUMABLE', false, false)).toBe('BY_TYPE');
+    expect(c('SEMI_FINISHED', true, false)).toBeNull(); // fabricado aqui: custo vem da própria BOM
+    expect(c('SEMI_FINISHED', false, false)).toBe('LEAF_SEMI_FINISHED'); // folha: vem de fora
+    expect(c('SEMI_FINISHED', true, true)).toBe('PURCHASE_EVIDENCE'); // já comprado: entra mesmo com BOM própria
+    expect(c('FINISHED_GOOD', false, false)).toBeNull(); // NUNCA por inferência
+    expect(c('FINISHED_GOOD', false, true)).toBe('PURCHASE_EVIDENCE'); // só com evidência
+    expect(c('SERVICE', false, false)).toBeNull();
+  });
+
+  it('bomCoverage: componente comprado sem par CONFIRMED = descoberto (impede custo); sugestão não cobre; mapa CONFIRMED conta como evidência', () => {
     const comps = [
-      { id: 'p1', sku: 'COM-1', name: 'A', type: 'COMPONENT', isActive: true, activeBomCount: 5 },
-      { id: 'p2', sku: 'COM-2', name: 'B', type: 'RAW_MATERIAL', isActive: true, activeBomCount: 2 },
-      { id: 'p3', sku: 'COM-3', name: 'C', type: 'COMPONENT', isActive: true, activeBomCount: 9 },
+      { id: 'p1', sku: 'COM-1', name: 'A', type: 'COMPONENT', isActive: true, activeBomCount: 5, hasOwnActiveBom: false, hasPurchaseEvidence: false },
+      { id: 'p2', sku: 'COM-2', name: 'B', type: 'RAW_MATERIAL', isActive: true, activeBomCount: 2, hasOwnActiveBom: false, hasPurchaseEvidence: false },
+      { id: 'p3', sku: 'COM-3', name: 'C', type: 'COMPONENT', isActive: true, activeBomCount: 9, hasOwnActiveBom: false, hasPurchaseEvidence: false },
+      { id: 'p4', sku: 'SEMI-4', name: 'D', type: 'SEMI_FINISHED', isActive: true, activeBomCount: 7, hasOwnActiveBom: true, hasPurchaseEvidence: false }, // fabricado: fora
+      { id: 'p5', sku: 'SEMI-5', name: 'E', type: 'SEMI_FINISHED', isActive: true, activeBomCount: 1, hasOwnActiveBom: false, hasPurchaseEvidence: false }, // folha: entra
+      { id: 'p6', sku: 'FG-6', name: 'F', type: 'FINISHED_GOOD', isActive: true, activeBomCount: 1, hasOwnActiveBom: true, hasPurchaseEvidence: false }, // fora
     ];
     const views = [
       v('a', 100, 'CONFIRMED'), // canônico p1
       v('b', 50, 'UNRESOLVED', { status: 'SUGGESTED', suggestion: { productId: 'p2', productSku: 'COM-2', productName: 'B', kind: 'PRODUCT', source: 'DESCRIPTION' } }),
     ];
     const cov = bomCoverage(comps, views);
-    expect(cov.map((c) => [c.sku, c.covered, c.confirmedPairs, c.suggestedPairs])).toEqual([
-      ['COM-3', false, 0, 0], // descoberto, mais BOMs primeiro
-      ['COM-2', false, 0, 1], // só sugestão — ainda descoberto
-      ['COM-1', true, 1, 0],
+    expect(cov.map((c) => [c.sku, c.purchasedReason, c.covered, c.confirmedPairs, c.suggestedPairs])).toEqual([
+      ['COM-3', 'BY_TYPE', false, 0, 0], // descoberto, mais BOMs primeiro
+      ['COM-2', 'BY_TYPE', false, 0, 1], // só sugestão — ainda descoberto
+      ['SEMI-5', 'LEAF_SEMI_FINISHED', false, 0, 0],
+      ['COM-1', 'BY_TYPE', true, 1, 0],
     ]);
   });
 });

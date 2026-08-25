@@ -321,14 +321,43 @@ export function summarize(views: PairView[], targetPct = 0.8): CoverageSummary {
   };
 }
 
-/** Tipos de Product que precisam ser COMPRADOS para a BOM fechar custo de aquisição. */
+/** Tipos de Product comprados POR NATUREZA (nunca fabricados internamente). */
 export const PURCHASED_COMPONENT_TYPES = ['RAW_MATERIAL', 'COMPONENT', 'CONSUMABLE'] as const;
+
+/**
+ * Por que um componente de BOM ativa conta como COMPRADO:
+ *  - BY_TYPE: RAW_MATERIAL/COMPONENT/CONSUMABLE — comprado por natureza;
+ *  - PURCHASE_EVIDENCE: já foi comprado (POItem, SupplierPriceHistory) ou já
+ *    tem de-para CONFIRMED apontando para ele — vale para qualquer tipo,
+ *    inclusive SEMI_FINISHED e FINISHED_GOOD;
+ *  - LEAF_SEMI_FINISHED: SEMI_FINISHED sem BOM própria ativa — não é feito
+ *    aqui, logo vem de fora. (FINISHED_GOOD NÃO entra por esta via.)
+ * O schema não tem flag make/buy no Product; esta é a inferência mínima e
+ * explícita — cada componente diz por que entrou.
+ */
+export type PurchasedReason = 'BY_TYPE' | 'PURCHASE_EVIDENCE' | 'LEAF_SEMI_FINISHED';
+
+export interface BomComponentInput extends ProductRef {
+  activeBomCount: number;
+  /** o próprio Product tem BomVersion ativa (é fabricado internamente) */
+  hasOwnActiveBom: boolean;
+  /** POItem / SupplierPriceHistory / SupplierProductMap CONFIRMED apontando para ele */
+  hasPurchaseEvidence: boolean;
+}
+
+export function purchasedReason(c: BomComponentInput): PurchasedReason | null {
+  if ((PURCHASED_COMPONENT_TYPES as readonly string[]).includes(c.type)) return 'BY_TYPE';
+  if (c.hasPurchaseEvidence) return 'PURCHASE_EVIDENCE';
+  if (c.type === 'SEMI_FINISHED' && !c.hasOwnActiveBom) return 'LEAF_SEMI_FINISHED';
+  return null;
+}
 
 export interface BomComponentCoverage {
   productId: string;
   sku: string;
   name: string;
   type: string;
+  purchasedReason: PurchasedReason;
   activeBomCount: number;
   confirmedPairs: number; // mapas CONFIRMED kind=PRODUCT apontando para ele
   suggestedPairs: number; // mapas com suggestedProductId apontando para ele
@@ -338,24 +367,28 @@ export interface BomComponentCoverage {
 /**
  * "Quais componentes comprados das BOMs ativas ainda não têm de-para
  * confirmado?" — a resposta a "o que impede calcular o custo".
+ * Componentes fabricados internamente (SEMI_FINISHED/FINISHED_GOOD com BOM
+ * própria e sem evidência de compra) ficam de fora: o custo deles vem da
+ * própria BOM, não de um fornecedor.
  */
-export function bomCoverage(
-  components: Array<ProductRef & { activeBomCount: number }>,
-  views: PairView[],
-): BomComponentCoverage[] {
+export function bomCoverage(components: BomComponentInput[], views: PairView[]): BomComponentCoverage[] {
   const confirmed = new Map<string, number>();
   const suggested = new Map<string, number>();
   for (const v of views) {
     if (v.canonical?.productId && v.status === 'CONFIRMED') confirmed.set(v.canonical.productId, (confirmed.get(v.canonical.productId) ?? 0) + 1);
     if (v.suggestion?.productId && v.needsDecision) suggested.set(v.suggestion.productId, (suggested.get(v.suggestion.productId) ?? 0) + 1);
   }
-  return components
-    .map((c) => ({
-      productId: c.id, sku: c.sku, name: c.name, type: c.type, activeBomCount: c.activeBomCount,
+  const out: BomComponentCoverage[] = [];
+  for (const c of components) {
+    const reason = purchasedReason({ ...c, hasPurchaseEvidence: c.hasPurchaseEvidence || (confirmed.get(c.id) ?? 0) > 0 });
+    if (!reason) continue;
+    out.push({
+      productId: c.id, sku: c.sku, name: c.name, type: c.type, purchasedReason: reason, activeBomCount: c.activeBomCount,
       confirmedPairs: confirmed.get(c.id) ?? 0, suggestedPairs: suggested.get(c.id) ?? 0,
       covered: (confirmed.get(c.id) ?? 0) > 0,
-    }))
-    .sort((a, b) => Number(a.covered) - Number(b.covered) || b.activeBomCount - a.activeBomCount || a.sku.localeCompare(b.sku));
+    });
+  }
+  return out.sort((a, b) => Number(a.covered) - Number(b.covered) || b.activeBomCount - a.activeBomCount || a.sku.localeCompare(b.sku));
 }
 
 // ─── Sugestão por descrição (barata, sem IA) ─────────────────────────────────

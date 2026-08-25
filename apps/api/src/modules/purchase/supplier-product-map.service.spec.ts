@@ -18,6 +18,9 @@ function fakeDb() {
   ];
   const products = [
     { id: 'p-bom', companyId: 'c1', sku: 'COM-001', name: 'PARAFUSO SEXTAVADO M8 X 30 ZINCADO', type: 'COMPONENT', isActive: true },
+    { id: 'p-semi-made', companyId: 'c1', sku: 'SEMI-001', name: 'CHASSI SOLDADO', type: 'SEMI_FINISHED', isActive: true },
+    { id: 'p-semi-leaf', companyId: 'c1', sku: 'SEMI-002', name: 'EIXO MONTADO TERCEIRO', type: 'SEMI_FINISHED', isActive: true },
+    { id: 'p-fg', companyId: 'c1', sku: 'FG-001', name: 'REBOQUE PRONTO', type: 'FINISHED_GOOD', isActive: true },
     { id: 'p-x', companyId: 'c1', sku: 'COM-002', name: 'CHAPA ACO 3MM', type: 'RAW_MATERIAL', isActive: true },
     { id: 'p-c2', companyId: 'c2', sku: 'COM-001', name: 'PRODUTO DA OUTRA EMPRESA', type: 'COMPONENT', isActive: true },
   ];
@@ -68,6 +71,9 @@ function fakeDb() {
       findMany: jest.fn(async ({ where: w }: any) => products.filter((p) => p.companyId === w.companyId && (!w.id || w.id.in.includes(p.id)))),
     },
     bomItem: { groupBy: jest.fn(async () => [{ componentId: 'p-bom', _count: { bomVersionId: 4 } }]) },
+    bomVersion: { groupBy: jest.fn(async () => []) },
+    pOItem: { groupBy: jest.fn(async () => []) },
+    supplierPriceHistory: { groupBy: jest.fn(async () => []) },
     $transaction: jest.fn(async (fn: any) => fn(db)),
   };
   const addItem = (o: any) => items.push({
@@ -139,6 +145,35 @@ describe('SupplierProductMapService (Fase 2, PR-2)', () => {
       expect(await service.summary('c1')).toMatchObject({ pairs: 2, totalValue: 400, resolvedValue: 100, resolvedValuePct: 25, pairsToReachTarget: 1 });
       const cov = await service.bomCoverage('c1');
       expect(cov).toEqual([expect.objectContaining({ productId: 'p-bom', covered: true, confirmedPairs: 1, activeBomCount: 4 })]);
+    });
+
+    it('bom-coverage: SEMI_FINISHED entra só como folha (sem BOM própria) ou com evidência de compra (PO/preço/mapa); fabricado e FINISHED_GOOD ficam fora', async () => {
+      f.db.bomItem.groupBy.mockResolvedValue([
+        { componentId: 'p-bom', _count: { bomVersionId: 4 } },
+        { componentId: 'p-semi-made', _count: { bomVersionId: 10 } },
+        { componentId: 'p-semi-leaf', _count: { bomVersionId: 2 } },
+        { componentId: 'p-fg', _count: { bomVersionId: 1 } },
+      ]);
+      f.db.bomVersion.groupBy.mockResolvedValue([{ productId: 'p-semi-made' }, { productId: 'p-fg' }]); // têm BOM própria ativa
+      let cov = await service.bomCoverage('c1');
+      expect(cov.map((c) => [c.sku, c.purchasedReason])).toEqual([['COM-001', 'BY_TYPE'], ['SEMI-002', 'LEAF_SEMI_FINISHED']]);
+      // evidência de compra (POItem) faz o SEMI_FINISHED fabricado entrar; FINISHED_GOOD só com evidência
+      f.db.pOItem.groupBy.mockResolvedValue([{ productId: 'p-semi-made' }]);
+      cov = await service.bomCoverage('c1');
+      expect(cov.map((c) => [c.sku, c.purchasedReason])).toEqual([['SEMI-001', 'PURCHASE_EVIDENCE'], ['COM-001', 'BY_TYPE'], ['SEMI-002', 'LEAF_SEMI_FINISHED']]);
+      expect(f.db.pOItem.groupBy).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ productId: { in: expect.any(Array) } }) }));
+    });
+
+    it('CRD-like: company sem Products/BOM pode ficar parcialmente UNRESOLVED indefinidamente — lista, resumo e cobertura continuam consistentes', async () => {
+      f.addItem({ productCode: 'X1', totalPrice: 999, fiscalDocument: { companyId: 'c2', supplierId: 'sup-Z' } });
+      f.addItem({ productCode: 'FRETE', productName: 'FRETE', totalPrice: 50, fiscalDocument: { companyId: 'c2', supplierId: 'sup-Z' } });
+      f.db.bomItem.groupBy.mockResolvedValue([]);
+      await service.classify('c2', { supplierId: 'sup-Z', supplierProductCode: 'FRETE' }, 'FREIGHT_OTHER', 'u9');
+      const list = await service.listPairs('c2');
+      expect(list.items.map((v) => [v.supplierProductCode, v.status, v.priorityTier])).toEqual([['X1', 'UNRESOLVED', 1], ['FRETE', 'CONFIRMED', 2]]);
+      expect(await service.summary('c2')).toMatchObject({ pairs: 2, byStatus: { UNRESOLVED: 1, CONFIRMED: 1, SUGGESTED: 0, REVIEW: 0 }, pendingBomRelevant: 0 });
+      expect(await service.bomCoverage('c2')).toEqual([]);
+      expect(await service.previewDescriptionSuggestions('c2')).toEqual([]); // sem catálogo: nada sugerido, nada classificado automaticamente
     });
 
     it('prioridade: pendente com SUGESTÃO para componente de BOM ativa vem antes do pendente de maior valor', async () => {

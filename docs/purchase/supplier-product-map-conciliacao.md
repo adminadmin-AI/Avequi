@@ -68,11 +68,27 @@ declarada é fechar a BOM ativa **primeiro** e só depois os ~80 % do valor.
 `provisionalPriorityScore` (PR-1) fica como referência histórica.
 
 **"O que impede calcular o custo das BOMs ativas?"** →
-`GET /bom-coverage`: para cada componente **comprado** (tipos
-`RAW_MATERIAL`, `COMPONENT`, `CONSUMABLE`) de alguma `BomVersion.isActive`,
-quantos pares `CONFIRMED` apontam para ele e quantos só sugerem.
-`covered=false` = nenhum par confirmado = custo de aquisição não fecha.
-Sugestão **não** cobre.
+`GET /bom-coverage`: para cada componente de alguma `BomVersion.isActive`
+**com evidência de sourcing externo**, quantos pares `CONFIRMED` apontam
+para ele e quantos só sugerem. `covered=false` = nenhum par confirmado =
+custo de aquisição não fecha. Sugestão **não** cobre.
+
+Critério canônico de "componente comprado" (`purchasedReason`, cada linha
+diz por que entrou; o schema não tem flag make/buy no Product):
+
+| Motivo | Regra |
+|---|---|
+| `BY_TYPE` | `RAW_MATERIAL`, `COMPONENT`, `CONSUMABLE` — comprados por natureza |
+| `PURCHASE_EVIDENCE` | já comprado: `POItem`, `SupplierPriceHistory` ou mapa `CONFIRMED` apontando para ele — vale para qualquer tipo, inclusive `SEMI_FINISHED` e `FINISHED_GOOD` |
+| `LEAF_SEMI_FINISHED` | `SEMI_FINISHED` sem `BomVersion` própria ativa — não é fabricado aqui, logo vem de fora |
+
+`SEMI_FINISHED` com BOM própria e sem evidência de compra fica **fora** (o
+custo dele vem da própria BOM). `FINISHED_GOOD` **nunca** entra por
+inferência — só com evidência. Estado 25/08 (GDR): os 243 `SEMI_FINISHED`
+que aparecem como componente têm BOM própria ativa e não há PO/preço
+registrado → o universo continua **57** componentes (16 `RAW_MATERIAL` +
+41 `COMPONENT`); a regra é para o futuro (semiacabado comprado de terceiro)
+sem inflar o presente.
 
 ## Sugestão ≠ verdade
 
@@ -126,6 +142,29 @@ Se o motor de custo/performance precisar da coluna no item, isso é uma
 `productId` a partir do mapa, com auditoria), fora deste PR — e nunca
 backfill manual em produção.
 
+## Company sem catálogo (caso CRD)
+
+O desenho aceita uma company ficar **parcialmente `UNRESOLVED` por tempo
+indeterminado** sem inconsistência: a listagem é derivada (pares sem mapa
+são `UNRESOLVED` sem linha), `summary`/`bom-coverage` só contam o que
+existe, nada é classificado automaticamente. Política: o que é claramente
+`CONSUMABLE`/`ASSET`/`FREIGHT_OTHER` pode ser classificado à mão; potencial
+produto sem Product cadastrado **permanece `UNRESOLVED`** (nunca "não-produto"
+por falta de catálogo). Primeiro objetivo de custo/BOM = GDR Reboques.
+
+## Limites assumidos e caminho de escala (waivers do list-query-lint, PERF #1028)
+
+| Leitura | Volume hoje (por tenant) | Por que completa | Escala (sem mudar o contrato) |
+|---|---|---|---|
+| `FiscalDocumentItem` das `RECEBIDA` com fornecedor (colunas mínimas) | CRD 2,8 mil · GDR 2,4 mil (+1–2 mil/mês) | agregação por par em memória; é a base da listagem inteira | `GROUP BY (companyId, supplierId, trim(productCode))` + `DISTINCT ON` no banco quando passar de ~100 mil itens/tenant |
+| `SupplierProductMap` da company (waiver) | 0 hoje; ≤ nº de pares (~2,1 mil); cresce só com cProd novo | a listagem precisa cruzar **todos** os pares com **todos** os mapas para ordenar por prioridade; paginar aqui quebraria a ordenação; índice `(companyId,status)`/`(supplierId)`; parcial com filtro de fornecedor | mesma agregação no banco |
+| `Product` ativo da company (waiver) | ~350 (catálogo de cadastro) | só na sugestão por descrição, que compara contra o catálogo inteiro; com `ids` é limitado ao conjunto | busca textual (tsvector/trigram) quando o catálogo passar de dezenas de milhares |
+| `SupplierProductMap` `CONFIRMED` (waiver) | subconjunto pequeno, sob demanda | detecção de divergência de descrição | idem |
+
+Leituras auxiliares de BOM/evidência (`bomVersion.groupBy`, `pOItem.groupBy`,
+`supplierPriceHistory.groupBy`) são limitadas aos ids dos componentes —
+sem waiver.
+
 ## Endpoints (`/purchase/supplier-product-maps`)
 
 | Método/rota | Permissão | O quê |
@@ -142,9 +181,16 @@ backfill manual em produção.
 | `POST /pairs/:supplierId/:code/review` | resolve | `{ reason }` |
 | `POST /suggestions/description` | resolve | `{ apply?: boolean }` — prévia ou grava `SUGGESTED` |
 
-Permissões novas no catálogo (seed por `code`): `view` → COMPRADOR, FISCAL,
-GERENTE_FINANCEIRO, FINANCEIRO (+ DIRETOR/admins via `view` geral);
-`resolve` → COMPRADOR, FISCAL, GERENTE_FINANCEIRO.
+Permissões novas no catálogo (seed por `code`) — **matriz V1 aprovada
+(Rafael, 25/08)**: `view` → COMPRADOR, FISCAL, GERENTE_FINANCEIRO, FINANCEIRO
+(+ DIRETOR/admins pelo padrão existente); `resolve` → COMPRADOR, FISCAL,
+GERENTE_FINANCEIRO (+ admins pelo padrão). Não ampliar.
+
+Fora deste PR (decididos): seed `Mapeamento_Nota_Item` → só `SUGGESTED`
+(`source=SEED_PRODUCAO_V2`, dry-run antes de apply, só Product existente do
+tenant, descrição/NCM nunca identidade) em PR/script próprio; materialização
+de `FiscalDocumentItem.productId` fica para o motor de custo (projeção
+controlada a partir de mapas `CONFIRMED`).
 
 ## Testes
 

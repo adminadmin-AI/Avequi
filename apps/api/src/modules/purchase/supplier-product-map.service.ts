@@ -12,11 +12,11 @@ import {
 } from './supplier-product-map.rules';
 import {
   BomComponentCoverage,
+  BomComponentInput,
   CoverageSummary,
   DescriptionCandidate,
   ExistingMap,
   FiscalItemRow,
-  PURCHASED_COMPONENT_TYPES,
   PairMetrics,
   PairView,
   ProductRef,
@@ -81,6 +81,16 @@ export class SupplierProductMapService {
 
   // ─── Leitura ───────────────────────────────────────────────────────────────
 
+  /**
+   * LIMITE ASSUMIDO (documentado): a agregação por par roda em memória sobre
+   * os itens de NF-e RECEBIDA autorizadas da company com fornecedor —
+   * hoje ~5,2 mil linhas no total (CRD 2,8 mil / GDR 2,4 mil), colunas
+   * mínimas. Cresce com o histórico de compras (~1–2 mil linhas/mês/empresa).
+   * Caminho de escala SEM mudar o contrato da API: trocar `aggregatePairs`
+   * por um GROUP BY no banco (companyId, supplierId, trim(productCode)) com
+   * `DISTINCT ON` para a última ocorrência — o núcleo puro continua sendo a
+   * especificação testada. Gatilho sugerido: > 100 mil itens por tenant.
+   */
   private async loadItemRows(companyId: string, filter: { supplierId?: string } = {}): Promise<FiscalItemRow[]> {
     const items = await this.prisma.fiscalDocumentItem.findMany({
       where: {
@@ -111,7 +121,7 @@ export class SupplierProductMapService {
   }
 
   private async loadMaps(companyId: string, filter: { supplierId?: string } = {}): Promise<ExistingMap[]> {
-    // list-lint: ok (visão derivada por tenant: todos os mapas da company são cruzados em memória com os pares dos itens fiscais — ~2 mil linhas; vira GROUP BY/view materializada quando escalar)
+    // list-lint: ok (waiver revisado: a listagem é uma visão derivada que precisa cruzar TODOS os pares do tenant com TODAS as suas linhas de mapa — o universo de mapas é limitado pelo nº de pares (≤ ~2,1 mil hoje, cresce só quando surge cProd novo) e já usa o índice (companyId, status)/(supplierId); com filtro por fornecedor a leitura é parcial. Paginar aqui quebraria a ordenação por prioridade. Escala: mesmo GROUP BY/view materializada da agregação de itens, sem mudar o contrato)
     const rows = await this.prisma.supplierProductMap.findMany({
       where: { companyId, ...(filter.supplierId ? { supplierId: filter.supplierId } : {}) },
     });
@@ -135,9 +145,9 @@ export class SupplierProductMapService {
   }
 
   private async loadProducts(companyId: string, ids?: string[]): Promise<Map<string, ProductRef>> {
-    // list-lint: ok (catálogo de Products do tenant para resolver nomes/SKUs e sugerir por descrição — centenas de linhas; com `ids` é limitado pelo conjunto)
+    // list-lint: ok (waiver revisado: com `ids` a leitura é limitada ao conjunto pedido (nomes/SKUs dos Products referenciados e componentes de BOM); SEM `ids` é só a sugestão por descrição, que precisa comparar contra o catálogo ATIVO inteiro do tenant (~350 Products hoje; catálogo de cadastro, não transacional) — filtrado por isActive. Escala: busca textual no banco (tsvector/trigram) quando o catálogo passar de dezenas de milhares)
     const rows = await this.prisma.product.findMany({
-      where: { companyId, ...(ids ? { id: { in: ids } } : {}) },
+      where: { companyId, ...(ids ? { id: { in: ids } } : { isActive: true }) },
       select: { id: true, sku: true, name: true, type: true, isActive: true },
     });
     return new Map(rows.map((p) => [p.id, { id: p.id, sku: p.sku, name: p.name, type: p.type, isActive: p.isActive }]));
@@ -192,15 +202,28 @@ export class SupplierProductMapService {
     return summarize(await this.buildViews(companyId), targetPct);
   }
 
-  /** Componentes COMPRADOS das BOMs ativas × cobertura de de-para confirmado. */
+  /**
+   * Componentes das BOMs ativas com evidência de sourcing externo × cobertura
+   * de de-para confirmado. Critério canônico em `purchasedReason`: tipo
+   * comprado por natureza, OU evidência de compra (POItem /
+   * SupplierPriceHistory / mapa CONFIRMED), OU SEMI_FINISHED sem BOM própria
+   * ativa. Todas as leituras auxiliares são limitadas aos ids dos componentes.
+   */
   async bomCoverage(companyId: string): Promise<BomComponentCoverage[]> {
     const [views, bomCounts] = await Promise.all([this.buildViews(companyId), this.loadActiveBomCounts(companyId)]);
     const ids = [...bomCounts.keys()];
     if (ids.length === 0) return [];
-    const products = await this.loadProducts(companyId, ids);
-    const components = [...products.values()]
-      .filter((p) => (PURCHASED_COMPONENT_TYPES as readonly string[]).includes(p.type))
-      .map((p) => ({ ...p, activeBomCount: bomCounts.get(p.id) ?? 0 }));
+    const [products, ownBoms, poEvidence, priceEvidence] = await Promise.all([
+      this.loadProducts(companyId, ids),
+      this.prisma.bomVersion.groupBy({ by: ['productId'], where: { companyId, isActive: true, productId: { in: ids } } }),
+      this.prisma.pOItem.groupBy({ by: ['productId'], where: { productId: { in: ids }, purchaseOrder: { companyId } } }),
+      this.prisma.supplierPriceHistory.groupBy({ by: ['productId'], where: { companyId, productId: { in: ids } } }),
+    ]);
+    const hasOwnBom = new Set(ownBoms.map((b) => b.productId));
+    const evidence = new Set<string>([...poEvidence.map((e) => e.productId), ...priceEvidence.map((e) => e.productId)]);
+    const components: BomComponentInput[] = [...products.values()].map((p) => ({
+      ...p, activeBomCount: bomCounts.get(p.id) ?? 0, hasOwnActiveBom: hasOwnBom.has(p.id), hasPurchaseEvidence: evidence.has(p.id),
+    }));
     return bomCoverage(components, views);
   }
 
