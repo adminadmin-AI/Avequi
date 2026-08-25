@@ -9,6 +9,8 @@ import {
   purchasedReason,
   suggestByDescription,
   summarize,
+  parseSearchTerm,
+  matchesSearch,
 } from './supplier-product-map.aggregate';
 
 const row = (o: Partial<FiscalItemRow>): FiscalItemRow => ({
@@ -216,5 +218,39 @@ describe('suggestByDescription — barata, sem NCM, nunca confirma', () => {
     expect(suggestByDescription('OLEO LUBRIFICANTE 20L', products)).toBeNull();
     expect(suggestByDescription(null, products)).toBeNull();
     expect(suggestByDescription('QUALQUER', [products[3]])).toBeNull();
+  });
+});
+
+describe('busca da fila — parseSearchTerm / matchesSearch', () => {
+  const row = (o: Partial<{ supplierProductCode: string; lastDescription: string | null; supplierName: string | null; supplierCnpj: string | null }>) => ({
+    supplierProductCode: '08070', lastDescription: 'ARRUELA 3/8 INOX', supplierName: 'Parafusos Alfa', supplierCnpj: '11222333000181', ...o,
+  });
+  it('CNPJ só dígitos e CNPJ formatado viram o mesmo filtro de CNPJ', () => {
+    expect(parseSearchTerm('11222333000181')).toEqual({ text: '11222333000181', cnpjDigits: '11222333000181' });
+    expect(parseSearchTerm('11.222.333/0001-81')).toEqual({ text: '11.222.333/0001-81', cnpjDigits: '11222333000181' });
+    expect(matchesSearch(row({}), parseSearchTerm('11.222.333/0001-81'))).toBe(true);
+    expect(matchesSearch(row({ supplierCnpj: '99999999000199' }), parseSearchTerm('11222333000181'))).toBe(false);
+  });
+  it('termo textual: cProd, descrição e fornecedor por substring, sem CNPJ', () => {
+    expect(parseSearchTerm('Arruela')).toEqual({ text: 'arruela', cnpjDigits: null });
+    expect(matchesSearch(row({}), parseSearchTerm('arruela'))).toBe(true);
+    expect(matchesSearch(row({}), parseSearchTerm('alfa'))).toBe(true);
+    expect(matchesSearch(row({}), parseSearchTerm('parafuso de roda'))).toBe(false);
+  });
+  it('termo misto "MB 77" NÃO extrai "77" para o CNPJ', () => {
+    expect(parseSearchTerm('MB 77')).toEqual({ text: 'mb 77', cnpjDigits: null });
+    expect(matchesSearch(row({ supplierCnpj: '77888999000163', supplierName: 'Transportes Gama', lastDescription: 'FRETE', supplierProductCode: 'FRETE' }), parseSearchTerm('MB 77'))).toBe(false);
+    expect(matchesSearch(row({ supplierProductCode: 'MB 77/81#A' }), parseSearchTerm('MB 77'))).toBe(true);
+  });
+  it('cProd numérico "08070": sem normalização destrutiva — casa o código como está', () => {
+    const t = parseSearchTerm('08070');
+    expect(t).toEqual({ text: '08070', cnpjDigits: '08070' });
+    expect(matchesSearch(row({}), t)).toBe(true);
+    expect(matchesSearch(row({ supplierProductCode: '8070' }), t)).toBe(false); // "8070" ≠ "08070"
+    expect(matchesSearch(row({ supplierProductCode: 'X', lastDescription: null, supplierCnpj: '11222333000181' }), t)).toBe(false); // CNPJ não contém 08070
+  });
+  it('termo vazio não filtra; espaços nas pontas são ignorados', () => {
+    expect(matchesSearch(row({}), parseSearchTerm('   '))).toBe(true);
+    expect(parseSearchTerm('  x1 ').text).toBe('x1');
   });
 });
