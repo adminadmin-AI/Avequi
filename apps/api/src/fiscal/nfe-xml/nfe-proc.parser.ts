@@ -94,6 +94,11 @@ export const NFE_TOTAL_FIELDS = [
 ] as const;
 export type NfeTotalField = (typeof NFE_TOTAL_FIELDS)[number];
 
+/** Totais do grupo <total><IBSCBSTot> (NT 2025.002-RTC) — só existem em notas com o grupo IBS/CBS. */
+export const NFE_IBSCBS_TOTAL_FIELDS = ['vIBS', 'vCBS'] as const;
+export type NfeIbsCbsTotalField = (typeof NFE_IBSCBS_TOTAL_FIELDS)[number];
+export type NfeAnyTotalField = NfeTotalField | NfeIbsCbsTotalField;
+
 export interface NfeProt {
   chNFe: string | null;
   dhRecbto: string | null;
@@ -119,7 +124,7 @@ export interface ParsedNfe {
   emit: NfeParty;
   dest: NfeParty;
   items: NfeItem[];
-  totals: Partial<Record<NfeTotalField, string>>;
+  totals: Partial<Record<NfeAnyTotalField, string>>;
   infCpl: string | null;
   /** null quando o XML é uma <NFe> sem <protNFe> (não autorizada/sem processo). */
   prot: NfeProt | null;
@@ -140,12 +145,29 @@ export interface ParsedEvento {
   ret: { cStat: string | null; nProt: string | null; dhRegEvento: string | null } | null;
 }
 
+/**
+ * Inutilização de numeração (procInutNFe). Só CLASSIFICADA e reportada: o ERP
+ * modela FiscalVoidRange pela emissão própria (Focus) e este importador não
+ * cria nem altera faixas — a situação real de uma faixa é assunto da SEFAZ.
+ */
+export interface ParsedInut {
+  kind: 'INUT';
+  cnpj: string | null;
+  ano: string | null;
+  mod: string | null;
+  serie: number | null;
+  nNFIni: number | null;
+  nNFFin: number | null;
+  xJust: string | null;
+  ret: { cStat: string | null; nProt: string | null; dhRecbto: string | null } | null;
+}
+
 export interface ParsedUnknown {
   kind: 'UNKNOWN';
   rootName: string;
 }
 
-export type ParsedNfeDocument = ParsedNfe | ParsedEvento | ParsedUnknown;
+export type ParsedNfeDocument = ParsedNfe | ParsedEvento | ParsedInut | ParsedUnknown;
 
 export const TP_EVENTO = {
   CARTA_CORRECAO: '110110',
@@ -289,8 +311,8 @@ export class NfeXmlError extends Error {
 // ─── Entrada pública ─────────────────────────────────────────────────────────
 
 /**
- * Classifica e faz o parse de um XML de NF-e (nfeProc/NFe) ou de evento
- * (procEventoNFe/evento). Lança XmlParseError (XML malformado) ou
+ * Classifica e faz o parse de um XML de NF-e (nfeProc/NFe), de evento
+ * (procEventoNFe/evento) ou de inutilização (procInutNFe/inutNFe). Lança XmlParseError (XML malformado) ou
  * NfeXmlError (estrutura de NF-e inválida). Nunca devolve nota "parcial".
  */
 export function parseNfeDocument(xml: string): ParsedNfeDocument {
@@ -317,11 +339,17 @@ export function parseNfeDocument(xml: string): ParsedNfeDocument {
         }
       : null;
     const totNode = path(inf, 'total', 'ICMSTot');
-    const totals: Partial<Record<NfeTotalField, string>> = {};
+    const totals: Partial<Record<NfeAnyTotalField, string>> = {};
     for (const f of NFE_TOTAL_FIELDS) {
       const v = dec(text(totNode, f));
       if (v !== null) totals[f] = v;
     }
+    // W03: IBSCBSTot > gIBS > vIBS ; IBSCBSTot > gCBS > vCBS (sem inventar quando ausente)
+    const ibsCbsTot = path(inf, 'total', 'IBSCBSTot');
+    const vIBS = dec(text(ibsCbsTot, 'gIBS', 'vIBS'));
+    const vCBS = dec(text(ibsCbsTot, 'gCBS', 'vCBS'));
+    if (vIBS !== null) totals.vIBS = vIBS;
+    if (vCBS !== null) totals.vCBS = vCBS;
     const items = children(inf, 'det').map(parseItem);
     if (items.length === 0) throw new NfeXmlError('NF-e sem <det> (itens)');
     return {
@@ -368,6 +396,24 @@ export function parseNfeDocument(xml: string): ParsedNfeDocument {
       ret: ret
         ? { cStat: text(ret, 'cStat'), nProt: text(ret, 'nProt'), dhRegEvento: text(ret, 'dhRegEvento') }
         : null,
+    };
+  }
+
+  if (root.name === 'procInutNFe' || root.name === 'inutNFe') {
+    const inut = root.name === 'inutNFe' ? root : child(root, 'inutNFe');
+    const inf = child(inut, 'infInut');
+    if (!inf) throw new NfeXmlError('<inutNFe>/<infInut> ausente');
+    const ret = root.name === 'procInutNFe' ? findFirst(child(root, 'retInutNFe'), 'infInut') : undefined;
+    return {
+      kind: 'INUT',
+      cnpj: digits(text(inf, 'CNPJ')),
+      ano: text(inf, 'ano'),
+      mod: text(inf, 'mod'),
+      serie: toInt(text(inf, 'serie')),
+      nNFIni: toInt(text(inf, 'nNFIni')),
+      nNFFin: toInt(text(inf, 'nNFFin')),
+      xJust: text(inf, 'xJust'),
+      ret: ret ? { cStat: text(ret, 'cStat'), nProt: text(ret, 'nProt'), dhRecbto: text(ret, 'dhRecbto') } : null,
     };
   }
 

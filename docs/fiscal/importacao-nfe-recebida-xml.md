@@ -37,7 +37,7 @@
 | Parser NF-e | `apps/api/src/fiscal/nfe-xml/nfe-proc.parser.ts` | `nfeProc`/`NFe` → DTO (ide, emit, dest, itens com ICMS/IPI/PIS/COFINS/DIFAL/IBS-CBS, totais, protNFe); `procEventoNFe` → DTO de evento. Decimais como string. |
 | Núcleo (puro) | `apps/api/src/fiscal/inbound/received-nfe-import-core.ts` | Resolve company (= destinatário), Supplier (exato, na company, **nunca cria**), direção, datas, eventos; compara com o existente; produz o plano e a evidência nominal. |
 | Escritor | `apps/api/src/fiscal/inbound/received-nfe-import-writer.ts` | `planFromXml(xml, ctx)` (entrada para a Focus) e `applyPlan(tx, plan, xml)` (única porta de escrita). |
-| CLI | `apps/api/scripts/import-received-nfe-xml.ts` | Varre pastas, monta contexto do ERP (só SELECT), relatório, gate e commit. |
+| CLI | `apps/api/scripts/import-nfe-xml.ts` (`--direction RECEBIDA`) | Varre pastas, monta contexto do ERP (só SELECT), relatório, gate e commit. `import-received-nfe-xml.ts` continua funcionando como atalho que fixa a direção. A mesma fundação atende NF-e **EMITIDA** — ver `importacao-nfe-emitida-xml.md`. |
 
 Reaproveitado de `rehydration-core.ts`: `normalizeCnpj`, `resolveCompanyByCnpj`,
 `resolveSupplier`, `assertHasOffset`, `sameDecimal`, `roundDecimalString`,

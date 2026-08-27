@@ -1,12 +1,18 @@
 /**
- * Escrita do plano de importação — a ÚNICA porta de gravação de NF-e RECEBIDA.
+ * Escrita do plano de importação — a ÚNICA porta de gravação de NF-e por XML
+ * (RECEBIDA e EMITIDA).
  *
- * Usada pelo CLI dos XMLs locais hoje e pelo fluxo Focus (#608) depois: quem
- * tiver um XML (arquivo ou resposta da Focus) faz `planFromXml` e, autorizado,
- * `applyPlan`. Um documento = uma transação (doc + itens + impostos juntos ou
- * nada). Nunca cria Supplier; nunca reescreve itens/impostos existentes.
+ * Usada pelo CLI dos XMLs locais e pelo fluxo Focus (#608): quem tiver um XML
+ * (arquivo ou resposta da Focus) faz `planFromXml` e, autorizado, `applyPlan`.
+ * Um documento = uma transação (doc + itens + impostos juntos ou nada).
+ *
+ * Garantia estrutural contra efeito operacional: a interface `FiscalWriter`
+ * só expõe `fiscalDocument.create/update`. Não há como, por aqui, criar
+ * SalesOrder/Customer/Supplier, movimentar estoque, gerar título, emitir
+ * evento de domínio (nenhum EventEmitter) ou tocar numeração/Focus.
+ * Nunca reescreve itens/impostos existentes.
  */
-import { ParsedFile, ImportContext, ImportPlan, buildTargetFromNfe, TargetDoc } from './received-nfe-import-core';
+import { DEFAULT_IMPORT_OPTIONS, ImportOptions, ParsedFile, ImportContext, ImportPlan, buildTargetFromNfe, TargetDoc } from './received-nfe-import-core';
 import { parseNfeDocument } from '../nfe-xml/nfe-proc.parser';
 
 /** Subconjunto do PrismaClient usado aqui (facilita mock e evita acoplamento). */
@@ -19,15 +25,20 @@ export interface FiscalWriter {
 
 /**
  * Entrada para o fluxo Focus (PR Focus-B): um XML em texto + contexto → plano.
- * Mesmo parser, mesmo núcleo do CLI. Devolve `null` para eventos/desconhecidos
- * (o chamador decide o que fazer com eventos; ver planBatch para lotes).
+ * Mesmo parser, mesmo núcleo do CLI. Devolve `null` para eventos/inutilizações/
+ * desconhecidos (o chamador decide o que fazer; ver planBatch para lotes).
  */
-export function planFromXml(xml: string, ctx: ImportContext): ImportPlan | null {
+export function planFromXml(xml: string, ctx: ImportContext, opts: ImportOptions = DEFAULT_IMPORT_OPTIONS): ImportPlan | null {
   const doc = parseNfeDocument(xml);
   if (doc.kind !== 'NFE') return null;
-  return buildTargetFromNfe(doc, ctx);
+  return buildTargetFromNfe(doc, ctx, opts);
 }
 
+/**
+ * Só colunas de FiscalDocument/Item/ItemTax. Sem salesOrderId, storeTransferId,
+ * focusRef, referencedDocumentId ou financialEntry: o documento histórico não
+ * nasce de venda nem gera título — é reconstrução fiel do XML.
+ */
 export function toCreateData(t: TargetDoc, xml: string): Record<string, unknown> {
   return {
     companyId: t.companyId,
