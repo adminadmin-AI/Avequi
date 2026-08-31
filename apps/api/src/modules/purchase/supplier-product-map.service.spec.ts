@@ -23,6 +23,7 @@ function fakeDb() {
     { id: 'p-fg', companyId: 'c1', sku: 'FG-001', name: 'REBOQUE PRONTO', type: 'FINISHED_GOOD', isActive: true },
     { id: 'p-x', companyId: 'c1', sku: 'COM-002', name: 'CHAPA ACO 3MM', type: 'RAW_MATERIAL', isActive: true },
     { id: 'p-c2', companyId: 'c2', sku: 'COM-001', name: 'PRODUTO DA OUTRA EMPRESA', type: 'COMPONENT', isActive: true },
+    { id: 'p-inativo', companyId: 'c1', sku: 'COM-OLD', name: 'COMPONENTE DESCONTINUADO', type: 'COMPONENT', isActive: false },
   ];
   let seq = 0;
   const items: any[] = [];
@@ -128,8 +129,17 @@ describe('SupplierProductMapService (Fase 2, PR-2)', () => {
       expect((await service.listPairs('c1', { pendingOnly: true })).items.map((v) => v.supplierProductCode)).toEqual(['K9']);
       expect((await service.listPairs('c1', { bomOnly: true })).items.map((v) => v.supplierProductCode)).toEqual(['X1']);
       expect((await service.listPairs('c1', { q: 'chapa' })).items.map((v) => v.supplierProductCode)).toEqual(['K9']);
+      // busca: texto SEMPRE contra cProd/descrição/fornecedor; CNPJ só quando o termo é numérico
+      f.addItem({ productCode: 'MB 77/81', productName: 'CHAPA APOIO', totalPrice: 5, fiscalDocument: { supplierId: 'sup-B' } });
+      f.addItem({ productCode: '08070', productName: 'ARRUELA', totalPrice: 1, fiscalDocument: { supplierId: 'sup-A' } });
+      const codes = async (q: string) => (await service.listPairs('c1', { q })).items.map((v) => v.supplierProductCode).sort();
+      expect(await codes('11111111000191')).toEqual(['08070', 'X1']); // CNPJ só dígitos → fornecedor A
+      expect(await codes('11.111.111/0001-91')).toEqual(['08070', 'X1']); // CNPJ formatado ≡ dígitos
+      expect(await codes('MB 77')).toEqual(['MB 77/81']); // termo misto: só texto — "77" NÃO vira filtro de CNPJ
+      expect(await codes('08070')).toEqual(['08070']); // cProd numérico: substring exata, zeros preservados; nenhum CNPJ contém 08070
+      expect(await codes('Fornecedor B')).toEqual(['K9', 'MB 77/81']);
       const p = await service.listPairs('c1', { page: 2, pageSize: 1 });
-      expect(p).toMatchObject({ total: 2, page: 2, pageSize: 1 });
+      expect(p).toMatchObject({ total: 4, page: 2, pageSize: 1 }); // X1, K9 + 2 pares da busca
       expect(p.items).toHaveLength(1);
     });
 
@@ -260,6 +270,14 @@ describe('SupplierProductMapService (Fase 2, PR-2)', () => {
       await expect(service.suggest('c1', ref, { productId: 'p-c2', source: 'DESCRIPTION' }, null)).rejects.toBeInstanceOf(BadRequestException);
       expect(f.events).toHaveLength(0);
       expect(f.maps.every((m) => m.status === 'UNRESOLVED' && m.productId === null)).toBe(true);
+    });
+
+    it('Product INATIVO da mesma company é aceito DE PROPÓSITO (identidade do histórico); só tenant é critério', async () => {
+      const m = await service.confirmProduct('c1', ref, 'p-inativo', 'u1');
+      expect(m).toMatchObject({ status: 'CONFIRMED', kind: 'PRODUCT', productId: 'p-inativo' });
+      expect(f.events.at(-1)).toMatchObject({ action: 'CONFIRMED', toProductId: 'p-inativo' });
+      // continua recusando Product inexistente / de outra company
+      await expect(service.confirmProduct('c1', ref, 'p-nao-existe', 'u1')).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('mesmo fornecedor+cProd em companies diferentes são mapas independentes', async () => {

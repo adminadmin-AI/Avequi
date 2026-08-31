@@ -28,6 +28,8 @@ import {
   pairKey,
   suggestByDescription,
   summarize,
+  matchesSearch,
+  parseSearchTerm,
 } from './supplier-product-map.aggregate';
 
 /**
@@ -185,13 +187,8 @@ export class SupplierProductMapService {
     if (q.bomOnly) views = views.filter((v) => v.bomRelevance !== null);
     if (q.pendingOnly) views = views.filter((v) => v.needsDecision);
     if (q.q) {
-      const needle = q.q.trim().toLowerCase();
-      views = views.filter((v) =>
-        v.supplierProductCode.toLowerCase().includes(needle) ||
-        (v.lastDescription ?? '').toLowerCase().includes(needle) ||
-        (v.supplierName ?? '').toLowerCase().includes(needle) ||
-        (v.supplierCnpj ?? '').includes(needle.replace(/\D/g, '') || ' '),
-      );
+      const term = parseSearchTerm(q.q);
+      views = views.filter((v) => matchesSearch(v, term));
     }
     views.sort(comparePriority);
     const start = (page - 1) * pageSize;
@@ -270,6 +267,16 @@ export class SupplierProductMapService {
     };
   }
 
+  /**
+   * Tenant é a ÚNICA condição para um Product entrar no mapa: existir na
+   * mesma company. Product INATIVO é aceito DE PROPÓSITO (decisão de produto,
+   * Rafael 25/08/2026): o mapa é identidade/de-para também do histórico —
+   * um item que hoje não se compra mais pode continuar sendo a identidade
+   * correta das compras passadas. Quem restringe a ativos é a UI (combobox
+   * `isActive=true`) e o seed legado (pula inativos); aqui não há flag nem
+   * override — isActive simplesmente não é critério. Product inexistente ou
+   * de outra company continua 400 (nada gravado).
+   */
   private async assertProductInTenant(tx: Tx, companyId: string, productId: string, label: 'product' | 'suggestedProduct'): Promise<void> {
     const p = await tx.product.findFirst({ where: { id: productId, companyId }, select: { id: true, companyId: true } });
     const errors = validateTenantConsistency({
