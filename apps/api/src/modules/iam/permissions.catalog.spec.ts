@@ -155,7 +155,7 @@ describe('Catálogo de permissões (#338)', () => {
     //       que dois tenants são administrados pelas mesmas pessoas é da
     //       OPERADORA, nunca do cliente. Namespace ops.*, portanto fora de
     //       tenantPermissionCodes() e de qualquer perfil de tenant.)
-    expect(PERMISSIONS_CATALOG.length).toBe(335);
+    expect(PERMISSIONS_CATALOG.length).toBe(337);
   });
 
   it('todo módulo tem pelo menos uma permissão de leitura (hierarquia verificável)', () => {

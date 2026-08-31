@@ -4,6 +4,7 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { PurchaseController } from './purchase.controller';
+import { SupplierProductMapController } from './supplier-product-map.controller';
 import { RfqController } from '../rfq/rfq.controller';
 import { SupplierPortalController } from '../supplier-portal/supplier-portal.controller';
 import { ProductionController } from '../production/production.controller';
@@ -123,6 +124,19 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
     cancelRequest: 'purchases.requests.cancel',
     convertRequest: 'purchases.requests.convert',
     findSupplierPrices: 'purchases.supplier-prices.view',
+  }],
+  [SupplierProductMapController, 'supplier-product-map', {
+    list: 'purchases.supplier-map.view',
+    summary: 'purchases.supplier-map.view',
+    bomCoverage: 'purchases.supplier-map.view',
+    getPair: 'purchases.supplier-map.view',
+    divergences: 'purchases.supplier-map.view',
+    confirmProduct: 'purchases.supplier-map.resolve',
+    classify: 'purchases.supplier-map.resolve',
+    suggest: 'purchases.supplier-map.resolve',
+    dismissSuggestion: 'purchases.supplier-map.resolve',
+    review: 'purchases.supplier-map.resolve',
+    descriptionSuggestions: 'purchases.supplier-map.resolve',
   }],
   [RfqController, 'rfq', {
     create: 'purchases.rfq.create',
