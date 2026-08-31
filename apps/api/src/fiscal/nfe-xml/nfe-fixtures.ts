@@ -11,6 +11,12 @@ export interface FixtureOptions {
   chave?: string;
   emitCnpj?: string;
   destCnpj?: string;
+  /** Destinatário pessoa física (substitui o CNPJ do <dest>). */
+  destCpf?: string;
+  /** Sem CNPJ/CPF no <dest> (consumidor não identificado). */
+  destUnidentified?: boolean;
+  /** Anexa <IBSCBSTot> ao <total> (usar junto com ITEM_IBSCBS). */
+  withIbsCbsTot?: boolean;
   nNF?: string;
   serie?: string;
   mod?: string;
@@ -47,6 +53,51 @@ export const ITEM_ICMS00 = `
     </imposto>
   </det>`;
 
+/** Item de SAÍDA típico de reboque (venda de produção própria) SEM grupo IBS/CBS — como o emissor anterior emite. */
+export const ITEM_SAIDA_SEM_IBSCBS = `
+  <det nItem="1">
+    <prod><cProd>MOD-CAR-003</cProd><cEAN>SEM GTIN</cEAN><xProd>REBOQUE CARGA 1,50 X 1,10 - CHASSI 9ABCD12345E678901</xProd><NCM>87163900</NCM><CFOP>6101</CFOP>
+      <uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>4500.0000000000</vUnCom><vProd>4500.00</vProd></prod>
+    <imposto>
+      <ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>4500.00</vBC><pICMS>12.0000</pICMS><vICMS>540.00</vICMS></ICMS00></ICMS>
+      <IPI><cEnq>999</cEnq><IPITrib><CST>51</CST><vBC>0.00</vBC><pIPI>0.00</pIPI><vIPI>0.00</vIPI></IPITrib></IPI>
+      <PIS><PISOutr><CST>49</CST><vBC>0.00</vBC><pPIS>0.0000</pPIS><vPIS>0.00</vPIS></PISOutr></PIS>
+      <COFINS><COFINSOutr><CST>99</CST><vBC>0.00</vBC><pCOFINS>0.0000</pCOFINS><vCOFINS>0.00</vCOFINS></COFINSOutr></COFINS>
+    </imposto>
+  </det>`;
+
+/** Mesmo item COM o grupo IBS/CBS (NT 2025.002-RTC, 2026: IBS UF 0,1 % / CBS 0,9 %). */
+export const ITEM_IBSCBS = `
+  <det nItem="1">
+    <prod><cProd>MOD-CAR-003</cProd><xProd>REBOQUE CARGA 1,50 X 1,10</xProd><NCM>87163900</NCM><CFOP>5101</CFOP>
+      <uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>3000.0000</vUnCom><vProd>3000.00</vProd></prod>
+    <imposto>
+      <ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>3000.00</vBC><pICMS>12.00</pICMS><vICMS>360.00</vICMS></ICMS00></ICMS>
+      <IBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib>
+        <gIBSCBS><vBC>3000.00</vBC>
+          <gIBSUF><pIBSUF>0.1000</pIBSUF><vIBSUF>3.00</vIBSUF></gIBSUF>
+          <gIBSMun><pIBSMun>0.0000</pIBSMun><vIBSMun>0.00</vIBSMun></gIBSMun>
+          <vIBS>3.00</vIBS>
+          <gCBS><pCBS>0.9000</pCBS><vCBS>27.00</vCBS></gCBS>
+        </gIBSCBS>
+      </IBSCBS>
+    </imposto>
+  </det>`;
+
+/** Inutilização de numeração (procInutNFe) — só classificada pelo importador. */
+export function inutXml(o: { cnpj?: string; serie?: string; ini: number; fin: number; cStat?: string; ano?: string } = { ini: 1, fin: 1 }): string {
+  const cnpj = o.cnpj ?? CNPJ_EMIT;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<procInutNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <inutNFe versao="4.00"><infInut Id="ID41${o.ano ?? '26'}${cnpj}55${(o.serie ?? '1').padStart(3, '0')}${String(o.ini).padStart(9, '0')}${String(o.fin).padStart(9, '0')}">
+    <tpAmb>1</tpAmb><xServ>INUTILIZAR</xServ><cUF>41</cUF><ano>${o.ano ?? '26'}</ano><CNPJ>${cnpj}</CNPJ><mod>55</mod><serie>${o.serie ?? '1'}</serie>
+    <nNFIni>${o.ini}</nNFIni><nNFFin>${o.fin}</nNFFin><xJust>Migracao de sistema emissor - salto de numeracao</xJust></infInut></inutNFe>
+  <retInutNFe versao="4.00"><infInut><tpAmb>1</tpAmb><verAplic>PR-v4</verAplic><cStat>${o.cStat ?? '102'}</cStat><xMotivo>Inutilizacao de numero homologado</xMotivo>
+    <cUF>41</cUF><ano>${o.ano ?? '26'}</ano><CNPJ>${cnpj}</CNPJ><mod>55</mod><serie>${o.serie ?? '1'}</serie><nNFIni>${o.ini}</nNFIni><nNFFin>${o.fin}</nNFFin>
+    <dhRecbto>2026-07-13T19:03:10-03:00</dhRecbto><nProt>141260000000009</nProt></infInut></retInutNFe>
+</procInutNFe>`;
+}
+
 export function nfeXml(o: FixtureOptions = {}): string {
   const chave = o.chave ?? CHAVE;
   const withProt = o.withProt ?? true;
@@ -63,10 +114,10 @@ export function nfeXml(o: FixtureOptions = {}): string {
         <dhEmi>${o.dhEmi ?? '2026-06-15T09:59:00-03:00'}</dhEmi><tpNF>1</tpNF><tpAmb>${o.tpAmb ?? '1'}</tpAmb><finNFe>${o.finNFe ?? '1'}</finNFe></ide>
       <emit><CNPJ>${o.emitCnpj ?? CNPJ_EMIT}</CNPJ><xNome>FORNECEDOR FICTICIO LTDA</xNome><xFant>FICTICIO</xFant>
         <enderEmit><xLgr>RUA A</xLgr><nro>1</nro><xMun>CURITIBA</xMun><UF>PR</UF><CEP>80000000</CEP></enderEmit><IE>123</IE><CRT>3</CRT></emit>
-      <dest><CNPJ>${o.destCnpj ?? CNPJ_DEST}</CNPJ><xNome>EMPRESA DO ERP</xNome><enderDest><xMun>SJP</xMun><UF>PR</UF></enderDest><IE>456</IE></dest>
+      <dest>${o.destUnidentified ? '' : o.destCpf ? `<CPF>${o.destCpf}</CPF>` : `<CNPJ>${o.destCnpj ?? CNPJ_DEST}</CNPJ>`}<xNome>EMPRESA DO ERP</xNome><enderDest><xMun>SJP</xMun><UF>PR</UF></enderDest>${o.destCpf || o.destUnidentified ? '' : '<IE>456</IE>'}</dest>
       ${o.items ?? ITEM_ICMS00}
       <total><ICMSTot><vBC>5050.55</vBC><vICMS>606.07</vICMS><vProd>5065.55</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc>
-        <vIPI>252.53</vIPI><vPIS>28.89</vPIS><vCOFINS>133.33</vCOFINS><vOutro>0.00</vOutro><vNF>${o.vNF ?? '5318.08'}</vNF><vICMSUFDest>353.54</vICMSUFDest><vFCPUFDest>101.01</vFCPUFDest></ICMSTot></total>
+        <vIPI>252.53</vIPI><vPIS>28.89</vPIS><vCOFINS>133.33</vCOFINS><vOutro>0.00</vOutro><vNF>${o.vNF ?? '5318.08'}</vNF><vICMSUFDest>353.54</vICMSUFDest><vFCPUFDest>101.01</vFCPUFDest></ICMSTot>${o.withIbsCbsTot ? '<IBSCBSTot><vBCIBSCBS>3000.00</vBCIBSCBS><gIBS><gIBSUF><vIBSUF>3.00</vIBSUF></gIBSUF><gIBSMun><vIBSMun>0.00</vIBSMun></gIBSMun><vIBS>3.00</vIBS></gIBS><gCBS><vCBS>27.00</vCBS></gCBS></IBSCBSTot>' : ''}</total>
       <transp><modFrete>1</modFrete><transporta><CNPJ>99999999000199</CNPJ><xNome>TRANSPORTADORA</xNome></transporta></transp>
       <infAdic><infCpl>PEDIDO 77 &amp; 78 =&gt; ENTREGA</infCpl></infAdic>
     </infNFe>
