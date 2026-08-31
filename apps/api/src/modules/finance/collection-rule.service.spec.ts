@@ -14,6 +14,21 @@ const mockPrisma = {
   customer: { update: jest.fn() },
 };
 
+// Relógio congelado ao meio-dia de São Paulo (15:00Z): datas por offset de 24h
+// mantêm o MESMO dia calendário em UTC e em America/Sao_Paulo. Sem isso, os
+// specs de contagem de dias flakam todo dia entre 21h e 00h de SP (janela em
+// que o dia UTC já virou e o dia operacional #1092/#1095 ainda não).
+beforeAll(() => {
+  jest.useFakeTimers({
+    now: new Date('2026-08-15T15:00:00Z'),
+    doNotFake: [
+      'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+      'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask',
+    ],
+  });
+});
+afterAll(() => jest.useRealTimers());
+
 const diasAtras = (n: number) => new Date(Date.now() - n * 86_400_000);
 
 function entry(overrides: Record<string, any> = {}) {

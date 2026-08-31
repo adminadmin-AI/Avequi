@@ -6,6 +6,18 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-08-27
+
+### Added
+- feat(fiscal): Focus-A — sync incremental de NF-e recebidas com cursor versao por company, gate default OFF (#608) (#1130)
+- feat(fiscal): importador canônico de NF-e recebida a partir do XML — mesma fundação para a Focus (#608, PR-0) (#1128)
+- feat(supplier): importador dos fornecedores exigidos pelas NF-e recebidas (#611, PR-A) (#1127)
+- feat(purchase): SupplierProductMap — fundação da conciliação de compras (Fase 2, PR-1) (#1126)
+
+### Fixed
+- fix(supplier): importador de fornecedores decodifica entidades XML do <emit> (#611) (#1129)
+- fix(fiscal): comparador de idempotência da reidratação lê timestamp do banco como UTC naive (#1125)
+
 ## [1.48.0] - 2026-08-24
 
 ### Added
@@ -586,7 +598,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.49.0...HEAD
+[1.49.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.1...v1.48.0
 [1.47.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.46.0...v1.47.0
