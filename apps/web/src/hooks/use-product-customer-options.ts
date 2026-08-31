@@ -19,8 +19,10 @@ import type { CustomerOption, ProductOption } from '@/types/api';
 
 type OptionsParams = { search?: string; isActive?: boolean; take?: number };
 
-export function useProductOptions(params?: OptionsParams) {
-  const { data: items = [], isLoading } = useOptions<ProductOption>('/products', params);
+export function useProductOptions(params?: OptionsParams, opts?: { enabled?: boolean }) {
+  const { data: items = [], isLoading } = useOptions<ProductOption>('/products', params, {
+    enabled: opts?.enabled ?? true,
+  });
   const options = useMemo<ComboboxOption[]>(
     () => items.map((p) => ({ value: p.id, label: `${p.sku} · ${p.name}` })),
     [items],

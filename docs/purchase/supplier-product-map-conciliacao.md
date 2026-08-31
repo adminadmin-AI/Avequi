@@ -7,7 +7,7 @@
 > `SupplierProductMap` (fundação no PR-1, #1126). Este passo entrega o
 > **serviço** que lista os pares com contexto para decidir, prioriza o que
 > importa (BOM ativa → valor → recorrência) e registra cada decisão humana
-> com auditoria. Não há UI grande ainda; não há motor de custo.
+> com auditoria. A UI V1 (fila de trabalho) está descrita no fim; não há motor de custo.
 
 ```
 FiscalDocument RECEBIDA (AUTHORIZED, com supplierId)
@@ -191,6 +191,55 @@ Fora deste PR (decididos): seed `Mapeamento_Nota_Item` → só `SUGGESTED`
 tenant, descrição/NCM nunca identidade) em PR/script próprio; materialização
 de `FiscalDocumentItem.productId` fica para o motor de custo (projeção
 controlada a partir de mapas `CONFIRMED`).
+
+## UI V1 — fila de trabalho (`apps/web/src/app/app/purchases/conciliation/`)
+
+> Primeira tela utilizável desta frente. Não é um módulo administrativo: é uma
+> **fila** para fechar, um item por vez, primeiro o que trava o custo das BOMs
+> ativas e depois os pares de maior valor. Menu **Suprimentos → Conciliação de
+> compras** (`/app/purchases/conciliation`, gate `purchases.supplier-map.view`).
+
+| Arquivo | Papel |
+|---|---|
+| `conciliation.ts` | lógica pura testada: tipos do contrato, rótulos pt-BR, `buildListParams` (nunca manda `companyId`; `bomOnly`/`pendingOnly` só quando true), presets, `effectiveBomOnly`, métricas do resumo (só as da API), `decisionRequest`/`describeDecision` |
+| `page.tsx` | resumo compacto (`/summary` + `/bom-coverage`), filtros, tabela server-mode (`GET /`), diálogo e drawer |
+| `resolve-dialog.tsx` | decisão humana: **Confirmar sugestão** · **Escolher Product** (busca `GET /products/options?isActive=true`, paginada, tenant pelo JWT) · **Não é produto** (Consumo / insumo · Ativo / imobilizado · Frete / outro → `CONSUMABLE`/`ASSET`/`FREIGHT_OTHER`) — com o bloco "O que será gravado" antes do botão |
+| `pair-detail-sheet.tsx` | drawer de auditoria: métricas, decisão, sugestão + origem, eventos (`GET /pairs/:supplierId/:code`), ações secundárias (descartar sugestão, marcar para revisão) |
+
+Comportamento que a UI garante (além do backend):
+
+- **Um par por vez.** Não existe seleção múltipla nem confirmação em lote;
+  cada `confirm-product`/`classify` é um clique explícito com a frase exata
+  do que será gravado à vista.
+- **Sugestão é contexto.** Aparece como "Sugestão: SKU · nome" com a origem
+  discreta (`SEED_PRODUCAO_V2` = "importada da ferramenta de produção
+  (legado)"); confirmar é sempre outro ato. A tela funciona igual sem
+  sugestão nenhuma (par `UNRESOLVED` → Escolher Product / Não é produto).
+- **BOM primeiro.** Visão inicial = *Pendentes* + "Só o que bloqueia custo de
+  BOM" ligado quando `/bom-coverage` devolve componentes (company sem BOM
+  começa com a fila completa). Linha de `priorityTier 0` ganha o selo
+  **Bloqueia BOM** e o texto "Usado em N BOMs ativas". O resumo mostra
+  "componentes de BOM cobertos X/Y" direto de `covered`.
+- **Sem recálculo no front.** Pendentes = `UNRESOLVED+SUGGESTED+REVIEW` de
+  `/summary`; valor sem decisão = `totalValue − resolvedValue`; cobertura =
+  contagem de `covered`. Ordem da fila é a do backend (sem `sort`).
+- **Permissões.** `view` → consulta tudo, drawer inclusive, sem botão de
+  ação; `resolve` → botões Confirmar/Resolver/Trocar, Descartar sugestão,
+  Marcar para revisão. Só UX: o `PermissionGuard` continua a autoridade.
+- **Mobile.** `DataTable` vira cards abaixo de `sm`; ações no rodapé do card;
+  diálogo e drawer já são responsivos.
+
+Fora da V1 (decididos): confirmação em lote, IA, seed pela UI, upload,
+materialização de `FiscalDocumentItem.productId`, motor de custo,
+precificação, Focus, NFS-e/CT-e, "sugerir manualmente" (`POST /suggest`) e
+`/divergences` (ficam para uma V2 do drawer).
+
+Testes: `conciliation.spec.ts` (vitest, lógica pura — a suíte web não tem
+DOM): parâmetros da listagem sem `companyId`, presets, `bomOnly` só quando
+true, visão inicial por BOM, resumo, destaque da linha, modo inicial do
+diálogo, corpos exatos de `confirm-product`/`classify`, item sem sugestão
+resolvível, sugestão ≠ confirmado, URL-encode do cProd, gate de ações por
+permissão.
 
 ## Testes
 
