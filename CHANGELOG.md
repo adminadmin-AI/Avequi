@@ -6,6 +6,17 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.50.0] - 2026-08-31
+
+### Added
+- feat(fiscal): importador canônico de NF-e EMITIDA a partir do XML — mesma fundação do importador de entrada (#1134)
+- feat(purchase): bootstrap Avequi — sugestões SupplierProductMap a partir do Mapeamento_Nota_Item (Fase 2, PR-3, #609) (#1132)
+- feat(web): Conciliação de compras — fila de trabalho SupplierProductMap (Fase 2, UI V1, #609) (#1133)
+- feat(purchase): SupplierProductMap PR-2 — serviço de conciliação fornecedor+cProd → Product, listagem priorizada e resolução auditada (#609) (#1131)
+
+### Changed
+- test(finance): congela o relógio do spec da régua — flake diário na janela 21h-00h SP (#1137)
+
 ## [1.49.0] - 2026-08-27
 
 ### Added
@@ -598,7 +609,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.49.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.50.0...HEAD
+[1.50.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.1...v1.48.0
 [1.47.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.47.0...v1.47.1
