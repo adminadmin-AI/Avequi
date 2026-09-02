@@ -1,6 +1,9 @@
 import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
   clearAuthCookies,
   expiryToMs,
+  extractAccessToken,
   gerarCsrfToken,
   resolveSameSite,
   setAuthCookies,
@@ -129,5 +132,53 @@ describe('SameSite por topologia (#349)', () => {
     const res = { cookie: jest.fn(), clearCookie: jest.fn() } as any;
     setAuthCookies(res, { accessToken: 'AT' });
     expect(res.cookie.mock.calls[0][2]).toMatchObject({ sameSite: 'none', secure: true });
+  });
+});
+
+/**
+ * extractAccessToken — fonte única do access token (header Bearer OU cookie
+ * httpOnly gdr_access), compartilhada pela JwtStrategy e pelo
+ * POST /auth/change-password. Regressão do bug de 02/09/2026: a rota lia só o
+ * header e a sessão por cookie caía em 401.
+ */
+describe('extractAccessToken (#349 — canal cookie e Bearer, uma fonte só)', () => {
+  it('cookie gdr_access SEM header Authorization → devolve o token do cookie', () => {
+    expect(extractAccessToken({ headers: {}, cookies: { [ACCESS_COOKIE]: 'tok-cookie' } })).toBe(
+      'tok-cookie',
+    );
+  });
+
+  it('header Bearer SEM cookie → devolve o token do header (clientes legados)', () => {
+    expect(extractAccessToken({ headers: { authorization: 'Bearer tok-header' }, cookies: {} })).toBe(
+      'tok-header',
+    );
+  });
+
+  it('header e cookie presentes → header tem precedência (mesma regra da JwtStrategy)', () => {
+    const req = {
+      headers: { authorization: 'Bearer tok-header' },
+      cookies: { [ACCESS_COOKIE]: 'tok-cookie' },
+    };
+    expect(extractAccessToken(req)).toBe('tok-header');
+  });
+
+  it('esquema é case-insensitive e tolera espaços extras (comportamento do passport)', () => {
+    expect(extractAccessToken({ headers: { authorization: 'bearer   tok  ' } })).toBe('tok');
+  });
+
+  it('cookie gdr_refresh NUNCA é tratado como access', () => {
+    expect(extractAccessToken({ headers: {}, cookies: { [REFRESH_COOKIE]: 'tok-refresh' } })).toBeNull();
+  });
+
+  it('header com esquema errado (Basic) ou vazio → null', () => {
+    expect(extractAccessToken({ headers: { authorization: 'Basic abc' } })).toBeNull();
+    expect(extractAccessToken({ headers: { authorization: 'Bearer ' } })).toBeNull();
+    expect(extractAccessToken({ headers: { authorization: 'Bearer' } })).toBeNull();
+  });
+
+  it('sem header, sem cookie, sem request → null', () => {
+    expect(extractAccessToken({})).toBeNull();
+    expect(extractAccessToken({ cookies: { [ACCESS_COOKIE]: '' } })).toBeNull();
+    expect(extractAccessToken(undefined)).toBeNull();
   });
 });

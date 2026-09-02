@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { ACCESS_COOKIE } from '../../../common/auth/auth-cookies';
+import { extractAccessToken } from '../../../common/auth/auth-cookies';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
 import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
 import { IMPERSONATION_SCOPE } from '../../ops/impersonation.constants';
@@ -28,10 +28,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // #349: header Bearer tem PRECEDÊNCIA (clientes atuais); sem header,
       // cai no cookie httpOnly gdr_access (front migrado). O CsrfGuard
       // global compensa o risco de CSRF que o canal cookie introduz.
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-        (req: any) => req?.cookies?.[ACCESS_COOKIE] ?? null,
-      ]),
+      // Fonte única (extractAccessToken) — a mesma que o change-password usa
+      // fora do guard; divergir aqui recria o bug do canal cookie invisível.
+      jwtFromRequest: (req: any) => extractAccessToken(req),
       ignoreExpiration: false,
       secretOrKey: config.get('JWT_SECRET'),
       // Defesa em profundidade: fixa o algoritmo aceito. Hoje o

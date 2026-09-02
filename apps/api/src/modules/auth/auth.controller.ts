@@ -18,6 +18,7 @@ import { Response } from 'express';
 import {
   REFRESH_COOKIE,
   clearAuthCookies,
+  extractAccessToken,
   setAuthCookies,
 } from '../../common/auth/auth-cookies';
 import { AuthService } from './auth.service';
@@ -209,11 +210,18 @@ export class AuthController {
 
   /**
    * @Public + resolução manual de identidade no service: o endpoint aceita
-   * DUAS credenciais — access token normal (header Authorization, exige
-   * currentPassword) OU passwordChangeToken restrito no body (emitido pelo
-   * login quando a senha venceu / mustChangePassword). O guard global de JWT
-   * rejeitaria o token restrito, por isso a rota é pública e a autenticação
-   * é feita explicitamente dentro do AuthService.changePassword.
+   * DUAS credenciais — access token normal (exige currentPassword) OU
+   * passwordChangeToken restrito no body (emitido pelo login quando a senha
+   * venceu / mustChangePassword). O guard global de JWT rejeitaria o token
+   * restrito, por isso a rota é pública e a autenticação é feita
+   * explicitamente dentro do AuthService.changePassword.
+   *
+   * O access token vem de `extractAccessToken(req)` — a MESMA fonte da
+   * JwtStrategy: header Bearer (clientes legados) ou cookie httpOnly
+   * `gdr_access` (front migrado, #349). Antes só o header era lido, e a
+   * sessão por cookie caía em 401 "Não autenticado": a troca voluntária de
+   * senha nunca persistia (reproduzido em produção em 02/09/2026). O CsrfGuard
+   * global segue valendo nesta rota (@Public não isenta de CSRF).
    */
   @Public()
   @Post('change-password')
@@ -221,7 +229,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({
     summary:
-      'Trocar senha — autenticado (Bearer + senha atual) OU com passwordChangeToken restrito do login (senha vencida/troca obrigatória)',
+      'Trocar senha — autenticado (cookie gdr_access ou Bearer + senha atual) OU com passwordChangeToken restrito do login (senha vencida/troca obrigatória)',
   })
   async changePassword(
     @Request() req: any,
@@ -230,7 +238,7 @@ export class AuthController {
     @Body('passwordChangeToken') passwordChangeToken: string,
   ) {
     return this.authService.changePassword({
-      authorizationHeader: req.headers?.authorization,
+      accessToken: extractAccessToken(req),
       passwordChangeToken,
       currentPassword,
       newPassword,
