@@ -5,6 +5,7 @@ import {
   ACCESS_COOKIE,
   CSRF_COOKIE,
   CSRF_HEADER,
+  extractBearerToken,
 } from '../auth/auth-cookies';
 import { SKIP_CSRF_KEY } from '../decorators/skip-csrf.decorator';
 
@@ -22,8 +23,12 @@ import { SKIP_CSRF_KEY } from '../decorators/skip-csrf.decorator';
  *   1. Métodos de leitura (GET/HEAD/OPTIONS) → passa.
  *   2. Sem cookie de access (`gdr_access`) → passa — requisição não usa o
  *      canal cookie (Bearer, webhook com secret próprio, login inicial).
- *   3. Com header Authorization → passa — a autenticação será pelo Bearer
- *      (precedência do JwtStrategy), e o Bearer é prova de não-CSRF.
+ *   3. Com header `Authorization: Bearer <token>` sintaticamente válido →
+ *      passa — a autenticação será por ESSE Bearer (precedência do
+ *      extractAccessToken/JwtStrategy), e o Bearer é prova de não-CSRF.
+ *      Header não-Bearer (`Basic …`, malformado) NÃO isenta (#1145): a
+ *      seleção de credencial cairia no cookie, e cookie exige CSRF. A
+ *      decisão usa a MESMA função de seleção que a autenticação.
  *   4. Restou: mutação autenticável por cookie → exige header
  *      `x-csrf-token` idêntico ao cookie `gdr_csrf` (comparação em tempo
  *      constante). Divergiu/faltou → 403.
@@ -60,7 +65,7 @@ export class CsrfGuard implements CanActivate {
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
 
     if (!req.cookies?.[ACCESS_COOKIE]) return true;
-    if (req.headers?.authorization) return true;
+    if (extractBearerToken(req) !== null) return true;
 
     const esperado: string | undefined = req.cookies?.[CSRF_COOKIE];
     const recebido: string | undefined = req.headers?.[CSRF_HEADER];

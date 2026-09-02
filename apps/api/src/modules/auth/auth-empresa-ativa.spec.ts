@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessSessionPolicy } from '../iam/access-session-policy.service';
 import { AuditService } from '../iam/audit.service';
 import { CompanyGroupService } from '../iam/company-group.service';
 import { MfaService } from '../iam/mfa.service';
@@ -69,6 +70,8 @@ describe('#1119 — empresa ativa da sessão', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: SessionService, useValue: mockSessionService },
+        // #1144: policy de sessão do change-password — cenários daqui não tocam nisso.
+        { provide: AccessSessionPolicy, useValue: { assertUsable: jest.fn() } },
         { provide: MfaService, useValue: {} },
         { provide: PasswordPolicyService, useValue: { isPasswordExpired: jest.fn() } },
         { provide: TenantStatusService, useValue: mockTenantStatus },

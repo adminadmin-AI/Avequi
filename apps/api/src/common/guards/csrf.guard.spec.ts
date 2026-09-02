@@ -49,6 +49,36 @@ describe('CsrfGuard (#349 — double-submit do canal cookie)', () => {
     ).toBe(true);
   });
 
+  // #1145: só um Bearer sintaticamente válido dispensa CSRF — é ele que a
+  // autenticação vai usar. Header não-Bearer faz o extractAccessToken cair
+  // no cookie, e cookie exige CSRF.
+  it.each([
+    ['Authorization: Basic', 'Basic dXNlcjpwYXNz'],
+    ['Bearer sem token', 'Bearer'],
+    ['Bearer vazio', 'Bearer   '],
+    ['esquema desconhecido', 'Token abc'],
+  ])('403 com cookie de access + %s + sem x-csrf-token (#1145)', (_caso, authorization) => {
+    const res = { setHeader: jest.fn() };
+    expect(() =>
+      guard.canActivate(
+        ctx({ method: 'POST', cookies: { gdr_access: 'jwt', gdr_csrf: CSRF }, headers: { authorization } }, res),
+      ),
+    ).toThrow(ForbiddenException);
+    expect(res.setHeader).toHaveBeenCalledWith('x-csrf-error', '1');
+  });
+
+  it('cookie de access + header não-Bearer + x-csrf-token válido → passa pelo canal cookie (#1145)', () => {
+    expect(
+      guard.canActivate(
+        ctx({
+          method: 'POST',
+          cookies: { gdr_access: 'jwt', gdr_csrf: CSRF },
+          headers: { authorization: 'Basic dXNlcjpwYXNz', 'x-csrf-token': CSRF },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('libera mutação por cookie quando o header x-csrf-token bate com o cookie', () => {
     expect(
       guard.canActivate(
