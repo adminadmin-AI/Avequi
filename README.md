@@ -31,5 +31,5 @@ cd apps/api && npm run dev     # API  → http://localhost:3001/api  (Swagger /d
 cd apps/web && npm run dev     # Front → http://localhost:3000
 ```
 
-Login de dev: `admin@gdr.com.br` / `Admin@123`. Detalhes completos no
-[`docs/ONBOARDING.md`](docs/ONBOARDING.md).
+Login de dev: peça ao time um usuário nominal (nunca há senha no repositório).
+Detalhes completos no [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
