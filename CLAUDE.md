@@ -247,12 +247,14 @@ npm run test:cov      # com cobertura
 
 ## Credencial de dev
 
-```
-Email:    admin@gdr.com.br
-Senha:    Admin@123
-Perfil:   SUPER_ADMIN
-Company:  1f885505-37df-426f-b885-2a7ac889763c (GDR)
-```
+> **Nunca versionar senha.** Nenhuma credencial real (de dev, homologação ou
+> produção) pode aparecer neste arquivo, em outro doc, em commit, PR ou issue.
+> Credenciais entram só por mecanismo seguro (variável de ambiente, `.env`
+> fora do repo, cofre de segredos). Para acesso administrativo a um ambiente,
+> siga o procedimento de provisionamento vigente: peça ao responsável do
+> ambiente a criação de um usuário nominal, com troca obrigatória de senha no
+> primeiro login (`mustChangePassword`). Empresa matriz GDR para testes locais:
+> `1f885505-37df-426f-b885-2a7ac889763c`.
 
 ## Agentes e skills disponíveis
 

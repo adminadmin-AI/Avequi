@@ -58,7 +58,9 @@ cd apps/api && npm run dev     # API  → http://localhost:3001/api  (Swagger /d
 cd apps/web && npm run dev     # Front → http://localhost:3000
 ```
 
-**Login de dev:** `admin@gdr.com.br` / `Admin@123` (SUPER_ADMIN).
+**Login de dev:** peça ao time a criação de um usuário nominal com o perfil
+necessário (troca de senha obrigatória no primeiro login). Senhas nunca são
+versionadas nem documentadas; credenciais vêm só de env/secret fora do repo.
 
 **Supabase / IPv6:** conexão direta (5432) não resolve em alguns Macs — usar o **pooler**
 (`aws-1-us-west-2.pooler.supabase.com`; 6543 queries, 5432 migrations). O projeto pausa
