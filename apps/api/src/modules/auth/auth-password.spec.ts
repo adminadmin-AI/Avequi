@@ -371,6 +371,112 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    // ── Regressão 02/09/2026: sessão por COOKIE httpOnly (#349) ──────────────
+    // O controller passa `accessToken` (cookie gdr_access OU Bearer, via
+    // extractAccessToken). Antes só o header era lido → 401 e senha intacta.
+    it('COOKIE: accessToken (sem header) + senha atual correta → troca e preserva a sessão atual', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-cookie' });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+
+      const result = await service.changePassword({
+        accessToken: 'tok-do-cookie',
+        currentPassword: 'SenhaAtual#123',
+        newPassword: 'NovaSenha#2026x',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockJwt.verify).toHaveBeenCalledWith('tok-do-cookie');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({ mustChangePassword: false }),
+        }),
+      );
+      expect(mockPasswordPolicy.recordPasswordChange).toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith(
+        'user-1',
+        'SECURITY',
+        'sess-cookie',
+      );
+    });
+
+    it('COOKIE: senha atual incorreta → 401 e nada é alterado', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-cookie' });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+
+      await expect(
+        service.changePassword({
+          accessToken: 'tok-do-cookie',
+          currentPassword: 'errada',
+          newPassword: 'NovaSenha#2026x',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('COOKIE: sem currentPassword → 401 (o cookie não dispensa a reconfirmação)', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-cookie' });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      await expect(
+        service.changePassword({ accessToken: 'tok-do-cookie', newPassword: 'NovaSenha#2026x' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('sem cookie, sem Bearer e sem passwordChangeToken → 401', async () => {
+      await expect(
+        service.changePassword({
+          accessToken: null,
+          currentPassword: 'SenhaAtual#123',
+          newPassword: 'NovaSenha#2026x',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockJwt.verify).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('accessToken inválido/expirado (verify lança — inclui refresh assinado com outro segredo) → 401', async () => {
+      mockJwt.verify.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+      await expect(
+        service.changePassword({
+          accessToken: 'tok-vencido-ou-refresh',
+          currentPassword: 'SenhaAtual#123',
+          newPassword: 'NovaSenha#2026x',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('token restrito (scope) entregue como accessToken → 401 (mesma regra da JwtStrategy)', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: PASSWORD_CHANGE_SCOPE });
+      await expect(
+        service.changePassword({
+          accessToken: 'restrito-no-canal-errado',
+          currentPassword: 'SenhaAtual#123',
+          newPassword: 'NovaSenha#2026x',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('compatibilidade: chamador antigo com authorizationHeader cru continua funcionando', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-legado' });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      const result = await service.changePassword({
+        authorizationHeader: 'Bearer legado',
+        currentPassword: 'SenhaAtual#123',
+        newPassword: 'NovaSenha#2026x',
+      });
+      expect(result.success).toBe(true);
+      expect(mockJwt.verify).toHaveBeenCalledWith('legado');
+    });
+
     it('token restrito no header Authorization NÃO vale como access token → 401', async () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', scope: PASSWORD_CHANGE_SCOPE });
 

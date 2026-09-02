@@ -113,6 +113,29 @@ export function setAuthCookies(
 }
 
 /** Limpa os 3 cookies (logout). Mesmos atributos do set — senão o browser ignora. */
+/**
+ * Fonte ÚNICA do access token de uma requisição — a mesma precedência da
+ * JwtStrategy (#349): header `Authorization: Bearer <token>` (clientes
+ * atuais/legados, Swagger, scripts) e, sem header, o cookie httpOnly
+ * `gdr_access` (front migrado). Nunca lê `gdr_refresh`: refresh não é access.
+ *
+ * Quem precisa da identidade fora do guard global (rotas @Public que aceitam
+ * DUAS credenciais, como POST /auth/change-password) usa ISTO — não parseia
+ * header por conta própria, senão o canal cookie fica invisível e a rota
+ * "funciona" só para Bearer (bug reproduzido em produção em 02/09/2026).
+ */
+export function extractAccessToken(
+  req: { headers?: Record<string, unknown>; cookies?: Record<string, unknown> } | undefined,
+): string | null {
+  const header = req?.headers?.authorization;
+  if (typeof header === 'string') {
+    const m = /^bearer\s+(\S+)\s*$/i.exec(header);
+    if (m) return m[1];
+  }
+  const cookie = req?.cookies?.[ACCESS_COOKIE];
+  return typeof cookie === 'string' && cookie.length > 0 ? cookie : null;
+}
+
 export function clearAuthCookies(res: Response): void {
   const opts = baseOptions();
   res.clearCookie(ACCESS_COOKIE, opts);

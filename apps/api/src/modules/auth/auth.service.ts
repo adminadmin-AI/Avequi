@@ -15,7 +15,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
-import { expiryToMs } from '../../common/auth/auth-cookies';
+import { expiryToMs, extractAccessToken } from '../../common/auth/auth-cookies';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../iam/audit.service';
 import { CompanyGroupService } from '../iam/company-group.service';
@@ -653,8 +653,10 @@ export class AuthService {
   /**
    * POST /auth/change-password. Dois modos de autenticação:
    *
-   * 1. NORMAL: Bearer access token no header → exige `currentPassword`
-   *    (bcrypt compare) — mesmo logado, trocar senha reconfirma identidade.
+   * 1. NORMAL: access token da sessão — cookie httpOnly `gdr_access` OU
+   *    header Bearer, resolvido pelo controller com `extractAccessToken`
+   *    (mesma fonte da JwtStrategy) → exige `currentPassword` (bcrypt
+   *    compare) — mesmo logado, trocar senha reconfirma identidade.
    * 2. RESTRITO: `passwordChangeToken` (scope=password_change, 10 min) no
    *    body — emitido pelo login quando a senha venceu ou
    *    mustChangePassword=true. NÃO exige currentPassword: o usuário acabou
@@ -666,6 +668,9 @@ export class AuthService {
    * no modo normal) e grava SecurityEvent PASSWORD_CHANGED.
    */
   async changePassword(input: {
+    /** Access token já extraído (cookie gdr_access ou Bearer) — canal normal. */
+    accessToken?: string | null;
+    /** Compatibilidade: chamadores antigos que ainda passam o header cru. */
     authorizationHeader?: string;
     passwordChangeToken?: string;
     currentPassword?: string;
@@ -766,6 +771,7 @@ export class AuthService {
    * são ambos rejeitados — cada credencial só vale no seu canal.
    */
   private resolveChangePasswordIdentity(input: {
+    accessToken?: string | null;
     authorizationHeader?: string;
     passwordChangeToken?: string;
   }): { userId: string; sessionId?: string; restricted: boolean; tokenIssuedAt?: number } {
@@ -786,9 +792,12 @@ export class AuthService {
       return { userId: payload.sub, restricted: true, tokenIssuedAt: payload.iat };
     }
 
-    const header = input.authorizationHeader ?? '';
-    if (header.startsWith('Bearer ')) {
-      const token = header.slice('Bearer '.length).trim();
+    // Canal normal: token já resolvido (cookie OU Bearer). O header cru só
+    // é aceito por compatibilidade com chamadores antigos.
+    const token =
+      input.accessToken ??
+      extractAccessToken({ headers: { authorization: input.authorizationHeader } });
+    if (token) {
       let payload: any;
       try {
         payload = this.jwtService.verify(token);

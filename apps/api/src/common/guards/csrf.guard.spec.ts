@@ -141,3 +141,28 @@ describe('CsrfGuard — isenção e sinalização (fallbacks #349)', () => {
     expect(() => guard.canActivate(ctx(mutacaoSemHeader))).toThrow(ForbiddenException);
   });
 });
+
+describe('CsrfGuard — POST /auth/change-password no canal cookie (rota @Public NÃO é isenta)', () => {
+  const base = {
+    method: 'POST',
+    url: '/api/auth/change-password',
+    cookies: { gdr_access: 'tok', gdr_csrf: 'segredo' },
+  };
+
+  it('cookie de access sem x-csrf-token → 403 (formulário cross-site não passa)', () => {
+    const guard = new CsrfGuard();
+    expect(() => guard.canActivate(ctx({ ...base, headers: {} }))).toThrow(ForbiddenException);
+  });
+
+  it('cookie de access + x-csrf-token igual ao cookie gdr_csrf → passa (fluxo do front)', () => {
+    const guard = new CsrfGuard();
+    expect(guard.canActivate(ctx({ ...base, headers: { 'x-csrf-token': 'segredo' } }))).toBe(true);
+  });
+
+  it('cliente Bearer (sem cookie de access) → passa sem CSRF, como antes', () => {
+    const guard = new CsrfGuard();
+    expect(
+      guard.canActivate(ctx({ method: 'POST', cookies: {}, headers: { authorization: 'Bearer x' } })),
+    ).toBe(true);
+  });
+});
