@@ -6,6 +6,17 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.51.2] - 2026-09-02
+
+### Fixed
+- fix(auth): change-password valida sessão como a JwtStrategy + CsrfGuard só isenta Bearer válido (#1144, #1145) (#1149)
+
+### Security
+- docs(security): remove credencial administrativa literal dos documentos de dev (#1148)
+
+### Changed
+- docs(security): remove credencial administrativa literal dos documentos de dev (#1148)
+
 ## [1.51.1] - 2026-09-02
 
 ### Fixed
@@ -619,7 +630,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.2...HEAD
+[1.51.2]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.49.0...v1.50.0
