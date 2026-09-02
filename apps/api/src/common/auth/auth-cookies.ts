@@ -114,6 +114,25 @@ export function setAuthCookies(
 
 /** Limpa os 3 cookies (logout). Mesmos atributos do set — senão o browser ignora. */
 /**
+ * O token do header `Authorization: Bearer <token>` — só quando o header é
+ * um Bearer sintaticamente válido. `Basic …`, `Bearer` vazio ou lixo → null.
+ *
+ * É a metade "header" do `extractAccessToken` e também a pergunta que o
+ * CsrfGuard faz (#1145): CSRF só é dispensado quando a autenticação VAI
+ * vir deste Bearer. Testar `req.headers.authorization` "existe" não basta —
+ * um header não-Bearer faz a autenticação cair no cookie, e aí o canal
+ * cookie ficaria sem CSRF.
+ */
+export function extractBearerToken(
+  req: { headers?: Record<string, unknown> } | undefined,
+): string | null {
+  const header = req?.headers?.authorization;
+  if (typeof header !== 'string') return null;
+  const m = /^bearer\s+(\S+)\s*$/i.exec(header);
+  return m ? m[1] : null;
+}
+
+/**
  * Fonte ÚNICA do access token de uma requisição — a mesma precedência da
  * JwtStrategy (#349): header `Authorization: Bearer <token>` (clientes
  * atuais/legados, Swagger, scripts) e, sem header, o cookie httpOnly
@@ -127,11 +146,8 @@ export function setAuthCookies(
 export function extractAccessToken(
   req: { headers?: Record<string, unknown>; cookies?: Record<string, unknown> } | undefined,
 ): string | null {
-  const header = req?.headers?.authorization;
-  if (typeof header === 'string') {
-    const m = /^bearer\s+(\S+)\s*$/i.exec(header);
-    if (m) return m[1];
-  }
+  const bearer = extractBearerToken(req);
+  if (bearer) return bearer;
   const cookie = req?.cookies?.[ACCESS_COOKIE];
   return typeof cookie === 'string' && cookie.length > 0 ? cookie : null;
 }

@@ -4,6 +4,7 @@ import {
   clearAuthCookies,
   expiryToMs,
   extractAccessToken,
+  extractBearerToken,
   gerarCsrfToken,
   resolveSameSite,
   setAuthCookies,
@@ -180,5 +181,36 @@ describe('extractAccessToken (#349 — canal cookie e Bearer, uma fonte só)', (
     expect(extractAccessToken({})).toBeNull();
     expect(extractAccessToken({ cookies: { [ACCESS_COOKIE]: '' } })).toBeNull();
     expect(extractAccessToken(undefined)).toBeNull();
+  });
+  describe('extractBearerToken (#1145 — a mesma seleção que o CsrfGuard usa)', () => {
+    it.each([
+      ['Bearer abc', 'abc'],
+      ['bearer abc', 'abc'],
+      ['Bearer   abc  ', 'abc'],
+    ])('%s → token', (authorization, esperado) => {
+      expect(extractBearerToken({ headers: { authorization } })).toBe(esperado);
+    });
+
+    it.each([
+      ['Basic dXNlcjpwYXNz'],
+      ['Bearer'],
+      ['Bearer   '],
+      ['Token abc'],
+      ['Bearer a b'],
+    ])('%s → null (não é um Bearer válido)', (authorization) => {
+      expect(extractBearerToken({ headers: { authorization } })).toBeNull();
+    });
+
+    it('sem header / header não-string → null', () => {
+      expect(extractBearerToken({ headers: {} })).toBeNull();
+      expect(extractBearerToken({ headers: { authorization: 42 } })).toBeNull();
+      expect(extractBearerToken(undefined)).toBeNull();
+    });
+
+    it('header não-Bearer + cookie: extractAccessToken cai no cookie (por isso o CSRF não pode isentar)', () => {
+      const req = { headers: { authorization: 'Basic dXNlcjpwYXNz' }, cookies: { [ACCESS_COOKIE]: 'ck' } };
+      expect(extractBearerToken(req)).toBeNull();
+      expect(extractAccessToken(req)).toBe('ck');
+    });
   });
 });

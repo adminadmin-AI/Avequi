@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
 import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
+import { AccessSessionPolicy } from '../../iam/access-session-policy.service';
 
 const mockDenylist = {
   isSessionDenylisted: jest.fn(),
@@ -11,7 +12,11 @@ describe('JwtStrategy — impersonation (OPS WP6 #913)', () => {
   const mockDeny = { isSessionDenylisted: jest.fn() };
   const mockSess = { isSessionAliveAndTouch: jest.fn().mockResolvedValue(true) };
   const { JwtStrategy: JS } = require('./jwt.strategy');
-  const strategy = new JS({ get: jest.fn().mockReturnValue('secret') }, mockDeny, mockSess);
+  const strategy = new JS(
+    { get: jest.fn().mockReturnValue('secret') },
+    mockDeny,
+    new AccessSessionPolicy(mockDeny as any, mockSess as any),
+  );
   const payload = {
     sub: 'alvo', email: 'a@b.c', role: 'MANAGER', companyId: 'c1',
     scope: 'impersonation', iid: 'iid-1', impersonatorId: 'op-1', readOnly: true,
@@ -47,7 +52,13 @@ describe('JwtStrategy', () => {
     // denylist a sessão está sempre viva (o comportamento de inatividade tem
     // spec próprio em session-idle.spec.ts).
     mockSessions.isSessionAliveAndTouch.mockResolvedValue(true);
-    strategy = new JwtStrategy(mockConfig as any, mockDenylist as any, mockSessions as any);
+    // #1144: denylist + inatividade vivem na AccessSessionPolicy compartilhada
+    // com o change-password; a strategy só delega.
+    strategy = new JwtStrategy(
+      mockConfig as any,
+      mockDenylist as any,
+      new AccessSessionPolicy(mockDenylist as any, mockSessions as any),
+    );
   });
 
   it('should extract user from valid payload', async () => {

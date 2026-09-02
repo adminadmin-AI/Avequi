@@ -10,6 +10,7 @@ import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { TenantStatusService } from '../iam/tenant-status.service';
 import { CompanyGroupService } from '../iam/company-group.service';
+import { AccessSessionPolicy } from '../iam/access-session-policy.service';
 import { AuditService } from '../iam/audit.service';
 
 /**
@@ -94,6 +95,8 @@ describe('AuthService — bloqueio por status do tenant (OPS WP1 #908)', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: SessionService, useValue: mockSessionService },
+        // #1144: policy de sessão do change-password — cenários daqui não tocam nisso.
+        { provide: AccessSessionPolicy, useValue: { assertUsable: jest.fn() } },
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: TenantStatusService, useValue: mockTenantStatus },

@@ -13,6 +13,7 @@ import { PasswordPolicyService } from '../iam/password-policy.service';
 import { SessionService } from '../iam/session.service';
 import { TenantStatusService } from '../iam/tenant-status.service';
 import { CompanyGroupService } from '../iam/company-group.service';
+import { AccessSessionPolicy } from '../iam/access-session-policy.service';
 import { AuditService } from '../iam/audit.service';
 
 const mockPrisma = {
@@ -45,6 +46,11 @@ const mockSessionService = {
   revokeSessionByRefreshTokenId: jest.fn(),
   revokeAllSessions: jest.fn(),
 };
+
+// #1144: as validações de sessão do change-password são a MESMA policy da
+// JwtStrategy — aqui a policy é real, com denylist/sessão mockados.
+const mockDenylist = { isSessionDenylisted: jest.fn() };
+const mockSessionsAlive = { isSessionAliveAndTouch: jest.fn() };
 
 const mockMfaService = {
   isEnabled: jest.fn(),
@@ -92,6 +98,10 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: SessionService, useValue: mockSessionService },
+        {
+          provide: AccessSessionPolicy,
+          useFactory: () => new AccessSessionPolicy(mockDenylist as any, mockSessionsAlive as any),
+        },
         { provide: MfaService, useValue: mockMfaService },
         { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
         { provide: TenantStatusService, useValue: mockTenantStatus },
@@ -118,6 +128,8 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
     mockSessionService.clearLockout.mockResolvedValue(undefined);
     mockSessionService.createSession.mockResolvedValue({ id: 'sess-1' });
     mockSessionService.revokeAllSessions.mockResolvedValue(1);
+    mockDenylist.isSessionDenylisted.mockResolvedValue(false);
+    mockSessionsAlive.isSessionAliveAndTouch.mockResolvedValue(true);
     mockTenantStatus.getLoginBlock.mockResolvedValue(null);
     mockMfaService.isEnabled.mockResolvedValue(false);
     mockMfaService.roleRequiresMfa.mockResolvedValue(false);
@@ -386,7 +398,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       });
 
       expect(result.success).toBe(true);
-      expect(mockJwt.verify).toHaveBeenCalledWith('tok-do-cookie');
+      expect(mockJwt.verify).toHaveBeenCalledWith('tok-do-cookie', { algorithms: ['HS256'] });
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-1' },
@@ -474,7 +486,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
         newPassword: 'NovaSenha#2026x',
       });
       expect(result.success).toBe(true);
-      expect(mockJwt.verify).toHaveBeenCalledWith('legado');
+      expect(mockJwt.verify).toHaveBeenCalledWith('legado', { algorithms: ['HS256'] });
     });
 
     it('token restrito no header Authorization NÃO vale como access token → 401', async () => {
@@ -547,6 +559,73 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       // 3. Sessões revogadas + evento de segurança.
       expect(mockSessionService.revokeAllSessions).toHaveBeenCalled();
       expect(mockPrisma.securityEvent.create).toHaveBeenCalled();
+    });
+  });
+  // ─── #1144: access token do change-password passa pelas validações da JwtStrategy ─
+
+  describe('changePassword — validações de sessão compartilhadas com a JwtStrategy (#1144)', () => {
+    const cookie = { accessToken: 'access-cookie', currentPassword: 'SenhaAtual#123', newPassword: 'NovaSenha#2026x' };
+
+    beforeEach(() => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-atual' });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    });
+
+    it('sessão revogada/denylistada (#823) → 401 e nada persistido', async () => {
+      mockDenylist.isSessionDenylisted.mockResolvedValue(true);
+
+      await expect(service.changePassword(cookie)).rejects.toThrow(
+        'Sessão inválida ou expirada. Faça login novamente.',
+      );
+      expect(mockDenylist.isSessionDenylisted).toHaveBeenCalledWith('sess-atual');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+    });
+
+    it('sessão encerrada por inatividade (#341) → 401 e nada persistido', async () => {
+      mockSessionsAlive.isSessionAliveAndTouch.mockResolvedValue(false);
+
+      await expect(service.changePassword(cookie)).rejects.toThrow(
+        'Sessão encerrada por inatividade. Faça login novamente.',
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('sessão viva → troca; a requisição conta como atividade (touch) e o verify fixa HS256', async () => {
+      const result = await service.changePassword(cookie);
+
+      expect(result.success).toBe(true);
+      expect(mockSessionsAlive.isSessionAliveAndTouch).toHaveBeenCalledWith('sess-atual', false);
+      expect(mockJwt.verify).toHaveBeenCalledWith('access-cookie', { algorithms: ['HS256'] });
+    });
+
+    it('token legado SEM sessionId (transição #342) → não consulta sessão e segue valendo', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1' });
+
+      const result = await service.changePassword(cookie);
+
+      expect(result.success).toBe(true);
+      expect(mockDenylist.isSessionDenylisted).not.toHaveBeenCalled();
+      expect(mockSessionsAlive.isSessionAliveAndTouch).not.toHaveBeenCalled();
+    });
+
+    it('modo FORCED (token restrito) NÃO passa pela policy de sessão — é outra credencial', async () => {
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1',
+        scope: PASSWORD_CHANGE_SCOPE,
+        iat: Math.floor(Date.now() / 1000) + 5,
+      });
+      mockDenylist.isSessionDenylisted.mockResolvedValue(true); // seria 401 no canal normal
+
+      const result = await service.changePassword({
+        passwordChangeToken: 'restrito',
+        newPassword: 'NovaSenha#2026x',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDenylist.isSessionDenylisted).not.toHaveBeenCalled();
+      expect(mockJwt.verify).toHaveBeenCalledWith('restrito', { algorithms: ['HS256'] });
     });
   });
 });

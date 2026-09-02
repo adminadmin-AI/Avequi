@@ -18,6 +18,7 @@ import { LegacyRoleMirrorService } from './legacy-role-mirror.service';
 import { PermissionService } from './permission.service';
 import { RolesAdminController } from './roles-admin.controller';
 import { RolesAdminService } from './roles-admin.service';
+import { AccessSessionPolicy } from './access-session-policy.service';
 import { SessionDenylistService } from './session-denylist.service';
 import { SessionService } from './session.service';
 import { TenantScopeService } from './tenant-scope.service';
@@ -58,6 +59,7 @@ import { UserAccessService } from './user-access.service';
     UserAccessController,
   ],
   providers: [
+    AccessSessionPolicy,
     AuditProcessor,
     AuditService,
     CompanyGroupService,
@@ -77,6 +79,7 @@ import { UserAccessService } from './user-access.service';
     UserAccessService,
   ],
   exports: [
+    AccessSessionPolicy,
     AuditService,
     CompanyGroupService,
     EncryptionService,

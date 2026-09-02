@@ -17,6 +17,7 @@ import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { expiryToMs, extractAccessToken } from '../../common/auth/auth-cookies';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessSessionPolicy } from '../iam/access-session-policy.service';
 import { AuditService } from '../iam/audit.service';
 import { CompanyGroupService } from '../iam/company-group.service';
 import { MfaService } from '../iam/mfa.service';
@@ -72,6 +73,7 @@ export class AuthService {
     private readonly tenantStatus: TenantStatusService,
     private readonly companyGroup: CompanyGroupService,
     private readonly auditService: AuditService,
+    private readonly sessionPolicy: AccessSessionPolicy,
   ) {}
 
   private hashToken(token: string): string {
@@ -677,7 +679,7 @@ export class AuthService {
     newPassword: string;
   }) {
     const { userId, sessionId, restricted, tokenIssuedAt } =
-      this.resolveChangePasswordIdentity(input);
+      await this.resolveChangePasswordIdentity(input);
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.isActive) {
@@ -767,18 +769,25 @@ export class AuthService {
 
   /**
    * Resolve QUEM está trocando a senha: token restrito (body) OU access
-   * token normal (header). Token restrito no header e access token no body
-   * são ambos rejeitados — cada credencial só vale no seu canal.
+   * token normal (cookie/header). Token restrito no header e access token
+   * no body são ambos rejeitados — cada credencial só vale no seu canal.
+   *
+   * #1144: o access token normal passa pelas MESMAS validações da
+   * JwtStrategy — algoritmo fixado em HS256 e, via `AccessSessionPolicy`,
+   * denylist de sessão (#823) e inatividade (#341). Antes, um token de
+   * sessão revogada/encerrada trocava a senha enquanto o JWT não expirasse.
+   * O token restrito NÃO passa pela policy: é outra credencial, sem sessão,
+   * com regras próprias (scope + anti-replay por iat < passwordChangedAt).
    */
-  private resolveChangePasswordIdentity(input: {
+  private async resolveChangePasswordIdentity(input: {
     accessToken?: string | null;
     authorizationHeader?: string;
     passwordChangeToken?: string;
-  }): { userId: string; sessionId?: string; restricted: boolean; tokenIssuedAt?: number } {
+  }): Promise<{ userId: string; sessionId?: string; restricted: boolean; tokenIssuedAt?: number }> {
     if (input.passwordChangeToken) {
       let payload: any;
       try {
-        payload = this.jwtService.verify(input.passwordChangeToken);
+        payload = this.jwtService.verify(input.passwordChangeToken, { algorithms: ['HS256'] });
       } catch {
         throw new UnauthorizedException(
           'Token de troca de senha inválido ou expirado. Faça login novamente.',
@@ -800,15 +809,19 @@ export class AuthService {
     if (token) {
       let payload: any;
       try {
-        payload = this.jwtService.verify(token);
+        payload = this.jwtService.verify(token, { algorithms: ['HS256'] });
       } catch {
         throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
       }
-      // Tokens restritos (mfa_pending, password_change) NÃO valem como
-      // access token — mesmo comportamento do JwtStrategy.
+      // Tokens restritos (mfa_pending, password_change) e de impersonation
+      // NÃO valem como access token aqui — mesmo comportamento do JwtStrategy
+      // para os restritos; impersonation é somente-leitura por construção.
       if (payload?.scope || !payload?.sub) {
         throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
       }
+      // Sessão revogada/denylistada ou encerrada por inatividade → 401,
+      // nada persistido (mesma policy da JwtStrategy).
+      await this.sessionPolicy.assertUsable(payload);
       return { userId: payload.sub, sessionId: payload.sessionId, restricted: false };
     }
 

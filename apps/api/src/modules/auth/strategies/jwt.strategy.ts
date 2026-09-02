@@ -3,26 +3,20 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { extractAccessToken } from '../../../common/auth/auth-cookies';
+import { AccessSessionPolicy } from '../../iam/access-session-policy.service';
 import { SessionDenylistService } from '../../iam/session-denylist.service';
-import { ACTIVITY_DEBOUNCE_MS, SessionService } from '../../iam/session.service';
 import { IMPERSONATION_SCOPE } from '../../ops/impersonation.constants';
 import { MFA_PENDING_SCOPE, PASSWORD_CHANGE_SCOPE } from '../auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  /**
-   * Última gravação de atividade por sessão, em memória. Sem isto, uma tela
-   * que dispara 10 chamadas geraria 10 UPDATEs no mesmo segundo. Dentro da
-   * janela de debounce a sessão só é LIDA (barato); passou da janela, grava.
-   * Cache local ao processo: com várias instâncias, o pior caso é gravar
-   * mais vezes — nunca deixar de expirar.
-   */
-  private readonly ultimaGravacao = new Map<string, number>();
-
   constructor(
     config: ConfigService,
+    // Denylist do iid de impersonation (#913) — não é sessão de usuário.
     private readonly denylist: SessionDenylistService,
-    private readonly sessions: SessionService,
+    // #1144: denylist de sessão (#823) + inatividade (#341) num serviço
+    // compartilhado com o change-password. Regra de sessão nova vai LÁ.
+    private readonly sessionPolicy: AccessSessionPolicy,
   ) {
     super({
       // #349: header Bearer tem PRECEDÊNCIA (clientes atuais); sem header,
@@ -77,40 +71,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       };
     }
 
-    // #823: sessão revogada criticamente (SECURITY/ADMIN_REVOKE — inativação,
-    // troca de senha, reset por admin) está na denylist Redis → o access
-    // token morre AQUI, antes de Company/Roles/PermissionGuard e do
-    // controller. Este é o ponto comum de TODO access token normal (o
-    // JwtAuthGuard global delega ao passport; @Public nem chega). Token
-    // legado sem sessionId (transição M4, #342) não tem sessão para
-    // consultar — segue valendo até expirar (15 min), como documentado.
-    // Redis indisponível → fail-open dentro do serviço (janela = expiração
-    // natural do token; o refresh continua barrado pelos mecanismos
-    // persistentes). Mensagem genérica: não revela o motivo da revogação.
-    if (payload?.sessionId) {
-      const denied = await this.denylist.isSessionDenylisted(payload.sessionId);
-      if (denied) {
-        throw new UnauthorizedException('Sessão inválida ou expirada. Faça login novamente.');
-      }
-    }
-
-    // INATIVIDADE (#341): a sessão morre depois de SESSION_IDLE_TIMEOUT_MINUTES
-    // sem NENHUMA requisição. Aqui é o ponto por onde passa todo access token
-    // válido, então é onde a ociosidade é medida e a atividade registrada.
-    // Antes disto, `lastActivityAt` só mudava na rotação do refresh — ou seja,
-    // ninguém media atividade de verdade.
-    if (payload?.sessionId) {
-      const agora = Date.now();
-      const ultima = this.ultimaGravacao.get(payload.sessionId) ?? 0;
-      const dentroDoDebounce = agora - ultima < ACTIVITY_DEBOUNCE_MS;
-
-      const viva = await this.sessions.isSessionAliveAndTouch(payload.sessionId, dentroDoDebounce);
-      if (!viva) {
-        this.ultimaGravacao.delete(payload.sessionId);
-        throw new UnauthorizedException('Sessão encerrada por inatividade. Faça login novamente.');
-      }
-      if (!dentroDoDebounce) this.ultimaGravacao.set(payload.sessionId, agora);
-    }
+    // #823 (denylist) + #341 (inatividade): validações de sessão do access
+    // token normal. Este é o ponto comum de TODO access token que entra pelo
+    // guard global — e o change-password (@Public, verifica o token por
+    // conta própria) chama a MESMA policy (#1144).
+    await this.sessionPolicy.assertUsable(payload);
 
     return {
       id: payload.sub,

@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SessionDenylistService } from './session-denylist.service';
 import { SessionService } from './session.service';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
+import { AccessSessionPolicy } from './access-session-policy.service';
 
 /**
  * Integração da cadeia de revogação (#823):
@@ -75,8 +76,12 @@ describe('cadeia revokeAllSessions → denylist → JwtStrategy (#823)', () => {
     strategy = new JwtStrategy(
       { get: jest.fn().mockReturnValue('secret') } as any,
       denylist,
-      // #341: sessão viva — esta cadeia testa a denylist, não a ociosidade.
-      { isSessionAliveAndTouch: jest.fn().mockResolvedValue(true) } as any,
+      // #1144: policy compartilhada; #341: sessão viva — esta cadeia testa a
+      // denylist, não a ociosidade.
+      new AccessSessionPolicy(
+        denylist,
+        { isSessionAliveAndTouch: jest.fn().mockResolvedValue(true) } as any,
+      ),
     );
 
     mockPrisma.userSession.update.mockResolvedValue({});
