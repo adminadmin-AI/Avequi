@@ -5161,3 +5161,25 @@ model GdrChassiEvento {
   @@index([gravacaoId])
   @@map("gdr_chassi_eventos")
 }
+
+/// Diagnóstico de gravação enviado pela ferramenta (#1139) — caixa-preta da
+/// conversa com a máquina. Concluída = só `resumo`; com problema = `arquivo`
+/// completo (~100 KB). `vin` SEM FK de propósito: o diagnóstico pode ser de
+/// gravação cancelada antes de existir em gdr_chassi_gravacoes.
+model GdrChassiDiagnostico {
+  id              BigInt   @id @default(autoincrement())
+  vin             String // texto gravado (ano + VIN)
+  etapa           String? // plaqueta | esquerdo | direito | livre
+  estado          String // CONCLUIDO | ERRO | TIMEOUT | CANCELADO
+  duracaoSegundos Float?   @map("duracao_s")
+  estacao         String? // hostname da estação
+  versao          String? // versão da ferramenta
+  resumo          Json // estado, passo/total, último ok, erro, nº de transações
+  arquivo         Json? // diagnóstico completo (só quando estado ≠ CONCLUIDO)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+
+  @@index([vin])
+  @@index([estado])
+  @@index([criadoEm])
+  @@map("gdr_chassi_diagnosticos")
+}
