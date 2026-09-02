@@ -6,6 +6,11 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.51.1] - 2026-09-02
+
+### Fixed
+- fix(auth): troca voluntária de senha reconhece a sessão por cookie httpOnly (#1142) (#1143)
+
 ## [1.51.0] - 2026-09-02
 
 ### Added
@@ -614,7 +619,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.0...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.1...HEAD
+[1.51.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.48.0...v1.49.0
