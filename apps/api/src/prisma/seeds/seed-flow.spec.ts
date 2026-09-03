@@ -5,7 +5,7 @@
  * UserRoleAssignment v2 e não depende do fallback legado de User.role.
  */
 import * as bcrypt from 'bcryptjs';
-import { createMemoryPrisma } from './fake-prisma';
+import { createMemoryPrisma, DEMO_ONLY_MODELS, STRUCTURAL_CATALOG_MODELS } from './fake-prisma';
 import { DEMO_USERS } from '../../../prisma/seeds/demo.seed';
 import { runDemoSeed, runStructuralSeed } from '../../../prisma/seeds/runners';
 import { SEED_GRANTED_BY } from '../../../prisma/seeds/user-role-mirror';
@@ -110,10 +110,31 @@ describe('fluxo db:seed → db:seed:demo (Onda 0 — higiene do seed IAM)', () =
     expect(db.rows('userRoleAssignment')).toHaveLength(DEMO_USERS.length);
   });
 
-  it('demo ANTES do estrutural (banco vazio): falha orientando a rodar db:seed, sem criar atribuição', async () => {
+  it('demo ANTES do estrutural (banco vazio): fail-fast com ZERO escrita — nenhuma população parcial', async () => {
     const db = createMemoryPrisma();
     await expect(runDemoSeed(db.client, DEV)).rejects.toThrow(/rode `npm run db:seed` \(estrutural\) antes de `npm run db:seed:demo`/);
+
+    // modelo a modelo: nada do demo nem do catálogo existe
+    for (const model of [...DEMO_ONLY_MODELS, 'userRoleAssignment', ...STRUCTURAL_CATALOG_MODELS]) {
+      expect(db.rows(model)).toEqual([]);
+    }
+    // robusto: o store inteiro está vazio e a ÚNICA chamada feita foi a leitura dos perfis system
+    expect(Object.values(db.store).flat()).toEqual([]);
+    expect(db.calls.map((c) => `${c.model}.${c.method}`)).toEqual(['role.findMany']);
+  });
+
+  it('demo com perfis system parcialmente presentes: também falha antes de qualquer escrita', async () => {
+    const db = createMemoryPrisma();
+    await runStructuralSeed(db.client, DEV);
+    // simula catálogo incompleto: remove o perfil do vendedor demo (STORE → LOJA_OPERACIONAL)
+    db.store.role = db.rows('role').filter((r) => r.code !== ENUM_ROLE_TO_SYSTEM_ROLE.STORE);
+    const callsBefore = db.calls.length;
+
+    await expect(runDemoSeed(db.client, DEV)).rejects.toThrow(/perfis system ausentes \(LOJA_OPERACIONAL\)/);
+
+    expect(db.rows('company')).toEqual([]);
+    expect(db.rows('user')).toEqual([]);
     expect(db.rows('userRoleAssignment')).toEqual([]);
-    expect(db.rows('role')).toEqual([]);
+    expect(db.calls.slice(callsBefore).map((c) => `${c.model}.${c.method}`)).toEqual(['role.findMany']);
   });
 });

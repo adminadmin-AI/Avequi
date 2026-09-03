@@ -50,6 +50,30 @@ export interface DemoSeedSummary {
   roleAssignmentsCreated: number;
 }
 
+/**
+ * Garante, ANTES de qualquer escrita, que todo usuário demo tem mapeamento
+ * enum → perfil system e que esses perfis já existem no banco (criados pelo
+ * `db:seed` estrutural). Só leitura. Devolve o mapa code → id para o espelhamento.
+ */
+export async function preflightSystemRoles(prisma: PrismaClient): Promise<Map<string, string>> {
+  const unmapped = DEMO_USERS.filter((u) => !systemRoleCodeFor(u.role));
+  if (unmapped.length > 0) {
+    throw new Error(
+      `Seed demo: usuários demo sem mapeamento enum → perfil system: ${unmapped.map((u) => `${u.email} (${u.role})`).join(', ')}.`,
+    );
+  }
+  const neededRoleCodes = Array.from(new Set(DEMO_USERS.map((u) => systemRoleCodeFor(u.role) as string)));
+  const roleIdByCode = await loadSystemRoleIdsByCode(prisma, neededRoleCodes);
+  const missingRoles = neededRoleCodes.filter((code) => !roleIdByCode.has(code));
+  if (missingRoles.length > 0) {
+    throw new Error(
+      `Seed demo: perfis system ausentes (${missingRoles.join(', ')}). O seed demo não cria catálogo IAM — ` +
+        'rode `npm run db:seed` (estrutural) antes de `npm run db:seed:demo`. Nada foi gravado.',
+    );
+  }
+  return roleIdByCode;
+}
+
 export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Promise<DemoSeedSummary> {
   if (!opts?.password) {
     throw new Error('seedDemo: senha dos usuários demo não informada.');
@@ -57,6 +81,11 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
   assertDemoCompanyName(DEMO_MATRIZ_NAME);
   assertDemoCompanyName(DEMO_FILIAL_NAME);
   for (const u of DEMO_USERS) assertDemoIdentity(u.email);
+
+  // ── Preflight IAM (fail-fast, ZERO escrita): os perfis system vêm do seed
+  // estrutural. Sem eles, o demo nem começa — evita população parcial
+  // (empresa/usuário criados e atribuição v2 faltando).
+  const roleIdByCode = await preflightSystemRoles(prisma);
 
   // Empresa matriz FICTÍCIA (CNPJ inválido de propósito)
   const matriz = await prisma.company.upsert({
@@ -172,16 +201,7 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
     demoUsers.push({ id: row.id, role: String(row.role), companyId: row.companyId ?? u.companyId });
   }
 
-  // RBAC v2 SOMENTE dos usuários demo: perfis system vêm do seed estrutural.
-  const neededRoleCodes = Array.from(new Set(DEMO_USERS.map((u) => systemRoleCodeFor(u.role)).filter(Boolean))) as string[];
-  const roleIdByCode = await loadSystemRoleIdsByCode(prisma, neededRoleCodes);
-  const missingRoles = neededRoleCodes.filter((code) => !roleIdByCode.has(code));
-  if (missingRoles.length > 0) {
-    throw new Error(
-      `Seed demo: perfis system ausentes (${missingRoles.join(', ')}). O seed demo não cria catálogo IAM — ` +
-        'rode `npm run db:seed` (estrutural) antes de `npm run db:seed:demo`.',
-    );
-  }
+  // RBAC v2 SOMENTE dos usuários demo, com o mapa de perfis já validado no preflight.
   const mirror = await mirrorEnumRolesToAssignments(prisma, demoUsers, roleIdByCode, { onUnmapped: 'throw' });
 
   // Products

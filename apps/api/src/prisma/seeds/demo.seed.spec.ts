@@ -104,9 +104,8 @@ describe('seedDemo (Onda 0 — higiene do seed IAM)', () => {
   it('sem os perfis system (db:seed não rodou): falha claramente orientando a rodar db:seed antes', async () => {
     const fake = createFakePrisma({ 'role.findMany': () => [] });
     await expect(seedDemo(fake.client, { password: PASSWORD })).rejects.toThrow(/npm run db:seed`.*antes de `npm run db:seed:demo`/);
-    expect(fake.callsOf('userRoleAssignment')).toEqual([]);
-    // nunca tenta criar o catálogo por conta própria
-    expect(fake.callsOf('role').filter((c) => c.method !== 'findMany')).toEqual([]);
+    // fail-fast: a única chamada ao banco é a leitura dos perfis; nenhuma empresa/usuário criado
+    expect(fake.calls.map((c) => `${c.model}.${c.method}`)).toEqual(['role.findMany']);
   });
 
   it('nenhum usuário demo usa @gdr.com.br ou @crd.com.br', async () => {
