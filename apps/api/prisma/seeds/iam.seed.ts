@@ -18,13 +18,16 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { PERMISSIONS_CATALOG } from '../../src/modules/iam/permissions.catalog';
+import { SYSTEM_ROLES } from '../../src/modules/iam/roles.catalog';
 import {
-  SYSTEM_ROLES,
-  ENUM_ROLE_TO_SYSTEM_ROLE,
-} from '../../src/modules/iam/roles.catalog';
+  assertSystemRolesComplete,
+  indexSystemRolesByCode,
+  loadSystemRoles,
+  mirrorEnumRolesToAssignments,
+  SEED_GRANTED_BY,
+} from './user-role-mirror';
 
-/** Marcador gravado em UserRoleAssignment.grantedBy para atribuições do seed */
-export const SEED_GRANTED_BY = 'SEED_IAM_F2';
+export { SEED_GRANTED_BY };
 
 export interface IamSeedSummary {
   permissionsUpserted: number;
@@ -125,18 +128,21 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
     summary.rolesUpserted++;
   }
 
-  const dbRoles = await prisma.role.findMany({
-    where: { code: { in: SYSTEM_ROLES.map((r) => r.code) } },
-    select: { id: true, code: true, parentId: true },
-  });
-  const roleIdByCode = new Map(dbRoles.map((r) => [r.code, r.id]));
+  // Resolução do catálogo SYSTEM — SOMENTE companyId=null + isSystem=true.
+  // Um Role CUSTOM de empresa pode ter o mesmo code (@@unique([companyId, code]));
+  // ele nunca entra aqui. Ambiguidade (dois systems globais com o mesmo code)
+  // ou perfil esperado ausente → falha ANTES de herança/reconciliação/espelhamento.
+  const systemCodes = SYSTEM_ROLES.map((r) => r.code);
+  const systemByCode = indexSystemRolesByCode(await loadSystemRoles(prisma, systemCodes));
+  assertSystemRolesComplete(systemByCode, systemCodes);
+  const roleIdByCode = new Map([...systemByCode].map(([code, row]) => [code, row.id]));
 
   // Passo 2: herança (parentId) — depois que todos os perfis existem
   for (const role of SYSTEM_ROLES) {
     const desiredParentId = role.parentCode
       ? roleIdByCode.get(role.parentCode) ?? null
       : null;
-    const dbRole = dbRoles.find((r) => r.code === role.code)!;
+    const dbRole = systemByCode.get(role.code)!;
     if (dbRole.parentId !== desiredParentId) {
       await prisma.role.update({
         where: { id: dbRole.id },
@@ -191,40 +197,19 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
   }
 
   // ── 4. Espelhamento: User.role (enum) → UserRoleAssignment ────────────────
+  // Regra compartilhada com o seed demo (user-role-mirror.ts). Aqui: todos os
+  // usuários existentes; sem mapeamento → avisa e pula (comportamento M1).
   const users = await prisma.user.findMany({
     select: { id: true, role: true, companyId: true },
   });
-  for (const user of users) {
-    const roleCode = ENUM_ROLE_TO_SYSTEM_ROLE[user.role as string];
-    const roleId = roleCode ? roleIdByCode.get(roleCode) : undefined;
-    if (!roleId || !user.companyId) {
-      summary.usersSkipped++;
-      console.warn(
-        `⚠️  IAM seed: usuário ${user.id} sem mapeamento (role=${user.role}) — pulado`,
-      );
-      continue;
-    }
-    const existing = await prisma.userRoleAssignment.findUnique({
-      where: {
-        userId_roleId_companyId: {
-          userId: user.id,
-          roleId,
-          companyId: user.companyId,
-        },
-      },
-    });
-    if (!existing) {
-      await prisma.userRoleAssignment.create({
-        data: {
-          userId: user.id,
-          roleId,
-          companyId: user.companyId,
-          grantedBy: SEED_GRANTED_BY,
-        },
-      });
-      summary.userAssignmentsCreated++;
-    }
-  }
+  const mirror = await mirrorEnumRolesToAssignments(
+    prisma,
+    users.map((u) => ({ id: u.id, role: String(u.role), companyId: u.companyId })),
+    roleIdByCode,
+    { onUnmapped: 'skip' },
+  );
+  summary.userAssignmentsCreated += mirror.created;
+  summary.usersSkipped += mirror.skipped;
 
   console.log(
     `✅ IAM seed: ${summary.permissionsUpserted} permissões · ${summary.rolesUpserted} perfis system · ` +

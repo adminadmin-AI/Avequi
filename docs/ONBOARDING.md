@@ -53,6 +53,15 @@ brew services start redis                    # fila Bull/Redis
 #   • raiz: VAPID (push web)
 #   • apps/api/.env: DATABASE_URL (pooler 6543, pgbouncer) + DIRECT_URL (5432, p/ DDL)
 
+# banco local vazio (opcional). Os seeds validam o ENDPOINT APARENTE de DATABASE_URL
+# antes de qualquer query: só loopback (localhost/127.0.0.1/::1) conta como local;
+# o estrutural em endpoint não-loopback exige ALLOW_PROD_SEED=true. Como um localhost
+# pode ser túnel/proxy para um banco real, o demo ainda exige NODE_ENV=development
+# exato + CONFIRM_DEMO_SEED=true e faz preflight read-only do conteúdo: só roda em
+# banco VAZIO ou que contenha apenas o demo canônico. Sem override.
+npm run db:seed --workspace=apps/api        # estrutural: cClassTrib + IAM v2 + planos
+NODE_ENV=development CONFIRM_DEMO_SEED=true SEED_USER_PASSWORD="$(openssl rand -base64 18)"   npm run db:seed:demo --workspace=apps/api # demo: empresas/usuários fictícios (@exemplo.test)
+
 # subir:
 cd apps/api && npm run dev     # API  → http://localhost:3001/api  (Swagger /docs)
 cd apps/web && npm run dev     # Front → http://localhost:3000

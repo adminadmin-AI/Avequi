@@ -1,13 +1,17 @@
 /**
  * Runner standalone do seed de IAM (permissões + perfis + espelhamento).
- * Uso: `npm run db:seed:iam` — não mexe nos demais dados do seed principal.
+ * Uso: `npm run db:seed:iam` — não mexe nos demais dados do seed estrutural.
+ *
+ * Mesma proteção do seed estrutural: NODE_ENV=production OU DATABASE_URL com
+ * endpoint não-loopback só rodam com ALLOW_PROD_SEED=true (reconcilia perfis
+ * system e permissões reais).
  */
 import { PrismaClient } from '@prisma/client';
-import { seedIam } from './seeds/iam.seed';
+import { runIamSeed } from './seeds/runners';
 
 const prisma = new PrismaClient();
 
-seedIam(prisma)
+runIamSeed(prisma)
   .catch((err) => {
     console.error(err);
     process.exitCode = 1;

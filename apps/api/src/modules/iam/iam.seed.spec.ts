@@ -52,7 +52,11 @@ function createFakePrisma(users: FakeRecord[] = []) {
       }),
       findMany: jest.fn(async ({ where }: any) => {
         const codes: string[] = where?.code?.in ?? [];
-        return roles.filter((r) => codes.includes(r.code)).map((r) => ({ ...r }));
+        return roles
+          .filter((r) => codes.includes(r.code))
+          .filter((r) => !('companyId' in (where ?? {})) || (r.companyId ?? null) === (where.companyId ?? null))
+          .filter((r) => !('isSystem' in (where ?? {})) || !!r.isSystem === !!where.isSystem)
+          .map((r) => ({ ...r }));
       }),
       update: jest.fn(async ({ where, data }: any) => {
         const found = roles.find((r) => r.id === where.id);
@@ -248,5 +252,75 @@ describe('Seed de IAM — idempotência (#338/#339)', () => {
 
     const semPai = prisma._state.roles.find((r) => r.code === 'ADMIN_GLOBAL');
     expect(semPai.parentId).toBeNull();
+  });
+
+  it('REGRESSÃO (Codex/#1151): Role CUSTOM de empresa com o MESMO code de um perfil system não é confundido com ele', async () => {
+    // Usuário DIRECTOR da empresa X: precisa cair no perfil SYSTEM, não no custom
+    const prisma = createFakePrisma([{ id: 'user-x', role: 'DIRECTOR', companyId: 'company-x' }]);
+    await seedIam(prisma as any); // cria o catálogo system (e já espelha user-x no system)
+
+    const systemDiretor = prisma._state.roles.find((r) => r.code === 'DIRETOR' && r.companyId == null && r.isSystem);
+    const systemAdmin = prisma._state.roles.find((r) => r.code === 'ADMIN_GLOBAL' && r.companyId == null && r.isSystem);
+    expect(systemDiretor).toBeDefined();
+    const permA = prisma._state.permissions.find((p) => p.code === 'sales.orders.create');
+    const permB = prisma._state.permissions.find((p) => p.code === 'sales.orders.view');
+
+    // Perfil CUSTOM da empresa com o MESMO code 'DIRETOR', inserido DEPOIS do
+    // system (cenário em que um Map por ordem de retorno pegaria o custom).
+    const customDiretor = {
+      id: prisma._state.nextId(),
+      code: 'DIRETOR',
+      name: 'Diretor Custom da Empresa X',
+      description: 'custom',
+      isSystem: false,
+      isActive: true,
+      companyId: 'company-x',
+      parentId: 'custom-parent-id',
+      requireMfa: true,
+    };
+    prisma._state.roles.push(customDiretor);
+    const customLinks = [
+      { id: prisma._state.nextId(), roleId: customDiretor.id, permissionId: permA.id, granted: true },
+      { id: prisma._state.nextId(), roleId: customDiretor.id, permissionId: permB.id, granted: false },
+    ];
+    prisma._state.rolePermissions.push(...customLinks);
+    const customSnapshot = JSON.stringify(customDiretor);
+    const customLinksSnapshot = JSON.stringify(customLinks);
+
+    // Remove a atribuição do 1º run para provar que o 2º run (com o custom presente) escolhe o SYSTEM
+    prisma._state.userRoleAssignments.length = 0;
+
+    // Derruba o parentId do system para provar que a reconciliação acerta o alvo certo
+    systemDiretor.parentId = null;
+
+    const result = await seedIam(prisma as any);
+
+    // system reconciliado: herança conforme catálogo e vínculos completos
+    const diretorCatalog = SYSTEM_ROLES.find((r) => r.code === 'DIRETOR')!;
+    const expectedParent = diretorCatalog.parentCode
+      ? prisma._state.roles.find((r) => r.code === diretorCatalog.parentCode && r.companyId == null && r.isSystem).id
+      : null;
+    expect(prisma._state.roles.find((r) => r.id === systemDiretor.id).parentId).toBe(expectedParent);
+    expect(prisma._state.rolePermissions.filter((rp) => rp.roleId === systemDiretor.id).length).toBe(diretorCatalog.permissions.length);
+    expect(systemAdmin).toBeDefined();
+
+    // custom intacto: parentId, permissões, isSystem, companyId, nome, MFA
+    expect(JSON.stringify(prisma._state.roles.find((r) => r.id === customDiretor.id))).toBe(customSnapshot);
+    expect(JSON.stringify(prisma._state.rolePermissions.filter((rp) => rp.roleId === customDiretor.id))).toBe(customLinksSnapshot);
+    expect(prisma.role.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: customDiretor.id } }));
+
+    // usuário vinculado ao SYSTEM, nunca ao custom
+    const assignments = prisma._state.userRoleAssignments.filter((a) => a.userId === 'user-x');
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].roleId).toBe(systemDiretor.id);
+    expect(assignments.some((a) => a.roleId === customDiretor.id)).toBe(false);
+    expect(result.usersSkipped).toBe(0);
+  });
+
+  it('dois perfis system GLOBAIS com o mesmo code (ambiguidade) → falha antes de reconciliar', async () => {
+    const prisma = createFakePrisma();
+    await seedIam(prisma as any);
+    prisma._state.roles.push({ id: prisma._state.nextId(), code: 'DIRETOR', name: 'dup', isSystem: true, companyId: null, parentId: null });
+    await expect(seedIam(prisma as any)).rejects.toThrow(/perfil system ambíguo.*DIRETOR/);
   });
 });
