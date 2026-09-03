@@ -8,7 +8,8 @@
  * real: `assertDemoIdentity` rejeita e-mails dos domínios reais e
  * `assertDemoCompanyName` rejeita nomes que pareçam empresa real.
  *
- * HARD-BLOCKED em NODE_ENV=production, sem flag de override (ver seed-guard).
+ * HARD-BLOCKED em NODE_ENV=production e em qualquer DATABASE_URL remota (só
+ * loopback é aceito), sem flag de override (ver seed-guard).
  * Administrador real de tenant nasce pelo convite de tenant (OPS WP2, #909),
  * nunca por seed.
  *

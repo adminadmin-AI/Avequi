@@ -19,7 +19,13 @@
 import type { PrismaClient } from '@prisma/client';
 import { PERMISSIONS_CATALOG } from '../../src/modules/iam/permissions.catalog';
 import { SYSTEM_ROLES } from '../../src/modules/iam/roles.catalog';
-import { mirrorEnumRolesToAssignments, SEED_GRANTED_BY } from './user-role-mirror';
+import {
+  assertSystemRolesComplete,
+  indexSystemRolesByCode,
+  loadSystemRoles,
+  mirrorEnumRolesToAssignments,
+  SEED_GRANTED_BY,
+} from './user-role-mirror';
 
 export { SEED_GRANTED_BY };
 
@@ -122,18 +128,21 @@ export async function seedIam(prisma: PrismaClient): Promise<IamSeedSummary> {
     summary.rolesUpserted++;
   }
 
-  const dbRoles = await prisma.role.findMany({
-    where: { code: { in: SYSTEM_ROLES.map((r) => r.code) } },
-    select: { id: true, code: true, parentId: true },
-  });
-  const roleIdByCode = new Map(dbRoles.map((r) => [r.code, r.id]));
+  // Resolução do catálogo SYSTEM — SOMENTE companyId=null + isSystem=true.
+  // Um Role CUSTOM de empresa pode ter o mesmo code (@@unique([companyId, code]));
+  // ele nunca entra aqui. Ambiguidade (dois systems globais com o mesmo code)
+  // ou perfil esperado ausente → falha ANTES de herança/reconciliação/espelhamento.
+  const systemCodes = SYSTEM_ROLES.map((r) => r.code);
+  const systemByCode = indexSystemRolesByCode(await loadSystemRoles(prisma, systemCodes));
+  assertSystemRolesComplete(systemByCode, systemCodes);
+  const roleIdByCode = new Map([...systemByCode].map(([code, row]) => [code, row.id]));
 
   // Passo 2: herança (parentId) — depois que todos os perfis existem
   for (const role of SYSTEM_ROLES) {
     const desiredParentId = role.parentCode
       ? roleIdByCode.get(role.parentCode) ?? null
       : null;
-    const dbRole = dbRoles.find((r) => r.code === role.code)!;
+    const dbRole = systemByCode.get(role.code)!;
     if (dbRole.parentId !== desiredParentId) {
       await prisma.role.update({
         where: { id: dbRole.id },

@@ -12,7 +12,7 @@ import { SEED_GRANTED_BY } from '../../../prisma/seeds/user-role-mirror';
 import { ENUM_ROLE_TO_SYSTEM_ROLE, SYSTEM_ROLES } from '../../modules/iam/roles.catalog';
 import { CCLASSTRIB_TABLE } from '../../modules/tax/data/cclasstrib.data';
 
-const DEV = { NODE_ENV: 'development', SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
+const DEV = { NODE_ENV: 'development', DATABASE_URL: 'postgresql://dev:dev@localhost:5432/avequi_dev', SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
 
 describe('fluxo db:seed → db:seed:demo (Onda 0 — higiene do seed IAM)', () => {
   beforeEach(() => {

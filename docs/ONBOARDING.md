@@ -53,7 +53,10 @@ brew services start redis                    # fila Bull/Redis
 #   • raiz: VAPID (push web)
 #   • apps/api/.env: DATABASE_URL (pooler 6543, pgbouncer) + DIRECT_URL (5432, p/ DDL)
 
-# banco local vazio (opcional — NUNCA contra produção):
+# banco local vazio (opcional). Os seeds leem DATABASE_URL antes de qualquer query:
+# só loopback (localhost/127.0.0.1/::1) conta como local. O demo se recusa a rodar
+# contra QUALQUER banco remoto (Supabase incluso) e em NODE_ENV=production, sem
+# override; o estrutural em banco remoto exige ALLOW_PROD_SEED=true.
 npm run db:seed --workspace=apps/api        # estrutural: cClassTrib + IAM v2 + planos
 SEED_USER_PASSWORD="$(openssl rand -base64 18)"   npm run db:seed:demo --workspace=apps/api # demo: empresas/usuários fictícios (@exemplo.test)
 

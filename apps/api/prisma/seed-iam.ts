@@ -2,8 +2,9 @@
  * Runner standalone do seed de IAM (permissões + perfis + espelhamento).
  * Uso: `npm run db:seed:iam` — não mexe nos demais dados do seed estrutural.
  *
- * Mesma proteção do seed estrutural: em produção só roda com
- * ALLOW_PROD_SEED=true (reconcilia perfis system e permissões reais).
+ * Mesma proteção do seed estrutural: NODE_ENV=production OU DATABASE_URL
+ * remota (fora de loopback) só rodam com ALLOW_PROD_SEED=true (reconcilia
+ * perfis system e permissões reais).
  */
 import { PrismaClient } from '@prisma/client';
 import { runIamSeed } from './seeds/runners';

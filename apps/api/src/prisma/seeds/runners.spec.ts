@@ -16,9 +16,13 @@ import { runDemoSeed, runIamSeed, runStructuralSeed } from '../../../prisma/seed
 import { SeedBlockedError } from '../../../prisma/seeds/seed-guard';
 import { seedStructural } from '../../../prisma/seeds/structural.seed';
 
-const PROD = { NODE_ENV: 'production' };
-const PROD_ALLOWED = { NODE_ENV: 'production', ALLOW_PROD_SEED: 'true' };
-const DEV = { NODE_ENV: 'development', SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
+// Hosts fictícios — nenhum host/credencial real.
+const LOCAL_URL = 'postgresql://dev:dev@localhost:5432/avequi_dev';
+const REMOTE_URL = 'postgresql://app:secret@db.exemplo.test:6543/postgres';
+const PROD = { NODE_ENV: 'production', DATABASE_URL: LOCAL_URL };
+const PROD_ALLOWED = { NODE_ENV: 'production', DATABASE_URL: LOCAL_URL, ALLOW_PROD_SEED: 'true' };
+const DEV = { NODE_ENV: 'development', DATABASE_URL: LOCAL_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
+const DEV_REMOTE = { NODE_ENV: 'development', DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
 
 describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
   beforeEach(() => {
@@ -46,6 +50,21 @@ describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
       await runStructuralSeed(fake.client, DEV);
       expect(seedStructural).toHaveBeenCalledTimes(1);
     });
+
+    it('banco REMOTO em development: bloqueia sem ALLOW_PROD_SEED=true, roda com a flag', async () => {
+      const fake = createFakePrisma();
+      await expect(runStructuralSeed(fake.client, DEV_REMOTE)).rejects.toThrow(SeedBlockedError);
+      expect(seedStructural).not.toHaveBeenCalled();
+      await runStructuralSeed(fake.client, { ...DEV_REMOTE, ALLOW_PROD_SEED: 'true' });
+      expect(seedStructural).toHaveBeenCalledTimes(1);
+    });
+
+    it('DATABASE_URL ausente: bloqueia antes de tocar no banco', async () => {
+      const fake = createFakePrisma();
+      await expect(runStructuralSeed(fake.client, { NODE_ENV: 'development' })).rejects.toThrow(/DATABASE_URL ausente/);
+      expect(seedStructural).not.toHaveBeenCalled();
+      expect(fake.calls).toHaveLength(0);
+    });
   });
 
   describe('runIamSeed (npm run db:seed:iam — runner standalone)', () => {
@@ -66,6 +85,12 @@ describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
       await runIamSeed(fake.client, DEV);
       expect(seedIam).toHaveBeenCalledTimes(1);
     });
+
+    it('banco REMOTO em development: bloqueia sem ALLOW_PROD_SEED=true', async () => {
+      const fake = createFakePrisma();
+      await expect(runIamSeed(fake.client, DEV_REMOTE)).rejects.toThrow(SeedBlockedError);
+      expect(seedIam).not.toHaveBeenCalled();
+    });
   });
 
   describe('runDemoSeed (npm run db:seed:demo)', () => {
@@ -81,7 +106,7 @@ describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
 
     it('desenvolvimento sem SEED_USER_PASSWORD: falha sem tocar no banco', async () => {
       const fake = createFakePrisma();
-      await expect(runDemoSeed(fake.client, { NODE_ENV: 'development' })).rejects.toThrow(/SEED_USER_PASSWORD/);
+      await expect(runDemoSeed(fake.client, { NODE_ENV: 'development', DATABASE_URL: LOCAL_URL })).rejects.toThrow(/SEED_USER_PASSWORD/);
       expect(seedDemo).not.toHaveBeenCalled();
     });
 
@@ -92,10 +117,32 @@ describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
       expect(summary).toEqual({ companies: 2, users: 4 });
     });
 
-    it('NODE_ENV ausente (padrão local) conta como não-produção', async () => {
+    it('NODE_ENV ausente + banco LOCAL: roda', async () => {
       const fake = createFakePrisma();
-      await runDemoSeed(fake.client, { SEED_USER_PASSWORD: 'x'.repeat(16) });
+      await runDemoSeed(fake.client, { DATABASE_URL: LOCAL_URL, SEED_USER_PASSWORD: 'x'.repeat(16) });
       expect(seedDemo).toHaveBeenCalledTimes(1);
+    });
+
+    it('banco REMOTO: bloqueado com NODE_ENV ausente, development, staging — e mesmo com ALLOW_PROD_SEED=true', async () => {
+      const fake = createFakePrisma();
+      for (const env of [
+        { DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'x'.repeat(16) },
+        DEV_REMOTE,
+        { ...DEV_REMOTE, NODE_ENV: 'staging' },
+        { ...DEV_REMOTE, ALLOW_PROD_SEED: 'true' },
+      ]) {
+        await expect(runDemoSeed(fake.client, env)).rejects.toThrow(/REMOTO/);
+      }
+      expect(seedDemo).not.toHaveBeenCalled();
+      expect(fake.calls).toHaveLength(0);
+    });
+
+    it('DATABASE_URL ausente ou inválida: bloqueia antes de tocar no banco', async () => {
+      const fake = createFakePrisma();
+      await expect(runDemoSeed(fake.client, { NODE_ENV: 'development', SEED_USER_PASSWORD: 'x'.repeat(16) })).rejects.toThrow(/DATABASE_URL ausente/);
+      await expect(runDemoSeed(fake.client, { NODE_ENV: 'development', DATABASE_URL: 'nao-e-url', SEED_USER_PASSWORD: 'x'.repeat(16) })).rejects.toThrow(/inválida/);
+      expect(seedDemo).not.toHaveBeenCalled();
+      expect(fake.calls).toHaveLength(0);
     });
   });
 });

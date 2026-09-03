@@ -85,6 +85,9 @@ describe('coerência dos scripts e docs dos seeds', () => {
     expect(env).toMatch(/SEED_USER_PASSWORD=""/);
     expect(env).toMatch(/BLOQUEADO em NODE_ENV=production/);
     expect(env).toMatch(/nunca vale para o demo/i);
+    expect(env).toMatch(/loopback/i);
+    expect(env).toMatch(/QUALQUER banco remoto/);
+    expect(env).toMatch(/exigida também para qualquer destino remoto/i);
     expect(env).not.toMatch(/4 usuários de exemplo/);
     expect(env).not.toMatch(/admin\/diretor\/gerente\/loja/);
   });
@@ -93,7 +96,9 @@ describe('coerência dos scripts e docs dos seeds', () => {
     const doc = read(join(REPO_ROOT, 'docs', 'ONBOARDING.md'));
     expect(doc).toMatch(/npm run db:seed --workspace=apps\/api/);
     expect(doc).toMatch(/npm run db:seed:demo --workspace=apps\/api/);
-    expect(doc).toMatch(/NUNCA contra produção/);
+    expect(doc).toMatch(/só loopback/i);
+    expect(doc).toMatch(/QUALQUER banco remoto/);
+    expect(doc).toMatch(/ALLOW_PROD_SEED=true/);
     expect(doc).toMatch(/usuário nominal/);
     expect(doc).not.toMatch(/@gdr\.com\.br/);
   });
