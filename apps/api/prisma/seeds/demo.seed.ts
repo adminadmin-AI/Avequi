@@ -12,12 +12,18 @@
  * Administrador real de tenant nasce pelo convite de tenant (OPS WP2, #909),
  * nunca por seed.
  *
+ * RBAC v2: depois de criar os usuários demo, garante o UserRoleAssignment de
+ * CADA um deles usando os perfis system que o seed ESTRUTURAL já criou. Não
+ * cria nem reconcilia catálogo IAM; sem os perfis, falha pedindo `db:seed`.
+ *
  * Idempotente: upserts por chave natural; blocos condicionais só criam o que
- * falta. Execução: `npm run db:seed:demo` (exige SEED_USER_PASSWORD).
+ * falta. Execução: `npm run db:seed` e depois `npm run db:seed:demo`
+ * (exige SEED_USER_PASSWORD).
  */
 import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { assertDemoCompanyName, assertDemoIdentity } from './seed-guard';
+import { loadSystemRoleIdsByCode, mirrorEnumRolesToAssignments, systemRoleCodeFor } from './user-role-mirror';
 
 export const DEMO_EMAIL_DOMAIN = 'exemplo.test';
 export const DEMO_ADMIN_EMAIL = `admin@${DEMO_EMAIL_DOMAIN}`;
@@ -40,6 +46,8 @@ export interface DemoSeedOptions {
 export interface DemoSeedSummary {
   companies: number;
   users: number;
+  /** UserRoleAssignment v2 criados nesta execução (0 se já existiam). */
+  roleAssignmentsCreated: number;
 }
 
 export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Promise<DemoSeedSummary> {
@@ -145,9 +153,10 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
     companyId: u.unit === 'matriz' ? matriz.id : filialSP.id,
   }));
 
+  const demoUsers: Array<{ id: string; role: string; companyId: string }> = [];
   for (const u of users) {
     assertDemoIdentity(u.email);
-    await prisma.user.upsert({
+    const row = await prisma.user.upsert({
       where: { email: u.email },
       update: {},
       create: {
@@ -158,8 +167,22 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
         companyId: u.companyId,
         mustChangePassword: true,
       },
+      select: { id: true, role: true, companyId: true },
     });
+    demoUsers.push({ id: row.id, role: String(row.role), companyId: row.companyId ?? u.companyId });
   }
+
+  // RBAC v2 SOMENTE dos usuários demo: perfis system vêm do seed estrutural.
+  const neededRoleCodes = Array.from(new Set(DEMO_USERS.map((u) => systemRoleCodeFor(u.role)).filter(Boolean))) as string[];
+  const roleIdByCode = await loadSystemRoleIdsByCode(prisma, neededRoleCodes);
+  const missingRoles = neededRoleCodes.filter((code) => !roleIdByCode.has(code));
+  if (missingRoles.length > 0) {
+    throw new Error(
+      `Seed demo: perfis system ausentes (${missingRoles.join(', ')}). O seed demo não cria catálogo IAM — ` +
+        'rode `npm run db:seed` (estrutural) antes de `npm run db:seed:demo`.',
+    );
+  }
+  const mirror = await mirrorEnumRolesToAssignments(prisma, demoUsers, roleIdByCode, { onUnmapped: 'throw' });
 
   // Products
   const products = [
@@ -193,8 +216,8 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
 
   // Customers
   const customers = [
-    { name: 'João Silva', type: CustomerType.INDIVIDUAL, document: '123.456.789-00', email: 'joao@email.com', city: 'São Paulo', state: 'SP', companyId: filialSP.id },
-    { name: 'Modas Bela Vista ME', type: CustomerType.COMPANY, document: '99.888.777/0001-11', email: 'compras@modas.com', city: 'São Paulo', state: 'SP', companyId: filialSP.id },
+    { name: 'João Silva', type: CustomerType.INDIVIDUAL, document: '123.456.789-00', email: `joao@${DEMO_EMAIL_DOMAIN}`, city: 'São Paulo', state: 'SP', companyId: filialSP.id },
+    { name: 'Modas Bela Vista ME', type: CustomerType.COMPANY, document: '99.888.777/0001-11', email: `compras@${DEMO_EMAIL_DOMAIN}`, city: 'São Paulo', state: 'SP', companyId: filialSP.id },
   ];
 
   for (const c of customers) {
@@ -314,7 +337,7 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
 
     // ─── NCM 8716.39.00 — Reboques (veículos) — prioridade 10 > genérica 0 ──
     // IPI CST 51 (alíquota zero, TIPI Decreto 11.158/2022), ICMS sem ST
-    // PIS CST 49 / COFINS CST 99 alíquota zero, conforme NF-e real #14236 autorizada (#371)
+    // PIS CST 49 / COFINS CST 99 alíquota zero (regra de exemplo)
     // Regra de exemplo — fundamento legal a confirmar com o contador de cada empresa
     // icmsInternaDestino = alíquota interna do UF destino (para cálculo DIFAL — EC 87/2015)
     { companyId: matriz.id, operationType: TaxOperationType.VENDA_INTERNA, ncm: '87163900', cfop: '5101', icmsCst: '00', icmsAliquota: 12, ipiCst: '51', ipiAliquota: 0, pisCst: '49', pisAliquota: 0, cofinsCst: '99', cofinsAliquota: 0, cClassTrib: '000001', cbsCst: '000', cbsAliquota: 0.9, ibsUfCst: '000', ibsUfAliquota: 0.1, ibsMunCst: '000', ibsMunAliquota: 0, description: 'Reboque NCM 8716 — venda interna PR (ICMS 12%)', priority: 10 },
@@ -439,6 +462,8 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
     }
   }
 
-  console.log(`✅ Seed demo: ${DEMO_USERS.length} usuários @${DEMO_EMAIL_DOMAIN}, 2 empresas fictícias`);
-  return { companies: 2, users: DEMO_USERS.length };
+  console.log(
+    `✅ Seed demo: ${DEMO_USERS.length} usuários @${DEMO_EMAIL_DOMAIN}, 2 empresas fictícias, ${mirror.created} atribuições RBAC v2 criadas`,
+  );
+  return { companies: 2, users: DEMO_USERS.length, roleAssignmentsCreated: mirror.created };
 }

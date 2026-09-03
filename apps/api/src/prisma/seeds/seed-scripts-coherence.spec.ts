@@ -47,6 +47,7 @@ describe('coerência dos scripts e docs dos seeds', () => {
       'seeds/demo.seed.ts',
       'seeds/cclasstrib.seed.ts',
       'seeds/runners.ts',
+      'seeds/user-role-mirror.ts',
     ];
     for (const f of files) {
       const src = read(join(API_ROOT, 'prisma', f));
@@ -55,6 +56,15 @@ describe('coerência dos scripts e docs dos seeds', () => {
       expect(src).not.toMatch(/GDR Reboques/i);
       expect(src).not.toMatch(/name: 'GDR/);
     }
+    // demo: nenhum e-mail fora do domínio fictício e nenhuma referência a operação real
+    const demo = read(join(API_ROOT, 'prisma', 'seeds', 'demo.seed.ts'));
+    const emails = demo.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [];
+    expect(emails.length).toBeGreaterThan(0);
+    for (const e of emails) {
+      expect(e.endsWith('@exemplo.test')).toBe(true);
+    }
+    expect(demo).not.toMatch(/NF-e real/i);
+    expect(demo).not.toMatch(/14236/);
   });
 
   it('o estrutural não importa o demo e o demo não importa o estrutural', () => {
@@ -63,6 +73,8 @@ describe('coerência dos scripts e docs dos seeds', () => {
     const imports = (src: string) => src.match(/from '[^']+'/g) ?? [];
     expect(imports(structural).join(' ')).not.toMatch(/demo\.seed/);
     expect(imports(demo).join(' ')).not.toMatch(/structural\.seed|iam\.seed|plans\.seed|cclasstrib\.seed/);
+    // o demo só compartilha com o IAM a regra de espelhamento (user-role-mirror), nunca o catálogo
+    expect(imports(demo).join(' ')).toMatch(/user-role-mirror/);
   });
 
   it('.env.example documenta os três comandos, o bloqueio do demo e a senha sem default', () => {
