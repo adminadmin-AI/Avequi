@@ -53,6 +53,10 @@ brew services start redis                    # fila Bull/Redis
 #   • raiz: VAPID (push web)
 #   • apps/api/.env: DATABASE_URL (pooler 6543, pgbouncer) + DIRECT_URL (5432, p/ DDL)
 
+# banco local vazio (opcional — NUNCA contra produção):
+npm run db:seed --workspace=apps/api        # estrutural: cClassTrib + IAM v2 + planos
+SEED_USER_PASSWORD="$(openssl rand -base64 18)"   npm run db:seed:demo --workspace=apps/api # demo: empresas/usuários fictícios (@exemplo.test)
+
 # subir:
 cd apps/api && npm run dev     # API  → http://localhost:3001/api  (Swagger /docs)
 cd apps/web && npm run dev     # Front → http://localhost:3000
