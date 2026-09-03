@@ -6,13 +6,19 @@
  */
 import * as bcrypt from 'bcryptjs';
 import { createMemoryPrisma, DEMO_ONLY_MODELS, STRUCTURAL_CATALOG_MODELS } from './fake-prisma';
-import { DEMO_USERS } from '../../../prisma/seeds/demo.seed';
+import { DEMO_COMPANY_CNPJS, DEMO_USERS } from '../../../prisma/seeds/demo.seed';
 import { runDemoSeed, runStructuralSeed } from '../../../prisma/seeds/runners';
+import { SeedBlockedError } from '../../../prisma/seeds/seed-guard';
 import { SEED_GRANTED_BY } from '../../../prisma/seeds/user-role-mirror';
 import { ENUM_ROLE_TO_SYSTEM_ROLE, SYSTEM_ROLES } from '../../modules/iam/roles.catalog';
 import { CCLASSTRIB_TABLE } from '../../modules/tax/data/cclasstrib.data';
 
-const DEV = { NODE_ENV: 'development', DATABASE_URL: 'postgresql://dev:dev@localhost:5432/avequi_dev', SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
+const DEV = {
+  NODE_ENV: 'development',
+  DATABASE_URL: 'postgresql://dev:dev@localhost:5432/avequi_dev',
+  CONFIRM_DEMO_SEED: 'true',
+  SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123',
+};
 
 describe('fluxo db:seed → db:seed:demo (Onda 0 — higiene do seed IAM)', () => {
   beforeEach(() => {
@@ -118,9 +124,64 @@ describe('fluxo db:seed → db:seed:demo (Onda 0 — higiene do seed IAM)', () =
     for (const model of [...DEMO_ONLY_MODELS, 'userRoleAssignment', ...STRUCTURAL_CATALOG_MODELS]) {
       expect(db.rows(model)).toEqual([]);
     }
-    // robusto: o store inteiro está vazio e a ÚNICA chamada feita foi a leitura dos perfis system
+    // robusto: o store inteiro está vazio e as ÚNICAS chamadas foram leituras (preflight de conteúdo + perfis)
     expect(Object.values(db.store).flat()).toEqual([]);
-    expect(db.calls.map((c) => `${c.model}.${c.method}`)).toEqual(['role.findMany']);
+    expect(db.calls.map((c) => `${c.model}.${c.method}`)).toEqual(['company.findMany', 'user.findMany', 'role.findMany']);
+  });
+
+  it('TÚNEL/PROXY simulado pelo CONTEÚDO: localhost + development + confirmação, mas o banco tem Company/User não-demo → bloqueado, ZERO escrita', async () => {
+    const db = createMemoryPrisma();
+    await runStructuralSeed(db.client, DEV);
+    // "banco real" atrás de um localhost: uma empresa e um usuário que não são o demo canônico
+    db.rows('company').push({ id: 'real-co', name: 'Empresa Real Qualquer', cnpj: '00.000.000/0001-00' });
+    db.rows('user').push({ id: 'real-user', email: 'pessoa@empresa-real.example', role: 'DIRECTOR', companyId: 'real-co' });
+    const snapshot = JSON.stringify(db.store);
+    const callsBefore = db.calls.length;
+
+    await expect(runDemoSeed(db.client, DEV)).rejects.toThrow(SeedBlockedError);
+    await expect(runDemoSeed(db.client, DEV)).rejects.toThrow(/entidades NÃO-demo \(1 empresa\(s\), 1 usuário\(s\)\)/);
+
+    expect(JSON.stringify(db.store)).toBe(snapshot); // nada mudou
+    const newCalls = db.calls.slice(callsBefore).map((c) => `${c.model}.${c.method}`);
+    expect(newCalls.every((c) => c.endsWith('.findMany'))).toBe(true); // só leituras
+    expect(db.rows('userRoleAssignment')).toEqual([]);
+  });
+
+  it('conteúdo não-demo: basta UM usuário não-demo (mesmo com empresas demo) para bloquear', async () => {
+    const db = createMemoryPrisma();
+    await runStructuralSeed(db.client, DEV);
+    await runDemoSeed(db.client, DEV); // ambiente demo canônico
+    db.rows('user').push({ id: 'intruso', email: 'alguem@outra-empresa.example', role: 'STORE', companyId: db.rows('company')[0].id });
+    const snapshot = JSON.stringify(db.store);
+
+    await expect(runDemoSeed(db.client, DEV)).rejects.toThrow(/entidades NÃO-demo \(0 empresa\(s\), 1 usuário\(s\)\)/);
+    expect(JSON.stringify(db.store)).toBe(snapshot);
+  });
+
+  it('a mensagem de bloqueio por conteúdo não expõe e-mail, nome, CNPJ nem URL', async () => {
+    const db = createMemoryPrisma();
+    await runStructuralSeed(db.client, DEV);
+    db.rows('company').push({ id: 'real-co', name: 'Nome Sensível Ltda', cnpj: '11.111.111/0001-11' });
+    db.rows('user').push({ id: 'real-user', email: 'segredo@pessoa.example', role: 'DIRECTOR', companyId: 'real-co' });
+    let message = '';
+    try {
+      await runDemoSeed(db.client, DEV);
+    } catch (e) {
+      message = String((e as Error).message);
+    }
+    expect(message).toMatch(/NÃO-demo/);
+    for (const forbidden of ['segredo@pessoa.example', 'Nome Sensível', '11.111.111', 'postgresql://', 'localhost']) {
+      expect(message).not.toContain(forbidden);
+    }
+  });
+
+  it('rerun em banco que contém SOMENTE o demo canônico é permitido e reconhecido positivamente', async () => {
+    const db = createMemoryPrisma();
+    await runStructuralSeed(db.client, DEV);
+    await runDemoSeed(db.client, DEV);
+    expect(db.rows('company').map((c) => c.cnpj).sort()).toEqual([...DEMO_COMPANY_CNPJS].sort());
+    expect(db.rows('user').map((u) => u.email).sort()).toEqual(DEMO_USERS.map((u) => u.email).sort());
+    await expect(runDemoSeed(db.client, DEV)).resolves.toMatchObject({ roleAssignmentsCreated: 0 });
   });
 
   it('demo com perfis system parcialmente presentes: também falha antes de qualquer escrita', async () => {
@@ -135,6 +196,6 @@ describe('fluxo db:seed → db:seed:demo (Onda 0 — higiene do seed IAM)', () =
     expect(db.rows('company')).toEqual([]);
     expect(db.rows('user')).toEqual([]);
     expect(db.rows('userRoleAssignment')).toEqual([]);
-    expect(db.calls.slice(callsBefore).map((c) => `${c.model}.${c.method}`)).toEqual(['role.findMany']);
+    expect(db.calls.slice(callsBefore).map((c) => `${c.model}.${c.method}`)).toEqual(['company.findMany', 'user.findMany', 'role.findMany']);
   });
 });

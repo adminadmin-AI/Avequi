@@ -8,8 +8,17 @@
  * real: `assertDemoIdentity` rejeita e-mails dos domínios reais e
  * `assertDemoCompanyName` rejeita nomes que pareçam empresa real.
  *
- * HARD-BLOCKED em NODE_ENV=production e em qualquer DATABASE_URL remota (só
- * loopback é aceito), sem flag de override (ver seed-guard).
+ * Defesa em profundidade (ver seed-guard): `seedDemo` é o ÚNICO entrypoint
+ * exportado capaz de escrever e aplica, nesta ordem, antes do core:
+ *   1. guard de ambiente/endpoint/confirmação — NODE_ENV=development exato,
+ *      DATABASE_URL válida com loopback APARENTE (localhost/127.0.0.1/::1) e
+ *      CONFIRM_DEMO_SEED=true. A URL só valida o endpoint aparente: um
+ *      localhost pode ser túnel/proxy para um banco remoto;
+ *   2. preflight READ-ONLY do conteúdo — o demo só aceita banco VAZIO ou banco
+ *      que contenha exclusivamente o ambiente demo canônico (rerun idempotente).
+ *      Qualquer Company/User fora do conjunto demo → SeedBlockedError, zero
+ *      escrita. Protege inclusive o cenário localhost → túnel → banco real;
+ *   3. preflight IAM — perfis system do seed estrutural precisam existir.
  * Administrador real de tenant nasce pelo convite de tenant (OPS WP2, #909),
  * nunca por seed.
  *
@@ -23,13 +32,17 @@
  */
 import { PrismaClient, UserRole, CompanyType, ProductType, UnitOfMeasure, CustomerType, TaxRegime, TaxOperationType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { assertDemoCompanyName, assertDemoIdentity } from './seed-guard';
+import { assertDemoCompanyName, assertDemoIdentity, assertSeedAllowed, demoPasswordFromEnv, SeedBlockedError, SeedEnv } from './seed-guard';
 import { loadSystemRoleIdsByCode, mirrorEnumRolesToAssignments, systemRoleCodeFor } from './user-role-mirror';
 
 export const DEMO_EMAIL_DOMAIN = 'exemplo.test';
 export const DEMO_ADMIN_EMAIL = `admin@${DEMO_EMAIL_DOMAIN}`;
 export const DEMO_MATRIZ_NAME = 'Exemplo Calçados (Matriz)';
 export const DEMO_FILIAL_NAME = 'Exemplo Calçados — Loja São Paulo';
+/** CNPJs (inválidos de propósito) das duas empresas demo — identidade canônica para o preflight. */
+export const DEMO_MATRIZ_CNPJ = '12.345.678/0001-90';
+export const DEMO_FILIAL_CNPJ = '12.345.678/0002-71';
+export const DEMO_COMPANY_CNPJS: ReadonlyArray<string> = [DEMO_MATRIZ_CNPJ, DEMO_FILIAL_CNPJ];
 
 /** Usuários de demonstração: um por perfil legado relevante. */
 export const DEMO_USERS: ReadonlyArray<{ name: string; email: string; role: UserRole; unit: 'matriz' | 'filial' }> = [
@@ -39,9 +52,14 @@ export const DEMO_USERS: ReadonlyArray<{ name: string; email: string; role: User
   { name: 'Vendedor Demo', email: `loja@${DEMO_EMAIL_DOMAIN}`, role: UserRole.STORE, unit: 'filial' },
 ];
 
-export interface DemoSeedOptions {
-  /** Senha inicial dos usuários demo (todos nascem com mustChangePassword). */
-  password: string;
+/** E-mails canônicos dos usuários demo (minúsculos) — identidade para o preflight. */
+export const DEMO_USER_EMAILS: ReadonlyArray<string> = DEMO_USERS.map((u) => u.email.toLowerCase());
+
+export interface DemoDatabasePreflight {
+  companies: number;
+  users: number;
+  /** 'empty' = banco sem Company/User; 'demo' = só o conjunto demo canônico. */
+  state: 'empty' | 'demo';
 }
 
 export interface DemoSeedSummary {
@@ -75,22 +93,70 @@ export async function preflightSystemRoles(prisma: PrismaClient): Promise<Map<st
   return roleIdByCode;
 }
 
-export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Promise<DemoSeedSummary> {
+/**
+ * Preflight READ-ONLY do conteúdo: reconhece POSITIVAMENTE o que é demo.
+ * Banco vazio → ok. Só Company com CNPJ demo e User com e-mail demo → ok (rerun).
+ * Qualquer outra Company/User → SeedBlockedError. A mensagem informa apenas
+ * contagens — nunca e-mails, nomes, CNPJs reais nem DATABASE_URL.
+ */
+export async function preflightDemoDatabase(prisma: PrismaClient): Promise<DemoDatabasePreflight> {
+  const companies = await prisma.company.findMany({ select: { cnpj: true } });
+  const users = await prisma.user.findMany({ select: { email: true } });
+
+  const nonDemoCompanies = companies.filter((c) => !DEMO_COMPANY_CNPJS.includes(String(c.cnpj))).length;
+  const nonDemoUsers = users.filter((u) => !DEMO_USER_EMAILS.includes(String(u.email).toLowerCase())).length;
+
+  if (nonDemoCompanies > 0 || nonDemoUsers > 0) {
+    throw new SeedBlockedError(
+      `Seed de DEMONSTRAÇÃO bloqueado: o banco contém entidades NÃO-demo (${nonDemoCompanies} empresa(s), ${nonDemoUsers} usuário(s)). ` +
+        'O demo só roda em banco vazio ou em banco que contenha exclusivamente o ambiente demo canônico. ' +
+        'Um endpoint de loopback pode ser túnel/proxy para um banco real — nada foi gravado.',
+    );
+  }
+  return {
+    companies: companies.length,
+    users: users.length,
+    state: companies.length === 0 && users.length === 0 ? 'empty' : 'demo',
+  };
+}
+
+/**
+ * ENTRYPOINT SEGURO — único caminho exportado que escreve dados demo.
+ * Aplica internamente guard → preflight de conteúdo → preflight IAM → core.
+ * O runner (`runDemoSeed`) repete o guard como defesa em profundidade.
+ */
+export async function seedDemo(prisma: PrismaClient, env: SeedEnv = process.env): Promise<DemoSeedSummary> {
+  // 1. ambiente / endpoint aparente / confirmação explícita — antes de qualquer query
+  assertSeedAllowed('demo', env);
+  const password = demoPasswordFromEnv(env);
+
+  // 2. conteúdo do banco — só leitura; bloqueia se houver Company/User não-demo
+  await preflightDemoDatabase(prisma);
+
+  // 3. perfis system do seed estrutural — só leitura
+  const roleIdByCode = await preflightSystemRoles(prisma);
+
+  return seedDemoCore(prisma, { password, roleIdByCode });
+}
+
+interface DemoSeedCoreInput {
+  password: string;
+  roleIdByCode: Map<string, string>;
+}
+
+/** Implementação interna (NÃO exportada): só chega aqui quem passou por `seedDemo`. */
+async function seedDemoCore(prisma: PrismaClient, opts: DemoSeedCoreInput): Promise<DemoSeedSummary> {
   if (!opts?.password) {
     throw new Error('seedDemo: senha dos usuários demo não informada.');
   }
+  const { roleIdByCode } = opts;
   assertDemoCompanyName(DEMO_MATRIZ_NAME);
   assertDemoCompanyName(DEMO_FILIAL_NAME);
   for (const u of DEMO_USERS) assertDemoIdentity(u.email);
 
-  // ── Preflight IAM (fail-fast, ZERO escrita): os perfis system vêm do seed
-  // estrutural. Sem eles, o demo nem começa — evita população parcial
-  // (empresa/usuário criados e atribuição v2 faltando).
-  const roleIdByCode = await preflightSystemRoles(prisma);
-
   // Empresa matriz FICTÍCIA (CNPJ inválido de propósito)
   const matriz = await prisma.company.upsert({
-    where: { cnpj: '12.345.678/0001-90' },
+    where: { cnpj: DEMO_MATRIZ_CNPJ },
     update: {
       razaoSocial: 'Exemplo Calçados Indústria e Comércio Ltda',
       ie: 'ISENTO',
@@ -110,7 +176,7 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
     },
     create: {
       name: DEMO_MATRIZ_NAME,
-      cnpj: '12.345.678/0001-90',
+      cnpj: DEMO_MATRIZ_CNPJ,
       type: CompanyType.MATRIZ,
       razaoSocial: 'Exemplo Calçados Indústria e Comércio Ltda',
       ie: 'ISENTO',
@@ -132,7 +198,7 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
 
   // Filial FICTÍCIA
   const filialSP = await prisma.company.upsert({
-    where: { cnpj: '12.345.678/0002-71' },
+    where: { cnpj: DEMO_FILIAL_CNPJ },
     update: {
       razaoSocial: 'Exemplo Calçados Indústria e Comércio Ltda',
       ie: 'ISENTO',
@@ -152,7 +218,7 @@ export async function seedDemo(prisma: PrismaClient, opts: DemoSeedOptions): Pro
     },
     create: {
       name: DEMO_FILIAL_NAME,
-      cnpj: '12.345.678/0002-71',
+      cnpj: DEMO_FILIAL_CNPJ,
       type: CompanyType.FILIAL,
       parentId: matriz.id,
       razaoSocial: 'Exemplo Calçados Indústria e Comércio Ltda',

@@ -3,7 +3,7 @@ import {
   assertDemoIdentity,
   assertSeedAllowed,
   demoPasswordFromEnv,
-  resolveDatabaseTarget,
+  resolveDatabaseEndpoint,
   SeedBlockedError,
 } from '../../../prisma/seeds/seed-guard';
 
@@ -15,31 +15,31 @@ const REMOTE = 'postgresql://app:secret@db.exemplo.test:6543/postgres';
 const REMOTE_POOLER = 'postgres://app:secret@aws-0-sa-east-1.pooler.exemplo.test:6543/postgres?pgbouncer=true';
 
 describe('seed-guard (Onda 0 — higiene do seed IAM)', () => {
-  describe('resolveDatabaseTarget', () => {
-    it('loopback explícito é local', () => {
-      expect(resolveDatabaseTarget(LOCAL)).toEqual({ kind: 'local', host: 'localhost' });
-      expect(resolveDatabaseTarget(LOCAL_IP)).toEqual({ kind: 'local', host: '127.0.0.1' });
-      expect(resolveDatabaseTarget(LOCAL_V6)).toEqual({ kind: 'local', host: '::1' });
-      expect(resolveDatabaseTarget('postgres://dev@LOCALHOST/db')).toEqual({ kind: 'local', host: 'localhost' });
+  describe('resolveDatabaseEndpoint (endpoint APARENTE — não prova o banco por trás)', () => {
+    it('loopback explícito é loopback', () => {
+      expect(resolveDatabaseEndpoint(LOCAL)).toEqual({ kind: 'loopback', host: 'localhost' });
+      expect(resolveDatabaseEndpoint(LOCAL_IP)).toEqual({ kind: 'loopback', host: '127.0.0.1' });
+      expect(resolveDatabaseEndpoint(LOCAL_V6)).toEqual({ kind: 'loopback', host: '::1' });
+      expect(resolveDatabaseEndpoint('postgres://dev@LOCALHOST/db')).toEqual({ kind: 'loopback', host: 'localhost' });
     });
 
     it('qualquer outro host é remoto (inclusive nomes que "parecem" dev)', () => {
-      expect(resolveDatabaseTarget(REMOTE).kind).toBe('remote');
-      expect(resolveDatabaseTarget(REMOTE_POOLER).kind).toBe('remote');
-      expect(resolveDatabaseTarget('postgresql://a:b@dev-db.exemplo.test/x').kind).toBe('remote');
-      expect(resolveDatabaseTarget('postgresql://a:b@10.0.0.5/x').kind).toBe('remote');
-      expect(resolveDatabaseTarget('postgresql://a:b@localhost.exemplo.test/x').kind).toBe('remote');
+      expect(resolveDatabaseEndpoint(REMOTE).kind).toBe('remote');
+      expect(resolveDatabaseEndpoint(REMOTE_POOLER).kind).toBe('remote');
+      expect(resolveDatabaseEndpoint('postgresql://a:b@dev-db.exemplo.test/x').kind).toBe('remote');
+      expect(resolveDatabaseEndpoint('postgresql://a:b@10.0.0.5/x').kind).toBe('remote');
+      expect(resolveDatabaseEndpoint('postgresql://a:b@localhost.exemplo.test/x').kind).toBe('remote');
     });
 
     it('ausente, vazia, inválida, esquema errado ou sem host → bloqueia', () => {
       for (const url of [undefined, '', '   ', 'nao-e-url', 'mysql://a:b@localhost/x', 'postgresql:///x', 'postgresql://', 'http://localhost/x']) {
-        expect(() => resolveDatabaseTarget(url)).toThrow(SeedBlockedError);
+        expect(() => resolveDatabaseEndpoint(url)).toThrow(SeedBlockedError);
       }
     });
 
     it('a mensagem de erro nunca ecoa a URL (pode ter credencial)', () => {
       try {
-        resolveDatabaseTarget('mysql://usuario:segredo-xyz@localhost/x');
+        resolveDatabaseEndpoint('mysql://usuario:segredo-xyz@localhost/x');
         fail('deveria lançar');
       } catch (e) {
         expect(String((e as Error).message)).not.toContain('segredo-xyz');
@@ -48,38 +48,51 @@ describe('seed-guard (Onda 0 — higiene do seed IAM)', () => {
   });
 
   describe('assertSeedAllowed — matriz obrigatória', () => {
+    const DEMO_OK = { NODE_ENV: 'development', DATABASE_URL: LOCAL, CONFIRM_DEMO_SEED: 'true' };
     const cases: Array<[string, Parameters<typeof assertSeedAllowed>[0], Record<string, string | undefined>, 'ok' | 'block']> = [
       // DATABASE_URL ausente / inválida → bloqueia (demo e estrutural)
-      ['DATABASE_URL ausente → demo bloqueado', 'demo', { NODE_ENV: 'development' }, 'block'],
+      ['DATABASE_URL ausente → demo bloqueado', 'demo', { ...DEMO_OK, DATABASE_URL: undefined }, 'block'],
       ['DATABASE_URL ausente → estrutural bloqueado', 'structural', { NODE_ENV: 'development' }, 'block'],
-      ['DATABASE_URL inválida → demo bloqueado', 'demo', { NODE_ENV: 'development', DATABASE_URL: 'nao-e-url' }, 'block'],
+      ['DATABASE_URL inválida → demo bloqueado', 'demo', { ...DEMO_OK, DATABASE_URL: 'nao-e-url' }, 'block'],
       ['DATABASE_URL inválida → estrutural bloqueado', 'structural', { NODE_ENV: 'development', DATABASE_URL: 'nao-e-url' }, 'block'],
-      // local + development
-      ['localhost + development → demo permitido', 'demo', { NODE_ENV: 'development', DATABASE_URL: LOCAL }, 'ok'],
-      ['localhost + development → estrutural permitido', 'structural', { NODE_ENV: 'development', DATABASE_URL: LOCAL }, 'ok'],
-      ['127.0.0.1 + NODE_ENV ausente → demo permitido', 'demo', { DATABASE_URL: LOCAL_IP }, 'ok'],
-      ['::1 + test → estrutural permitido', 'structural', { NODE_ENV: 'test', DATABASE_URL: LOCAL_V6 }, 'ok'],
-      // remoto → demo sempre bloqueado
-      ['remoto + NODE_ENV ausente → demo BLOQUEADO', 'demo', { DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + development → demo BLOQUEADO', 'demo', { NODE_ENV: 'development', DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + staging → demo BLOQUEADO', 'demo', { NODE_ENV: 'staging', DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + test → demo BLOQUEADO', 'demo', { NODE_ENV: 'test', DATABASE_URL: REMOTE_POOLER }, 'block'],
-      ['remoto + development + ALLOW_PROD_SEED=true → demo continua BLOQUEADO', 'demo', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'block'],
-      // remoto → estrutural exige a flag
-      ['remoto + development → estrutural BLOQUEADO sem flag', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + NODE_ENV ausente → estrutural BLOQUEADO sem flag', 'structural', { DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + development + ALLOW_PROD_SEED=false → estrutural BLOQUEADO', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'false' }, 'block'],
-      ['remoto + development + ALLOW_PROD_SEED=1 → estrutural BLOQUEADO (só "true" exato)', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: '1' }, 'block'],
-      ['remoto + development + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'ok'],
-      // defesa em profundidade: production com banco local
-      ['localhost + production → demo BLOQUEADO', 'demo', { NODE_ENV: 'production', DATABASE_URL: LOCAL }, 'block'],
-      ['localhost + production + ALLOW_PROD_SEED=true → demo BLOQUEADO', 'demo', { NODE_ENV: 'production', DATABASE_URL: LOCAL, ALLOW_PROD_SEED: 'true' }, 'block'],
-      ['localhost + production → estrutural BLOQUEADO sem flag', 'structural', { NODE_ENV: 'production', DATABASE_URL: LOCAL }, 'block'],
-      ['localhost + production + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'production', DATABASE_URL: LOCAL, ALLOW_PROD_SEED: 'true' }, 'ok'],
-      // production + remoto
-      ['remoto + production → demo BLOQUEADO', 'demo', { NODE_ENV: 'production', DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + production → estrutural BLOQUEADO sem flag', 'structural', { NODE_ENV: 'production', DATABASE_URL: REMOTE }, 'block'],
-      ['remoto + production + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'production', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'ok'],
+      // demo: caminho feliz (único)
+      ['development + loopback + CONFIRM_DEMO_SEED=true → demo permitido', 'demo', DEMO_OK, 'ok'],
+      ['development + 127.0.0.1 + confirmação → demo permitido', 'demo', { ...DEMO_OK, DATABASE_URL: LOCAL_IP }, 'ok'],
+      ['development + ::1 + confirmação → demo permitido', 'demo', { ...DEMO_OK, DATABASE_URL: LOCAL_V6 }, 'ok'],
+      // demo: NODE_ENV — só development exato
+      ['NODE_ENV ausente → demo bloqueado', 'demo', { ...DEMO_OK, NODE_ENV: undefined }, 'block'],
+      ['NODE_ENV=test → demo bloqueado', 'demo', { ...DEMO_OK, NODE_ENV: 'test' }, 'block'],
+      ['NODE_ENV=staging → demo bloqueado', 'demo', { ...DEMO_OK, NODE_ENV: 'staging' }, 'block'],
+      ['NODE_ENV=production → demo bloqueado', 'demo', { ...DEMO_OK, NODE_ENV: 'production' }, 'block'],
+      ['NODE_ENV=Development (caixa) → demo bloqueado', 'demo', { ...DEMO_OK, NODE_ENV: 'Development' }, 'block'],
+      // demo: confirmação — só "true" exato, e não é override
+      ['development + loopback sem CONFIRM_DEMO_SEED → demo bloqueado', 'demo', { ...DEMO_OK, CONFIRM_DEMO_SEED: undefined }, 'block'],
+      ['CONFIRM_DEMO_SEED=false → demo bloqueado', 'demo', { ...DEMO_OK, CONFIRM_DEMO_SEED: 'false' }, 'block'],
+      ['CONFIRM_DEMO_SEED=1 → demo bloqueado', 'demo', { ...DEMO_OK, CONFIRM_DEMO_SEED: '1' }, 'block'],
+      ['CONFIRM_DEMO_SEED=TRUE (caixa) → demo bloqueado', 'demo', { ...DEMO_OK, CONFIRM_DEMO_SEED: 'TRUE' }, 'block'],
+      ['confirmação NÃO libera production', 'demo', { ...DEMO_OK, NODE_ENV: 'production' }, 'block'],
+      ['confirmação NÃO libera host não-loopback', 'demo', { ...DEMO_OK, DATABASE_URL: REMOTE }, 'block'],
+      ['confirmação + ALLOW_PROD_SEED NÃO liberam host não-loopback', 'demo', { ...DEMO_OK, DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'block'],
+      // demo: endpoint não-loopback com qualquer NODE_ENV
+      ['não-loopback + NODE_ENV ausente → demo bloqueado', 'demo', { DATABASE_URL: REMOTE, CONFIRM_DEMO_SEED: 'true' }, 'block'],
+      ['não-loopback + development → demo bloqueado', 'demo', { ...DEMO_OK, DATABASE_URL: REMOTE_POOLER }, 'block'],
+      ['não-loopback + staging → demo bloqueado', 'demo', { NODE_ENV: 'staging', DATABASE_URL: REMOTE, CONFIRM_DEMO_SEED: 'true' }, 'block'],
+      // estrutural: loopback
+      ['loopback + development → estrutural permitido', 'structural', { NODE_ENV: 'development', DATABASE_URL: LOCAL }, 'ok'],
+      ['loopback + NODE_ENV ausente → estrutural permitido', 'structural', { DATABASE_URL: LOCAL_IP }, 'ok'],
+      ['loopback + test → estrutural permitido', 'structural', { NODE_ENV: 'test', DATABASE_URL: LOCAL_V6 }, 'ok'],
+      ['loopback + production → estrutural bloqueado sem flag', 'structural', { NODE_ENV: 'production', DATABASE_URL: LOCAL }, 'block'],
+      ['loopback + production + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'production', DATABASE_URL: LOCAL, ALLOW_PROD_SEED: 'true' }, 'ok'],
+      // estrutural: não-loopback exige a flag exata
+      ['não-loopback + development → estrutural bloqueado sem flag', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE }, 'block'],
+      ['não-loopback + NODE_ENV ausente → estrutural bloqueado sem flag', 'structural', { DATABASE_URL: REMOTE }, 'block'],
+      ['não-loopback + development + ALLOW_PROD_SEED=false → estrutural bloqueado', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'false' }, 'block'],
+      ['não-loopback + development + ALLOW_PROD_SEED=1 → estrutural bloqueado', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: '1' }, 'block'],
+      ['não-loopback + development + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'ok'],
+      ['não-loopback + production → estrutural bloqueado sem flag', 'structural', { NODE_ENV: 'production', DATABASE_URL: REMOTE }, 'block'],
+      ['não-loopback + production + ALLOW_PROD_SEED=true → estrutural permitido', 'structural', { NODE_ENV: 'production', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' }, 'ok'],
+      // CONFIRM_DEMO_SEED não interfere no estrutural
+      ['CONFIRM_DEMO_SEED=true não libera estrutural em production', 'structural', { NODE_ENV: 'production', DATABASE_URL: LOCAL, CONFIRM_DEMO_SEED: 'true' }, 'block'],
     ];
 
     it.each(cases)('%s', (_label, kind, env, expected) => {
@@ -90,15 +103,22 @@ describe('seed-guard (Onda 0 — higiene do seed IAM)', () => {
       }
     });
 
-    it('mensagem do demo remoto cita o host e a ausência de override', () => {
-      expect(() => assertSeedAllowed('demo', { NODE_ENV: 'development', DATABASE_URL: REMOTE, ALLOW_PROD_SEED: 'true' })).toThrow(
-        /REMOTO \(db\.exemplo\.test\).*não existe flag/,
-      );
+    it('mensagens do demo explicam cada camada sem ecoar credencial', () => {
+      expect(() => assertSeedAllowed('demo', { ...DEMO_OK, NODE_ENV: 'staging' })).toThrow(/NODE_ENV=staging.*NODE_ENV=development exato/);
+      expect(() => assertSeedAllowed('demo', { ...DEMO_OK, NODE_ENV: undefined })).toThrow(/NODE_ENV=\(ausente\)/);
+      expect(() => assertSeedAllowed('demo', { ...DEMO_OK, DATABASE_URL: REMOTE })).toThrow(/não-loopback \(db\.exemplo\.test\).*não existe flag/);
+      expect(() => assertSeedAllowed('demo', { ...DEMO_OK, CONFIRM_DEMO_SEED: undefined })).toThrow(/CONFIRM_DEMO_SEED=true.*não libera production nem host remoto/);
+      try {
+        assertSeedAllowed('demo', { ...DEMO_OK, DATABASE_URL: 'postgresql://app:segredo-xyz@db.exemplo.test/x' });
+        fail('deveria lançar');
+      } catch (e) {
+        expect(String((e as Error).message)).not.toContain('segredo-xyz');
+      }
     });
 
-    it('mensagem do estrutural remoto pede ALLOW_PROD_SEED=true', () => {
+    it('mensagem do estrutural não-loopback pede ALLOW_PROD_SEED=true', () => {
       expect(() => assertSeedAllowed('structural', { NODE_ENV: 'development', DATABASE_URL: REMOTE })).toThrow(
-        /REMOTO \(db\.exemplo\.test\).*ALLOW_PROD_SEED=true/,
+        /não-loopback \(db\.exemplo\.test\).*ALLOW_PROD_SEED=true/,
       );
     });
   });

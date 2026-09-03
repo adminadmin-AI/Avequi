@@ -36,6 +36,15 @@ describe('coerência dos scripts e docs dos seeds', () => {
       expect(src).not.toMatch(/seedStructural\(/);
       expect(src).not.toMatch(/prisma\.(user|company)\./);
     }
+    // sem bypass: o core do demo não é exportado; só o entrypoint seguro
+    const demoModule = read(join(API_ROOT, 'prisma', 'seeds', 'demo.seed.ts'));
+    expect(demoModule).toMatch(/^async function seedDemoCore\(/m);
+    expect(demoModule).not.toMatch(/export (async )?function seedDemoCore/);
+    expect(demoModule).toMatch(/export async function seedDemo\(prisma: PrismaClient, env: SeedEnv = process\.env\)/);
+    // nenhum comentário/documentação de seed afirma "destino real"
+    for (const f of ['seed.ts', 'seed-iam.ts', 'seed-demo.ts', 'seeds/seed-guard.ts', 'seeds/runners.ts', 'seeds/demo.seed.ts']) {
+      expect(read(join(API_ROOT, 'prisma', f))).not.toMatch(/destino real/i);
+    }
   });
 
   it('nenhum arquivo de seed contém identidade real (@gdr.com.br / @crd.com.br / GDR Reboques)', () => {
@@ -83,11 +92,20 @@ describe('coerência dos scripts e docs dos seeds', () => {
     expect(env).toMatch(/npm run db:seed:iam`/);
     expect(env).toMatch(/npm run db:seed:demo`/);
     expect(env).toMatch(/SEED_USER_PASSWORD=""/);
-    expect(env).toMatch(/BLOQUEADO em NODE_ENV=production/);
+    expect(env).toMatch(/production bloqueiam/);
     expect(env).toMatch(/nunca vale para o demo/i);
+    expect(env).toMatch(/ENDPOINT[\s\S]{0,5}APARENTE/i);
     expect(env).toMatch(/loopback/i);
-    expect(env).toMatch(/QUALQUER banco remoto/);
-    expect(env).toMatch(/exigida também para qualquer destino remoto/i);
+    expect(env).toMatch(/túnel/i);
+    expect(env).toMatch(/preflight/i);
+    expect(env).toMatch(/NODE_ENV=development \(exato/);
+    expect(env).toMatch(/CONFIRM_DEMO_SEED=true/);
+    expect(env).toMatch(/# CONFIRM_DEMO_SEED=false/); // presente, mas nunca habilitado por padrão
+    expect(env).not.toMatch(/^CONFIRM_DEMO_SEED=true/m);
+    expect(env).toMatch(/exigida também para qualquer endpoint remoto/i);
+    // nada de afirmação absoluta sobre "destino real" / "sempre" baseada só na URL
+    expect(env).not.toMatch(/destino real/i);
+    expect(env).not.toMatch(/bloqueado sempre/i);
     expect(env).not.toMatch(/4 usuários de exemplo/);
     expect(env).not.toMatch(/admin\/diretor\/gerente\/loja/);
   });
@@ -96,9 +114,13 @@ describe('coerência dos scripts e docs dos seeds', () => {
     const doc = read(join(REPO_ROOT, 'docs', 'ONBOARDING.md'));
     expect(doc).toMatch(/npm run db:seed --workspace=apps\/api/);
     expect(doc).toMatch(/npm run db:seed:demo --workspace=apps\/api/);
+    expect(doc).toMatch(/ENDPOINT APARENTE/);
     expect(doc).toMatch(/só loopback/i);
-    expect(doc).toMatch(/QUALQUER banco remoto/);
+    expect(doc).toMatch(/túnel/i);
+    expect(doc).toMatch(/preflight/i);
+    expect(doc).toMatch(/CONFIRM_DEMO_SEED=true/);
     expect(doc).toMatch(/ALLOW_PROD_SEED=true/);
+    expect(doc).not.toMatch(/destino real/i);
     expect(doc).toMatch(/usuário nominal/);
     expect(doc).not.toMatch(/@gdr\.com\.br/);
   });

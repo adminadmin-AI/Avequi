@@ -5,8 +5,8 @@
  * Não cria empresa, usuário nem dado de demonstração. Para um banco de
  * desenvolvimento vazio, rode em seguida `npm run db:seed:demo`.
  *
- * NODE_ENV=production OU DATABASE_URL remota (qualquer host fora de loopback):
- * bloqueado sem ALLOW_PROD_SEED=true (ver `seeds/seed-guard.ts`).
+ * NODE_ENV=production OU DATABASE_URL com endpoint não-loopback: bloqueado sem
+ * ALLOW_PROD_SEED=true (ver `seeds/seed-guard.ts`).
  */
 import { PrismaClient } from '@prisma/client';
 import { runStructuralSeed } from './seeds/runners';

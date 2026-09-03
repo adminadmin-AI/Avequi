@@ -1,25 +1,30 @@
 /**
  * Guards dos seeds — Onda 0, higiene do seed IAM.
  *
- * Política FAIL-CLOSED, decidida por DOIS sinais: NODE_ENV e o DESTINO REAL
- * de DATABASE_URL (parseada antes de qualquer acesso ao banco).
+ * Política FAIL-CLOSED em camadas. A URL de conexão diz apenas qual é o
+ * ENDPOINT APARENTE: um `localhost` pode ser túnel SSH/proxy para um banco
+ * remoto. Por isso a URL é só a primeira camada; o seed demo ainda exige
+ * confirmação explícita e faz um preflight READ-ONLY do conteúdo do banco
+ * (ver demo.seed.ts) antes de qualquer escrita.
  *
- * Destino LOCAL = só loopback explícito (localhost, 127.0.0.1, ::1). Qualquer
- * outro host é REMOTO — não importa o NODE_ENV. DATABASE_URL ausente, inválida
- * ou sem host determinável → bloqueia.
+ * Camada 1 — endpoint aparente de DATABASE_URL (parseada antes da primeira
+ * query): ausente, inválida, esquema ≠ postgres:// ou sem host → bloqueia.
+ * "Loopback aparente" = somente localhost / 127.0.0.1 / ::1. Qualquer outro
+ * host é tratado como remoto, seja qual for o NODE_ENV.
  *
- * - DEMO (empresas/usuários/catálogo fictícios): só com NODE_ENV ≠ production
- *   E destino local. Remoto bloqueia SEMPRE; não existe flag de override.
- *   `db:seed:demo` é recurso de banco local de desenvolvimento, e só.
- * - ESTRUTURAL / IAM (cClassTrib, perfis system, permissões, planos): local +
- *   não-production roda normalmente. NODE_ENV=production OU destino remoto
- *   exigem ALLOW_PROD_SEED=true exato — o nome ficou por compatibilidade, mas
- *   a flag passou a ser exigida também para qualquer banco remoto (inclusive
- *   um Postgres/Supabase "de desenvolvimento"), porque o seed reconcilia
- *   configuração real (perfis system, permissões, entitlements).
- *
- * Defesa em profundidade: mesmo com destino local, NODE_ENV=production mantém
- * o demo bloqueado e o estrutural exigindo a flag.
+ * - DEMO (empresas/usuários/catálogo fictícios) exige CONJUNTAMENTE:
+ *     NODE_ENV === 'development' (exato: ausente/test/staging/production bloqueiam),
+ *     DATABASE_URL válida com loopback aparente,
+ *     CONFIRM_DEMO_SEED === 'true' (exato).
+ *   A confirmação NÃO é override: não libera production nem host remoto; só
+ *   atesta uma execução deliberada em desenvolvimento local. Não existe flag
+ *   que libere o demo fora disso.
+ * - ESTRUTURAL / IAM (cClassTrib, perfis system, permissões, planos): loopback
+ *   aparente + NODE_ENV ≠ production roda normalmente. NODE_ENV=production OU
+ *   endpoint não-loopback exigem ALLOW_PROD_SEED=true exato — o nome ficou por
+ *   compatibilidade, mas a flag passou a ser exigida também para qualquer
+ *   endpoint remoto (inclusive um Postgres/Supabase "de desenvolvimento"),
+ *   porque o seed reconcilia configuração real.
  *
  * Além do ambiente, o demo é obrigado a usar identidades fictícias: e-mails
  * dos domínios reais da operação e nomes que pareçam empresa real são
@@ -32,6 +37,7 @@ export type SeedKind = 'structural' | 'demo';
 export interface SeedEnv {
   NODE_ENV?: string;
   ALLOW_PROD_SEED?: string;
+  CONFIRM_DEMO_SEED?: string;
   SEED_USER_PASSWORD?: string;
   DATABASE_URL?: string;
 }
@@ -42,8 +48,11 @@ export const REAL_EMAIL_DOMAINS: ReadonlyArray<string> = ['gdr.com.br', 'crd.com
 /** Trechos de nome que denunciam empresa real — proibidos em nome/razão social demo. */
 export const REAL_COMPANY_MARKERS: ReadonlyArray<RegExp> = [/\bgdr\b/i, /\bcrd\b/i, /reboques?/i, /avecchi/i, /avequi/i];
 
-/** Hosts considerados LOCAIS. Nada além de loopback explícito. */
-export const LOCAL_DB_HOSTS: ReadonlyArray<string> = ['localhost', '127.0.0.1', '::1'];
+/** Hosts de loopback aparente. Nada além disso conta como local. */
+export const LOOPBACK_DB_HOSTS: ReadonlyArray<string> = ['localhost', '127.0.0.1', '::1'];
+
+/** Único NODE_ENV em que o seed demo pode rodar. */
+export const DEMO_ALLOWED_NODE_ENV = 'development';
 
 const DB_SCHEMES = new Set(['postgres:', 'postgresql:']);
 
@@ -54,26 +63,27 @@ export class SeedBlockedError extends Error {
   }
 }
 
-export interface DatabaseTarget {
-  kind: 'local' | 'remote';
+export interface DatabaseEndpoint {
+  /** 'loopback' = host aparente é localhost/127.0.0.1/::1; 'remote' = qualquer outro. */
+  kind: 'loopback' | 'remote';
   host: string;
 }
 
 /**
- * Determina o destino efetivo de DATABASE_URL. Lança SeedBlockedError quando
- * a URL está ausente, não é postgres://, não parseia ou não tem host — nesses
- * casos o destino é indeterminável e o seed não pode prosseguir.
- * A mensagem nunca ecoa a URL (pode conter credencial): só o host.
+ * Determina o ENDPOINT APARENTE de DATABASE_URL. Lança SeedBlockedError quando
+ * a URL está ausente, não é postgres://, não parseia ou não tem host.
+ * Não afirma nada sobre o banco por trás do endpoint (túnel/proxy são
+ * indistinguíveis aqui). A mensagem nunca ecoa a URL (pode conter credencial).
  */
-export function resolveDatabaseTarget(databaseUrl: string | undefined): DatabaseTarget {
+export function resolveDatabaseEndpoint(databaseUrl: string | undefined): DatabaseEndpoint {
   if (!databaseUrl || !databaseUrl.trim()) {
-    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL ausente — o destino do banco precisa ser conhecido antes de qualquer seed.');
+    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL ausente — o endpoint do banco precisa ser conhecido antes de qualquer seed.');
   }
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl.trim());
   } catch {
-    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL inválida (não parseável) — destino do banco indeterminável.');
+    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL inválida (não parseável) — endpoint do banco indeterminável.');
   }
   if (!DB_SCHEMES.has(parsed.protocol)) {
     throw new SeedBlockedError(
@@ -82,9 +92,9 @@ export function resolveDatabaseTarget(databaseUrl: string | undefined): Database
   }
   const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (!host) {
-    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL sem host — destino do banco indeterminável.');
+    throw new SeedBlockedError('Seed bloqueado: DATABASE_URL sem host — endpoint do banco indeterminável.');
   }
-  return { kind: LOCAL_DB_HOSTS.includes(host) ? 'local' : 'remote', host };
+  return { kind: LOOPBACK_DB_HOSTS.includes(host) ? 'loopback' : 'remote', host };
 }
 
 function isProduction(env: SeedEnv): boolean {
@@ -92,37 +102,42 @@ function isProduction(env: SeedEnv): boolean {
 }
 
 /**
- * Decide se um seed pode rodar contra este ambiente + destino. Lança
- * SeedBlockedError antes de qualquer acesso ao banco.
+ * Decide se um seed pode rodar contra este ambiente + endpoint aparente.
+ * Lança SeedBlockedError antes de qualquer acesso ao banco.
  */
-export function assertSeedAllowed(kind: SeedKind, env: SeedEnv = process.env): DatabaseTarget {
-  const target = resolveDatabaseTarget(env.DATABASE_URL);
-  const prod = isProduction(env);
+export function assertSeedAllowed(kind: SeedKind, env: SeedEnv = process.env): DatabaseEndpoint {
+  const endpoint = resolveDatabaseEndpoint(env.DATABASE_URL);
 
   if (kind === 'demo') {
-    if (prod) {
+    if (env.NODE_ENV !== DEMO_ALLOWED_NODE_ENV) {
       throw new SeedBlockedError(
-        'Seed de DEMONSTRAÇÃO bloqueado em produção (NODE_ENV=production). Não existe flag de liberação: ' +
-          'dados fictícios nunca entram em produção. Administrador real nasce pelo convite de tenant, não por seed.',
+        `Seed de DEMONSTRAÇÃO bloqueado: NODE_ENV=${env.NODE_ENV ?? '(ausente)'}. Só roda com NODE_ENV=development exato; ` +
+          'não existe flag de liberação. Administrador real nasce pelo convite de tenant, não por seed.',
       );
     }
-    if (target.kind !== 'local') {
+    if (endpoint.kind !== 'loopback') {
       throw new SeedBlockedError(
-        `Seed de DEMONSTRAÇÃO bloqueado: DATABASE_URL aponta para banco REMOTO (${target.host}). ` +
-          'O demo só roda contra loopback (localhost / 127.0.0.1 / ::1); não existe flag de liberação para remoto.',
+        `Seed de DEMONSTRAÇÃO bloqueado: DATABASE_URL aponta para endpoint não-loopback (${endpoint.host}). ` +
+          'O demo só roda contra localhost / 127.0.0.1 / ::1; não existe flag de liberação para outros hosts.',
       );
     }
-    return target;
+    if (env.CONFIRM_DEMO_SEED !== 'true') {
+      throw new SeedBlockedError(
+        'Seed de DEMONSTRAÇÃO bloqueado: falta a confirmação explícita CONFIRM_DEMO_SEED=true. ' +
+          'Ela não libera production nem host remoto — só confirma uma execução deliberada em desenvolvimento local.',
+      );
+    }
+    return endpoint;
   }
 
-  if ((prod || target.kind !== 'local') && env.ALLOW_PROD_SEED !== 'true') {
-    const motivo = prod ? 'NODE_ENV=production' : `DATABASE_URL aponta para banco REMOTO (${target.host})`;
+  if ((isProduction(env) || endpoint.kind !== 'loopback') && env.ALLOW_PROD_SEED !== 'true') {
+    const motivo = isProduction(env) ? 'NODE_ENV=production' : `DATABASE_URL aponta para endpoint não-loopback (${endpoint.host})`;
     throw new SeedBlockedError(
       `Seed ESTRUTURAL bloqueado: ${motivo}. Ele reconcilia perfis, permissões e planos reais; ` +
         'se a intenção é mesmo aplicar neste banco, rode com ALLOW_PROD_SEED=true dentro da governança de release.',
     );
   }
-  return target;
+  return endpoint;
 }
 
 /** E-mail de dado demo não pode pertencer a domínio real. */

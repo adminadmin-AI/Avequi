@@ -21,8 +21,8 @@ const LOCAL_URL = 'postgresql://dev:dev@localhost:5432/avequi_dev';
 const REMOTE_URL = 'postgresql://app:secret@db.exemplo.test:6543/postgres';
 const PROD = { NODE_ENV: 'production', DATABASE_URL: LOCAL_URL };
 const PROD_ALLOWED = { NODE_ENV: 'production', DATABASE_URL: LOCAL_URL, ALLOW_PROD_SEED: 'true' };
-const DEV = { NODE_ENV: 'development', DATABASE_URL: LOCAL_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
-const DEV_REMOTE = { NODE_ENV: 'development', DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123' };
+const DEV = { NODE_ENV: 'development', DATABASE_URL: LOCAL_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123', CONFIRM_DEMO_SEED: 'true' };
+const DEV_REMOTE = { NODE_ENV: 'development', DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'Senha-De-Teste-Forte-123', CONFIRM_DEMO_SEED: 'true' };
 
 describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
   beforeEach(() => {
@@ -104,34 +104,40 @@ describe('runners dos seeds (Onda 0 — higiene do seed IAM)', () => {
       expect(fake.calls).toHaveLength(0);
     });
 
-    it('desenvolvimento sem SEED_USER_PASSWORD: falha sem tocar no banco', async () => {
-      const fake = createFakePrisma();
-      await expect(runDemoSeed(fake.client, { NODE_ENV: 'development', DATABASE_URL: LOCAL_URL })).rejects.toThrow(/SEED_USER_PASSWORD/);
-      expect(seedDemo).not.toHaveBeenCalled();
-    });
-
-    it('desenvolvimento com senha: roda e repassa a senha da env', async () => {
+    it('development + loopback + confirmação: chama o entrypoint seguro com a env (que repete o guard e faz o preflight)', async () => {
       const fake = createFakePrisma();
       const summary = await runDemoSeed(fake.client, DEV);
-      expect(seedDemo).toHaveBeenCalledWith(fake.client, { password: DEV.SEED_USER_PASSWORD });
+      expect(seedDemo).toHaveBeenCalledWith(fake.client, DEV);
       expect(summary).toEqual({ companies: 2, users: 4 });
     });
 
-    it('NODE_ENV ausente + banco LOCAL: roda', async () => {
+    it('NODE_ENV ausente/test/staging + loopback + confirmação: bloqueado — só development', async () => {
       const fake = createFakePrisma();
-      await runDemoSeed(fake.client, { DATABASE_URL: LOCAL_URL, SEED_USER_PASSWORD: 'x'.repeat(16) });
-      expect(seedDemo).toHaveBeenCalledTimes(1);
+      for (const NODE_ENV of [undefined, 'test', 'staging']) {
+        await expect(runDemoSeed(fake.client, { ...DEV, NODE_ENV })).rejects.toThrow(/NODE_ENV=development exato/);
+      }
+      expect(seedDemo).not.toHaveBeenCalled();
+      expect(fake.calls).toHaveLength(0);
     });
 
-    it('banco REMOTO: bloqueado com NODE_ENV ausente, development, staging — e mesmo com ALLOW_PROD_SEED=true', async () => {
+    it('development + loopback sem CONFIRM_DEMO_SEED=true (ausente/false/1): bloqueado', async () => {
+      const fake = createFakePrisma();
+      for (const CONFIRM_DEMO_SEED of [undefined, 'false', '1', 'TRUE']) {
+        await expect(runDemoSeed(fake.client, { ...DEV, CONFIRM_DEMO_SEED })).rejects.toThrow(/CONFIRM_DEMO_SEED=true/);
+      }
+      expect(seedDemo).not.toHaveBeenCalled();
+      expect(fake.calls).toHaveLength(0);
+    });
+
+    it('endpoint não-loopback: bloqueado com NODE_ENV ausente, development, staging — e mesmo com confirmação + ALLOW_PROD_SEED=true', async () => {
       const fake = createFakePrisma();
       for (const env of [
-        { DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'x'.repeat(16) },
+        { DATABASE_URL: REMOTE_URL, SEED_USER_PASSWORD: 'x'.repeat(16), CONFIRM_DEMO_SEED: 'true' },
         DEV_REMOTE,
         { ...DEV_REMOTE, NODE_ENV: 'staging' },
         { ...DEV_REMOTE, ALLOW_PROD_SEED: 'true' },
       ]) {
-        await expect(runDemoSeed(fake.client, env)).rejects.toThrow(/REMOTO/);
+        await expect(runDemoSeed(fake.client, env)).rejects.toThrow(SeedBlockedError);
       }
       expect(seedDemo).not.toHaveBeenCalled();
       expect(fake.calls).toHaveLength(0);
