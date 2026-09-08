@@ -6,6 +6,14 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-09-08
+
+### Added
+- feat(fiscal): fatura + duplicatas na NF-e — quadro "Fatura / Duplicata" da DANFE (#1152) (#1153)
+
+### Changed
+- chore(seed): separa seed estrutural de seed demo — demo fail-closed (development+loopback+confirmação, preflight de conteúdo, sem bypass), perfis system sem ambiguidade (#1151)
+
 ## [1.51.2] - 2026-09-02
 
 ### Fixed
@@ -630,7 +638,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.2...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.2...v1.52.0
 [1.51.2]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.50.0...v1.51.0
