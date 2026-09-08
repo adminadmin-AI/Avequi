@@ -1,5 +1,8 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import {
+  DebtorType,
+  FinancialEntryStatus,
+  FinancialEntryType,
   FiscalDirection,
   FiscalDocumentType,
   FiscalFinalidade,
@@ -13,7 +16,7 @@ import { EMISSOR_PORT, EmissorPort } from './emissor.port';
 import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
 import { INSTALLMENT_METHODS } from '../acquirer/payment-classification';
 import { parcelasAPrazo } from '../finance/parcelas-da-venda';
-import { dataOperacionalHoje } from '../../common/date/dia-operacional';
+import { dataOperacionalHoje, formatarDataPura } from '../../common/date/dia-operacional';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import { FISCAL_AUTHORIZED_EVENT, FiscalAuthorizedEvent } from './events/fiscal-authorized.event';
@@ -99,7 +102,10 @@ export class FiscalService {
       return;
     }
 
-    const ref = `GDR-SO-${salesOrderId}`;
+    // Reemissão após cancelamento (reissue) grava um focusRef novo no documento
+    // vivo (`GDR-SO-<id>-R2`, -R3…): a Focus não aceita reutilizar a ref da
+    // NF-e cancelada. Documento rejeitado/erro comum mantém a ref original.
+    const ref = existing?.focusRef ?? `GDR-SO-${salesOrderId}`;
 
     // Criar ou atualizar FiscalDocument em PENDING
     const fiscalDoc = existing
@@ -311,7 +317,7 @@ export class FiscalService {
     // contas a receber (parcelasAPrazo), então o vencimento impresso é o que
     // será cobrado. Calculado aqui (não lido dos títulos) porque fiscal e
     // financeiro ouvem o mesmo evento e os títulos podem ainda não existir.
-    const billing = this.buildBilling(order);
+    const billing = await this.buildBilling(order);
 
     const input: FiscalPayloadInput = {
       ref,
@@ -1291,6 +1297,119 @@ export class FiscalService {
     await this.applyFocusResponse(fiscalDoc.id, response);
   }
 
+  // ─── Cancelar e reemitir (#1152) ──────────────────────────────────────────
+
+  /**
+   * Cancela a NF-e autorizada na SEFAZ e emite outra para a MESMA venda, sem
+   * desfazer a operação comercial: títulos e estoque ficam como estão (a
+   * mercadoria saiu e o cliente continua devendo) — diferente do `cancel`,
+   * que dispara FISCAL_CANCELLED_EVENT e reverte tudo.
+   *
+   * Por que existe: o documento fiscal é 1 por venda (salesOrderId @unique) e
+   * a Focus não aceita reutilizar a ref de uma NF-e cancelada. Então:
+   *   1. cancela na Focus/SEFAZ (prazo de 24h, justificativa ≥ 15);
+   *   2. ARQUIVA a NF-e cancelada num registro próprio (chave, XML, número,
+   *      protocolo, DANFE, itens e CC-e vão junto) — ela continua no livro e
+   *      no export de XML, só não ocupa mais a venda;
+   *   3. reseta o documento vivo (status ERROR, ref nova `-R<n>`) e reemite
+   *      pelo fluxo normal (emitForSale) — que monta as duplicatas a partir
+   *      dos títulos existentes (buildBilling, fonte 1).
+   */
+  async reissue(id: string, companyId: string, justificativa: string): Promise<void> {
+    const doc = await this.prisma.fiscalDocument.findFirst({ where: { id, companyId } });
+    if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
+
+    if (doc.status !== FiscalStatus.AUTHORIZED) {
+      throw new BadRequestException(
+        `Somente NF-e AUTHORIZED pode ser cancelada e reemitida. Status atual: ${doc.status}`,
+      );
+    }
+    if (doc.type !== FiscalDocumentType.NFE || doc.finalidade !== FiscalFinalidade.NORMAL || !doc.salesOrderId) {
+      throw new BadRequestException('Reemissão só vale para NF-e normal de venda (não NFC-e, devolução ou ajuste).');
+    }
+
+    const hoursElapsed = (Date.now() - doc.createdAt.getTime()) / (1000 * 60 * 60);
+    if (hoursElapsed > CANCEL_DEADLINE_HOURS) {
+      throw new UnprocessableEntityException(
+        `Prazo de ${CANCEL_DEADLINE_HOURS}h para cancelamento expirado (${Math.floor(hoursElapsed)}h desde a emissão). Use Carta de Correção.`,
+      );
+    }
+
+    const response = await this.client.cancelNFe(doc.focusRef!, justificativa, companyId);
+    if (response.status !== 'cancelado') {
+      const motivo = response.motivo ?? (response as any).mensagem_sefaz ?? 'Erro ao cancelar na SEFAZ';
+      const codigo = (response as any).codigo ?? (response as any).status_sefaz;
+      await this.prisma.fiscalDocument.update({
+        where: { id },
+        data: { lastError: codigo ? `[${codigo}] ${motivo}` : motivo },
+      });
+      throw new BadRequestException(`Cancelamento rejeitado pela SEFAZ: ${motivo}`);
+    }
+
+    const geracaoAtual = Number(doc.focusRef?.match(/-R(\d+)$/)?.[1] ?? 1);
+    const novaRef = `GDR-SO-${doc.salesOrderId}-R${geracaoAtual + 1}`;
+
+    // 2. arquivo da NF-e cancelada — cópia fiel, sem a venda (a venda fica com o vivo)
+    const {
+      id: _id, salesOrderId: _so, storeTransferId: _st, createdAt: _c, updatedAt: _u, retryCount: _r,
+      ...snapshot
+    } = doc;
+    const archived = await this.prisma.fiscalDocument.create({
+      data: {
+        ...snapshot,
+        status: FiscalStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationJustification: justificativa,
+        lastError: null,
+      },
+    });
+    await this.prisma.fiscalDocumentItem.updateMany({
+      where: { fiscalDocumentId: id },
+      data: { fiscalDocumentId: archived.id },
+    });
+    await this.prisma.fiscalCorrection.updateMany({
+      where: { fiscalDocumentId: id },
+      data: { fiscalDocumentId: archived.id },
+    });
+
+    // 3. documento vivo volta a "por emitir" com ref nova
+    await this.prisma.fiscalDocument.update({
+      where: { id },
+      data: {
+        status: FiscalStatus.ERROR,
+        focusRef: novaRef,
+        chave: null, xml: null, number: null, series: null, protocolNumber: null,
+        danfeUrl: null, xmlUrl: null, authorizedAt: null, issueDate: null,
+        cancelledAt: null, cancellationJustification: null,
+        rejectionCode: null, rejectionReason: null,
+        lastError: `Reemissão: NF-e nº ${doc.number ?? '?'} cancelada (arquivo ${archived.id})`,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        entity: 'FiscalDocument',
+        action: 'CANCEL_REISSUE',
+        payload: {
+          fiscalDocumentId: id,
+          archivedDocumentId: archived.id,
+          salesOrderId: doc.salesOrderId,
+          cancelledNumber: doc.number,
+          cancelledChave: doc.chave,
+          justificativa,
+          protocolo: (response as any).protocolo ?? null,
+          mensagemSefaz: (response as any).mensagem_sefaz ?? null,
+          novaRef,
+        },
+      },
+    });
+    // Sem FISCAL_CANCELLED_EVENT de propósito: a venda continua valendo.
+    this.logger.log(`NF-e ${id} (nº ${doc.number}) cancelada e arquivada em ${archived.id}; reemitindo com ref ${novaRef}`);
+
+    await this.emitForSale(doc.salesOrderId, FiscalDocumentType.NFE);
+  }
+
   // ─── Cancelamento de NF-e (#164) ──────────────────────────────────────────
 
   async cancel(id: string, companyId: string, justificativa: string): Promise<void> {
@@ -1645,20 +1764,58 @@ export class FiscalService {
    * quando há peso ou quantidade explícita.
    */
   /**
-   * #1152 — grupo cobr da venda: só as formas em que o CLIENTE paga parcelado
-   * (boleto/cheque), numeradas "001", "002"… na ordem do plano, vencendo a
-   * cada 30 dias do dia operacional de hoje (o faturamento dispara a emissão).
+   * #1152 — grupo cobr da venda (quadro "Fatura / Duplicata" da DANFE).
+   *
+   * Fonte 1 — o LIVRO: se a venda já tem títulos do CLIENTE gerados pelo plano
+   * (boleto/cheque), as duplicatas são exatamente esses títulos, com o
+   * vencimento que está no contas a receber — inclusive se alguém ajustou as
+   * datas à mão (ex.: 7/14/21 em vez de 30/60/90). Caso típico: reemissão
+   * (cancelar e reemitir) de uma NF-e cuja venda já tem os títulos.
+   *
+   * Fonte 2 — o PLANO: sem títulos ainda (emissão normal: fiscal e financeiro
+   * ouvem o mesmo evento e a ordem não é garantida), calcula com a MESMA
+   * função que o financeiro usa para gerar os títulos (parcelasAPrazo), então
+   * o resultado é o mesmo. Cartão nunca entra (quem deve é a adquirente).
+   *
    * nFat = o "Pedido #XXXXXX" que o front mostra (6 últimos do id). Sem forma
    * a prazo → undefined (a DANFE sai sem o quadro, como à vista).
    */
-  private buildBilling(order: {
+  private async buildBilling(order: {
     id: string;
+    companyId: string;
     payments?: Array<{ id: string; method: PaymentMethod; amount: unknown; installments?: number | null }> | null;
-  }): FiscalBilling | undefined {
+  }): Promise<FiscalBilling | undefined> {
+    const numero = order.id.slice(-6).toUpperCase();
+
+    const titulos = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId: order.companyId,
+        salesOrderId: order.id,
+        type: FinancialEntryType.RECEIVABLE,
+        debtorType: DebtorType.CUSTOMER,
+        salesPaymentId: { not: null },
+        salesPayment: { method: { in: INSTALLMENT_METHODS } },
+        status: { notIn: [FinancialEntryStatus.CANCELLED, FinancialEntryStatus.WRITTEN_OFF] },
+      },
+      orderBy: [{ dueDate: 'asc' }, { installmentNumber: 'asc' }],
+      select: { dueDate: true, amount: true },
+      take: 120, // teto do grupo cobr na NF-e (Coleção[0-120] no dicionário da Focus)
+    });
+    if (titulos.length > 0) {
+      return {
+        numero,
+        duplicatas: titulos.map((t, i) => ({
+          numero: String(i + 1).padStart(3, '0'),
+          vencimento: formatarDataPura(t.dueDate),
+          valor: Number(t.amount),
+        })),
+      };
+    }
+
     const parcelas = parcelasAPrazo(order.payments ?? [], dataOperacionalHoje());
     if (parcelas.length === 0) return undefined;
     return {
-      numero: order.id.slice(-6).toUpperCase(),
+      numero,
       duplicatas: parcelas.map((p, i) => ({
         numero: String(i + 1).padStart(3, '0'),
         vencimento: p.vencimento,

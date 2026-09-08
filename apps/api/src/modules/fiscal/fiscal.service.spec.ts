@@ -25,14 +25,20 @@ const mockPrisma = {
   auditLog: {
     create: jest.fn(),
   },
-  fiscalCorrection: {
-    create: jest.fn(),
-  },
+
   fiscalVoidRange: {
     create: jest.fn(),
   },
   fiscalDocumentItem: {
     create: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  fiscalCorrection: {
+    create: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  financialEntry: {
+    findMany: jest.fn(),
   },
   fiscalDocumentItemTax: {
     create: jest.fn(),
@@ -113,6 +119,10 @@ describe('FiscalService', () => {
     mockPrisma.auditLog.create.mockResolvedValue({});
     mockPrisma.fiscalDocumentItem.create.mockResolvedValue({ id: 'fdi-1' });
     mockPrisma.fiscalDocumentItemTax.create.mockResolvedValue({ id: 'fdit-1' });
+    // #1152: sem títulos no livro por padrão — buildBilling cai no plano
+    mockPrisma.financialEntry.findMany.mockResolvedValue([]);
+    mockPrisma.fiscalDocumentItem.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.fiscalCorrection.updateMany.mockResolvedValue({ count: 0 });
   });
 
   describe('fatura + duplicatas na NF-e (#1152)', () => {
@@ -164,6 +174,53 @@ describe('FiscalService', () => {
       expect(payload.duplicatas.map((d: any) => d.valor)).toEqual([100, 100]);
       expect(payload.formas_pagamento[0].indicador_pagamento).toBeUndefined();
       expect(payload.formas_pagamento[1].indicador_pagamento).toBe('1');
+    });
+
+    it('LIVRO primeiro: títulos existentes (ajustados p/ 7/14/21) viram as duplicatas, não a regra de 30 dias', async () => {
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({
+        ...baseOrder,
+        payments: [{ id: 'sp-1', method: 'BOLETO', amount: '22750', installments: 3, acquirer: null }],
+      });
+      mockPrisma.financialEntry.findMany.mockResolvedValue([
+        { dueDate: new Date('2026-09-15T00:00:00.000Z'), amount: '7583.33' },
+        { dueDate: new Date('2026-09-22T00:00:00.000Z'), amount: '7583.33' },
+        { dueDate: new Date('2026-09-29T00:00:00.000Z'), amount: '7583.34' },
+      ]);
+
+      await service.emitForSale('so-1', FiscalDocumentType.NFE);
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.duplicatas).toEqual([
+        { numero: '001', data_vencimento: '2026-09-15', valor: 7583.33 },
+        { numero: '002', data_vencimento: '2026-09-22', valor: 7583.33 },
+        { numero: '003', data_vencimento: '2026-09-29', valor: 7583.34 },
+      ]);
+      expect(payload.valor_liquido_fatura).toBe(22750);
+      // só títulos do cliente, de formas a prazo, não cancelados
+      expect(mockPrisma.financialEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            companyId: 'co-1',
+            salesOrderId: 'so-1',
+            debtorType: 'CUSTOMER',
+            status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] },
+          }),
+        }),
+      );
+    });
+
+    it('reemissão: documento vivo em ERROR com ref -R2 → emite com ESSA ref (Focus não aceita a ref cancelada)', async () => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue({
+        ...baseFiscalDoc,
+        type: FiscalDocumentType.NFE,
+        status: FiscalStatus.ERROR,
+        focusRef: 'GDR-SO-so-1-R2',
+      });
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({ ...baseOrder, payments: [] });
+
+      await service.emitForSale('so-1', FiscalDocumentType.NFE);
+
+      expect(mockClient.emitNFe).toHaveBeenCalledWith('GDR-SO-so-1-R2', expect.any(Object), 'co-1');
     });
 
     it('à vista (PIX) ou cartão → nenhum campo de cobrança (DANFE sem o quadro)', async () => {
@@ -500,6 +557,107 @@ describe('FiscalService', () => {
   });
 
   // ─── #164: Cancelamento de NF-e ──────────────────────────────────────────
+
+  describe('reissue — cancelar e reemitir para a mesma venda (#1152)', () => {
+    const authorizedNfe = {
+      ...baseFiscalDoc,
+      type: FiscalDocumentType.NFE,
+      finalidade: 'NORMAL',
+      status: FiscalStatus.AUTHORIZED,
+      createdAt: new Date(),
+      salesOrderId: 'so-1',
+      storeTransferId: null,
+      focusRef: 'GDR-SO-so-1',
+      chave: '41260962484006000139550010000000011719333777',
+      number: 1,
+      series: 1,
+      protocolNumber: '141260000547715',
+      xml: '<xml/>',
+      danfeUrl: 'https://focus/danfe.pdf',
+      xmlUrl: 'https://focus/nfe.xml',
+      authorizedAt: new Date(),
+      retryCount: 0,
+    };
+
+    beforeEach(() => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedNfe);
+      mockClient.cancelNFe.mockResolvedValue({ status: 'cancelado', protocolo: 'P-1' });
+      mockPrisma.fiscalDocument.create.mockResolvedValue({ ...authorizedNfe, id: 'fd-arq', salesOrderId: null });
+      mockPrisma.fiscalDocument.update.mockResolvedValue({});
+      jest.spyOn(service, 'emitForSale').mockResolvedValue(undefined);
+    });
+
+    it('cancela na Focus com a ref antiga, ARQUIVA a NF-e cancelada, reseta o vivo com ref -R2 e reemite — SEM evento de reversão', async () => {
+      await service.reissue('fd-1', 'co-1', 'Reemissão para incluir as duplicatas na DANFE');
+
+      expect(mockClient.cancelNFe).toHaveBeenCalledWith('GDR-SO-so-1', 'Reemissão para incluir as duplicatas na DANFE', 'co-1');
+
+      // arquivo: cópia fiel, sem venda, CANCELLED
+      const arquivo = mockPrisma.fiscalDocument.create.mock.calls[0][0].data;
+      expect(arquivo).toMatchObject({
+        status: FiscalStatus.CANCELLED,
+        chave: authorizedNfe.chave,
+        number: 1,
+        focusRef: 'GDR-SO-so-1',
+        cancellationJustification: 'Reemissão para incluir as duplicatas na DANFE',
+      });
+      expect(arquivo.salesOrderId).toBeUndefined();
+      expect(arquivo.id).toBeUndefined();
+
+      // itens e CC-e seguem a nota cancelada
+      expect(mockPrisma.fiscalDocumentItem.updateMany).toHaveBeenCalledWith({ where: { fiscalDocumentId: 'fd-1' }, data: { fiscalDocumentId: 'fd-arq' } });
+      expect(mockPrisma.fiscalCorrection.updateMany).toHaveBeenCalledWith({ where: { fiscalDocumentId: 'fd-1' }, data: { fiscalDocumentId: 'fd-arq' } });
+
+      // vivo: ERROR + ref nova + dados fiscais limpos
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'fd-1' },
+          data: expect.objectContaining({ status: FiscalStatus.ERROR, focusRef: 'GDR-SO-so-1-R2', chave: null, number: null, authorizedAt: null }),
+        }),
+      );
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: 'CANCEL_REISSUE' }) }),
+      );
+      // a venda continua valendo: títulos e estoque intactos
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(FISCAL_CANCELLED_EVENT, expect.anything());
+      expect(service.emitForSale).toHaveBeenCalledWith('so-1', FiscalDocumentType.NFE);
+    });
+
+    it('segunda reemissão incrementa a geração da ref (-R2 → -R3)', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({ ...authorizedNfe, focusRef: 'GDR-SO-so-1-R2' });
+
+      await service.reissue('fd-1', 'co-1', 'Reemissão para corrigir novamente');
+
+      expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ focusRef: 'GDR-SO-so-1-R3' }) }),
+      );
+    });
+
+    it('fora do prazo de 24h → 422 e nada cancelado', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({ ...authorizedNfe, createdAt: new Date(Date.now() - 25 * 3600 * 1000) });
+      await expect(service.reissue('fd-1', 'co-1', 'Reemissão fora do prazo de teste')).rejects.toThrow(UnprocessableEntityException);
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['não autorizada', { status: FiscalStatus.REJECTED }],
+      ['NFC-e', { type: FiscalDocumentType.NFCE }],
+      ['devolução', { finalidade: 'DEVOLUCAO' }],
+      ['sem venda (transferência)', { salesOrderId: null }],
+    ])('%s → 400 e nada cancelado', async (_c, over) => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({ ...authorizedNfe, ...over });
+      await expect(service.reissue('fd-1', 'co-1', 'Reemissão em caso inválido de teste')).rejects.toThrow(BadRequestException);
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+    });
+
+    it('SEFAZ rejeita o cancelamento → 400, nada arquivado, nada reemitido', async () => {
+      mockClient.cancelNFe.mockResolvedValue({ status: 'erro', motivo: 'Prazo expirado', codigo: '501' });
+      await expect(service.reissue('fd-1', 'co-1', 'Reemissão com rejeição de teste')).rejects.toThrow(/Prazo expirado/);
+      expect(mockPrisma.fiscalDocument.create).not.toHaveBeenCalled();
+      expect(service.emitForSale).not.toHaveBeenCalled();
+    });
+  });
 
   describe('cancel', () => {
     const authorizedDoc = {
