@@ -1782,12 +1782,14 @@ export class FiscalService {
    */
   private async buildBilling(order: {
     id: string;
+    companyId: string;
     payments?: Array<{ id: string; method: PaymentMethod; amount: unknown; installments?: number | null }> | null;
   }): Promise<FiscalBilling | undefined> {
     const numero = order.id.slice(-6).toUpperCase();
 
     const titulos = await this.prisma.financialEntry.findMany({
       where: {
+        companyId: order.companyId,
         salesOrderId: order.id,
         type: FinancialEntryType.RECEIVABLE,
         debtorType: DebtorType.CUSTOMER,
@@ -1797,6 +1799,7 @@ export class FiscalService {
       },
       orderBy: [{ dueDate: 'asc' }, { installmentNumber: 'asc' }],
       select: { dueDate: true, amount: true },
+      take: 120, // teto do grupo cobr na NF-e (Coleção[0-120] no dicionário da Focus)
     });
     if (titulos.length > 0) {
       return {

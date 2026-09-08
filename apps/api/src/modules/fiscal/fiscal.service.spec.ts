@@ -200,6 +200,7 @@ describe('FiscalService', () => {
       expect(mockPrisma.financialEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
+            companyId: 'co-1',
             salesOrderId: 'so-1',
             debtorType: 'CUSTOMER',
             status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] },
