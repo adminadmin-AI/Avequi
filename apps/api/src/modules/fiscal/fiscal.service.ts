@@ -1319,9 +1319,12 @@ export class FiscalService {
     const doc = await this.prisma.fiscalDocument.findFirst({ where: { id, companyId } });
     if (!doc) throw new NotFoundException(`Documento fiscal ${id} não encontrado`);
 
-    if (doc.status !== FiscalStatus.AUTHORIZED) {
+    // CANCELLED também entra (retomada): o webhook da Focus pode ter marcado o
+    // cancelamento antes de a reemissão concluir — aí só arquiva e reemite.
+    const retomada = doc.status === FiscalStatus.CANCELLED;
+    if (doc.status !== FiscalStatus.AUTHORIZED && !retomada) {
       throw new BadRequestException(
-        `Somente NF-e AUTHORIZED pode ser cancelada e reemitida. Status atual: ${doc.status}`,
+        `Somente NF-e AUTHORIZED (ou CANCELLED, para retomar) pode ser cancelada e reemitida. Status atual: ${doc.status}`,
       );
     }
     if (doc.type !== FiscalDocumentType.NFE || doc.finalidade !== FiscalFinalidade.NORMAL || !doc.salesOrderId) {
@@ -1329,13 +1332,25 @@ export class FiscalService {
     }
 
     const hoursElapsed = (Date.now() - doc.createdAt.getTime()) / (1000 * 60 * 60);
-    if (hoursElapsed > CANCEL_DEADLINE_HOURS) {
+    if (!retomada && hoursElapsed > CANCEL_DEADLINE_HOURS) {
       throw new UnprocessableEntityException(
         `Prazo de ${CANCEL_DEADLINE_HOURS}h para cancelamento expirado (${Math.floor(hoursElapsed)}h desde a emissão). Use Carta de Correção.`,
       );
     }
 
-    const response = await this.client.cancelNFe(doc.focusRef!, justificativa, companyId);
+    // Retomável: se a Focus já diz "cancelado" (tentativa anterior que caiu
+    // depois do cancelamento, ou webhook adiantado), NÃO cancela de novo —
+    // segue direto para arquivar/reemitir.
+    const atual = await this.client.getStatus('nfe', doc.focusRef!, companyId).catch(() => null);
+    let response: { status: string; motivo?: string } & Record<string, unknown>;
+    if (atual?.status === 'cancelado') {
+      this.logger.warn(`NF-e ${id} já consta cancelada na Focus — retomando reemissão sem novo cancelamento`);
+      response = atual as any;
+    } else if (retomada) {
+      throw new BadRequestException('Documento consta CANCELLED no ERP mas a Focus não confirma o cancelamento — verifique antes de reemitir.');
+    } else {
+      response = (await this.client.cancelNFe(doc.focusRef!, justificativa, companyId)) as any;
+    }
     if (response.status !== 'cancelado') {
       const motivo = response.motivo ?? (response as any).mensagem_sefaz ?? 'Erro ao cancelar na SEFAZ';
       const codigo = (response as any).codigo ?? (response as any).status_sefaz;
@@ -1349,41 +1364,38 @@ export class FiscalService {
     const geracaoAtual = Number(doc.focusRef?.match(/-R(\d+)$/)?.[1] ?? 1);
     const novaRef = `GDR-SO-${doc.salesOrderId}-R${geracaoAtual + 1}`;
 
-    // 2. arquivo da NF-e cancelada — cópia fiel, sem a venda (a venda fica com o vivo)
+    // 2+3 numa transação, NESTA ordem: primeiro o vivo solta chave/número
+    // (únicos por empresa), depois nasce o arquivo com eles. Falha no meio =
+    // nada gravado (a SEFAZ já cancelou; a retomada acima cobre o re-run).
     const {
       id: _id, salesOrderId: _so, storeTransferId: _st, createdAt: _c, updatedAt: _u, retryCount: _r,
       ...snapshot
     } = doc;
-    const archived = await this.prisma.fiscalDocument.create({
-      data: {
-        ...snapshot,
-        status: FiscalStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancellationJustification: justificativa,
-        lastError: null,
-      },
-    });
-    await this.prisma.fiscalDocumentItem.updateMany({
-      where: { fiscalDocumentId: id },
-      data: { fiscalDocumentId: archived.id },
-    });
-    await this.prisma.fiscalCorrection.updateMany({
-      where: { fiscalDocumentId: id },
-      data: { fiscalDocumentId: archived.id },
-    });
-
-    // 3. documento vivo volta a "por emitir" com ref nova
-    await this.prisma.fiscalDocument.update({
-      where: { id },
-      data: {
-        status: FiscalStatus.ERROR,
-        focusRef: novaRef,
-        chave: null, xml: null, number: null, series: null, protocolNumber: null,
-        danfeUrl: null, xmlUrl: null, authorizedAt: null, issueDate: null,
-        cancelledAt: null, cancellationJustification: null,
-        rejectionCode: null, rejectionReason: null,
-        lastError: `Reemissão: NF-e nº ${doc.number ?? '?'} cancelada (arquivo ${archived.id})`,
-      },
+    const archived = await this.prisma.$transaction(async (tx) => {
+      await tx.fiscalDocument.update({
+        where: { id },
+        data: {
+          status: FiscalStatus.ERROR,
+          focusRef: novaRef,
+          chave: null, xml: null, number: null, series: null, protocolNumber: null,
+          danfeUrl: null, xmlUrl: null, authorizedAt: null, issueDate: null,
+          cancelledAt: null, cancellationJustification: null,
+          rejectionCode: null, rejectionReason: null,
+          lastError: `Reemissão: NF-e nº ${doc.number ?? '?'} cancelada`,
+        },
+      });
+      const arq = await tx.fiscalDocument.create({
+        data: {
+          ...snapshot,
+          status: FiscalStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationJustification: justificativa,
+          lastError: null,
+        },
+      });
+      await tx.fiscalDocumentItem.updateMany({ where: { fiscalDocumentId: id }, data: { fiscalDocumentId: arq.id } });
+      await tx.fiscalCorrection.updateMany({ where: { fiscalDocumentId: id }, data: { fiscalDocumentId: arq.id } });
+      return arq;
     });
 
     await this.prisma.auditLog.create({
