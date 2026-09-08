@@ -581,7 +581,10 @@ describe('FiscalService', () => {
 
     beforeEach(() => {
       mockPrisma.fiscalDocument.findFirst.mockResolvedValue(authorizedNfe);
+      mockClient.getStatus.mockResolvedValue({ status: 'autorizado' });
       mockClient.cancelNFe.mockResolvedValue({ status: 'cancelado', protocolo: 'P-1' });
+      // $transaction interativa: executa o callback com o próprio mock como tx
+      (mockPrisma as any).$transaction = jest.fn(async (fn: any) => fn(mockPrisma));
       mockPrisma.fiscalDocument.create.mockResolvedValue({ ...authorizedNfe, id: 'fd-arq', salesOrderId: null });
       mockPrisma.fiscalDocument.update.mockResolvedValue({});
       jest.spyOn(service, 'emitForSale').mockResolvedValue(undefined);
@@ -608,6 +611,11 @@ describe('FiscalService', () => {
       expect(mockPrisma.fiscalDocumentItem.updateMany).toHaveBeenCalledWith({ where: { fiscalDocumentId: 'fd-1' }, data: { fiscalDocumentId: 'fd-arq' } });
       expect(mockPrisma.fiscalCorrection.updateMany).toHaveBeenCalledWith({ where: { fiscalDocumentId: 'fd-1' }, data: { fiscalDocumentId: 'fd-arq' } });
 
+      // ORDEM: o vivo solta a chave ANTES do arquivo nascer (unique companyId+chave)
+      const ordemUpdate = mockPrisma.fiscalDocument.update.mock.invocationCallOrder[0];
+      const ordemCreate = mockPrisma.fiscalDocument.create.mock.invocationCallOrder[0];
+      expect(ordemUpdate).toBeLessThan(ordemCreate);
+
       // vivo: ERROR + ref nova + dados fiscais limpos
       expect(mockPrisma.fiscalDocument.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -622,6 +630,35 @@ describe('FiscalService', () => {
       // a venda continua valendo: títulos e estoque intactos
       expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(FISCAL_CANCELLED_EVENT, expect.anything());
       expect(service.emitForSale).toHaveBeenCalledWith('so-1', FiscalDocumentType.NFE);
+    });
+
+    it('RETOMADA: Focus já diz "cancelado" → não cancela de novo, arquiva e reemite', async () => {
+      mockClient.getStatus.mockResolvedValue({ status: 'cancelado', protocolo: 'P-0' });
+
+      await service.reissue('fd-1', 'co-1', 'Retomada após falha no arquivamento');
+
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+      expect(mockPrisma.fiscalDocument.create).toHaveBeenCalled();
+      expect(service.emitForSale).toHaveBeenCalledWith('so-1', FiscalDocumentType.NFE);
+    });
+
+    it('RETOMADA com doc já CANCELLED no ERP (webhook adiantado) e Focus cancelado → arquiva e reemite', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({ ...authorizedNfe, status: FiscalStatus.CANCELLED, createdAt: new Date(Date.now() - 30 * 3600 * 1000) });
+      mockClient.getStatus.mockResolvedValue({ status: 'cancelado' });
+
+      await service.reissue('fd-1', 'co-1', 'Retomada com webhook adiantado');
+
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+      expect(service.emitForSale).toHaveBeenCalled();
+    });
+
+    it('doc CANCELLED no ERP mas Focus NÃO confirma → 400, nada feito', async () => {
+      mockPrisma.fiscalDocument.findFirst.mockResolvedValue({ ...authorizedNfe, status: FiscalStatus.CANCELLED });
+      mockClient.getStatus.mockResolvedValue({ status: 'autorizado' });
+
+      await expect(service.reissue('fd-1', 'co-1', 'Retomada inconsistente de teste')).rejects.toThrow(BadRequestException);
+      expect(mockClient.cancelNFe).not.toHaveBeenCalled();
+      expect(mockPrisma.fiscalDocument.create).not.toHaveBeenCalled();
     });
 
     it('segunda reemissão incrementa a geração da ref (-R2 → -R3)', async () => {
@@ -641,7 +678,7 @@ describe('FiscalService', () => {
     });
 
     it.each([
-      ['não autorizada', { status: FiscalStatus.REJECTED }],
+      ['rejeitada', { status: FiscalStatus.REJECTED }],
       ['NFC-e', { type: FiscalDocumentType.NFCE }],
       ['devolução', { finalidade: 'DEVOLUCAO' }],
       ['sem venda (transferência)', { salesOrderId: null }],
