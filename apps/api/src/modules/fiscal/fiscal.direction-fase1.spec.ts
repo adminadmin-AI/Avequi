@@ -30,6 +30,8 @@ const mockPrisma = {
     update: jest.fn(),
   },
   salesOrder: { findUnique: jest.fn() },
+  // #1152: buildBilling consulta os títulos da venda (livro primeiro)
+  financialEntry: { findMany: jest.fn().mockResolvedValue([]) },
   storeTransfer: { findUnique: jest.fn() },
   company: { findUnique: jest.fn() },
   auditLog: { create: jest.fn() },

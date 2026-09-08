@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, RotateCcw, Ban, FileEdit, Copy, FileDown, FileText, FileStack, Undo2, Link2 } from 'lucide-react';
+import { ExternalLink, RotateCcw, Ban, FileEdit, Copy, FileDown, FileText, FileStack, Undo2, Link2, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useDetail } from '@/hooks/use-resource';
 import type { FiscalDocument, SalesOrderStatus } from '@/types/api';
@@ -53,6 +53,9 @@ export default function FiscalDetailPage() {
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [justificativa, setJustificativa] = useState('');
+  // #1152 — cancelar e reemitir para a mesma venda (títulos e estoque preservados)
+  const [reissueOpen, setReissueOpen] = useState(false);
+  const [reissueJustificativa, setReissueJustificativa] = useState('');
   const [cceOpen, setCceOpen] = useState(false);
   const [correcao, setCorrecao] = useState('');
   // #758 — wizard de nota de ajuste (débito/crédito IBS/CBS)
@@ -67,6 +70,10 @@ export default function FiscalDetailPage() {
   });
   const cancel = useMutation({
     mutationFn: (justificativa: string) => apiClient.post(`${RESOURCE}/${id}/cancel`, { justificativa }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
+  });
+  const reissue = useMutation({
+    mutationFn: (justificativa: string) => apiClient.post(`${RESOURCE}/${id}/reissue`, { justificativa }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [RESOURCE] }),
   });
   const correction = useMutation({
@@ -97,6 +104,17 @@ export default function FiscalDetailPage() {
         setJustificativa('');
       },
       onError: (e: unknown) => toast.error(erroDeAcao('cancelar o documento', e)),
+    });
+  }
+  function submitReissue() {
+    if (reissueJustificativa.trim().length < 15) return toast.error('Justificativa deve ter ao menos 15 caracteres');
+    reissue.mutate(reissueJustificativa, {
+      onSuccess: () => {
+        toast.success('NF-e cancelada e reemitida. A nova nota está sendo autorizada.');
+        setReissueOpen(false);
+        setReissueJustificativa('');
+      },
+      onError: (e: unknown) => toast.error(erroDeAcao('cancelar e reemitir a NF-e', e)),
     });
   }
   function submitCce() {
@@ -135,6 +153,8 @@ export default function FiscalDetailPage() {
   const items = doc.salesOrder?.items ?? [];
   const canRetry = doc.status === 'REJECTED' || doc.status === 'ERROR';
   const canCancel = doc.status === 'AUTHORIZED';
+  // #1152 — só NF-e normal de venda; NFC-e, devolução e ajuste não reemitem
+  const canReissue = doc.status === 'AUTHORIZED' && doc.type === 'NFE' && doc.finalidade === 'NORMAL' && !!doc.salesOrderId;
   const canCce = doc.status === 'AUTHORIZED';
   // #758 — ajuste/devolução só fazem sentido sobre a NF-e de venda original autorizada
   const isAdjustableOriginal = doc.type === 'NFE' && doc.status === 'AUTHORIZED' && doc.finalidade === 'NORMAL';
@@ -247,6 +267,13 @@ export default function FiscalDetailPage() {
                 <Can permission="fiscal.nfe.return-note">
                   <Button variant="secondary" onClick={() => setReturnOpen(true)}>
                     <Undo2 size={16} /> Emitir NF-e de devolução
+                  </Button>
+                </Can>
+              )}
+              {canReissue && (
+                <Can permission="fiscal.nfe.cancel">
+                  <Button variant="secondary" onClick={() => setReissueOpen(true)}>
+                    <RefreshCw size={16} /> Cancelar e reemitir
                   </Button>
                 </Can>
               )}
@@ -382,6 +409,24 @@ export default function FiscalDetailPage() {
           <div>
             <Label required>Justificativa (mín. 15 caracteres)</Label>
             <Input value={justificativa} onChange={(e) => setJustificativa(e.target.value)} placeholder="Motivo do cancelamento" />
+          </div>
+        </form>
+      </FormDialog>
+
+      {/* #1152 — cancelar e reemitir */}
+      <FormDialog
+        open={reissueOpen}
+        onOpenChange={setReissueOpen}
+        title="Cancelar e reemitir NF-e"
+        description="Cancela esta nota na SEFAZ (prazo de 24h) e emite outra para a mesma venda. Os títulos e o estoque não mudam. A nota cancelada continua no livro."
+        formId="reissue-form"
+        submitLabel="Cancelar e reemitir"
+        loading={reissue.isPending}
+      >
+        <form id="reissue-form" onSubmit={(e) => { e.preventDefault(); submitReissue(); }} className="space-y-3 py-1">
+          <div>
+            <Label required>Justificativa do cancelamento (mín. 15 caracteres)</Label>
+            <Input value={reissueJustificativa} onChange={(e) => setReissueJustificativa(e.target.value)} placeholder="Ex.: Reemissão para incluir as duplicatas na nota" />
           </div>
         </form>
       </FormDialog>

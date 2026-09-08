@@ -97,6 +97,7 @@ const MATRIZ: Array<[Ctor, string, Record<string, string>]> = [
   [FiscalController, 'fiscal', {
     compliance: 'fiscal.documents.view',
     cancel: 'fiscal.nfe.cancel',
+    reissue: 'fiscal.nfe.cancel', // #1152 — cancelar e reemitir (mesma alçada do cancelamento)
     correction: 'fiscal.nfe.correct',
     returnNote: 'fiscal.nfe.return-note', // #747 — NF-e de devolução referenciada
     debitNote: 'fiscal.nfe.debit-note', // #757 — nota de débito IBS/CBS (finNFe 6)
@@ -189,6 +190,7 @@ describe('#341 parte 2 (PR E2/E3) — matriz fiscal + compliance (issue #623)', 
   describe('FISCAL é o dono da operação fiscal', () => {
     it('executa eventos NF-e, manifesta, exporta e opera inbound completo', async () => {
       expect(await canAccess(FiscalController, 'cancel', 'FISCAL')).toBe(true);
+      expect(await canAccess(FiscalController, 'reissue', 'FISCAL')).toBe(true);
       expect(await canAccess(FiscalController, 'correction', 'FISCAL')).toBe(true);
       expect(await canAccess(FiscalController, 'voidRange', 'FISCAL')).toBe(true);
       expect(await canAccess(FiscalController, 'retry', 'FISCAL')).toBe(true);
@@ -219,6 +221,7 @@ describe('#341 parte 2 (PR E2/E3) — matriz fiscal + compliance (issue #623)', 
 
     it('NÃO executa eventos NF-e, NÃO manifesta, NÃO edita tax-rules, NÃO sincroniza', async () => {
       expect(await canAccess(FiscalController, 'cancel', 'GERENTE_FINANCEIRO')).toBe(false);
+      expect(await canAccess(FiscalController, 'reissue', 'GERENTE_FINANCEIRO')).toBe(false);
       expect(await canAccess(FiscalController, 'correction', 'GERENTE_FINANCEIRO')).toBe(false);
       expect(await canAccess(FiscalController, 'retry', 'GERENTE_FINANCEIRO')).toBe(false);
       expect(await canAccess(FiscalController, 'voidRange', 'GERENTE_FINANCEIRO')).toBe(false);

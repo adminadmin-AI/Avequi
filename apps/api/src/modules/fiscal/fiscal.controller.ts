@@ -126,6 +126,22 @@ export class FiscalController {
     return { ok: true, message: 'Documento fiscal cancelado com sucesso' };
   }
 
+  /** #1152 — cancela na SEFAZ e reemite para a mesma venda (títulos e estoque preservados) */
+  @Post(':id/reissue')
+  @RequirePermission('fiscal.nfe.cancel')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Cancelar NF-e autorizada e reemitir para a mesma venda (prazo de 24h) — títulos e estoque preservados',
+  })
+  async reissue(
+    @Param('id') id: string,
+    @Body() dto: CancelFiscalDto,
+    @CurrentUser() user: any,
+  ) {
+    await this.fiscalService.reissue(id, user.companyId, dto.justificativa);
+    return { ok: true, message: 'NF-e cancelada e reemitida para a mesma venda' };
+  }
+
   /** #165 — CC-e (Carta de Correção) */
   @Post(':id/correction')
   @RequirePermission('fiscal.nfe.correct')
