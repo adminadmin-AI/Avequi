@@ -1,4 +1,4 @@
-import { buildNFCePayload, buildNFePayload, buildTransferNFePayload, calcTotalValue, cardBrandCode, mapPaymentsFlat, FiscalPayloadInput } from './fiscal-mapper';
+import { buildNFCePayload, buildNFePayload, buildTransferNFePayload, calcTotalValue, cardBrandCode, mapBillingFlat, mapPaymentsFlat, FiscalPayloadInput } from './fiscal-mapper';
 
 const baseInput: FiscalPayloadInput = {
   ref: 'GDR-SO-001',
@@ -765,5 +765,59 @@ describe('Simples Nacional — CSOSN (#1069)', () => {
     const item = buildItem({ ...cstTax, icmsCsosn: '900' }, 1);
     expect(item.icms_situacao_tributaria).toBe('900');
     expect(item.icms_aliquota_credito_simples).toBeUndefined();
+  });
+});
+
+describe('grupo cobr — fatura + duplicatas (#1152)', () => {
+  const billing = {
+    numero: 'AB12CD',
+    duplicatas: [
+      { numero: '001', vencimento: '2026-10-03', valor: 83.33 },
+      { numero: '002', vencimento: '2026-11-02', valor: 83.33 },
+      { numero: '003', vencimento: '2026-12-02', valor: 83.34 },
+    ],
+  };
+
+  it('mapBillingFlat: nomes flat oficiais; fatura = soma das duplicatas, sem desconto', () => {
+    expect(mapBillingFlat(billing)).toEqual({
+      numero_fatura: 'AB12CD',
+      valor_original_fatura: 250,
+      valor_liquido_fatura: 250,
+      duplicatas: [
+        { numero: '001', data_vencimento: '2026-10-03', valor: 83.33 },
+        { numero: '002', data_vencimento: '2026-11-02', valor: 83.33 },
+        { numero: '003', data_vencimento: '2026-12-02', valor: 83.34 },
+      ],
+    });
+  });
+
+  it('sem billing ou sem duplicatas → nenhum campo de cobrança (à vista sai sem o quadro)', () => {
+    expect(mapBillingFlat(undefined)).toEqual({});
+    expect(mapBillingFlat({ numero: 'X', duplicatas: [] })).toEqual({});
+  });
+
+  it('buildNFePayload leva o grupo cobr; forma a prazo leva indicador_pagamento=1', () => {
+    const p = buildNFePayload({
+      ...baseInput,
+      payments: [{ tPag: '15', amount: 250, aPrazo: true }],
+      billing,
+    }) as any;
+    expect(p.numero_fatura).toBe('AB12CD');
+    expect(p.valor_liquido_fatura).toBe(250);
+    expect(p.duplicatas).toHaveLength(3);
+    expect(p.formas_pagamento[0]).toEqual({ indicador_pagamento: '1', forma_pagamento: '15', valor_pagamento: 250 });
+  });
+
+  it('forma à vista NÃO ganha indicador_pagamento (XML das notas já autorizadas não muda)', () => {
+    const p = buildNFePayload({ ...baseInput, payments: [{ tPag: '17', amount: 250 }] }) as any;
+    expect(p.formas_pagamento[0]).toEqual({ forma_pagamento: '17', valor_pagamento: 250 });
+    expect(p.duplicatas).toBeUndefined();
+    expect(p.numero_fatura).toBeUndefined();
+  });
+
+  it('NFC-e NUNCA leva cobr, mesmo com billing no input', () => {
+    const p = buildNFCePayload({ ...baseInput, billing }) as any;
+    expect(p.duplicatas).toBeUndefined();
+    expect(p.numero_fatura).toBeUndefined();
   });
 });

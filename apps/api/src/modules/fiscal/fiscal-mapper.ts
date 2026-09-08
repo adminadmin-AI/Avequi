@@ -216,6 +216,8 @@ export interface FiscalFreight {
 export interface FiscalPaymentForm {
   tPag: string; // código tabela 4.3.4.1 ('01' dinheiro, '03' crédito, '04' débito, '17' PIX…)
   amount: number;
+  /** indPag=1 (a prazo) — forma parcelada pelo cliente que gera duplicatas (#1152) */
+  aPrazo?: boolean;
   card?: {
     cnpjCredenciadora?: string; // CNPJ da adquirente (Acquirer.cnpj)
     tBand: string; // código da bandeira ('01' Visa … '99' outros)
@@ -240,6 +242,20 @@ export const CARD_BRAND_CODES: Record<string, string> = {
 export const cardBrandCode = (brand?: string | null): string =>
   (brand && CARD_BRAND_CODES[brand.toUpperCase()]) || '99';
 
+/**
+ * #1152 — grupo de cobrança da NF-e (cobr: fatura + duplicatas). É o que a
+ * DANFE imprime no quadro "Fatura / Duplicata" (Nº · Venc. · Valor). Só
+ * NF-e (mod 55): o layout da NFC-e não tem cobr.
+ */
+export interface FiscalBilling {
+  numero: string; // nFat — nº da fatura (o "Pedido #XXXXXX" que o front mostra)
+  duplicatas: Array<{
+    numero: string; // nDup — 3 algarismos sequenciais ("001", "002"…)
+    vencimento: string; // dVenc — YYYY-MM-DD (data de negócio, #901)
+    valor: number; // vDup
+  }>;
+}
+
 export interface FiscalPayloadInput {
   ref: string; // referência única gerada pelo GDR (ex: "GDR-SO-<id>")
   emitter: FiscalEmitter;
@@ -252,6 +268,7 @@ export interface FiscalPayloadInput {
   infCpl?: string; // informações complementares (#370)
   delivery?: FiscalDeliveryAddress; // grupo <entrega> quando ≠ endereço fiscal (#474)
   freight?: FiscalFreight; // grupo transp — ausente = modalidade 9 (#481)
+  billing?: FiscalBilling; // grupo cobr — fatura + duplicatas (#1152); ausente = sem quadro na DANFE
   // #747/#754 — emissão referenciada (devolução hoje; débito/crédito no épico #753)
   finalidade?: '1' | '2' | '3' | '4' | '5' | '6'; // finNFe — ausente = '1'
   naturezaOperacao?: string; // sobrescreve a natureza padrão do builder
@@ -271,6 +288,9 @@ export function mapPaymentsFlat(input: FiscalPayloadInput): Array<Record<string,
 
   if (input.payments?.length) {
     return input.payments.map((p) => ({
+      // indPag só quando a prazo (#1152): à vista é o default da SEFAZ e
+      // mandar '0' em toda nota mudaria o XML de tudo que já está autorizado.
+      ...(p.aPrazo && { indicador_pagamento: '1' }),
       forma_pagamento: p.tPag,
       valor_pagamento: Number(p.amount.toFixed(2)),
       ...(p.card && {
@@ -289,6 +309,34 @@ export function mapPaymentsFlat(input: FiscalPayloadInput): Array<Record<string,
       valor_pagamento: input.paymentMethod === '90' ? 0 : totalWithFreight,
     },
   ];
+}
+
+/**
+ * #1152 — grupo cobr (fatura + duplicatas), nomes flat oficiais do
+ * dicionário (NotaFiscalXML: numero_fatura/nFat, valor_original_fatura/vOrig,
+ * valor_desconto_fatura/vDesc, valor_liquido_fatura/vLiq; duplicatas[]:
+ * numero/nDup, data_vencimento/dVenc, valor/vDup). A SEFAZ exige que a soma
+ * das duplicatas feche com o líquido da fatura e que nDup seja sequencial
+ * com 3 algarismos — o validador confere antes de transmitir.
+ *
+ * Fatura = só a parte A PRAZO da venda (soma das duplicatas), sem desconto
+ * (vDesc é opcional e a Focus serializa 0 como "0" — omitido): a parte à
+ * vista/cartão não é obrigação do cliente em aberto e não entra. Validado em
+ * homologação 08/09/2026 (NF-e 1148/1149 autorizadas, DANFE com o quadro).
+ */
+export function mapBillingFlat(billing?: FiscalBilling): Record<string, unknown> {
+  if (!billing || billing.duplicatas.length === 0) return {};
+  const liquido = Number(billing.duplicatas.reduce((s, d) => s + d.valor, 0).toFixed(2));
+  return {
+    numero_fatura: billing.numero,
+    valor_original_fatura: liquido,
+    valor_liquido_fatura: liquido,
+    duplicatas: billing.duplicatas.map((d) => ({
+      numero: d.numero,
+      data_vencimento: d.vencimento,
+      valor: Number(d.valor.toFixed(2)),
+    })),
+  };
 }
 
 /**
@@ -656,6 +704,8 @@ export function buildNFePayload(input: FiscalPayloadInput): Record<string, unkno
     // pagamento ≠ total da nota (#481)
     // #587: detPag como lista (multi-forma + grupo card tpIntegra=1)
     formas_pagamento: mapPaymentsFlat(input),
+    // #1152: fatura + duplicatas → quadro "Fatura / Duplicata" da DANFE
+    ...mapBillingFlat(input.billing),
   };
 }
 

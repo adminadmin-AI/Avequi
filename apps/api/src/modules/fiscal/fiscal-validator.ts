@@ -161,6 +161,43 @@ export function validateNfePayload(
     }
   }
 
+  // ── Cobrança: fatura + duplicatas (#1152) ──────────────────────────────────
+  // Só NF-e tem o grupo cobr; duplicatas na NFC-e = rejeição de schema.
+  const dups: Payload[] = Array.isArray(payload.duplicatas) ? payload.duplicatas : [];
+  if (dups.length > 0) {
+    if (model === 'nfce') {
+      issues.push({
+        rejection: '225',
+        field: 'duplicatas',
+        message: 'NFC-e não aceita o grupo de cobrança (fatura/duplicatas) — só NF-e (rej. 225, schema).',
+      });
+    }
+    const soma = Number(dups.reduce((s, d) => s + Number(d.valor ?? 0), 0).toFixed(2));
+    const liquido = Number(Number(payload.valor_liquido_fatura ?? 0).toFixed(2));
+    if (soma !== liquido) {
+      issues.push({
+        rejection: '872',
+        field: 'duplicatas',
+        message: `Soma das duplicatas (${soma.toFixed(2)}) difere do valor líquido da fatura (${liquido.toFixed(2)}) (rej. 872).`,
+      });
+    }
+    const sequencial = dups.every((d, i) => String(d.numero) === String(i + 1).padStart(3, '0'));
+    if (!sequencial) {
+      issues.push({
+        rejection: '872',
+        field: 'duplicatas',
+        message: 'Número da duplicata (nDup) deve ter 3 algarismos, sequenciais e consecutivos a partir de "001".',
+      });
+    }
+    if (dups.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(String(d.data_vencimento ?? '')))) {
+      issues.push({
+        rejection: '872',
+        field: 'duplicatas',
+        message: 'Vencimento da duplicata (dVenc) deve ser data pura YYYY-MM-DD.',
+      });
+    }
+  }
+
   // ── Devolução (finNFe 4): NF-e original no CABEÇALHO obrigatória (#747) ────
   // Notas 5/6 NÃO usam o cabeçalho — referência é POR ITEM (gDFeReferenciado);
   // cabeçalho + item juntos = rej. 1010 (validado na SEFAZ homolog F4).

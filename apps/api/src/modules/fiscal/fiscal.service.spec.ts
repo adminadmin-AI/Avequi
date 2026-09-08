@@ -115,6 +115,74 @@ describe('FiscalService', () => {
     mockPrisma.fiscalDocumentItemTax.create.mockResolvedValue({ id: 'fdit-1' });
   });
 
+  describe('fatura + duplicatas na NF-e (#1152)', () => {
+    const { dataOperacionalHoje, somarDias } = require('../../common/date/dia-operacional');
+
+    beforeEach(() => {
+      mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);
+      mockPrisma.fiscalDocument.create.mockResolvedValue({ ...baseFiscalDoc, type: FiscalDocumentType.NFE });
+      mockPrisma.fiscalDocument.update.mockResolvedValue(baseFiscalDoc);
+      mockClient.emitNFe.mockResolvedValue({ status: 'processando_autorizacao', ref: 'GDR-SO-so-1' });
+    });
+
+    it('boleto 3× → duplicatas 001/002/003 a cada 30 dias, fatura = soma, indPag=1 na forma', async () => {
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({
+        ...baseOrder,
+        id: 'so-abcdef123456',
+        payments: [{ id: 'sp-1', method: 'BOLETO', amount: '300', installments: 3, acquirer: null }],
+      });
+
+      await service.emitForSale('so-abcdef123456', FiscalDocumentType.NFE);
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      const hoje = dataOperacionalHoje();
+      expect(payload.numero_fatura).toBe('123456');
+      expect(payload.valor_original_fatura).toBe(300);
+      expect(payload.valor_desconto_fatura).toBeUndefined();
+      expect(payload.valor_liquido_fatura).toBe(300);
+      expect(payload.duplicatas).toEqual([
+        { numero: '001', data_vencimento: somarDias(hoje, 30), valor: 100 },
+        { numero: '002', data_vencimento: somarDias(hoje, 60), valor: 100 },
+        { numero: '003', data_vencimento: somarDias(hoje, 90), valor: 100 },
+      ]);
+      expect(payload.formas_pagamento[0]).toMatchObject({ indicador_pagamento: '1', forma_pagamento: '15' });
+    });
+
+    it('misto PIX + boleto 2× → duplicatas só da parte boleto; PIX sem indPag', async () => {
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({
+        ...baseOrder,
+        payments: [
+          { id: 'sp-pix', method: 'PIX', amount: '100', installments: 1, acquirer: null },
+          { id: 'sp-bol', method: 'BOLETO', amount: '200', installments: 2, acquirer: null },
+        ],
+      });
+
+      await service.emitForSale('so-1', FiscalDocumentType.NFE);
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.valor_liquido_fatura).toBe(200);
+      expect(payload.duplicatas.map((d: any) => d.valor)).toEqual([100, 100]);
+      expect(payload.formas_pagamento[0].indicador_pagamento).toBeUndefined();
+      expect(payload.formas_pagamento[1].indicador_pagamento).toBe('1');
+    });
+
+    it('à vista (PIX) ou cartão → nenhum campo de cobrança (DANFE sem o quadro)', async () => {
+      mockPrisma.salesOrder.findUnique.mockResolvedValue({
+        ...baseOrder,
+        payments: [
+          { id: 'sp-pix', method: 'PIX', amount: '100', installments: 1, acquirer: null },
+          { id: 'sp-cc', method: 'CARTAO_CREDITO', amount: '200', installments: 4, acquirer: null },
+        ],
+      });
+
+      await service.emitForSale('so-1', FiscalDocumentType.NFE);
+
+      const payload = mockClient.emitNFe.mock.calls[0][1] as any;
+      expect(payload.duplicatas).toBeUndefined();
+      expect(payload.numero_fatura).toBeUndefined();
+    });
+  });
+
   describe('formas de pagamento na NF-e (#479)', () => {
     it('mapeia PaymentMethod da OV para o código tPag (PIX → 17)', async () => {
       mockPrisma.fiscalDocument.findUnique.mockResolvedValue(null);

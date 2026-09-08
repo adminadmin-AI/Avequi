@@ -11,6 +11,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMISSOR_PORT, EmissorPort } from './emissor.port';
 import { formatValidationIssues, validateNfePayload } from './fiscal-validator';
+import { INSTALLMENT_METHODS } from '../acquirer/payment-classification';
+import { parcelasAPrazo } from '../finance/parcelas-da-venda';
+import { dataOperacionalHoje } from '../../common/date/dia-operacional';
 import { TaxCalculationService } from '../tax/tax-calculation.service';
 import { FISCAL_CANCELLED_EVENT, FiscalCancelledEvent } from './events/fiscal-cancelled.event';
 import { FISCAL_AUTHORIZED_EVENT, FiscalAuthorizedEvent } from './events/fiscal-authorized.event';
@@ -27,6 +30,7 @@ import {
   FiscalVehicleData,
   cardBrandCode,
 } from './fiscal-mapper';
+import { FiscalBilling } from './fiscal-mapper';
 import { AdjustmentSpec, IbsCbsAdjustmentService } from './ibscbs-adjustment.service';
 
 const CANCEL_DEADLINE_HOURS = 24;
@@ -287,6 +291,8 @@ export class FiscalService {
       return {
         tPag: NFE_PAYMENT_CODES[p.method] ?? '99',
         amount: Number(p.amount),
+        // #1152: boleto/cheque parcelado pelo cliente → indPag=1 + duplicatas
+        ...(INSTALLMENT_METHODS.includes(p.method) && { aPrazo: true }),
         // sem autorização não há grupo card válido (cAut é obrigatório no tpIntegra=1)
         ...(isCard && cAut
           ? {
@@ -300,11 +306,19 @@ export class FiscalService {
       };
     });
 
+    // #1152: fatura + duplicatas (quadro "Fatura / Duplicata" da DANFE) a
+    // partir do plano de pagamento — a MESMA função que gera os títulos do
+    // contas a receber (parcelasAPrazo), então o vencimento impresso é o que
+    // será cobrado. Calculado aqui (não lido dos títulos) porque fiscal e
+    // financeiro ouvem o mesmo evento e os títulos podem ainda não existir.
+    const billing = this.buildBilling(order);
+
     const input: FiscalPayloadInput = {
       ref,
       // detPag com a forma real da venda (#479); sem forma cadastrada → 99 (outros)
       paymentMethod: order.paymentMethod ? NFE_PAYMENT_CODES[order.paymentMethod] : undefined,
       ...(paymentForms.length > 0 && { payments: paymentForms }),
+      ...(billing && { billing }),
       emitter: {
         cnpj: order.company.cnpj,
         name: order.company.razaoSocial ?? order.company.name,
@@ -1630,6 +1644,29 @@ export class FiscalService {
    * Product.pesoLiquido/pesoBruto × quantidade (#484); volumes só entram
    * quando há peso ou quantidade explícita.
    */
+  /**
+   * #1152 — grupo cobr da venda: só as formas em que o CLIENTE paga parcelado
+   * (boleto/cheque), numeradas "001", "002"… na ordem do plano, vencendo a
+   * cada 30 dias do dia operacional de hoje (o faturamento dispara a emissão).
+   * nFat = o "Pedido #XXXXXX" que o front mostra (6 últimos do id). Sem forma
+   * a prazo → undefined (a DANFE sai sem o quadro, como à vista).
+   */
+  private buildBilling(order: {
+    id: string;
+    payments?: Array<{ id: string; method: PaymentMethod; amount: unknown; installments?: number | null }> | null;
+  }): FiscalBilling | undefined {
+    const parcelas = parcelasAPrazo(order.payments ?? [], dataOperacionalHoje());
+    if (parcelas.length === 0) return undefined;
+    return {
+      numero: order.id.slice(-6).toUpperCase(),
+      duplicatas: parcelas.map((p, i) => ({
+        numero: String(i + 1).padStart(3, '0'),
+        vencimento: p.vencimento,
+        valor: p.amount,
+      })),
+    };
+  }
+
   private buildFreight(order: {
     freightModality: string | null;
     freightValue: unknown;
