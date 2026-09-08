@@ -85,7 +85,7 @@ async function main() {
   // 1. produto
   if (!product) {
     product = await prisma.product.create({
-      data: { companyId: P.companyId, sku: P.product.sku, name: P.product.name, type: 'FINISHED_GOOD', unit: P.product.unit, ncm: P.product.ncm, cest: P.product.cest ?? null, origem: P.product.origem, salePrice: P.product.salePrice, isActive: true },
+      data: { companyId: P.companyId, sku: P.product.sku, name: P.product.name, type: 'FINISHED_GOOD', unit: P.product.unit as any, ncm: P.product.ncm, cest: P.product.cest ?? null, origem: P.product.origem, salePrice: P.product.salePrice, isActive: true },
     });
     console.log('✔ produto criado', product.id);
   }
