@@ -11,8 +11,6 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 ### Added
 - feat(fiscal): cancelar e reemitir NF-e para a mesma venda + duplicatas espelham o livro (#1152) (#1155)
 
-### Fixed
-
 ## [1.52.0] - 2026-09-08
 
 ### Added
