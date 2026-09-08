@@ -455,3 +455,43 @@ describe('CSOSN com crédito × destinatário não contribuinte (rej. 600)', () 
     ).toEqual([]);
   });
 });
+
+describe('cobrança — fatura + duplicatas (#1152)', () => {
+  const cobr = {
+    numero_fatura: 'AB12CD',
+    valor_original_fatura: 250,
+    valor_liquido_fatura: 250,
+    duplicatas: [
+      { numero: '001', data_vencimento: '2026-10-03', valor: 83.33 },
+      { numero: '002', data_vencimento: '2026-11-02', valor: 83.33 },
+      { numero: '003', data_vencimento: '2026-12-02', valor: 83.34 },
+    ],
+  };
+
+  it('duplicatas fechando com o líquido, sequenciais e com data pura → sem issues', () => {
+    expect(validateNfePayload(validPayload(cobr))).toEqual([]);
+  });
+
+  it('soma das duplicatas ≠ líquido da fatura → rej. 872', () => {
+    const issues = validateNfePayload(validPayload({ ...cobr, valor_liquido_fatura: 249.99 }));
+    expect(issues).toEqual([expect.objectContaining({ rejection: '872', field: 'duplicatas' })]);
+  });
+
+  it('nDup fora da sequência 001/002/003 → rej. 872', () => {
+    const dups = [{ ...cobr.duplicatas[0], numero: '1' }, cobr.duplicatas[1], cobr.duplicatas[2]];
+    const issues = validateNfePayload(validPayload({ ...cobr, duplicatas: dups }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toMatch(/3 algarismos/);
+  });
+
+  it('vencimento com hora (não é data pura) → issue', () => {
+    const dups = [{ ...cobr.duplicatas[0], data_vencimento: '2026-10-03T00:00:00.000Z' }, cobr.duplicatas[1], cobr.duplicatas[2]];
+    const issues = validateNfePayload(validPayload({ ...cobr, duplicatas: dups }));
+    expect(issues.some((i) => /YYYY-MM-DD/.test(i.message))).toBe(true);
+  });
+
+  it('duplicatas em NFC-e → rej. 225 (schema não tem cobr)', () => {
+    const issues = validateNfePayload(validPayload(cobr), 'nfce');
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ rejection: '225', field: 'duplicatas' })]));
+  });
+});

@@ -16,18 +16,9 @@ import {
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
-/**
- * Divide um total em N parcelas de centavos consistentes: as N−1 primeiras
- * iguais (piso) e a última absorvendo o resto, de modo que a soma feche exato.
- * Fonte única do rateio de parcelas (cartão, boleto e createInstallments).
- */
-function splitInstallments(total: number, n: number): { number: number; amount: number }[] {
-  const base = Math.floor((total / n) * 100) / 100;
-  return Array.from({ length: n }, (_, i) => ({
-    number: i + 1,
-    amount: i === n - 1 ? round2(total - base * (n - 1)) : base,
-  }));
-}
+// Rateio de parcelas + parcelas a prazo do cliente: fonte única com a NF-e
+// (duplicatas da DANFE, #1152) — ver parcelas-da-venda.ts.
+import { parcelasAPrazo, splitInstallments } from './parcelas-da-venda';
 import { SupplierAdvanceService } from './supplier-advance.service';
 import { PayEntryDto } from './dto/pay-entry.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
@@ -147,14 +138,16 @@ export class FinanceService {
           });
         }
       } else if (INSTALLMENT_METHODS.includes(p.method)) {
-        // Cliente paga em N parcelas — vencimento a cada 30 dias
-        for (const inst of splitInstallments(gross, n)) {
+        // Cliente paga em N parcelas — vencimento a cada 30 dias. Mesma
+        // função que monta as duplicatas da NF-e (#1152): o que a DANFE
+        // imprime é o que o contas a receber cobra.
+        for (const inst of parcelasAPrazo([p], diaDoFaturamento)) {
           receivables.push({
             companyId: params.companyId,
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.OPEN,
             amount: inst.amount,
-            dueDate: this.vencimentoEmDias(30 * inst.number, diaDoFaturamento),
+            dueDate: limiteDeDataPura(inst.vencimento),
             description: `Venda #${params.salesOrderId} — ${p.method} ${inst.number}/${n}`,
             salesOrderId: params.salesOrderId,
             debtorType: DebtorType.CUSTOMER,
