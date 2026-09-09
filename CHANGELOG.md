@@ -11,8 +11,6 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 ### Fixed
 - fix(auth): troca de senha atômica no Postgres — histórico, revogação de sessões e refresh tokens e eventos na mesma transação; telemetria fiel (#1146) (#1160)
 
-### Changed
-
 ## [1.53.1] - 2026-09-08
 
 ### Fixed
