@@ -6,6 +6,13 @@ Todas as mudanças notáveis do Avequi ERP. Formato baseado em
 
 ## [Unreleased]
 
+## [1.53.2] - 2026-09-09
+
+### Fixed
+- fix(auth): troca de senha atômica no Postgres — histórico, revogação de sessões e refresh tokens e eventos na mesma transação; telemetria fiel (#1146) (#1160)
+
+### Changed
+
 ## [1.53.1] - 2026-09-08
 
 ### Fixed
@@ -648,7 +655,8 @@ produção (GDR faturando NF-e real), não mais `0.x` protótipo.
 - CRM de lojas (captação multicanal, WhatsApp, funil).
 - IAM v2 — controle de acesso por permissão (RBAC via `@RequirePermission`).
 
-[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.53.1...HEAD
+[Unreleased]: https://github.com/adminadmin-AI/Avequi/compare/v1.53.2...HEAD
+[1.53.2]: https://github.com/adminadmin-AI/Avequi/compare/v1.53.1...v1.53.2
 [1.53.1]: https://github.com/adminadmin-AI/Avequi/compare/v1.53.0...v1.53.1
 [1.53.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/adminadmin-AI/Avequi/compare/v1.51.2...v1.52.0
