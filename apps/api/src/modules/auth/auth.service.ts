@@ -664,10 +664,14 @@ export class AuthService {
    *    mustChangePassword=true. NÃO exige currentPassword: o usuário acabou
    *    de prová-la no login.
    *
-   * Sempre: valida complexidade + histórico (reuso das últimas 5),
-   * atualiza passwordChangedAt, zera mustChangePassword, registra
-   * gdr_password_history, revoga TODAS as OUTRAS sessões (a atual sobrevive
-   * no modo normal) e grava SecurityEvent PASSWORD_CHANGED.
+   * Sempre: valida complexidade + histórico (reuso das últimas 5) e, numa
+   * ÚNICA transação Postgres (#1146): atualiza passwordHash/passwordChangedAt,
+   * zera mustChangePassword, registra gdr_password_history, revoga TODAS as
+   * OUTRAS sessões no banco (a atual sobrevive no modo normal) com o
+   * SESSION_REVOKED correspondente e grava SecurityEvent PASSWORD_CHANGED
+   * com a contagem real. Falhou qualquer escrita → rollback de tudo e erro
+   * (senha antiga continua). Só depois do commit, best-effort, as sessões
+   * revogadas entram na denylist Redis.
    */
   async changePassword(input: {
     /** Access token já extraído (cookie gdr_access ou Bearer) — canal normal. */
@@ -720,48 +724,85 @@ export class AuthService {
     });
     await this.passwordPolicy.assertNotReused(user.id, input.newPassword);
 
+    // bcrypt fora da transação: custo de CPU não segura conexão do pool.
     const newHash = await bcrypt.hash(input.newPassword, 10);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: newHash,
-        passwordChangedAt: new Date(),
-        mustChangePassword: false,
-      },
-    });
 
-    // Histórico (inclui o hash ANTERIOR na primeira troca) — best-effort.
-    await this.passwordPolicy.recordPasswordChange(user.id, user.passwordHash, newHash);
+    // #1146 — UMA unidade atômica no Postgres: senha nova + histórico +
+    // revogação persistida das OUTRAS sessões + eventos de segurança. Se
+    // qualquer escrita falhar, nada disso fica: a senha antiga continua
+    // valendo, nenhuma sessão fica parcialmente revogada e nenhum evento
+    // afirma um sucesso que não houve. Só operações persistentes aqui dentro.
+    const revocation = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: newHash,
+          passwordChangedAt: new Date(),
+          mustChangePassword: false,
+        },
+      });
 
-    // Revoga TODAS as OUTRAS sessões (reason SECURITY → denylist: access
-    // tokens das outras sessões morrem imediatamente, não só o refresh).
-    try {
-      await this.sessionService.revokeAllSessions(
+      // Histórico (inclui o hash ANTERIOR na primeira troca) — strict: falha
+      // propaga e faz rollback (senha nova nunca entra sem histórico).
+      await this.passwordPolicy.recordPasswordChangeStrict(
+        tx,
+        user.id,
+        user.passwordHash,
+        newHash,
+      );
+
+      // Revoga TODAS as OUTRAS sessões no banco (UserSession + RefreshToken)
+      // e grava o SESSION_REVOKED correspondente — a corrente sobrevive no
+      // modo normal. Redis fica para depois do commit.
+      const revoked = await this.sessionService.revokeOtherSessionsInTransaction(
+        tx,
         user.id,
         SessionRevokedReason.SECURITY,
         sessionId,
       );
-    } catch (err) {
-      this.logger.warn(
-        `Falha ao revogar sessões após troca de senha (best-effort): ${(err as Error).message}`,
-      );
-    }
 
-    // SecurityEvent PASSWORD_CHANGED (best-effort — nunca desfaz a troca).
-    try {
-      await this.prisma.securityEvent.create({
+      // SecurityEvent PASSWORD_CHANGED com telemetria FIEL: contagem do que
+      // foi efetivamente revogado nesta transação (0 → false/0). Nada sobre
+      // Redis aqui: a denylist acontece depois e não pode ser afirmada antes.
+      await tx.securityEvent.create({
         data: {
           companyId: user.companyId,
           userId: user.id,
           eventType: SecurityEventType.PASSWORD_CHANGED,
           severity: SecurityEventSeverity.INFO,
-          metadata: { restricted, otherSessionsRevoked: true },
+          metadata: {
+            restricted,
+            otherSessionsRevoked: revoked.count > 0,
+            otherSessionsRevokedCount: revoked.count,
+          },
         },
       });
-    } catch (err) {
-      this.logger.warn(
-        `Falha ao gravar SecurityEvent PASSWORD_CHANGED (best-effort): ${(err as Error).message}`,
+
+      return revoked;
+    });
+
+    // Pós-commit: denylist Redis das sessões já revogadas no banco (morte
+    // imediata do access token, #823). Best-effort — o Redis não participa
+    // da atomicidade. Se falhar, a troca e as revogações persistidas ficam
+    // como estão (refresh bloqueado e AccessSessionPolicy barrando pela
+    // sessão persistida); o log ERROR estruturado diz exatamente o que não
+    // aconteceu. Nunca inclui senha, hash, token ou cookie.
+    if (revocation.count > 0) {
+      const failures = await this.sessionService.denylistRevokedSessions(
+        revocation.sessionIds,
       );
+      if (failures > 0) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'password_change_denylist_failed',
+            userId: user.id,
+            sessionsRevoked: revocation.count,
+            denylistFailures: failures,
+            effect:
+              'sessões seguem revogadas no banco; access tokens delas caem na próxima requisição ou ao expirar',
+          }),
+        );
+      }
     }
 
     return { success: true, message: 'Senha alterada com sucesso.' };

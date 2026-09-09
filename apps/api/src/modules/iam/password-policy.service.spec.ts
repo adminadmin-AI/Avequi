@@ -253,6 +253,72 @@ describe('PasswordPolicyService (#345)', () => {
     });
   });
 
+  // ─── #1146: variante STRICT/transacional ───────────────────────────────────
+
+  describe('recordPasswordChangeStrict (#1146)', () => {
+    /** Client de transação separado: prova que o PrismaService não é tocado. */
+    const tx = {
+      passwordHistory: {
+        count: jest.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+    };
+
+    beforeEach(() => {
+      tx.passwordHistory.count.mockReset().mockResolvedValue(0);
+      tx.passwordHistory.create.mockReset().mockResolvedValue({});
+      tx.passwordHistory.findMany.mockReset().mockResolvedValue([]);
+      tx.passwordHistory.deleteMany.mockReset().mockResolvedValue({ count: 0 });
+    });
+
+    it('faz as MESMAS escritas do best-effort, sobre o tx: anterior na primeira troca + novo + pruning', async () => {
+      tx.passwordHistory.findMany.mockResolvedValue([{ id: 'velho-1' }]);
+
+      await service.recordPasswordChangeStrict(tx as any, 'user-1', 'hash-anterior', 'hash-novo');
+
+      const creates = tx.passwordHistory.create.mock.calls.map((c) => c[0].data);
+      expect(creates.map((d) => d.hash)).toEqual(['hash-anterior', 'hash-novo']);
+      expect(tx.passwordHistory.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 5 }));
+      expect(tx.passwordHistory.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['velho-1'] } } });
+      // Nada no PrismaService.
+      expect(mockPrisma.passwordHistory.create).not.toHaveBeenCalled();
+      expect(mockPrisma.passwordHistory.count).not.toHaveBeenCalled();
+    });
+
+    it('em trocas seguintes insere só o hash novo', async () => {
+      tx.passwordHistory.count.mockResolvedValue(2);
+
+      await service.recordPasswordChangeStrict(tx as any, 'user-1', 'hash-anterior', 'hash-novo');
+
+      expect(tx.passwordHistory.create).toHaveBeenCalledTimes(1);
+      expect(tx.passwordHistory.create.mock.calls[0][0].data.hash).toBe('hash-novo');
+    });
+
+    it('NÃO engole erro: falha no create propaga (rollback de quem abriu a transação)', async () => {
+      tx.passwordHistory.create.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.recordPasswordChangeStrict(tx as any, 'user-1', null, 'hash-novo'),
+      ).rejects.toThrow('db down');
+    });
+
+    it('NÃO engole erro: falha no pruning também propaga', async () => {
+      tx.passwordHistory.findMany.mockResolvedValue([{ id: 'velho-1' }]);
+      tx.passwordHistory.deleteMany.mockRejectedValue(new Error('prune down'));
+
+      await expect(
+        service.recordPasswordChangeStrict(tx as any, 'user-1', null, 'hash-novo'),
+      ).rejects.toThrow('prune down');
+    });
+
+    it('o best-effort continua best-effort (consumidores como user.service não mudam)', async () => {
+      mockPrisma.passwordHistory.create.mockRejectedValue(new Error('db down'));
+      await expect(service.recordPasswordChange('user-1', null, 'x')).resolves.toBeUndefined();
+    });
+  });
+
   // ─── Rotação ───────────────────────────────────────────────────────────────
 
   describe('rotação (getMaxAgeDays / isPasswordExpired)', () => {

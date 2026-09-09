@@ -1,6 +1,7 @@
 import { HttpException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import {
   LoginFailReason,
+  Prisma,
   SecurityEventSeverity,
   SecurityEventType,
   SessionRevokedReason,
@@ -101,6 +102,20 @@ export const ACTIVITY_DEBOUNCE_MS = Math.min(
 /** Mensagem do 423 — genérica de propósito (não revela se a conta existe). */
 const LOCKED_MESSAGE =
   'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente mais tarde.';
+
+/**
+ * #1146 — resultado da revogação transacional das outras sessões: o que foi
+ * EFETIVAMENTE marcado no banco dentro da transação (para o pós-commit
+ * aplicar a denylist e para a telemetria refletir a realidade).
+ */
+export interface TransactionalRevocation {
+  /** Ids das sessões revogadas (vazio quando não havia outra sessão ativa). */
+  sessionIds: string[];
+  /** Quantidade revogada — sempre igual a sessionIds.length. */
+  count: number;
+  /** Empresa da primeira sessão revogada (null quando count = 0). */
+  companyId: string | null;
+}
 
 /** Resultado da validação de sessão no refresh. */
 export interface SessionRefreshCheck {
@@ -829,6 +844,100 @@ export class SessionService {
     });
 
     return sessions.length;
+  }
+
+  /**
+   * #1146 — revogação TRANSACIONAL das outras sessões, para quem precisa que
+   * "senha nova" e "sessões antigas mortas" sejam uma unidade atômica no
+   * Postgres (troca de senha). Tudo roda sobre o client da transação
+   * recebido e qualquer erro PROPAGA — nunca há revogação parcial silenciosa:
+   * ou todas as linhas (UserSession + RefreshToken) ficam revogadas no commit,
+   * ou nenhuma fica.
+   *
+   * O que faz, na ordem: encontra as sessões ativas do usuário (respeitando
+   * `exceptSessionId`, a sessão corrente), marca cada UserSession com
+   * revokedAt/revokedReason, revoga o RefreshToken vinculado e grava o
+   * SecurityEvent SESSION_REVOKED equivalente ao de `revokeAllSessions`
+   * (count real, reason, global) — só quando count > 0: zero sessões não
+   * gera evento fictício.
+   *
+   * O que NÃO faz, de propósito: Redis. A denylist não compartilha a
+   * transação Prisma, então quem chamou aplica `denylistRevokedSessions`
+   * DEPOIS do commit, best-effort, com os ids devolvidos aqui.
+   */
+  async revokeOtherSessionsInTransaction(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    reason: SessionRevokedReason,
+    exceptSessionId?: string,
+  ): Promise<TransactionalRevocation> {
+    // tenant-lint: ok (plumbing de auth: sessões do próprio usuário)
+    const sessions = await tx.userSession.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+      },
+      select: { id: true, companyId: true, refreshTokenId: true },
+    });
+    if (sessions.length === 0) {
+      return { sessionIds: [], count: 0, companyId: null };
+    }
+
+    const revokedAt = new Date();
+    for (const session of sessions) {
+      // tenant-lint: ok (plumbing de auth: revogação da própria sessão)
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { revokedAt, revokedReason: reason },
+      });
+      if (session.refreshTokenId) {
+        await tx.refreshToken.updateMany({
+          where: { id: session.refreshTokenId, revokedAt: null },
+          data: { revokedAt },
+        });
+      }
+    }
+
+    await tx.securityEvent.create({
+      data: {
+        companyId: sessions[0].companyId,
+        userId,
+        eventType: SecurityEventType.SESSION_REVOKED,
+        severity:
+          reason === SessionRevokedReason.SECURITY
+            ? SecurityEventSeverity.CRITICAL
+            : SecurityEventSeverity.INFO,
+        metadata: { count: sessions.length, reason, global: true },
+      },
+    });
+
+    return {
+      sessionIds: sessions.map((s) => s.id),
+      count: sessions.length,
+      companyId: sessions[0].companyId,
+    };
+  }
+
+  /**
+   * #1146 — pós-commit da revogação transacional: coloca cada sessão já
+   * revogada no banco na denylist Redis (morte imediata do access token,
+   * #823). Best-effort e NUNCA lança: o resultado persistido não muda por
+   * causa do Redis. O `deny` do serviço já é no-op fail-open com log ERROR
+   * quando o Redis está fora; aqui só se garante que uma exceção inesperada
+   * em uma sessão não impede a tentativa nas demais, e devolve quantas
+   * tentativas falharam para o chamador logar com fidelidade.
+   */
+  async denylistRevokedSessions(sessionIds: string[]): Promise<number> {
+    let failures = 0;
+    for (const sessionId of sessionIds) {
+      try {
+        await this.denylist.deny(sessionId);
+      } catch {
+        failures += 1;
+      }
+    }
+    return failures;
   }
 
   /**
