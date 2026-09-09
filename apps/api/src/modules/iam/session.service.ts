@@ -872,6 +872,7 @@ export class SessionService {
     exceptSessionId?: string,
   ): Promise<TransactionalRevocation> {
     // tenant-lint: ok (plumbing de auth: sessões do próprio usuário)
+    // list-lint: ok (revogação de segurança precisa alcançar TODAS as outras sessões do usuário — um teto deixaria sessão viva depois da troca de senha; o produto já limita a 5 sessões simultâneas por usuário)
     const sessions = await tx.userSession.findMany({
       where: {
         userId,
