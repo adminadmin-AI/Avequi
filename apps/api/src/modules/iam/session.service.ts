@@ -1,4 +1,11 @@
-import { HttpException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   LoginFailReason,
   Prisma,
@@ -109,12 +116,20 @@ const LOCKED_MESSAGE =
  * aplicar a denylist e para a telemetria refletir a realidade).
  */
 export interface TransactionalRevocation {
-  /** Ids das sessões revogadas (vazio quando não havia outra sessão ativa). */
+  /** Ids das UserSessions revogadas (vazio quando não havia outra sessão ativa). */
   sessionIds: string[];
-  /** Quantidade revogada — sempre igual a sessionIds.length. */
+  /** UserSessions revogadas — sempre igual a sessionIds.length. */
   count: number;
   /** Empresa da primeira sessão revogada (null quando count = 0). */
   companyId: string | null;
+  /**
+   * RefreshTokens ativos do usuário revogados na transação — inclui os
+   * vinculados às sessões acima E os sem UserSession (legados/órfãos).
+   * Nunca inclui o refresh preservado da sessão corrente.
+   */
+  refreshTokensRevokedCount: number;
+  /** Refresh da sessão corrente, preservado (null no modo restrito). */
+  preservedRefreshTokenId: string | null;
 }
 
 /** Resultado da validação de sessão no refresh. */
@@ -854,12 +869,24 @@ export class SessionService {
    * ou todas as linhas (UserSession + RefreshToken) ficam revogadas no commit,
    * ou nenhuma fica.
    *
-   * O que faz, na ordem: encontra as sessões ativas do usuário (respeitando
-   * `exceptSessionId`, a sessão corrente), marca cada UserSession com
-   * revokedAt/revokedReason, revoga o RefreshToken vinculado e grava o
-   * SecurityEvent SESSION_REVOKED equivalente ao de `revokeAllSessions`
-   * (count real, reason, global) — só quando count > 0: zero sessões não
-   * gera evento fictício.
+   * O que faz, na ordem, tudo no `tx`:
+   *  1. Se `currentSessionId` veio (modo normal): localiza a UserSession
+   *     corrente PELO ID PERSISTIDO (nunca por heurística) e lê o
+   *     `refreshTokenId` efetivamente ligado a ela — é o ÚNICO refresh que
+   *     sobrevive. Sessão corrente inexistente/revogada/de outro usuário →
+   *     lança (fail-closed: sem forma inequívoca de saber qual refresh
+   *     preservar, a troca não acontece).
+   *  2. Enumera as OUTRAS UserSessions ativas e marca cada uma com
+   *     revokedAt/revokedReason.
+   *  3. Revoga TODOS os RefreshTokens ativos do usuário exceto o preservado
+   *     — um único updateMany por `userId`, que alcança também os refresh
+   *     SEM UserSession (legados / órfãos da criação best-effort da sessão
+   *     no login). A enumeração de sessões NÃO é a fonte para descobrir
+   *     refresh tokens que precisam morrer.
+   *  4. Grava o SecurityEvent SESSION_REVOKED equivalente ao de
+   *     `revokeAllSessions` (count real de UserSessions, reason, global) —
+   *     só quando count > 0: zero sessões não gera evento fictício, e
+   *     refresh órfão nunca vira "sessão".
    *
    * O que NÃO faz, de propósito: Redis. A denylist não compartilha a
    * transação Prisma, então quem chamou aplica `denylistRevokedSessions`
@@ -869,21 +896,31 @@ export class SessionService {
     tx: Prisma.TransactionClient,
     userId: string,
     reason: SessionRevokedReason,
-    exceptSessionId?: string,
+    currentSessionId?: string,
   ): Promise<TransactionalRevocation> {
+    let preservedRefreshTokenId: string | null = null;
+    if (currentSessionId) {
+      // tenant-lint: ok (plumbing de auth: sessão do próprio usuário)
+      const current = await tx.userSession.findUnique({
+        where: { id: currentSessionId },
+        select: { userId: true, revokedAt: true, refreshTokenId: true },
+      });
+      if (!current || current.userId !== userId || current.revokedAt) {
+        throw new UnauthorizedException('Sessão inválida ou expirada. Faça login novamente.');
+      }
+      preservedRefreshTokenId = current.refreshTokenId;
+    }
+
     // tenant-lint: ok (plumbing de auth: sessões do próprio usuário)
     // list-lint: ok (revogação de segurança precisa alcançar TODAS as outras sessões do usuário — um teto deixaria sessão viva depois da troca de senha; o produto já limita a 5 sessões simultâneas por usuário)
     const sessions = await tx.userSession.findMany({
       where: {
         userId,
         revokedAt: null,
-        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+        ...(currentSessionId ? { id: { not: currentSessionId } } : {}),
       },
-      select: { id: true, companyId: true, refreshTokenId: true },
+      select: { id: true, companyId: true },
     });
-    if (sessions.length === 0) {
-      return { sessionIds: [], count: 0, companyId: null };
-    }
 
     const revokedAt = new Date();
     for (const session of sessions) {
@@ -892,31 +929,42 @@ export class SessionService {
         where: { id: session.id },
         data: { revokedAt, revokedReason: reason },
       });
-      if (session.refreshTokenId) {
-        await tx.refreshToken.updateMany({
-          where: { id: session.refreshTokenId, revokedAt: null },
-          data: { revokedAt },
-        });
-      }
     }
 
-    await tx.securityEvent.create({
-      data: {
-        companyId: sessions[0].companyId,
+    // Todos os refresh ativos do usuário, exceto o da sessão corrente:
+    // vinculados a outras sessões, sem sessão, legados. Falha → propaga →
+    // rollback total (nenhum refresh fica parcialmente revogado).
+    // tenant-lint: ok (plumbing de auth: refresh tokens do próprio usuário)
+    const refresh = await tx.refreshToken.updateMany({
+      where: {
         userId,
-        eventType: SecurityEventType.SESSION_REVOKED,
-        severity:
-          reason === SessionRevokedReason.SECURITY
-            ? SecurityEventSeverity.CRITICAL
-            : SecurityEventSeverity.INFO,
-        metadata: { count: sessions.length, reason, global: true },
+        revokedAt: null,
+        ...(preservedRefreshTokenId ? { id: { not: preservedRefreshTokenId } } : {}),
       },
+      data: { revokedAt },
     });
+
+    if (sessions.length > 0) {
+      await tx.securityEvent.create({
+        data: {
+          companyId: sessions[0].companyId,
+          userId,
+          eventType: SecurityEventType.SESSION_REVOKED,
+          severity:
+            reason === SessionRevokedReason.SECURITY
+              ? SecurityEventSeverity.CRITICAL
+              : SecurityEventSeverity.INFO,
+          metadata: { count: sessions.length, reason, global: true },
+        },
+      });
+    }
 
     return {
       sessionIds: sessions.map((s) => s.id),
       count: sessions.length,
-      companyId: sessions[0].companyId,
+      companyId: sessions.length > 0 ? sessions[0].companyId : null,
+      refreshTokensRevokedCount: refresh.count,
+      preservedRefreshTokenId,
     };
   }
 
@@ -924,19 +972,21 @@ export class SessionService {
    * #1146 — pós-commit da revogação transacional: coloca cada sessão já
    * revogada no banco na denylist Redis (morte imediata do access token,
    * #823). Best-effort e NUNCA lança: o resultado persistido não muda por
-   * causa do Redis. O `deny` do serviço já é no-op fail-open com log ERROR
-   * quando o Redis está fora; aqui só se garante que uma exceção inesperada
-   * em uma sessão não impede a tentativa nas demais, e devolve quantas
-   * tentativas falharam para o chamador logar com fidelidade.
+   * causa do Redis. Conta o resultado REAL devolvido por `deny` (`false` =
+   * não aplicado por indisponibilidade/erro, com o ERROR estruturado do
+   * próprio serviço) — não depende de catch de uma Promise que por contrato
+   * não rejeita. Uma sessão falhando não impede a tentativa nas demais.
    */
   async denylistRevokedSessions(sessionIds: string[]): Promise<number> {
     let failures = 0;
     for (const sessionId of sessionIds) {
+      let applied = false;
       try {
-        await this.denylist.deny(sessionId);
+        applied = await this.denylist.deny(sessionId);
       } catch {
-        failures += 1;
+        applied = false; // defesa em profundidade: o contrato diz que não lança
       }
+      if (!applied) failures += 1;
     }
     return failures;
   }

@@ -667,11 +667,14 @@ export class AuthService {
    * Sempre: valida complexidade + histórico (reuso das últimas 5) e, numa
    * ÚNICA transação Postgres (#1146): atualiza passwordHash/passwordChangedAt,
    * zera mustChangePassword, registra gdr_password_history, revoga TODAS as
-   * OUTRAS sessões no banco (a atual sobrevive no modo normal) com o
-   * SESSION_REVOKED correspondente e grava SecurityEvent PASSWORD_CHANGED
-   * com a contagem real. Falhou qualquer escrita → rollback de tudo e erro
+   * OUTRAS UserSessions e TODOS os RefreshTokens ativos do usuário — inclusive
+   * os sem sessão (legados/órfãos) — preservando apenas o refresh da sessão
+   * corrente no modo normal (nada sobrevive no modo restrito), grava o
+   * SESSION_REVOKED correspondente e o SecurityEvent PASSWORD_CHANGED com as
+   * contagens reais. Falhou qualquer escrita → rollback de tudo e erro
    * (senha antiga continua). Só depois do commit, best-effort, as sessões
-   * revogadas entram na denylist Redis.
+   * revogadas entram na denylist Redis. Access token normal sem sessionId
+   * não troca senha (fail-closed, 401 antes de qualquer escrita).
    */
   async changePassword(input: {
     /** Access token já extraído (cookie gdr_access ou Bearer) — canal normal. */
@@ -751,9 +754,11 @@ export class AuthService {
         newHash,
       );
 
-      // Revoga TODAS as OUTRAS sessões no banco (UserSession + RefreshToken)
-      // e grava o SESSION_REVOKED correspondente — a corrente sobrevive no
-      // modo normal. Redis fica para depois do commit.
+      // Revoga no banco TODAS as OUTRAS UserSessions e TODOS os RefreshTokens
+      // ativos do usuário (inclusive os sem sessão — legados/órfãos), com o
+      // SESSION_REVOKED correspondente. No modo normal só sobrevive a sessão
+      // corrente (localizada pelo id persistido) e o refresh ligado a ela;
+      // no modo restrito nada sobrevive. Redis fica para depois do commit.
       const revoked = await this.sessionService.revokeOtherSessionsInTransaction(
         tx,
         user.id,
@@ -761,8 +766,10 @@ export class AuthService {
         sessionId,
       );
 
-      // SecurityEvent PASSWORD_CHANGED com telemetria FIEL: contagem do que
-      // foi efetivamente revogado nesta transação (0 → false/0). Nada sobre
+      // SecurityEvent PASSWORD_CHANGED com telemetria FIEL: contagens do que
+      // foi efetivamente revogado nesta transação. `otherSessionsRevoked*`
+      // fala de UserSessions reais (0 → false/0); `refreshTokensRevokedCount`
+      // é explícito e separado porque inclui refresh sem sessão. Nada sobre
       // Redis aqui: a denylist acontece depois e não pode ser afirmada antes.
       await tx.securityEvent.create({
         data: {
@@ -774,6 +781,7 @@ export class AuthService {
             restricted,
             otherSessionsRevoked: revoked.count > 0,
             otherSessionsRevokedCount: revoked.count,
+            refreshTokensRevokedCount: revoked.refreshTokensRevokedCount,
           },
         },
       });
@@ -859,6 +867,14 @@ export class AuthService {
       // para os restritos; impersonation é somente-leitura por construção.
       if (payload?.scope || !payload?.sub) {
         throw new UnauthorizedException('Não autenticado. Faça login para trocar a senha.');
+      }
+      // #1146 (fail-closed): access token normal SEM sessionId (legado da
+      // transição M4) não pode trocar a senha voluntariamente — sem a sessão
+      // persistida não há como saber inequivocamente qual refresh token é o
+      // corrente e deve ser preservado. 401 genérico, antes de qualquer
+      // escrita. Só nesta rota; a JwtStrategy segue aceitando o token.
+      if (!payload.sessionId) {
+        throw new UnauthorizedException('Sessão inválida ou expirada. Faça login novamente.');
       }
       // Sessão revogada/denylistada ou encerrada por inatividade → 401,
       // nada persistido (mesma policy da JwtStrategy).

@@ -636,23 +636,27 @@ describe('SessionService', () => {
   describe('revokeOtherSessionsInTransaction (#1146)', () => {
     /** Client de transação separado do mockPrisma: prova que só o tx é usado. */
     const tx = {
-      userSession: { findMany: jest.fn(), update: jest.fn() },
+      userSession: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
       refreshToken: { updateMany: jest.fn() },
       securityEvent: { create: jest.fn() },
     };
 
     beforeEach(() => {
+      tx.userSession.findUnique.mockReset();
       tx.userSession.findMany.mockReset();
       tx.userSession.update.mockReset().mockResolvedValue({});
-      tx.refreshToken.updateMany.mockReset().mockResolvedValue({ count: 1 });
+      tx.refreshToken.updateMany.mockReset().mockResolvedValue({ count: 0 });
       tx.securityEvent.create.mockReset().mockResolvedValue({});
     });
 
-    it('revoga UserSession + RefreshToken de cada outra sessão no tx e grava SESSION_REVOKED com count real', async () => {
+    it('modo normal: localiza a sessão corrente pelo ID persistido, preserva SÓ o refresh dela e revoga todos os outros refresh do usuário (inclusive órfãos)', async () => {
+      tx.userSession.findUnique.mockResolvedValue({ userId: 'u1', revokedAt: null, refreshTokenId: 'rt-atual' });
       tx.userSession.findMany.mockResolvedValue([
-        { id: 'sess-1', companyId: 'c1', refreshTokenId: 'rt-1' },
-        { id: 'sess-2', companyId: 'c1', refreshTokenId: null },
+        { id: 'sess-1', companyId: 'c1' },
+        { id: 'sess-2', companyId: 'c1' },
       ]);
+      // 2 refresh das outras sessões + 1 órfão sem UserSession.
+      tx.refreshToken.updateMany.mockResolvedValue({ count: 3 });
 
       const result = await service.revokeOtherSessionsInTransaction(
         tx as any,
@@ -661,8 +665,17 @@ describe('SessionService', () => {
         'sess-atual',
       );
 
-      expect(result).toEqual({ sessionIds: ['sess-1', 'sess-2'], count: 2, companyId: 'c1' });
-      // Respeita exceptSessionId e só busca ativas.
+      expect(result).toEqual({
+        sessionIds: ['sess-1', 'sess-2'],
+        count: 2,
+        companyId: 'c1',
+        refreshTokensRevokedCount: 3,
+        preservedRefreshTokenId: 'rt-atual',
+      });
+      expect(tx.userSession.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'sess-atual' } }),
+      );
+      // Respeita a sessão corrente e só busca ativas.
       expect(tx.userSession.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId: 'u1', revokedAt: null, id: { not: 'sess-atual' } },
@@ -673,10 +686,10 @@ describe('SessionService', () => {
         where: { id: 'sess-1' },
         data: { revokedAt: expect.any(Date), revokedReason: 'SECURITY' },
       });
-      // Refresh só de quem tem refreshTokenId.
+      // Um ÚNICO updateMany por userId — não depende da enumeração de sessões.
       expect(tx.refreshToken.updateMany).toHaveBeenCalledTimes(1);
       expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
-        where: { id: 'rt-1', revokedAt: null },
+        where: { userId: 'u1', revokedAt: null, id: { not: 'rt-atual' } },
         data: { revokedAt: expect.any(Date) },
       });
       expect(tx.securityEvent.create).toHaveBeenCalledWith({
@@ -690,26 +703,70 @@ describe('SessionService', () => {
       });
       // Nada fora da transação: nem PrismaService, nem Redis.
       expect(mockPrisma.userSession.update).not.toHaveBeenCalled();
+      expect(mockPrisma.refreshToken.updateMany).not.toHaveBeenCalled();
       expect(mockPrisma.securityEvent.create).not.toHaveBeenCalled();
       expect(mockDenylist.deny).not.toHaveBeenCalled();
     });
 
-    it('sem exceptSessionId (modo restrito) revoga TODAS as ativas', async () => {
-      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1', refreshTokenId: 'rt-1' }]);
+    it('modo restrito (sem sessão corrente): revoga TODAS as sessões ativas e TODOS os refresh ativos do usuário', async () => {
+      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1' }]);
+      tx.refreshToken.updateMany.mockResolvedValue({ count: 2 });
 
-      await service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any);
+      const result = await service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any);
 
+      expect(tx.userSession.findUnique).not.toHaveBeenCalled();
       expect(tx.userSession.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),
       );
+      expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(result).toMatchObject({ count: 1, refreshTokensRevokedCount: 2, preservedRefreshTokenId: null });
     });
 
-    it('zero outras sessões → count 0, sem escrita e SEM SESSION_REVOKED fictício', async () => {
+    it('zero outras sessões → count 0, SEM SESSION_REVOKED fictício; refresh órfãos ainda são revogados e contados à parte', async () => {
+      tx.userSession.findUnique.mockResolvedValue({ userId: 'u1', revokedAt: null, refreshTokenId: 'rt-atual' });
+      tx.userSession.findMany.mockResolvedValue([]);
+      tx.refreshToken.updateMany.mockResolvedValue({ count: 1 }); // um órfão
+
+      const result = await service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any, 'sess-atual');
+
+      expect(result).toEqual({
+        sessionIds: [],
+        count: 0,
+        companyId: null,
+        refreshTokensRevokedCount: 1,
+        preservedRefreshTokenId: 'rt-atual',
+      });
+      expect(tx.userSession.update).not.toHaveBeenCalled();
+      expect(tx.securityEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('sessão corrente sem refresh vinculado (refreshTokenId null) → nenhum refresh é preservado', async () => {
+      tx.userSession.findUnique.mockResolvedValue({ userId: 'u1', revokedAt: null, refreshTokenId: null });
       tx.userSession.findMany.mockResolvedValue([]);
 
       const result = await service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any, 'sess-atual');
 
-      expect(result).toEqual({ sessionIds: [], count: 0, companyId: null });
+      expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(result.preservedRefreshTokenId).toBeNull();
+    });
+
+    it.each([
+      ['inexistente', null],
+      ['de OUTRO usuário', { userId: 'u2', revokedAt: null, refreshTokenId: 'rt-x' }],
+      ['já revogada', { userId: 'u1', revokedAt: new Date(), refreshTokenId: 'rt-x' }],
+    ])('sessão corrente %s → 401 fail-closed ANTES de qualquer escrita', async (_rotulo, row) => {
+      tx.userSession.findUnique.mockResolvedValue(row);
+
+      await expect(
+        service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any, 'sess-atual'),
+      ).rejects.toThrow('Sessão inválida ou expirada. Faça login novamente.');
+      expect(tx.userSession.findMany).not.toHaveBeenCalled();
       expect(tx.userSession.update).not.toHaveBeenCalled();
       expect(tx.refreshToken.updateMany).not.toHaveBeenCalled();
       expect(tx.securityEvent.create).not.toHaveBeenCalled();
@@ -717,20 +774,31 @@ describe('SessionService', () => {
 
     it('falha na segunda sessão PROPAGA (quem abriu a transação faz rollback) e não grava evento', async () => {
       tx.userSession.findMany.mockResolvedValue([
-        { id: 'sess-1', companyId: 'c1', refreshTokenId: 'rt-1' },
-        { id: 'sess-2', companyId: 'c1', refreshTokenId: 'rt-2' },
+        { id: 'sess-1', companyId: 'c1' },
+        { id: 'sess-2', companyId: 'c1' },
       ]);
       tx.userSession.update.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('db down'));
 
       await expect(
         service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any),
       ).rejects.toThrow('db down');
+      expect(tx.refreshToken.updateMany).not.toHaveBeenCalled();
       expect(tx.securityEvent.create).not.toHaveBeenCalled();
       expect(mockDenylist.deny).not.toHaveBeenCalled();
     });
 
+    it('falha ao revogar os refresh tokens PROPAGA (nenhum refresh fica parcialmente revogado)', async () => {
+      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1' }]);
+      tx.refreshToken.updateMany.mockRejectedValue(new Error('refresh down'));
+
+      await expect(
+        service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'SECURITY' as any),
+      ).rejects.toThrow('refresh down');
+      expect(tx.securityEvent.create).not.toHaveBeenCalled();
+    });
+
     it('falha ao gravar SESSION_REVOKED também PROPAGA (auditoria faz parte da unidade)', async () => {
-      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1', refreshTokenId: 'rt-1' }]);
+      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1' }]);
       tx.securityEvent.create.mockRejectedValue(new Error('audit down'));
 
       await expect(
@@ -739,7 +807,7 @@ describe('SessionService', () => {
     });
 
     it('reason não crítico usa severidade INFO no SESSION_REVOKED', async () => {
-      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1', refreshTokenId: null }]);
+      tx.userSession.findMany.mockResolvedValue([{ id: 'sess-1', companyId: 'c1' }]);
 
       await service.revokeOtherSessionsInTransaction(tx as any, 'u1', 'LOGOUT' as any);
 
@@ -750,8 +818,8 @@ describe('SessionService', () => {
   });
 
   describe('denylistRevokedSessions (#1146, pós-commit)', () => {
-    it('aplica deny em cada sessão e devolve 0 falhas', async () => {
-      mockDenylist.deny.mockResolvedValue(undefined);
+    it('aplica deny em cada sessão e devolve 0 falhas quando o Redis confirma (true)', async () => {
+      mockDenylist.deny.mockResolvedValue(true);
 
       const failures = await service.denylistRevokedSessions(['sess-1', 'sess-2']);
 
@@ -759,16 +827,23 @@ describe('SessionService', () => {
       expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
     });
 
-    it('exceção em uma sessão não impede as demais e é contada, nunca propagada', async () => {
+    it('conta o resultado REAL do serviço: false (Redis indisponível, contrato que não lança) = falha', async () => {
       mockDenylist.deny
-        .mockRejectedValueOnce(new Error('redis fora'))
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('redis fora'));
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
 
       const failures = await service.denylistRevokedSessions(['a', 'b', 'c']);
 
       expect(failures).toBe(2);
       expect(mockDenylist.deny).toHaveBeenCalledTimes(3);
+    });
+
+    it('defesa em profundidade: exceção inesperada também conta como falha e não impede as demais', async () => {
+      mockDenylist.deny.mockRejectedValueOnce(new Error('bug')).mockResolvedValueOnce(true);
+
+      expect(await service.denylistRevokedSessions(['a', 'b'])).toBe(1);
+      expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
     });
 
     it('lista vazia → nenhuma chamada', async () => {

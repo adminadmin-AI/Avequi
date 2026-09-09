@@ -138,10 +138,37 @@ describe('SessionDenylistService', () => {
   });
 
   describe('fail-open — Redis fora do ar nunca derruba request', () => {
-    it('deny com erro de Redis vira no-op', async () => {
+    it('deny com erro de Redis vira no-op e devolve false observável (#1146)', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
       mockRedis.set.mockRejectedValue(new Error('ECONNREFUSED'));
 
-      await expect(service.deny('sess-1')).resolves.toBeUndefined();
+      await expect(service.deny('sess-1')).resolves.toBe(false);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain('session_denylist_unavailable');
+      expect(errorSpy.mock.calls[0][0]).not.toContain('sess-1');
+      errorSpy.mockRestore();
+    });
+
+    it('deny com SET confirmado devolve true; resposta diferente de OK devolve false (#1146)', async () => {
+      mockRedis.set.mockResolvedValueOnce('OK');
+      await expect(service.deny('sess-1')).resolves.toBe(true);
+
+      mockRedis.set.mockResolvedValueOnce(null);
+      await expect(service.deny('sess-2')).resolves.toBe(false);
+    });
+
+    it('client Redis que não pode ser criado → ERROR estruturado (não WARN) e deny false (#1146)', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+      (service as any).client = null;
+      (service as any).clientFailed = true; // estado após falha de criação
+
+      await expect(service.deny('sess-1')).resolves.toBe(false);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain('session_denylist_unavailable');
+      expect(warnSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
 
     it('isSessionDenylisted com erro de Redis devolve false', async () => {
@@ -170,7 +197,7 @@ describe('SessionDenylistService', () => {
       (service as any).clientFailed = true;
 
       await expect(service.isSessionDenylisted('sess-1')).resolves.toBe(false);
-      await expect(service.deny('sess-1')).resolves.toBeUndefined();
+      await expect(service.deny('sess-1')).resolves.toBe(false);
     });
   });
 });

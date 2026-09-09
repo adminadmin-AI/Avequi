@@ -99,6 +99,10 @@ function makeClient(store: Store, fails: FailAt[], counters: Record<string, numb
       },
     },
     userSession: {
+      findUnique: async ({ where }: any) => {
+        hit('userSession.findUnique');
+        return store.userSessions[where.id] ?? null;
+      },
       findMany: async ({ where }: any) => {
         hit('userSession.findMany');
         return Object.values(store.userSessions).filter((s) => matchWhere(s, where));
@@ -183,7 +187,7 @@ const USER_ID = 'user-1';
 const COMPANY = 'company-1';
 const OLD_HASH = '$2a$10$hash-antigo';
 
-function baseStore(otherSessions: number): Store {
+function baseStore(otherSessions: number, orphanRefreshTokens = 0): Store {
   const userSessions: Record<string, any> = {
     'sess-atual': { id: 'sess-atual', userId: USER_ID, companyId: COMPANY, refreshTokenId: 'rt-atual', revokedAt: null, revokedReason: null },
   };
@@ -194,6 +198,13 @@ function baseStore(otherSessions: number): Store {
     userSessions[`sess-${i}`] = { id: `sess-${i}`, userId: USER_ID, companyId: COMPANY, refreshTokenId: `rt-${i}`, revokedAt: null, revokedReason: null };
     refreshTokens[`rt-${i}`] = { id: `rt-${i}`, userId: USER_ID, revokedAt: null };
   }
+  // Refresh ativo SEM UserSession (legado da transição M4 ou órfão da criação
+  // best-effort da sessão no login) — não aparece em nenhuma enumeração de sessão.
+  for (let i = 1; i <= orphanRefreshTokens; i += 1) {
+    refreshTokens[`rt-orfao-${i}`] = { id: `rt-orfao-${i}`, userId: USER_ID, revokedAt: null };
+  }
+  // Refresh de OUTRO usuário: nunca pode ser tocado.
+  refreshTokens['rt-outro-usuario'] = { id: 'rt-outro-usuario', userId: 'user-2', revokedAt: null };
   return {
     users: {
       [USER_ID]: {
@@ -267,7 +278,7 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     jest.spyOn(bcrypt, 'hash').mockResolvedValue('$2a$10$hash-novo' as never);
     mockJwt.verify.mockReturnValue({ sub: USER_ID, sessionId: 'sess-atual' });
     mockDenylist.isSessionDenylisted.mockResolvedValue(false);
-    mockDenylist.deny.mockResolvedValue(undefined);
+    mockDenylist.deny.mockResolvedValue(true);
     mockSessionsAlive.isSessionAliveAndTouch.mockResolvedValue(true);
   });
 
@@ -320,9 +331,15 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
       severity: 'INFO',
       userId: USER_ID,
       companyId: COMPANY,
-      metadata: { restricted: false, otherSessionsRevoked: true, otherSessionsRevokedCount: 2 },
+      metadata: {
+        restricted: false,
+        otherSessionsRevoked: true,
+        otherSessionsRevokedCount: 2,
+        refreshTokensRevokedCount: 2,
+      },
     });
     expect(s.securityEvents[1].metadata).not.toHaveProperty('denylistApplied');
+    expect(s.refreshTokens['rt-outro-usuario'].revokedAt).toBeNull();
     // Uma única transação; Redis só depois, uma vez por sessão revogada.
     expect(fake.prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
@@ -344,9 +361,15 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     expect(s.securityEvents).toHaveLength(1);
     expect(s.securityEvents[0]).toMatchObject({
       eventType: 'PASSWORD_CHANGED',
-      metadata: { restricted: false, otherSessionsRevoked: false, otherSessionsRevokedCount: 0 },
+      metadata: {
+        restricted: false,
+        otherSessionsRevoked: false,
+        otherSessionsRevokedCount: 0,
+        refreshTokensRevokedCount: 0,
+      },
     });
     expect(s.securityEvents.some((e) => e.eventType === 'SESSION_REVOKED')).toBe(false);
+    expect(s.refreshTokens['rt-atual'].revokedAt).toBeNull();
     expect(mockDenylist.deny).not.toHaveBeenCalled();
   });
 
@@ -390,9 +413,9 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     expectNothingPersisted(initial);
   });
 
-  it('G. Redis falha pós-commit → senha nova e banco revogado permanecem, resposta é sucesso, ERROR estruturado fiel', async () => {
+  it('G. Redis indisponível pelo contrato REAL (deny resolve false, nunca lança) → banco commitado, sucesso, ERROR estruturado fiel', async () => {
     await build(baseStore(2));
-    mockDenylist.deny.mockRejectedValueOnce(new Error('redis fora')).mockResolvedValueOnce(undefined);
+    mockDenylist.deny.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
     const result = await service.changePassword(voluntary);
 
@@ -406,7 +429,12 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
     // Telemetria persistida NÃO afirma nada sobre Redis; o log diz a verdade.
     const changed = s.securityEvents.find((e) => e.eventType === 'PASSWORD_CHANGED');
-    expect(changed.metadata).toEqual({ restricted: false, otherSessionsRevoked: true, otherSessionsRevokedCount: 2 });
+    expect(changed.metadata).toEqual({
+      restricted: false,
+      otherSessionsRevoked: true,
+      otherSessionsRevokedCount: 2,
+      refreshTokensRevokedCount: 2,
+    });
     expect(loggerError).toHaveBeenCalledTimes(1);
     const logged = JSON.parse(loggerError.mock.calls[0][0]);
     expect(logged).toMatchObject({
@@ -422,11 +450,12 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     expect(raw).not.toContain('SenhaAtual');
   });
 
-  it('H. Redis funciona → cada sessão revogada entra na denylist DEPOIS do commit (morte imediata preservada)', async () => {
+  it('H. Redis funciona (deny true) → cada sessão revogada entra na denylist DEPOIS do commit (morte imediata preservada)', async () => {
     await build(baseStore(1));
     const order: string[] = [];
     mockDenylist.deny.mockImplementation(async () => {
       order.push('deny');
+      return true;
     });
     (fake.prisma.$transaction as jest.Mock).mockImplementation(async (cb: any) => {
       order.push('tx-start');
@@ -457,7 +486,14 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
     expect(s.userSessions['sess-atual'].revokedAt).toEqual(expect.any(Date));
     expect(s.userSessions['sess-1'].revokedAt).toEqual(expect.any(Date));
     const changed = s.securityEvents.find((e) => e.eventType === 'PASSWORD_CHANGED');
-    expect(changed.metadata).toEqual({ restricted: true, otherSessionsRevoked: true, otherSessionsRevokedCount: 2 });
+    expect(changed.metadata).toEqual({
+      restricted: true,
+      otherSessionsRevoked: true,
+      otherSessionsRevokedCount: 2,
+      refreshTokensRevokedCount: 2,
+    });
+    expect(s.refreshTokens['rt-atual'].revokedAt).toEqual(expect.any(Date));
+    expect(s.refreshTokens['rt-1'].revokedAt).toEqual(expect.any(Date));
     expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
   });
 
@@ -514,5 +550,176 @@ describe('AuthService.changePassword — unidade atômica no Postgres (#1146)', 
 
     await service.changePassword(voluntary);
     expect(order).toEqual(['hash', 'tx']);
+  });
+
+  // ─── Rodada 2 (auditoria Codex): refresh tokens sem UserSession, fail-closed, rollbacks extras ──
+
+  it('R2-A. refresh ÓRFÃO ativo + modo restrito → órfão revogado junto com tudo; contagens separadas e fiéis', async () => {
+    await build(baseStore(1, 2));
+    mockJwt.verify.mockReturnValue({ sub: USER_ID, scope: PASSWORD_CHANGE_SCOPE });
+
+    const result = await service.changePassword({ passwordChangeToken: 'restrito', newPassword: 'NovaSenha#2026x' });
+
+    expect(result.success).toBe(true);
+    const s = fake.store;
+    for (const id of ['rt-atual', 'rt-1', 'rt-orfao-1', 'rt-orfao-2']) {
+      expect(s.refreshTokens[id].revokedAt).toEqual(expect.any(Date));
+    }
+    expect(s.refreshTokens['rt-outro-usuario'].revokedAt).toBeNull();
+    const changed = s.securityEvents.find((e) => e.eventType === 'PASSWORD_CHANGED');
+    expect(changed.metadata).toEqual({
+      restricted: true,
+      otherSessionsRevoked: true,
+      otherSessionsRevokedCount: 2, // sessões REAIS (sess-atual + sess-1)
+      refreshTokensRevokedCount: 4, // 2 vinculados + 2 órfãos
+    });
+    const revokedEv = s.securityEvents.find((e) => e.eventType === 'SESSION_REVOKED');
+    expect(revokedEv.metadata).toEqual({ count: 2, reason: 'SECURITY', global: true }); // órfão nunca vira sessão
+  });
+
+  it('R2-B. refresh ÓRFÃO ativo + modo normal com sessão corrente → órfão revogado, refresh da corrente preservado (provado pelo ID persistido)', async () => {
+    await build(baseStore(0, 1));
+
+    const result = await service.changePassword(voluntary);
+
+    expect(result.success).toBe(true);
+    const s = fake.store;
+    expect(s.refreshTokens['rt-orfao-1'].revokedAt).toEqual(expect.any(Date));
+    expect(s.refreshTokens['rt-atual'].revokedAt).toBeNull();
+    expect(s.userSessions['sess-atual'].revokedAt).toBeNull();
+    expect(fake.counters['userSession.findUnique']).toBe(1); // corrente localizada pelo id
+    const changed = s.securityEvents.find((e) => e.eventType === 'PASSWORD_CHANGED');
+    expect(changed.metadata).toEqual({
+      restricted: false,
+      otherSessionsRevoked: false,
+      otherSessionsRevokedCount: 0,
+      refreshTokensRevokedCount: 1,
+    });
+    expect(s.securityEvents.some((e) => e.eventType === 'SESSION_REVOKED')).toBe(false);
+    expect(mockDenylist.deny).not.toHaveBeenCalled(); // sem sessão revogada, nada a denylistar
+  });
+
+  it('R2-C. duas outras sessões + refresh órfão → todas as outras sessões e todos os refresh exceto o corrente revogados; contagens fiéis', async () => {
+    await build(baseStore(2, 1));
+
+    await service.changePassword(voluntary);
+
+    const s = fake.store;
+    expect(s.userSessions['sess-1'].revokedReason).toBe('SECURITY');
+    expect(s.userSessions['sess-2'].revokedReason).toBe('SECURITY');
+    expect(s.userSessions['sess-atual'].revokedAt).toBeNull();
+    for (const id of ['rt-1', 'rt-2', 'rt-orfao-1']) expect(s.refreshTokens[id].revokedAt).toEqual(expect.any(Date));
+    expect(s.refreshTokens['rt-atual'].revokedAt).toBeNull();
+    expect(s.refreshTokens['rt-outro-usuario'].revokedAt).toBeNull();
+    const changed = s.securityEvents.find((e) => e.eventType === 'PASSWORD_CHANGED');
+    expect(changed.metadata).toEqual({
+      restricted: false,
+      otherSessionsRevoked: true,
+      otherSessionsRevokedCount: 2,
+      refreshTokensRevokedCount: 3,
+    });
+    expect(s.securityEvents.find((e) => e.eventType === 'SESSION_REVOKED').metadata.count).toBe(2);
+    expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
+  });
+
+  it('R2-D. modo normal com access token SEM sessionId → 401 genérico antes da transação; nada persiste', async () => {
+    const initial = baseStore(1, 1);
+    await build(initial);
+    mockJwt.verify.mockReturnValue({ sub: USER_ID }); // token legado, sem sessionId
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow(
+      'Sessão inválida ou expirada. Faça login novamente.',
+    );
+    expect(fake.prisma.$transaction).not.toHaveBeenCalled();
+    expect(fake.counters['user.update']).toBeUndefined();
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-D2. sessão corrente do token não existe mais no banco → 401 dentro da transação e rollback total', async () => {
+    const initial = baseStore(1, 1);
+    await build(initial);
+    mockJwt.verify.mockReturnValue({ sub: USER_ID, sessionId: 'sess-fantasma' });
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow(
+      'Sessão inválida ou expirada. Faça login novamente.',
+    );
+    expect(fake.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-E. falha ao revogar RefreshToken → rollback completo (nenhum refresh parcialmente revogado)', async () => {
+    const initial = baseStore(2, 1);
+    await build(initial);
+    fake.fails.push({ key: 'refreshToken.updateMany', call: 1, error: new Error('db: refresh down') });
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow('db: refresh down');
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-F. falha em user.update → zero efeitos', async () => {
+    const initial = baseStore(1, 1);
+    await build(initial);
+    fake.fails.push({ key: 'user.update', call: 1, error: new Error('db: user down') });
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow('db: user down');
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-G1. falha no SEGUNDO passwordHistory.create (hash novo) → rollback completo', async () => {
+    const initial = baseStore(1);
+    await build(initial);
+    fake.fails.push({ key: 'passwordHistory.create', call: 2, error: new Error('db: history#2 down') });
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow('db: history#2 down');
+    expect(fake.counters['passwordHistory.create']).toBe(2);
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-G2. falha no pruning do histórico → rollback completo', async () => {
+    const initial = baseStore(1);
+    // 5 entradas antigas: a nova excede o histórico e força o deleteMany.
+    initial.passwordHistory = Array.from({ length: 5 }, (_, i) => ({
+      id: `ph-old-${i}`,
+      userId: USER_ID,
+      hash: `$2a$10$old-${i}`,
+      createdAt: new Date(Date.now() - (10 - i) * 1000),
+    }));
+    await build(initial);
+    (bcrypt.compare as unknown as jest.Mock).mockImplementation(
+      async (_plain: string, hash: string) => hash === OLD_HASH, // senha atual confere; nenhuma do histórico é reuso
+    );
+    fake.fails.push({ key: 'passwordHistory.deleteMany', call: 1, error: new Error('db: prune down') });
+
+    await expect(service.changePassword(voluntary)).rejects.toThrow('db: prune down');
+    expect(fake.counters['passwordHistory.deleteMany']).toBe(1);
+    expectNothingPersisted(initial);
+  });
+
+  it('R2-H. Redis indisponível pelo contrato real em TODAS as sessões → banco commitado, sucesso, log com denylistFailures igual ao total', async () => {
+    await build(baseStore(2));
+    mockDenylist.deny.mockResolvedValue(false);
+
+    const result = await service.changePassword(voluntary);
+
+    expect(result.success).toBe(true);
+    expect(fake.store.userSessions['sess-1'].revokedAt).toEqual(expect.any(Date));
+    expect(fake.store.userSessions['sess-2'].revokedAt).toEqual(expect.any(Date));
+    expect(fake.store.users[USER_ID].passwordHash).toBe('$2a$10$hash-novo');
+    expect(loggerError).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(loggerError.mock.calls[0][0])).toMatchObject({
+      event: 'password_change_denylist_failed',
+      sessionsRevoked: 2,
+      denylistFailures: 2,
+    });
+  });
+
+  it('R2-I. Redis funcionando (deny true em todas) → nenhum log de falha, comportamento atual preservado', async () => {
+    await build(baseStore(2));
+    mockDenylist.deny.mockResolvedValue(true);
+
+    await service.changePassword(voluntary);
+
+    expect(mockDenylist.deny).toHaveBeenCalledTimes(2);
+    expect(loggerError).not.toHaveBeenCalled();
   });
 });
