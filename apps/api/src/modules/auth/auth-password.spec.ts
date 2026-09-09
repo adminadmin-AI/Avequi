@@ -29,6 +29,9 @@ const mockPrisma = {
   securityEvent: {
     create: jest.fn(),
   },
+  // #1146: a troca roda numa transação interativa; nos testes o callback
+  // recebe o próprio mock (as escritas continuam visíveis nos mesmos jest.fn).
+  $transaction: jest.fn(),
 };
 
 const mockJwt = {
@@ -45,6 +48,9 @@ const mockSessionService = {
   attachRefreshToSession: jest.fn(),
   revokeSessionByRefreshTokenId: jest.fn(),
   revokeAllSessions: jest.fn(),
+  // #1146: revogação transacional (dentro da tx) + denylist pós-commit.
+  revokeOtherSessionsInTransaction: jest.fn(),
+  denylistRevokedSessions: jest.fn(),
 };
 
 // #1144: as validações de sessão do change-password são a MESMA policy da
@@ -63,6 +69,7 @@ const mockPasswordPolicy = {
   validateComplexity: jest.fn(),
   assertNotReused: jest.fn(),
   recordPasswordChange: jest.fn(),
+  recordPasswordChangeStrict: jest.fn(),
   getMaxAgeDays: jest.fn(),
   isPasswordExpired: jest.fn(),
   getPolicy: jest.fn(),
@@ -128,6 +135,17 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
     mockSessionService.clearLockout.mockResolvedValue(undefined);
     mockSessionService.createSession.mockResolvedValue({ id: 'sess-1' });
     mockSessionService.revokeAllSessions.mockResolvedValue(1);
+    mockSessionService.revokeOtherSessionsInTransaction.mockResolvedValue({
+      sessionIds: ['sess-outra'],
+      count: 1,
+      companyId: 'company-1',
+      refreshTokensRevokedCount: 2,
+      preservedRefreshTokenId: null,
+    });
+    mockSessionService.denylistRevokedSessions.mockResolvedValue(0);
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+      cb(mockPrisma),
+    );
     mockDenylist.isSessionDenylisted.mockResolvedValue(false);
     mockSessionsAlive.isSessionAliveAndTouch.mockResolvedValue(true);
     mockTenantStatus.getLoginBlock.mockResolvedValue(null);
@@ -136,6 +154,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
     mockPasswordPolicy.validateComplexity.mockReturnValue(undefined);
     mockPasswordPolicy.assertNotReused.mockResolvedValue(undefined);
     mockPasswordPolicy.recordPasswordChange.mockResolvedValue(undefined);
+    mockPasswordPolicy.recordPasswordChangeStrict.mockResolvedValue(undefined);
     mockPasswordPolicy.isPasswordExpired.mockResolvedValue(false);
     mockPrisma.user.update.mockResolvedValue({});
     mockPrisma.securityEvent.create.mockResolvedValue({});
@@ -245,24 +264,40 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
           }),
         }),
       );
-      // Histórico populado com o hash anterior + novo.
-      expect(mockPasswordPolicy.recordPasswordChange).toHaveBeenCalledWith(
+      // Histórico populado com o hash anterior + novo — DENTRO da transação (#1146).
+      expect(mockPasswordPolicy.recordPasswordChangeStrict).toHaveBeenCalledWith(
+        mockPrisma,
         'user-1',
         mockUser.passwordHash,
         expect.any(String),
       );
-      // TODAS as sessões revogadas (sem exceção — modo restrito não tem sessão).
-      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith(
+      expect(mockPasswordPolicy.recordPasswordChange).not.toHaveBeenCalled();
+      // TODAS as sessões revogadas (sem exceção — modo restrito não tem sessão),
+      // na mesma transação; o best-effort antigo não é mais usado aqui.
+      expect(mockSessionService.revokeOtherSessionsInTransaction).toHaveBeenCalledWith(
+        mockPrisma,
         'user-1',
         'SECURITY',
         undefined,
       );
-      // SecurityEvent PASSWORD_CHANGED gravado.
+      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+      // SecurityEvent PASSWORD_CHANGED gravado com contagem real.
       expect(mockPrisma.securityEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ eventType: 'PASSWORD_CHANGED', userId: 'user-1' }),
+          data: expect.objectContaining({
+            eventType: 'PASSWORD_CHANGED',
+            userId: 'user-1',
+            metadata: {
+              restricted: true,
+              otherSessionsRevoked: true,
+              otherSessionsRevokedCount: 1,
+              refreshTokensRevokedCount: 2,
+            },
+          }),
         }),
       );
+      // Denylist só depois do commit, com os ids devolvidos pela transação.
+      expect(mockSessionService.denylistRevokedSessions).toHaveBeenCalledWith(['sess-outra']);
     });
 
     it('ANTI-REPLAY: token restrito emitido ANTES da última troca → 401, nada persistido', async () => {
@@ -289,7 +324,8 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
         }),
       ).rejects.toThrow('Token de troca de senha inválido ou expirado');
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
-      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeOtherSessionsInTransaction).not.toHaveBeenCalled();
     });
 
     it('token restrito emitido DEPOIS da última troca (uso legítimo) → troca normalmente', async () => {
@@ -325,7 +361,8 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
 
       expect(result.success).toBe(true);
       // Revoga as OUTRAS sessões — a atual (sess-atual) sobrevive.
-      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith(
+      expect(mockSessionService.revokeOtherSessionsInTransaction).toHaveBeenCalledWith(
+        mockPrisma,
         'user-1',
         'SECURITY',
         'sess-atual',
@@ -345,7 +382,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
     });
 
     it('senha atual incorreta → 401 e nada é alterado', async () => {
-      mockJwt.verify.mockReturnValue({ sub: 'user-1' });
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', sessionId: 'sess-atual' });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
 
@@ -405,8 +442,9 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
           data: expect.objectContaining({ mustChangePassword: false }),
         }),
       );
-      expect(mockPasswordPolicy.recordPasswordChange).toHaveBeenCalled();
-      expect(mockSessionService.revokeAllSessions).toHaveBeenCalledWith(
+      expect(mockPasswordPolicy.recordPasswordChangeStrict).toHaveBeenCalled();
+      expect(mockSessionService.revokeOtherSessionsInTransaction).toHaveBeenCalledWith(
+        mockPrisma,
         'user-1',
         'SECURITY',
         'sess-cookie',
@@ -556,8 +594,9 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       });
       expect(change.success).toBe(true);
 
-      // 3. Sessões revogadas + evento de segurança.
-      expect(mockSessionService.revokeAllSessions).toHaveBeenCalled();
+      // 3. Sessões revogadas + evento de segurança, na mesma transação.
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockSessionService.revokeOtherSessionsInTransaction).toHaveBeenCalled();
       expect(mockPrisma.securityEvent.create).toHaveBeenCalled();
     });
   });
@@ -580,7 +619,7 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       );
       expect(mockDenylist.isSessionDenylisted).toHaveBeenCalledWith('sess-atual');
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
-      expect(mockSessionService.revokeAllSessions).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeOtherSessionsInTransaction).not.toHaveBeenCalled();
     });
 
     it('sessão encerrada por inatividade (#341) → 401 e nada persistido', async () => {
@@ -600,14 +639,22 @@ describe('AuthService — password policy no login e troca de senha (#345)', () 
       expect(mockJwt.verify).toHaveBeenCalledWith('access-cookie', { algorithms: ['HS256'] });
     });
 
-    it('token legado SEM sessionId (transição #342) → não consulta sessão e segue valendo', async () => {
+    it('#1146 fail-closed: access token normal SEM sessionId → 401 genérico ANTES de qualquer escrita', async () => {
+      // Sem a sessão persistida não há como saber qual refresh preservar.
+      // (A JwtStrategy continua aceitando o token legado — só esta rota nega.)
       mockJwt.verify.mockReturnValue({ sub: 'user-1' });
 
-      const result = await service.changePassword(cookie);
-
-      expect(result.success).toBe(true);
+      await expect(service.changePassword(cookie)).rejects.toThrow(
+        'Sessão inválida ou expirada. Faça login novamente.',
+      );
       expect(mockDenylist.isSessionDenylisted).not.toHaveBeenCalled();
       expect(mockSessionsAlive.isSessionAliveAndTouch).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPasswordPolicy.recordPasswordChangeStrict).not.toHaveBeenCalled();
+      expect(mockSessionService.revokeOtherSessionsInTransaction).not.toHaveBeenCalled();
+      expect(mockPrisma.securityEvent.create).not.toHaveBeenCalled();
+      expect(mockSessionService.denylistRevokedSessions).not.toHaveBeenCalled();
     });
 
     it('modo FORCED (token restrito) NÃO passa pela policy de sessão — é outra credencial', async () => {

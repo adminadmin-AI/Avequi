@@ -100,9 +100,9 @@ export class SessionDenylistService implements OnModuleDestroy {
     } catch (err) {
       this.clientFailed = true;
       this.client = null;
-      this.logger.warn(
-        `Falha ao criar client Redis (denylist de sessões desativada): ${(err as Error).message}`,
-      );
+      // #1146: indisponibilidade (client que nem nasce) é ERROR estruturado,
+      // igual à falha de comando — nunca WARN solto.
+      this.reportUnavailable(`client Redis não criado: ${(err as Error).message}`);
     }
     return this.client;
   }
@@ -131,14 +131,25 @@ export class SessionDenylistService implements OnModuleDestroy {
    * Coloca a sessão na denylist. TTL default = vida do access token derivada
    * do JWT_EXPIRY (não precisa ser mais que isso: depois o token expira
    * sozinho). Best-effort: erro = no-op com log estruturado (fail-open).
+   *
+   * #1146 — resultado OBSERVÁVEL, backward-compatible: devolve `true` só
+   * quando o SET foi confirmado pelo Redis; `false` quando não foi aplicado
+   * (client indisponível/não criado, comando rejeitado ou resposta diferente
+   * de OK). Nunca lança. Chamadores antigos podem ignorar o retorno; quem
+   * precisa de telemetria fiel (troca de senha) conta o retorno real.
    */
-  async deny(sessionId: string, ttlSeconds: number = this.ttlSeconds): Promise<void> {
+  async deny(sessionId: string, ttlSeconds: number = this.ttlSeconds): Promise<boolean> {
     const client = this.getClient();
-    if (!client) return;
+    if (!client) {
+      this.reportUnavailable('client Redis indisponível');
+      return false;
+    }
     try {
-      await client.set(this.key(sessionId), '1', 'EX', ttlSeconds);
+      const reply = await client.set(this.key(sessionId), '1', 'EX', ttlSeconds);
+      return reply === 'OK';
     } catch (err) {
       this.reportUnavailable((err as Error).message);
+      return false;
     }
   }
 

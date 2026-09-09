@@ -1,6 +1,13 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
+
+/**
+ * Client capaz de escrever em gdr_password_history: o PrismaService (modo
+ * best-effort) ou o client de uma transação interativa (modo strict, #1146).
+ */
+export type PasswordHistoryWriter = Pick<Prisma.TransactionClient, 'passwordHistory'>;
 
 /**
  * Política de complexidade de senha (issue #345 — IAM v2 F4.2).
@@ -191,6 +198,8 @@ export class PasswordPolicyService {
    * Na PRIMEIRA troca (histórico vazio) o hash ANTERIOR também entra — assim
    * a senha antiga do usuário já conta para o bloqueio de reuso.
    * Best-effort: falha aqui não pode desfazer uma troca de senha já gravada.
+   * Consumidores que precisam de atomicidade com a troca usam
+   * `recordPasswordChangeStrict` dentro da própria transação (#1146).
    */
   async recordPasswordChange(
     userId: string,
@@ -198,34 +207,61 @@ export class PasswordPolicyService {
     newHash: string,
   ): Promise<void> {
     try {
-      if (previousHash) {
-        const count = await this.prisma.passwordHistory.count({ where: { userId } });
-        if (count === 0) {
-          await this.prisma.passwordHistory.create({
-            // createdAt 1s no passado: garante ordem estável (anterior < nova).
-            data: { userId, hash: previousHash, createdAt: new Date(Date.now() - 1000) },
-          });
-        }
-      }
-
-      await this.prisma.passwordHistory.create({ data: { userId, hash: newHash } });
-
-      // Apara: mantém só as últimas N entradas.
-      const excess = await this.prisma.passwordHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        skip: this.policy.historySize,
-        select: { id: true },
-      });
-      if (excess.length > 0) {
-        await this.prisma.passwordHistory.deleteMany({
-          where: { id: { in: excess.map((e) => e.id) } },
-        });
-      }
+      await this.writePasswordHistory(this.prisma, userId, previousHash, newHash);
     } catch (err) {
       this.logger.warn(
         `Falha ao registrar histórico de senha (best-effort): ${(err as Error).message}`,
       );
+    }
+  }
+
+  /**
+   * #1146 — variante STRICT/transacional do registro de histórico: executa
+   * EXATAMENTE as mesmas escritas de `recordPasswordChange` (hash anterior na
+   * primeira troca, hash novo, pruning das últimas N) sobre o client da
+   * transação recebido e NÃO engole erro — qualquer falha propaga e faz o
+   * rollback de quem abriu a transação. Assim uma senha nova nunca entra
+   * sem o seu histórico.
+   */
+  async recordPasswordChangeStrict(
+    tx: PasswordHistoryWriter,
+    userId: string,
+    previousHash: string | null,
+    newHash: string,
+  ): Promise<void> {
+    await this.writePasswordHistory(tx, userId, previousHash, newHash);
+  }
+
+  /** Escritas do histórico (compartilhadas pelo best-effort e pelo strict). */
+  private async writePasswordHistory(
+    db: PasswordHistoryWriter,
+    userId: string,
+    previousHash: string | null,
+    newHash: string,
+  ): Promise<void> {
+    if (previousHash) {
+      const count = await db.passwordHistory.count({ where: { userId } });
+      if (count === 0) {
+        await db.passwordHistory.create({
+          // createdAt 1s no passado: garante ordem estável (anterior < nova).
+          data: { userId, hash: previousHash, createdAt: new Date(Date.now() - 1000) },
+        });
+      }
+    }
+
+    await db.passwordHistory.create({ data: { userId, hash: newHash } });
+
+    // Apara: mantém só as últimas N entradas.
+    const excess = await db.passwordHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      skip: this.policy.historySize,
+      select: { id: true },
+    });
+    if (excess.length > 0) {
+      await db.passwordHistory.deleteMany({
+        where: { id: { in: excess.map((e) => e.id) } },
+      });
     }
   }
 
