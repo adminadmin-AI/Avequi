@@ -22,6 +22,7 @@ ERP industrial da **GDR Reboques** (substitui o Omie). Monorepo npm workspaces +
 - **API (prod):** https://api.avecchi.ai/api · Swagger em `/docs`
   - O domínio antigo (`avequi-api-production.up.railway.app`) continua ativo e responde igual — é a rede de segurança do rollback, não o endereço oficial.
 - **Versão em prod:** `GET /api/version` → `{version, gitSha, builtAt, env}`
+- **Roadmap das Ondas (sequência, escopo e estado da implantação):** [`docs/ROADMAP-ONDAS-ERP.md`](ROADMAP-ONDAS-ERP.md) — leitura obrigatória antes de responder "em que Onda estamos" ou "o que entra na próxima".
 
 ---
 
