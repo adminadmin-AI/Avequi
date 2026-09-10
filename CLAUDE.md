@@ -4,6 +4,8 @@ ERP industrial desenvolvido para substituir o Omie na GDR Reboques. Fabricante d
 
 > 👥 **Novo no projeto?** Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — acessos, setup local, fluxo de PR/CI e convenções. **A `main` é protegida** (branch → PR → CI verde → merge; sem push direto).
 
+> 🗺️ **Planejamento, sequência, escopo e estado das Ondas do ERP:** leia primeiro [`docs/ROADMAP-ONDAS-ERP.md`](docs/ROADMAP-ONDAS-ERP.md) — é o índice canônico das Ondas (não confundir com as "Fases" abaixo). O que não estiver lá está **A CONFIRMAR**, não deve ser inferido.
+
 ## Stack
 
 | Camada | Tecnologia |
