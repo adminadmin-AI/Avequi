@@ -260,6 +260,30 @@ npm run test:cov      # com cobertura
 
 Este projeto usa **GSD (Get Shit Done)** + **xquads-squads**. Ver `.claude/SETUP.md` para instalar.
 
+### Model Orchestration Policy (V1 — agentes nativos em `.claude/agents/`)
+
+A sessão principal do ERP roda em **Fable 5.1** e atua como **chefe/orquestrador**: decompõe a tarefa, decide, integra e responde. Ela **delega por padrão** toda subtarefa que um modelo menor execute com segurança, via ferramenta `Agent` e os subagentes nativos abaixo (modelo fixo no frontmatter de cada um):
+
+| Subagente | Modelo | Quando delegar |
+|---|---|---|
+| `avequi-explore` | haiku | busca, leitura, mapear chamadas/impacto, perguntas de codebase, classificação simples — **somente leitura** |
+| `avequi-implementer` | sonnet | implementação bem especificada fora do núcleo backend (apps/web, docs, scripts, packages, refactor mecânico), testes junto |
+| `avequi-tests` | sonnet | escrever/ajustar specs, rodar suítes jest unitárias, investigar regressão, resumir falhas (nunca smoke contra ambiente real) |
+| `avequi-nestjs` | sonnet | backend NestJS/Prisma convencional (módulos, DTOs, guards, serviços) |
+| `avequi-mrp` | sonnet | MRP/BOM/produção com especificação clara; risco alto → revisão opus ou volta ao chefe |
+| `avequi-reviewer` | opus | revisão independente: regressão, concorrência, segurança, multi-tenancy, integridade — **somente leitura (Read/Glob/Grep), nunca corrige nem roda comandos** |
+| `avequi-fiscal` | opus | Focus NFe, NF-e/NFC-e, CFOP/CST, IBS/CBS, eventos fiscais, integridade do fluxo fiscal |
+
+**Régua:** HAIKU = descoberta, leitura, mecânico de baixo risco · SONNET = implementação especificada, testes, refactor contido, documentação técnica, investigação média · OPUS = revisão independente, arquitetura delimitada, investigação difícil, fiscal, segurança, integridade, concorrência, análise de risco · **FABLE (chefe)** = decomposição, decisões técnicas/de negócio centrais, integração dos resultados, ambiguidade crítica, arquitetura cross-domain, decisão final em fiscal/financeiro/IAM/integridade, problemas excepcionais.
+
+**Regras:**
+- **Custo:** não executar no Fable trabalho volumoso que um agente mais barato faça com segurança (ler dezenas de arquivos, rodar suítes, implementar o que já foi decidido).
+- **Qualidade:** economia de quota NUNCA justifica rebaixar tarefa crítica abaixo do modelo necessário; na dúvida, sobe.
+- **Escalação:** se Opus não resolve, o problema **volta ao Fable principal**. Na V1 **não existe subagente Fable** e nenhum subagente gera outro agente.
+- **Governança inalterada:** subagentes executam trabalho de desenvolvimento autorizado; nunca ganham autorização implícita para merge, deploy, release, migration, seed, alteração manual de banco, operação em produção, SSO, rotação de segredo, alteração destrutiva ou go-live. Essas ações exigem autorização humana explícita conforme o processo vigente.
+- **Evidência para revisão:** o `avequi-reviewer` não roda comandos; o agente principal (ou `avequi-tests`) coleta diff, logs e resultados de testes e os entrega no prompt da revisão.
+- **Nomes e carregamento:** só os `name:` acima existem como `subagent_type` (nome errado → erro "Agent type not found"). Os agentes de projeto são lidos de `.claude/agents/` do diretório em que a sessão do Claude Code **foi iniciada** — abra a sessão na raiz do repo (ou do worktree) para que existam.
+
 ### Squads mais relevantes
 
 | Squad | Quando usar |
